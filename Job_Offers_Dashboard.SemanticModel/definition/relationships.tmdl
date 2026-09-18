@@ -1,0 +1,38 @@
+relationship 88605a68-d54b-17ab-9b01-6f1490134af6
+	fromColumn: Fact_Offers.company_name
+	toColumn: Dim_Companies.company_name
+
+relationship GeoSelection_to_DimCountry
+	crossFilteringBehavior: bothDirections
+	fromColumn: 'Geo Selection'.Country
+	toColumn: Dim_Country.Country
+
+relationship AutoDetected_eef2444a-b589-4eea-b78d-138728fda3aa
+	fromColumn: Fact_OfferSkills.JobID
+	toColumn: Fact_Offers.job_id
+
+relationship ae05579e-dec3-cd49-5fd2-11f936f1ba52
+	fromColumn: Fact_OfferSkills.Skill
+	toColumn: Dim_SkillList.SkillName
+
+relationship FactOffers_to_DimGeo_Region
+	fromColumn: Fact_Offers.GeoRegion
+	toColumn: Dim_Geo.Region
+
+relationship Fact_to_DimCountry
+	fromColumn: Fact_Offers.GeoCountry
+	toColumn: Dim_Country.Country
+
+relationship 112020d1-aec2-fb35-c16e-e671190a0b46
+	fromColumn: Fact_Offers.posted_date
+	toColumn: Dim_Calendar.Date
+
+relationship MapFeature_to_Bridge
+	fromColumn: MapFeatureBridge.MapKey
+	toColumn: MapFeature.MapKey
+
+relationship Bridge_to_FactOffers
+	crossFilteringBehavior: bothDirections
+	fromColumn: MapFeatureBridge.job_id
+	toColumn: Fact_Offers.job_id
+

@@ -1,0 +1,26 @@
+table 'Salary Min'
+	lineageTag: 6ff2c9b3-f2e3-4c4d-b9e9-0c2810b967fa
+
+	measure 'Valor de Salary Min' = SELECTEDVALUE('Salary Min'[Salary Min])
+		formatString: 0
+		lineageTag: f55558f6-dd45-47b0-98d6-8aae3809f5ff
+
+	column 'Salary Min'
+		formatString: 0
+		lineageTag: e8309a7b-d603-41fd-b05e-8fb7152cfb4f
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition 'Salary Min' = calculated
+		mode: import
+		source = GENERATESERIES(0, 200000, 1000)
+
+	annotation PBI_Id = a15ce4fbdb644acc861049be142236e4
+

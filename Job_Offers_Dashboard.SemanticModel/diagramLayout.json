@@ -1,0 +1,256 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 986.84737549641852,
+        "y": 0
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 0,
+            "y": 80.1875
+          },
+          "nodeIndex": "Dim_Companies",
+          "nodeLineageTag": "4d111c5d-b95c-4d6b-80af-e65e4893a916",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 284,
+            "y": 42.1875
+          },
+          "nodeIndex": "Fact_Offers",
+          "nodeLineageTag": "f1789ee3-685d-4f95-a4df-04ba3abba12a",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 568,
+            "y": 42.1875
+          },
+          "nodeIndex": "Dim_Calendar",
+          "nodeLineageTag": "d7d2e007-1bed-4b53-acad-5c68d51fe6d9",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 938.94018404434917,
+            "y": 479.40303113877019
+          },
+          "nodeIndex": "Dim_Geo",
+          "nodeLineageTag": "758a992b-b833-4553-87d9-932c9f5139ee",
+          "size": {
+            "height": 176,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1136,
+            "y": 92.1875
+          },
+          "nodeIndex": "Dim_Currency",
+          "nodeLineageTag": "8f7a2c1e-9d3b-4c5e-9f1a-2b8d4e6f0a1c",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1420,
+            "y": 128.1875
+          },
+          "nodeIndex": "Dim_SkillList",
+          "nodeLineageTag": "4e6a91f2-cd4e-47a0-bf19-53a77bb06d04",
+          "size": {
+            "height": 128,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 1704,
+            "y": 42.1875
+          },
+          "nodeIndex": "Metrics",
+          "nodeLineageTag": "1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 2304.030594121602,
+            "y": 360.99275507224638
+          },
+          "nodeIndex": "Dim_RegionMap",
+          "nodeLineageTag": "7f2a1b0c-9d8e-4f7a-b6c5-a4b3c2d1e0f9",
+          "size": {
+            "height": 152,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 2556,
+            "y": 128.1875
+          },
+          "nodeIndex": "Fact_OfferSkills",
+          "nodeLineageTag": "0c21c3c4-5d6e-4f70-8a91-b2c3d4e5f607",
+          "size": {
+            "height": 128,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 2840,
+            "y": 104.1875
+          },
+          "nodeIndex": "Dim_Geo_Coords",
+          "nodeLineageTag": "acdf3590-89cf-437c-b6c0-81dd89b68d55",
+          "size": {
+            "height": 176,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 3124,
+            "y": 80.1875
+          },
+          "nodeIndex": "Salary Min",
+          "nodeLineageTag": "6ff2c9b3-f2e3-4c4d-b9e9-0c2810b967fa",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 3408,
+            "y": 80.1875
+          },
+          "nodeIndex": "Salary Max",
+          "nodeLineageTag": "fb7c2c97-7d59-4eb0-b292-fda6bd193563",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 4026.18475118063,
+            "y": 198.79526556938509
+          },
+          "nodeIndex": "Dim_Country",
+          "nodeLineageTag": "575cf493-4e5b-4045-bc8a-e7d1ad3c6477",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 4544.36163941536,
+            "y": 248.79526556938509
+          },
+          "nodeIndex": "Dim_EuropeCountries",
+          "nodeLineageTag": "136756ca-f589-4437-84ef-e89fef41c03e",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 4310.36163941536,
+            "y": 248.12025820182043
+          },
+          "nodeIndex": "Geo Selection",
+          "nodeLineageTag": "0152e23d-e369-482f-a593-5b6505fffb0a",
+          "size": {
+            "height": 128,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 4828.36163941536,
+            "y": 284.29526556938509
+          },
+          "nodeIndex": "Last_Update",
+          "nodeLineageTag": "9b7e8037-abbf-44a7-a561-af8172465b14",
+          "size": {
+            "height": 104,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 5112.36163941536,
+            "y": 218.04526556938509
+          },
+          "nodeIndex": "MapFeature",
+          "nodeLineageTag": "5742fbcb-be44-4c4f-9b9e-1143bc8dcb05",
+          "size": {
+            "height": 224,
+            "width": 234
+          },
+          "zIndex": 0
+        },
+        {
+          "location": {
+            "x": 5396.36163941536,
+            "y": 256.67026556938509
+          },
+          "nodeIndex": "MapFeatureBridge",
+          "nodeLineageTag": "c0f4a906-5150-49aa-aa08-cc74c4b78bf2",
+          "size": {
+            "height": 128,
+            "width": 234
+          },
+          "zIndex": 0
+        }
+      ],
+      "name": "Todas las tablas",
+      "zoomValue": 43.7082120514212,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "Todas las tablas",
+  "defaultDiagram": "Todas las tablas"
+}

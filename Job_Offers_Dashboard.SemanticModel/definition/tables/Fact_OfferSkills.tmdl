@@ -1,0 +1,35 @@
+table Fact_OfferSkills
+	lineageTag: 2c338b6a-db93-43ab-8bab-ae7057013d0d
+
+	column JobID
+		dataType: string
+		lineageTag: 5081a5ae-b40f-4aaa-b5fd-ce128a48738f
+		summarizeBy: none
+		sourceColumn: JobID
+
+		annotation SummarizationSetBy = Automatic
+
+	column Skill
+		dataType: string
+		lineageTag: fddf0666-1c18-4844-808f-f2d391c84fcf
+		summarizeBy: none
+		sourceColumn: Skill
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Fact_OfferSkills = m
+		mode: import
+		queryGroup: 'Fact Tables'
+		source =
+				let
+				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
+				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
+				    ofertas = gold_Schema{[Name="fact_offer_skills",Kind="Table"]}[Data]
+				    in
+				    ofertas
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

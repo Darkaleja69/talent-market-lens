@@ -1,0 +1,43 @@
+# Multi-site Job Scraper — configuracion global compartida
+
+# Roles de Data a buscar en todos los sitios
+roles:
+  - Data Analyst
+  - Data Analytics
+  - Data Scientist
+  - Data Science
+  - Data Engineer
+  - Analytics Engineer
+  - BI Analyst
+  - BI Developer
+  - Python Data
+  - SQL Analyst
+  - Machine Learning Engineer
+  - Data Architect
+  - Business Intelligence
+
+# Volumen y paginacion
+jobs_per_search: 50
+max_detail_jobs: 750
+max_pages: 15
+max_total_jobs: 1000
+
+# Reintentos ante errores de red
+retry:
+  max_retries: 3
+  retry_delay: [3.0, 8.0]
+
+# Delays "humanos" globales [min, max] segundos
+delays:
+  between_pages: [2.0, 5.0]
+  between_details: [3.0, 7.0]
+  between_searches: [5.0, 10.0]
+  request_base: [2.0, 4.0]
+  between_scrolls: [1.5, 3.0]
+  scroll_step_px: [200, 400]
+  post_goto: [2.0, 4.0]
+
+# Salida unificada (merge de todos los scrapers)
+output:
+  csv: "data/merged/jobs_unified.csv"
+  parquet: "data/merged/jobs_unified.parquet"

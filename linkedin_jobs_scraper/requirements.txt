@@ -1,0 +1,11 @@
+# Dependencias del scraper LinkedIn Jobs
+# Stack: patchright (Playwright parcheado anti-deteccion) + pandas/pyarrow (salida tabular)
+# Respaldo: apify-client (actor LinkedIn Jobs Scraper)
+
+patchright>=1.49.0
+pandas>=2.2.0
+pyarrow>=15.0.0
+python-dotenv>=1.0.1
+tenacity>=8.2.3
+apify-client>=1.7.0
+pyyaml>=6.0.1

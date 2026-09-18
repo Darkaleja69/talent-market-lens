@@ -1,0 +1,32 @@
+# Secrets
+.env
+auth/storage_state.json
+auth/profile/
+
+# Datos extraidos (pueden contener info personal de ofertas)
+data/output/
+data/checkpoints/
+data/raw_html/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Logs (rotativos, pueden contener URLs/IDs sensibles)
+data/run.log
+data/run.log.*
+
+# OpenCode agent metadata
+.opencode/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store

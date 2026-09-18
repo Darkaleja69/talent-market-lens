@@ -1,0 +1,197 @@
+table Dim_Geo_Coords
+	lineageTag: acdf3590-89cf-437c-b6c0-81dd89b68d55
+
+	column Country
+		dataType: string
+		lineageTag: 4ed05ea1-85e9-4e58-8493-3e8fe4dc4f08
+		summarizeBy: none
+		sourceColumn: Country
+
+		annotation SummarizationSetBy = Automatic
+
+	column Region
+		dataType: string
+		lineageTag: 53f4cfc2-0b5c-4d31-88fa-003b9c28c145
+		summarizeBy: none
+		sourceColumn: Region
+
+		annotation SummarizationSetBy = Automatic
+
+	column Longitude
+		dataType: double
+		lineageTag: 21459d58-ffef-4e1f-b7ab-96d2b9bcadb0
+		summarizeBy: sum
+		sourceColumn: Longitude
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column Latitude
+		dataType: double
+		lineageTag: abb501e8-b693-4b89-8752-e96abb57a8c7
+		summarizeBy: sum
+		sourceColumn: Latitude
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition Dim_Geo_Coords = m
+		mode: import
+		queryGroup: Dimensions
+		source = ```
+				let 
+				    Tabla = #table(
+				        type table [Country = text, Region = text, Latitude = number,Longitude = number],
+				        {{"Spain", "Spain", 40.4637, -3.7492},
+				        {"Spain", "Madrid", 40.4168, -3.7038},
+				        {"Spain", "Catalonia", 41.3874, 2.1686},
+				        {"Spain", "Valencia", 39.4699, -0.3763},
+				        {"Spain", "Sevilla", 37.3891, -5.9845},
+				        {"Spain", "Basque Country", 42.8467, -2.6716},
+				        {"Spain", "Malaga", 36.7213, -4.4214},
+				        {"Spain", "Zaragoza", 41.6488, -0.8891},
+				        {"Spain", "Granada", 37.1773, -3.5986},
+				        {"Spain", "Pontevedra", 42.4306, -8.6473},
+				        {"Spain", "Murcia", 37.9922, -1.1307},
+				        {"Spain", "Islas Baleares", 39.5696, 2.6502},
+				        {"Spain", "Las Palmas", 28.1235, -15.4363},
+				        {"Spain", "Santa Cruz de Tenerife", 28.4682, -16.2546},
+				        {"Spain", "A Coruna", 43.3623, -8.4115},
+				        {"Spain", "Asturias", 43.3619, -5.8494},
+				        {"Spain", "Cantabria", 43.4623, -3.81},
+				        {"Spain", "Navarra", 42.8125, -1.6458},
+				        {"Spain", "La Rioja", 42.4658, -2.4496},
+				        {"Spain", "Valladolid", 41.6523, -4.7245},
+				        {"Spain", "Alicante", 38.3452, -0.4815},
+				        {"Spain", "Cordoba", 37.8882, -4.7794},
+				        {"Spain", "Salamanca", 40.9701, -5.6635},
+				        {"Spain", "Burgos", 42.3439, -3.6969},
+				        {"Spain", "Andalusia", 37.5443, -4.7278},
+				        {"Spain", "Galicia", 42.7568, -7.9106},
+				        {"Spain", "Castile and Leon", 41.7544, -4.7819},
+				        {"Spain", "Castile-La Mancha", 39.581, -3.0046},
+				        {"Spain", "Canary Islands", 28.2916, -16.6291},
+				        {"Ireland", "Ireland", 53.1424, -8.1547},
+				        {"Ireland", "Dublin", 53.3498, -6.2603},
+				        {"Ireland", "Cork", 51.8985, -8.4756},
+				        {"Ireland", "Galway", 53.2707, -9.0568},
+				        {"Ireland", "Limerick", 52.6638, -8.6267},
+				        {"Ireland", "Waterford", 52.2593, -7.1101},
+				        {"Ireland", "Kilkenny", 52.6541, -7.2448},
+				        {"Ireland", "Sligo", 54.2766, -8.4761},
+				        {"Ireland", "Louth", 53.9979, -6.4057},
+				        {"Ireland", "Westmeath", 53.5254, -7.3383},
+				        {"Ireland", "Kerry", 52.2712, -9.7074},
+				        {"Ireland", "Clare", 52.8431, -8.9867},
+				        {"Ireland", "Wexford", 52.3369, -6.463},
+				        {"Ireland", "Wicklow", 52.9803, -6.045},
+				        {"Ireland", "Carlow", 52.8361, -6.9261},
+				        {"Ireland", "Kildare", 53.2156, -6.6669},
+				        {"Ireland", "Mayo", 53.855, -9.287},
+				        {"Ireland", "Longford", 53.7273, -7.7979},
+				        {"Ireland", "Monaghan", 54.2492, -6.9681},
+				        {"Ireland", "Roscommon", 53.6333, -8.18},
+				        {"Ireland", "Meath", 53.6528, -6.6814},
+				        {"Ireland", "Tipperary", 52.4734, -8.1623},
+				        {"Ireland", "Offaly", 53.273, -7.4885},
+				        {"Ireland", "Leitrim", 53.9469, -8.0901},
+				        {"Ireland", "Laois", 53.0344, -7.3003},
+				        {"Ireland", "Donegal", 54.6546, -8.1043},
+				        {"Ireland", "Cavan", 53.9914, -7.3604},
+				        {"Netherlands", "Netherlands", 52.1326, 5.2913},
+				        {"Netherlands", "North Holland", 52.3874, 4.6462},
+				        {"Netherlands", "South Holland", 52.0705, 4.3007},
+				        {"Netherlands", "Utrecht", 52.0907, 5.1214},
+				        {"Netherlands", "North Brabant", 51.6978, 5.3037},
+				        {"Netherlands", "Groningen", 53.2194, 6.5665},
+				        {"Netherlands", "Gelderland", 51.9851, 5.8987},
+				        {"Netherlands", "Limburg", 50.8514, 5.691},
+				        {"Netherlands", "Overijssel", 52.5168, 6.083},
+				        {"Netherlands", "Flevoland", 52.5185, 5.4714},
+				        {"Netherlands", "Friesland", 53.2012, 5.7999},
+				        {"Netherlands", "Zeeland", 51.4988, 3.6109},
+				        {"Netherlands", "Drenthe", 52.9937, 6.5634},
+				        {"Switzerland", "Switzerland", 46.8182, 8.2275},
+				        {"Switzerland", "Zurich", 47.3769, 8.5417},
+				        {"Switzerland", "Geneva", 46.2044, 6.1432},
+				        {"Switzerland", "Basel-Stadt", 47.5596, 7.5886},
+				        {"Switzerland", "Bern", 46.948, 7.4474},
+				        {"Switzerland", "Vaud", 46.5197, 6.6323},
+				        {"Switzerland", "Lucerne", 47.0502, 8.3093},
+				        {"Switzerland", "St. Gallen", 47.4245, 9.3767},
+				        {"Switzerland", "Ticino", 46.1924, 9.014},
+				        {"Switzerland", "Zug", 47.1662, 8.5155},
+				        {"Switzerland", "Fribourg", 46.8063, 7.1613},
+				        {"Switzerland", "Neuchatel", 46.99, 6.9329},
+				        {"Switzerland", "Aargau", 47.3926, 8.0442},
+				        {"Switzerland", "Schaffhausen", 47.7, 8.6333},
+				        {"Switzerland", "Schwyz", 47.0208, 8.653},
+				        {"Switzerland", "Glarus", 46.9856, 9.0698},
+				        {"Switzerland", "Thurgau", 47.5577, 8.898},
+				        {"Switzerland", "Obwalden", 46.8965, 8.2454},
+				        {"Switzerland", "Solothurn", 47.2079, 7.5371},
+				        {"United States", "United States", 39.8283, -98.5795},
+				        {"United States", "New York", 42.6526, -73.7562},
+				        {"United States", "California", 38.5816, -121.4944},
+				        {"United States", "Illinois", 39.7817, -89.6501},
+				        {"United States", "Texas", 30.2672, -97.7431},
+				        {"United States", "Arizona", 33.4484, -112.074},
+				        {"United States", "Pennsylvania", 40.2732, -76.8867},
+				        {"United States", "Colorado", 39.7392, -104.9903},
+				        {"United States", "District of Columbia", 38.9072, -77.0369},
+				        {"United States", "Massachusetts", 42.3601, -71.0589},
+				        {"United States", "Florida", 30.4383, -84.2807},
+				        {"United States", "Georgia", 33.749, -84.388},
+				        {"United States", "Michigan", 42.7325, -84.5555},
+				        {"United States", "Minnesota", 44.9537, -93.0899},
+				        {"United States", "Nevada", 39.1638, -119.7674},
+				        {"United States", "Oregon", 44.9429, -123.0351},
+				        {"United States", "Tennessee", 36.1627, -86.7816},
+				        {"United States", "Washington", 47.0379, -122.9007},
+				        {"United States", "Virginia", 37.5407, -77.436},
+				        {"United States", "Maryland", 38.9784, -76.4922},
+				        {"United States", "Ohio", 39.9612, -82.9988},
+				        {"United States", "North Carolina", 35.7796, -78.6382},
+				        {"United States", "New Jersey", 40.2206, -74.7597},
+				        {"United States", "Wisconsin", 43.0731, -89.4012},
+				        {"United States", "Missouri", 38.5767, -92.1735},
+				        {"United States", "South Carolina", 34.0007, -81.0348},
+				        {"United States", "Connecticut", 41.7637, -72.6851},
+				        {"United States", "Utah", 40.7608, -111.891},
+				        {"United States", "Louisiana", 30.4515, -91.1871},
+				        {"United States", "Kansas", 39.0473, -95.6752},
+				        {"United States", "Iowa", 41.5868, -93.625},
+				        {"United States", "Kentucky", 38.2009, -84.8733},
+				        {"United States", "New Hampshire", 43.2081, -71.5376},
+				        {"United States", "Arkansas", 34.7465, -92.2896},
+				        {"United States", "Idaho", 43.615, -116.2023},
+				        {"United States", "Hawaii", 21.3069, -157.8583},
+				        {"United States", "Maine", 44.3106, -69.7795},
+				        {"United States", "Delaware", 39.1582, -75.5244},
+				        {"United States", "Oklahoma", 35.4676, -97.5164},
+				        {"United States", "Nebraska", 40.8136, -96.7026},
+				        {"United States", "New Mexico", 35.687, -105.9378},
+				        {"United States", "North Dakota", 46.8083, -100.7837},
+				        {"United States", "Rhode Island", 41.824, -71.4128},
+				        {"United States", "Vermont", 44.2601, -72.5754},
+				        {"United States", "Alaska", 58.3019, -134.4197},
+				        {"United States", "Mississippi", 32.2988, -90.1848},
+				        {"United States", "Montana", 46.5891, -112.0391},
+				        {"United States", "South Dakota", 44.3668, -100.3535},
+				        {"United States", "Wyoming", 41.14, -104.8202},
+				        {"United States", "Alabama", 32.3668, -86.3},
+				        {"United States", "Indiana", 39.7684, -86.1581},
+				        {"United States", "West Virginia", 38.3498, -81.6326},
+				        {"United States", "Puerto Rico", 18.4655, -66.1057},
+				        {"Germany", "Germany", 51.1657, 10.4515},
+				        {"Austria", "Austria", 47.5162, 14.5501}}
+				)
+				in Tabla
+				```
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

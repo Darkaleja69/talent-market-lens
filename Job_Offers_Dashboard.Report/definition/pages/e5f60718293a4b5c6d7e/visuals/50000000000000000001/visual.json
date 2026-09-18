@@ -1,0 +1,77 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "50000000000000000001",
+  "position": {
+    "x": 1250,
+    "y": 650,
+    "z": 510,
+    "height": 190,
+    "width": 620,
+    "tabOrder": 510
+  },
+  "visual": {
+    "visualType": "textbox",
+    "query": {
+      "queryState": {}
+    },
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "Methodology",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI Semibold",
+                      "fontSize": "14pt",
+                      "color": "#0F172A"
+                    }
+                  }
+                ]
+              },
+              {
+                "textRuns": [
+                  {
+                    "value": "Skills: token-based matching with word boundaries and a canonical catalog (no false positives such as Java vs JavaScript); skills_source records whether a value was reused from the source or derived.",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "10pt",
+                      "color": "#475569"
+                    }
+                  }
+                ]
+              },
+              {
+                "textRuns": [
+                  {
+                    "value": "Salaries: normalized to an annual EUR basis (hour x2080, day x260, week x52, month x12) and converted at the ECB snapshot in Dim_Currency; salary_quality flags ok / missing / unknown_period / invalid / outlier_review.",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "10pt",
+                      "color": "#475569"
+                    }
+                  }
+                ]
+              },
+              {
+                "textRuns": [
+                  {
+                    "value": "Experience & work mode: classified from the title first, then the description; experience_level_source records the origin, and work mode is bucketed into Remote / Hybrid / On-site / (Not specified).",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "10pt",
+                      "color": "#475569"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

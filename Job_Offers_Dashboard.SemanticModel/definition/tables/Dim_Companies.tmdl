@@ -1,0 +1,78 @@
+table Dim_Companies
+	lineageTag: 4d111c5d-b95c-4d6b-80af-e65e4893a916
+
+	column company_name
+		dataType: string
+		lineageTag: eaf03121-b237-4565-bfb3-e5c521b63107
+		summarizeBy: none
+		sourceColumn: company_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_industry
+		dataType: string
+		lineageTag: 9427bc51-6118-4446-963c-9b6c4417dc4e
+		summarizeBy: none
+		sourceColumn: company_industry
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_description
+		dataType: string
+		lineageTag: 40cdba26-83fb-4caa-b76e-bceb9af46dd6
+		summarizeBy: none
+		sourceColumn: company_description
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_size
+		dataType: string
+		lineageTag: 5e064d3c-3206-4706-bec6-f839104576c9
+		summarizeBy: none
+		sourceColumn: company_size
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_review_count
+		dataType: int64
+		formatString: 0
+		lineageTag: 01b62d60-8cd6-4b2f-9a9b-6e3ba5bffba7
+		summarizeBy: none
+		sourceColumn: company_review_count
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_rating
+		dataType: double
+		lineageTag: 95d5ec16-9900-4a01-9393-d2ee6928e346
+		summarizeBy: none
+		sourceColumn: company_rating
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column source
+		dataType: string
+		lineageTag: 70548116-59a5-4e92-ad56-92c874a3813e
+		summarizeBy: none
+		sourceColumn: source
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Dim_Companies = m
+		mode: import
+		queryGroup: Dimensions
+		source =
+				let
+				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
+				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
+				    companies_complete_catalog_Table = gold_Schema{[Name="companies_complete_catalog",Kind="Table"]}[Data]
+				in
+				    companies_complete_catalog_Table
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

@@ -1,0 +1,35 @@
+table Dim_SkillList
+	lineageTag: 012620c7-0034-4576-ae21-3a419cc2445d
+
+	column SkillName
+		dataType: string
+		lineageTag: eca62251-f109-405b-9aee-b453848250d5
+		summarizeBy: none
+		sourceColumn: SkillName
+
+		annotation SummarizationSetBy = Automatic
+
+	column SkillCategory
+		dataType: string
+		lineageTag: f83c99f4-2d1c-4ae9-beab-990a6dd0c55f
+		summarizeBy: none
+		sourceColumn: SkillCategory
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Dim_SkillList = m
+		mode: import
+		queryGroup: Dimensions
+		source =
+				let
+				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
+				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
+				    dim_skill_list = gold_Schema{[Name="dim_skill_list",Kind="Table"]}[Data]
+				in
+				    dim_skill_list
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

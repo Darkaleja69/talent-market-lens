@@ -1,0 +1,96 @@
+{
+  "country": "Switzerland",
+  "source": "Capitales/centroids administrativos (investigacion web)",
+  "regions": [
+    {
+      "region": "Zurich",
+      "latitude": 47.3769,
+      "longitude": 8.5417
+    },
+    {
+      "region": "Geneva",
+      "latitude": 46.2044,
+      "longitude": 6.1432
+    },
+    {
+      "region": "Basel-Stadt",
+      "latitude": 47.5596,
+      "longitude": 7.5886
+    },
+    {
+      "region": "Bern",
+      "latitude": 46.948,
+      "longitude": 7.4474
+    },
+    {
+      "region": "Vaud",
+      "latitude": 46.5197,
+      "longitude": 6.6323
+    },
+    {
+      "region": "Lucerne",
+      "latitude": 47.0502,
+      "longitude": 8.3093
+    },
+    {
+      "region": "St. Gallen",
+      "latitude": 47.4245,
+      "longitude": 9.3767
+    },
+    {
+      "region": "Ticino",
+      "latitude": 46.1924,
+      "longitude": 9.014
+    },
+    {
+      "region": "Zug",
+      "latitude": 47.1662,
+      "longitude": 8.5155
+    },
+    {
+      "region": "Fribourg",
+      "latitude": 46.8063,
+      "longitude": 7.1613
+    },
+    {
+      "region": "Neuchatel",
+      "latitude": 46.99,
+      "longitude": 6.9329
+    },
+    {
+      "region": "Aargau",
+      "latitude": 47.3926,
+      "longitude": 8.0442
+    },
+    {
+      "region": "Schaffhausen",
+      "latitude": 47.7,
+      "longitude": 8.6333
+    },
+    {
+      "region": "Schwyz",
+      "latitude": 47.0208,
+      "longitude": 8.653
+    },
+    {
+      "region": "Glarus",
+      "latitude": 46.9856,
+      "longitude": 9.0698
+    },
+    {
+      "region": "Thurgau",
+      "latitude": 47.5577,
+      "longitude": 8.898
+    },
+    {
+      "region": "Obwalden",
+      "latitude": 46.8965,
+      "longitude": 8.2454
+    },
+    {
+      "region": "Solothurn",
+      "latitude": 47.2079,
+      "longitude": 7.5371
+    }
+  ]
+}

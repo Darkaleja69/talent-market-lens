@@ -1,0 +1,282 @@
+table Fact_Offers
+	lineageTag: f1789ee3-685d-4f95-a4df-04ba3abba12a
+
+	column job_id
+		dataType: string
+		lineageTag: 8eba1338-f3ed-452f-8c5f-4025fdf00085
+		summarizeBy: none
+		sourceColumn: job_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column job_url
+		dataType: string
+		lineageTag: 37e310d2-7f9a-487d-9650-b1995f16ab09
+		dataCategory: WebUrl
+		summarizeBy: none
+		sourceColumn: job_url
+
+		annotation SummarizationSetBy = Automatic
+
+	column title
+		dataType: string
+		lineageTag: f4cf02d0-1ceb-4db7-bee6-cf418b518262
+		summarizeBy: none
+		sourceColumn: title
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_name
+		dataType: string
+		lineageTag: 82a9e193-553e-4c95-8cdb-c81aedb12ac4
+		summarizeBy: none
+		sourceColumn: company_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column location_city
+		dataType: string
+		lineageTag: 3672d6a3-e742-47e7-9b90-0164030d23f5
+		summarizeBy: none
+		sourceColumn: location_city
+
+		annotation SummarizationSetBy = Automatic
+
+	column location_region
+		dataType: string
+		lineageTag: 32d63e16-b0e0-4948-8429-0b3fae37ef65
+		summarizeBy: none
+		sourceColumn: location_region
+
+		annotation SummarizationSetBy = Automatic
+
+	column location_country
+		dataType: string
+		lineageTag: b1bce1c2-80dd-4b17-b3b0-a86a0f279c03
+		summarizeBy: none
+		sourceColumn: location_country
+
+		annotation SummarizationSetBy = Automatic
+
+	column posted_date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 50335e2d-51ae-4433-a1a9-bc2e14b969e0
+		summarizeBy: none
+		sourceColumn: posted_date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column work_mode
+		dataType: string
+		lineageTag: 73838700-1789-4203-9220-2fc59bfc1bed
+		summarizeBy: none
+		sourceColumn: work_mode
+
+		annotation SummarizationSetBy = Automatic
+
+	column is_salary_available
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 11cc489a-6960-46fe-a3e7-da7ea42e6faa
+		summarizeBy: none
+		sourceColumn: is_salary_available
+
+		annotation SummarizationSetBy = Automatic
+
+	column salary_currency
+		dataType: string
+		lineageTag: f1ccfdd4-e3d7-478c-b68d-0ace445f6770
+		summarizeBy: none
+		sourceColumn: salary_currency
+
+		annotation SummarizationSetBy = Automatic
+
+	column salary_period
+		dataType: string
+		lineageTag: b3b05739-809f-4d62-bdce-8bea4c99b1c9
+		summarizeBy: none
+		sourceColumn: salary_period
+
+		annotation SummarizationSetBy = Automatic
+
+	column experience_level
+		dataType: string
+		lineageTag: b54fcf9b-9030-4357-8caa-89f8aef24fb7
+		summarizeBy: none
+		sourceColumn: experience_level
+
+		annotation SummarizationSetBy = Automatic
+
+	column description_clean
+		dataType: string
+		lineageTag: de72f769-4d0e-4d05-815f-8581fe3f17d9
+		summarizeBy: none
+		sourceColumn: description_clean
+
+		annotation SummarizationSetBy = Automatic
+
+	column skills
+		dataType: string
+		lineageTag: 51d442f5-ad10-4cfe-9767-515e63077821
+		summarizeBy: none
+		sourceColumn: skills
+
+		annotation SummarizationSetBy = Automatic
+
+	column source_scraper
+		dataType: string
+		lineageTag: be1a1c05-c9ba-4335-a57c-dbdecddfcd11
+		summarizeBy: none
+		sourceColumn: source_scraper
+
+		annotation SummarizationSetBy = Automatic
+
+	column employment_type
+		dataType: string
+		lineageTag: 9f0b7f37-b23e-43d6-8ff5-d892f177e1c2
+		summarizeBy: none
+		sourceColumn: employment_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column role_category
+		dataType: string
+		lineageTag: 5aaaf621-31c7-4939-8167-061df873de0e
+		summarizeBy: none
+		sourceColumn: role_category
+
+		annotation SummarizationSetBy = Automatic
+
+	column SalaryMinAnnual_EUR
+		dataType: double
+		formatString: #,##0
+		lineageTag: cb6bb803-443b-4143-8c42-5f1adec20f49
+		summarizeBy: sum
+		sourceColumn: SalaryMinAnnual_EUR
+
+		annotation SummarizationSetBy = Automatic
+
+	column SalaryMaxAnnual_EUR
+		dataType: double
+		formatString: #,##0
+		lineageTag: 309aca42-8a4d-4bc6-9a24-f88a541f1a53
+		summarizeBy: sum
+		sourceColumn: SalaryMaxAnnual_EUR
+
+		annotation SummarizationSetBy = Automatic
+
+	column SalaryMidAnnual_EUR
+		dataType: double
+		formatString: #,##0
+		lineageTag: 61811fbb-aa2c-433c-9ff1-ed5a7ae99206
+		summarizeBy: sum
+		sourceColumn: SalaryMidAnnual_EUR
+
+		annotation SummarizationSetBy = Automatic
+
+	column PostedYearMonth
+		dataType: string
+		lineageTag: 449d2875-0c01-4770-9133-e701c490a9be
+		summarizeBy: none
+		sourceColumn: PostedYearMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column WorkModeBucket
+		dataType: string
+		lineageTag: 285c328a-1c68-423d-bd5a-1775af021306
+		summarizeBy: none
+		sourceColumn: WorkModeBucket
+
+		annotation SummarizationSetBy = Automatic
+
+	column salary_quality
+		dataType: string
+		lineageTag: 18a4ab1b-2d61-47ba-a814-d6735cf4e780
+		summarizeBy: none
+		sourceColumn: salary_quality
+
+		annotation SummarizationSetBy = Automatic
+
+	column skills_source
+		dataType: string
+		lineageTag: de5b5775-9108-40d9-83a5-a9f16b32d60f
+		summarizeBy: none
+		sourceColumn: skills_source
+
+		annotation SummarizationSetBy = Automatic
+
+	column experience_level_source
+		dataType: string
+		lineageTag: 900982a0-0386-4ffd-8c06-badc521aaf84
+		summarizeBy: none
+		sourceColumn: experience_level_source
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Clave para el mapa regional: Country|Region.
+	column MapKey = 'Fact_Offers'[location_country] & "|" & 'Fact_Offers'[location_region]
+		dataType: string
+		lineageTag: b45fa413-ad70-437b-a604-cbdf0dd3e694
+		summarizeBy: none
+
+	column posted_date_raw
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 2d3ca1bd-8df9-45e3-b124-4092e3f8ec06
+		summarizeBy: none
+		sourceColumn: posted_date_raw
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column posted_date_source
+		dataType: string
+		lineageTag: be87e843-8b8d-4ca1-9c32-2d8e20d8495a
+		summarizeBy: none
+		sourceColumn: posted_date_source
+
+		annotation SummarizationSetBy = Automatic
+
+	column GeoCountry
+		dataType: string
+		lineageTag: aee42fde-7152-4ed3-87c9-61145b0c0644
+		summarizeBy: none
+		sourceColumn: GeoCountry
+
+		annotation SummarizationSetBy = Automatic
+
+	column GeoRegion
+		dataType: string
+		lineageTag: 05fb9883-0c8a-461f-857c-a0affbbd8e52
+		summarizeBy: none
+		sourceColumn: GeoRegion
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Fact_Offers = m
+		mode: import
+		queryGroup: 'Fact Tables'
+		source =
+				let
+				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
+				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
+				    ofertas = gold_Schema{[Name="fact_offers",Kind="Table"]}[Data],
+				    conGeo = Table.AddColumn(ofertas, "GeoCountry", each let C = try Text.Trim([location_country]) otherwise "" in if C = "" or C = "(Not specified)" then "(Not specified)" else if List.Contains({"CA","FL","PA"}, C) then "United States" else if C = "Alemania" then "Germany" else if List.Contains({"Austria y Suiza","Austria and Switzerland"}, C) then "Austria" else if C = "Oriente Medio y África" then "Middle East & Africa" else C, type text),
+				    conRegPrep = Table.AddColumn(conGeo, "__C", each try Text.Trim([location_country]) otherwise "", type text),
+				    conRegPrep2 = Table.AddColumn(conRegPrep, "__R", each try Text.Trim([location_region]) otherwise "", type text),
+				    MergeReg = Table.NestedJoin(conRegPrep2, {"__C","__R"}, Dim_RegionMap, {"SourceCountry","SourceRegion"}, "Reg", JoinKind.LeftOuter),
+				    conReg = Table.AddColumn(MergeReg, "GeoRegion", each try [Reg][TargetRegion]{0} otherwise "(Other)", type text),
+				    sinReg = Table.RemoveColumns(conReg, {"__C","__R","Reg"})
+				    in
+				    sinReg
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

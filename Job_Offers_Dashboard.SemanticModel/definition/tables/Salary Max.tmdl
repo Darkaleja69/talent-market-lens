@@ -1,0 +1,26 @@
+table 'Salary Max'
+	lineageTag: fb7c2c97-7d59-4eb0-b292-fda6bd193563
+
+	measure 'Valor de Salary Max' = SELECTEDVALUE('Salary Max'[Salary Max], 200000)
+		formatString: 0
+		lineageTag: c6034cc6-58d3-4d92-b17a-0ab6b7f53443
+
+	column 'Salary Max'
+		formatString: 0
+		lineageTag: 5ff9e0f5-f867-4683-808d-c6e6b7a0191b
+		summarizeBy: none
+		sourceColumn: [Value]
+
+		extendedProperty ParameterMetadata =
+				{
+				  "version": 0
+				}
+
+		annotation SummarizationSetBy = User
+
+	partition 'Salary Max' = calculated
+		mode: import
+		source = GENERATESERIES(0, 2000000, 1000)
+
+	annotation PBI_Id = bbec17b837c74df4884270fd1f7997eb
+

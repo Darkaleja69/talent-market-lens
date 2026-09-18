@@ -1,0 +1,27 @@
+table Last_Update
+	lineageTag: 9b7e8037-abbf-44a7-a561-af8172465b14
+
+	column Last_Update
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 11a01e24-7636-42d6-be45-c17dbeeddb9c
+		summarizeBy: none
+		sourceColumn: Last_Update
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	partition Last_Update = m
+		mode: import
+		queryGroup: Dimensions
+		source =
+				let
+				    Origen = Date.From(DateTimeZone.FixedUtcNow())
+				in
+				    Origen
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Date
+

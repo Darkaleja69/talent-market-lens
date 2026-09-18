@@ -1,0 +1,266 @@
+{
+  "country": "United States",
+  "source": "Capitales/centroids administrativos (investigacion web)",
+  "regions": [
+    {
+      "region": "New York",
+      "latitude": 42.6526,
+      "longitude": -73.7562
+    },
+    {
+      "region": "California",
+      "latitude": 38.5816,
+      "longitude": -121.4944
+    },
+    {
+      "region": "Illinois",
+      "latitude": 39.7817,
+      "longitude": -89.6501
+    },
+    {
+      "region": "Texas",
+      "latitude": 30.2672,
+      "longitude": -97.7431
+    },
+    {
+      "region": "Arizona",
+      "latitude": 33.4484,
+      "longitude": -112.074
+    },
+    {
+      "region": "Pennsylvania",
+      "latitude": 40.2732,
+      "longitude": -76.8867
+    },
+    {
+      "region": "Colorado",
+      "latitude": 39.7392,
+      "longitude": -104.9903
+    },
+    {
+      "region": "District of Columbia",
+      "latitude": 38.9072,
+      "longitude": -77.0369
+    },
+    {
+      "region": "Massachusetts",
+      "latitude": 42.3601,
+      "longitude": -71.0589
+    },
+    {
+      "region": "Florida",
+      "latitude": 30.4383,
+      "longitude": -84.2807
+    },
+    {
+      "region": "Georgia",
+      "latitude": 33.749,
+      "longitude": -84.388
+    },
+    {
+      "region": "Michigan",
+      "latitude": 42.7325,
+      "longitude": -84.5555
+    },
+    {
+      "region": "Minnesota",
+      "latitude": 44.9537,
+      "longitude": -93.0899
+    },
+    {
+      "region": "Nevada",
+      "latitude": 39.1638,
+      "longitude": -119.7674
+    },
+    {
+      "region": "Oregon",
+      "latitude": 44.9429,
+      "longitude": -123.0351
+    },
+    {
+      "region": "Tennessee",
+      "latitude": 36.1627,
+      "longitude": -86.7816
+    },
+    {
+      "region": "Washington",
+      "latitude": 47.0379,
+      "longitude": -122.9007
+    },
+    {
+      "region": "Virginia",
+      "latitude": 37.5407,
+      "longitude": -77.436
+    },
+    {
+      "region": "Maryland",
+      "latitude": 38.9784,
+      "longitude": -76.4922
+    },
+    {
+      "region": "Ohio",
+      "latitude": 39.9612,
+      "longitude": -82.9988
+    },
+    {
+      "region": "North Carolina",
+      "latitude": 35.7796,
+      "longitude": -78.6382
+    },
+    {
+      "region": "New Jersey",
+      "latitude": 40.2206,
+      "longitude": -74.7597
+    },
+    {
+      "region": "Wisconsin",
+      "latitude": 43.0731,
+      "longitude": -89.4012
+    },
+    {
+      "region": "Missouri",
+      "latitude": 38.5767,
+      "longitude": -92.1735
+    },
+    {
+      "region": "South Carolina",
+      "latitude": 34.0007,
+      "longitude": -81.0348
+    },
+    {
+      "region": "Connecticut",
+      "latitude": 41.7637,
+      "longitude": -72.6851
+    },
+    {
+      "region": "Utah",
+      "latitude": 40.7608,
+      "longitude": -111.891
+    },
+    {
+      "region": "Louisiana",
+      "latitude": 30.4515,
+      "longitude": -91.1871
+    },
+    {
+      "region": "Kansas",
+      "latitude": 39.0473,
+      "longitude": -95.6752
+    },
+    {
+      "region": "Iowa",
+      "latitude": 41.5868,
+      "longitude": -93.625
+    },
+    {
+      "region": "Kentucky",
+      "latitude": 38.2009,
+      "longitude": -84.8733
+    },
+    {
+      "region": "New Hampshire",
+      "latitude": 43.2081,
+      "longitude": -71.5376
+    },
+    {
+      "region": "Arkansas",
+      "latitude": 34.7465,
+      "longitude": -92.2896
+    },
+    {
+      "region": "Idaho",
+      "latitude": 43.615,
+      "longitude": -116.2023
+    },
+    {
+      "region": "Hawaii",
+      "latitude": 21.3069,
+      "longitude": -157.8583
+    },
+    {
+      "region": "Maine",
+      "latitude": 44.3106,
+      "longitude": -69.7795
+    },
+    {
+      "region": "Delaware",
+      "latitude": 39.1582,
+      "longitude": -75.5244
+    },
+    {
+      "region": "Oklahoma",
+      "latitude": 35.4676,
+      "longitude": -97.5164
+    },
+    {
+      "region": "Nebraska",
+      "latitude": 40.8136,
+      "longitude": -96.7026
+    },
+    {
+      "region": "New Mexico",
+      "latitude": 35.687,
+      "longitude": -105.9378
+    },
+    {
+      "region": "North Dakota",
+      "latitude": 46.8083,
+      "longitude": -100.7837
+    },
+    {
+      "region": "Rhode Island",
+      "latitude": 41.824,
+      "longitude": -71.4128
+    },
+    {
+      "region": "Vermont",
+      "latitude": 44.2601,
+      "longitude": -72.5754
+    },
+    {
+      "region": "Alaska",
+      "latitude": 58.3019,
+      "longitude": -134.4197
+    },
+    {
+      "region": "Mississippi",
+      "latitude": 32.2988,
+      "longitude": -90.1848
+    },
+    {
+      "region": "Montana",
+      "latitude": 46.5891,
+      "longitude": -112.0391
+    },
+    {
+      "region": "South Dakota",
+      "latitude": 44.3668,
+      "longitude": -100.3535
+    },
+    {
+      "region": "Wyoming",
+      "latitude": 41.14,
+      "longitude": -104.8202
+    },
+    {
+      "region": "Alabama",
+      "latitude": 32.3668,
+      "longitude": -86.3
+    },
+    {
+      "region": "Indiana",
+      "latitude": 39.7684,
+      "longitude": -86.1581
+    },
+    {
+      "region": "West Virginia",
+      "latitude": 38.3498,
+      "longitude": -81.6326
+    },
+    {
+      "region": "Puerto Rico",
+      "latitude": 18.4655,
+      "longitude": -66.1057
+    }
+  ]
+}

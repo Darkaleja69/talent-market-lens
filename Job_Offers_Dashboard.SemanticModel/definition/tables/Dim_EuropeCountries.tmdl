@@ -1,0 +1,36 @@
+/// Países del shape europe.json para dibujar el fondo de Europa en el mapa.
+table Dim_EuropeCountries
+	lineageTag: 136756ca-f589-4437-84ef-e89fef41c03e
+
+	column Country
+		lineageTag: e47dc501-d4b3-4da0-8b06-36a2578ff088
+		isNameInferred
+		sourceColumn: [Country]
+
+	partition Dim_EuropeCountries = calculated
+		mode: import
+		source =
+				DATATABLE (
+				    "Country", STRING,
+				    {
+				        { "Denmark" },
+				        { "Ireland" },
+				        { "Austria" },
+				        { "Czech Republic" },
+				        { "Finland" },
+				        { "France" },
+				        { "Germany" },
+				        { "Italy" },
+				        { "Belgium" },
+				        { "Luxembourg" },
+				        { "Netherlands" },
+				        { "Norway" },
+				        { "Poland" },
+				        { "Portugal" },
+				        { "Spain" },
+				        { "Sweden" },
+				        { "Switzerland" },
+				        { "United Kingdom" }
+				    }
+				)
+

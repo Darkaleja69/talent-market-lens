@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# Power BI (PBIP)
+# ---------------------------------------------------------------------------
+**/.pbi/localSettings.json
+**/.pbi/cache.abf
+**/.pbi/**
+
+# ---------------------------------------------------------------------------
+# Secretos y configuracion local (NUNCA versionar)
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.env
+!*.env.example
+secrets/
+*.key
+*.pem
+*.pfx
+config.local.*
+
+# ---------------------------------------------------------------------------
+# Datos reales / staging / cuarentena / logs
+# ---------------------------------------------------------------------------
+logs/
+*.log
+quarantine/
+landing/
+output/
+**/output/
+data/
+**/data/
+*.parquet
+*.csv
+*.jsonl
+
+# Ofertas reales, perfiles de navegador y diccionarios de contrasenas
+**/indeed_jobs_*.json
+**/chrome_profile/
+**/chrome_cdp_profile/
+**/*passwords*.txt
+**/ZxcvbnData/
+
+# Sesiones autenticadas / perfiles de navegador (NUNCA publicar)
+**/auth/
+**/storage_state.json
+**/Crashpad/
+**/Cache_Data/
+**/Cookies
+**/Login Data
+
+# ---------------------------------------------------------------------------
+# Backups y artefactos
+# ---------------------------------------------------------------------------
+backup_*/
+*.bak
+*.tmp
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Herramientas locales (opencode)
+# ---------------------------------------------------------------------------
+.opencode/
+**/.opencode/
+
+# ---------------------------------------------------------------------------
+# Sistema operativo / editor
+# ---------------------------------------------------------------------------
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/

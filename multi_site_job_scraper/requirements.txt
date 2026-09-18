@@ -1,0 +1,24 @@
+# Multi-site Job Scraper — dependencias
+# Stack compartido:
+#   - IrishJobs/StepStone: requests + beautifulsoup4 (HTTP, sin navegador)
+#   - jobs.ch: patchright (Playwright parcheado anti-deteccion)
+#   - Todos: pandas + pyarrow (salida tabular)
+
+# HTTP scraping (IrishJobs, StepStone NL)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# Browser scraping (jobs.ch, future glassdoor)
+patchright>=1.49.0
+
+# Data output
+pandas>=2.2.0
+pyarrow>=15.0.0
+
+# Config & env
+python-dotenv>=1.0.1
+pyyaml>=6.0.1
+
+# Traduccion offline NL/DE -> EN (paso previo al merge unificado)
+argostranslate>=1.9.0

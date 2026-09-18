@@ -1,0 +1,136 @@
+{
+  "country": "Ireland",
+  "source": "Capitales/centroids administrativos (investigacion web)",
+  "regions": [
+    {
+      "region": "Dublin",
+      "latitude": 53.3498,
+      "longitude": -6.2603
+    },
+    {
+      "region": "Cork",
+      "latitude": 51.8985,
+      "longitude": -8.4756
+    },
+    {
+      "region": "Galway",
+      "latitude": 53.2707,
+      "longitude": -9.0568
+    },
+    {
+      "region": "Limerick",
+      "latitude": 52.6638,
+      "longitude": -8.6267
+    },
+    {
+      "region": "Waterford",
+      "latitude": 52.2593,
+      "longitude": -7.1101
+    },
+    {
+      "region": "Kilkenny",
+      "latitude": 52.6541,
+      "longitude": -7.2448
+    },
+    {
+      "region": "Sligo",
+      "latitude": 54.2766,
+      "longitude": -8.4761
+    },
+    {
+      "region": "Louth",
+      "latitude": 53.9979,
+      "longitude": -6.4057
+    },
+    {
+      "region": "Westmeath",
+      "latitude": 53.5254,
+      "longitude": -7.3383
+    },
+    {
+      "region": "Kerry",
+      "latitude": 52.2712,
+      "longitude": -9.7074
+    },
+    {
+      "region": "Clare",
+      "latitude": 52.8431,
+      "longitude": -8.9867
+    },
+    {
+      "region": "Wexford",
+      "latitude": 52.3369,
+      "longitude": -6.463
+    },
+    {
+      "region": "Wicklow",
+      "latitude": 52.9803,
+      "longitude": -6.045
+    },
+    {
+      "region": "Carlow",
+      "latitude": 52.8361,
+      "longitude": -6.9261
+    },
+    {
+      "region": "Kildare",
+      "latitude": 53.2156,
+      "longitude": -6.6669
+    },
+    {
+      "region": "Mayo",
+      "latitude": 53.855,
+      "longitude": -9.287
+    },
+    {
+      "region": "Longford",
+      "latitude": 53.7273,
+      "longitude": -7.7979
+    },
+    {
+      "region": "Monaghan",
+      "latitude": 54.2492,
+      "longitude": -6.9681
+    },
+    {
+      "region": "Roscommon",
+      "latitude": 53.6333,
+      "longitude": -8.18
+    },
+    {
+      "region": "Meath",
+      "latitude": 53.6528,
+      "longitude": -6.6814
+    },
+    {
+      "region": "Tipperary",
+      "latitude": 52.4734,
+      "longitude": -8.1623
+    },
+    {
+      "region": "Offaly",
+      "latitude": 53.273,
+      "longitude": -7.4885
+    },
+    {
+      "region": "Leitrim",
+      "latitude": 53.9469,
+      "longitude": -8.0901
+    },
+    {
+      "region": "Laois",
+      "latitude": 53.0344,
+      "longitude": -7.3003
+    },
+    {
+      "region": "Donegal",
+      "latitude": 54.6546,
+      "longitude": -8.1043
+    },
+    {
+      "region": "Cavan",
+      "latitude": 53.9914,
+      "longitude": -7.3604
+    }
+  ]
+}

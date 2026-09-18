@@ -1,0 +1,414 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "c7b1d635ad0185cd3780",
+  "position": {
+    "x": 153.52226720647775,
+    "y": 66.072874493927131,
+    "z": 5000,
+    "height": 985.263157894737,
+    "width": 1725.6680161943323,
+    "tabOrder": 5000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "title"
+                }
+              },
+              "queryRef": "Fact_Offers.title",
+              "nativeQueryRef": "Job Title (link for the posting)",
+              "displayName": "Job Title (link for the posting)"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "company_name"
+                }
+              },
+              "queryRef": "Fact_Offers.company_name",
+              "nativeQueryRef": "Company",
+              "displayName": "Company"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "location_country"
+                }
+              },
+              "queryRef": "Fact_Offers.location_country",
+              "nativeQueryRef": "Country",
+              "displayName": "Country"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "location_city"
+                }
+              },
+              "queryRef": "Fact_Offers.location_city",
+              "nativeQueryRef": "City",
+              "displayName": "City"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "WorkModeBucket"
+                }
+              },
+              "queryRef": "Fact_Offers.WorkModeBucket",
+              "nativeQueryRef": "Work Mode",
+              "displayName": "Work Mode"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Metrics"
+                    }
+                  },
+                  "Property": "Median Min Salary EUR"
+                }
+              },
+              "queryRef": "Metrics.Median Min Salary EUR",
+              "nativeQueryRef": "Annual median salary",
+              "displayName": "Annual median salary"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "posted_date"
+                }
+              },
+              "queryRef": "Fact_Offers.posted_date",
+              "nativeQueryRef": "Posted date",
+              "displayName": "Posted date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "source_scraper"
+                }
+              },
+              "queryRef": "Fact_Offers.source_scraper",
+              "nativeQueryRef": "Source",
+              "displayName": "Source"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "Fact_Offers"
+                    }
+                  },
+                  "Property": "role_category"
+                }
+              },
+              "queryRef": "Fact_Offers.role_category",
+              "nativeQueryRef": "Role category",
+              "displayName": "Role category"
+            }
+          ]
+        }
+      }
+    },
+    "objects": {
+      "total": [
+        {
+          "properties": {
+            "totals": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "columnWidth": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "337.0155929755865D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Fact_Offers.company_name"
+          }
+        },
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "469.51647482705016D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Fact_Offers.title"
+          }
+        },
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "172.08508411296202D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Fact_Offers.location_city"
+          }
+        },
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "123.58435108061005D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Fact_Offers.posted_date"
+          }
+        },
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "131.63658915325806D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Fact_Offers.role_category"
+          }
+        }
+      ],
+      "columnHeaders": [
+        {
+          "properties": {}
+        }
+      ],
+      "values": [
+        {
+          "properties": {
+            "webURL": {
+              "expr": {
+                "Aggregation": {
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "job_url"
+                    }
+                  },
+                  "Function": 3
+                }
+              }
+            }
+          },
+          "selector": {
+            "data": [
+              {
+                "dataViewWildcard": {
+                  "matchingOption": 1
+                }
+              }
+            ],
+            "metadata": "Fact_Offers.title"
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "43d32b3740e3007d7914",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "title"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "4a488b7ecea1230a070b",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "company_name"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "eb789d330a05a1155cb4",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "location_city"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "8aa0ed557d47801965c5",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "WorkModeBucket"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "52063fc9c749a7dcd609",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Metrics"
+              }
+            },
+            "Property": "Median Min Salary EUR"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "38b980704bc500731a7e",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "posted_date"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "3d74713c80d0a765989c",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "source_scraper"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "0a13c8a4a580ec34d707",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "role_category"
+          }
+        },
+        "type": "Categorical"
+      },
+      {
+        "name": "fd796971674c5529288a",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Fact_Offers"
+              }
+            },
+            "Property": "location_country"
+          }
+        },
+        "type": "Categorical"
+      }
+    ]
+  }
+}

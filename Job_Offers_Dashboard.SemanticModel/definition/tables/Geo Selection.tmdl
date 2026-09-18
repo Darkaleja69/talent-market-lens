@@ -1,0 +1,48 @@
+/// Tabla puente: selección (Europe o país) a país. Europe incluye los países europeos y las ofertas con GeoCountry='Europe'.
+table 'Geo Selection'
+	lineageTag: 0152e23d-e369-482f-a593-5b6505fffb0a
+
+	column Selection
+		lineageTag: 44cb04e1-0c2a-4f13-886d-88801c3c4af1
+		isNameInferred
+		sourceColumn: [Selection]
+
+	column Country
+		lineageTag: 7824476d-2956-4b8a-9cf5-dd181b204f60
+		isNameInferred
+		sourceColumn: [Country]
+
+	partition 'Geo Selection' = calculated
+		mode: import
+		source =
+				DATATABLE (
+				    "Selection", STRING,
+				    "Country", STRING,
+				    {
+				        { "Europe", "Spain" },
+				        { "Europe", "Ireland" },
+				        { "Europe", "Netherlands" },
+				        { "Europe", "Switzerland" },
+				        { "Europe", "Europe" },
+				        { "Europe", "Denmark" },
+				        { "Europe", "Austria" },
+				        { "Europe", "Czech Republic" },
+				        { "Europe", "Finland" },
+				        { "Europe", "France" },
+				        { "Europe", "Germany" },
+				        { "Europe", "Italy" },
+				        { "Europe", "Belgium" },
+				        { "Europe", "Luxembourg" },
+				        { "Europe", "Norway" },
+				        { "Europe", "Poland" },
+				        { "Europe", "Portugal" },
+				        { "Europe", "Sweden" },
+				        { "Europe", "United Kingdom" },
+				        { "Spain", "Spain" },
+				        { "Ireland", "Ireland" },
+				        { "Netherlands", "Netherlands" },
+				        { "Switzerland", "Switzerland" },
+				        { "United States", "United States" }
+				    }
+				)
+

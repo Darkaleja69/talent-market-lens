@@ -1,0 +1,868 @@
+{
+  "columns": [
+    "Country",
+    "Region",
+    "Latitude",
+    "Longitude"
+  ],
+  "rows": [
+    {
+      "Country": "Spain",
+      "Region": "Spain",
+      "Latitude": 40.4637,
+      "Longitude": -3.7492
+    },
+    {
+      "Country": "Spain",
+      "Region": "Madrid",
+      "Latitude": 40.4168,
+      "Longitude": -3.7038
+    },
+    {
+      "Country": "Spain",
+      "Region": "Catalonia",
+      "Latitude": 41.3874,
+      "Longitude": 2.1686
+    },
+    {
+      "Country": "Spain",
+      "Region": "Valencia",
+      "Latitude": 39.4699,
+      "Longitude": -0.3763
+    },
+    {
+      "Country": "Spain",
+      "Region": "Sevilla",
+      "Latitude": 37.3891,
+      "Longitude": -5.9845
+    },
+    {
+      "Country": "Spain",
+      "Region": "Basque Country",
+      "Latitude": 42.8467,
+      "Longitude": -2.6716
+    },
+    {
+      "Country": "Spain",
+      "Region": "Malaga",
+      "Latitude": 36.7213,
+      "Longitude": -4.4214
+    },
+    {
+      "Country": "Spain",
+      "Region": "Zaragoza",
+      "Latitude": 41.6488,
+      "Longitude": -0.8891
+    },
+    {
+      "Country": "Spain",
+      "Region": "Granada",
+      "Latitude": 37.1773,
+      "Longitude": -3.5986
+    },
+    {
+      "Country": "Spain",
+      "Region": "Pontevedra",
+      "Latitude": 42.4306,
+      "Longitude": -8.6473
+    },
+    {
+      "Country": "Spain",
+      "Region": "Murcia",
+      "Latitude": 37.9922,
+      "Longitude": -1.1307
+    },
+    {
+      "Country": "Spain",
+      "Region": "Islas Baleares",
+      "Latitude": 39.5696,
+      "Longitude": 2.6502
+    },
+    {
+      "Country": "Spain",
+      "Region": "Las Palmas",
+      "Latitude": 28.1235,
+      "Longitude": -15.4363
+    },
+    {
+      "Country": "Spain",
+      "Region": "Santa Cruz de Tenerife",
+      "Latitude": 28.4682,
+      "Longitude": -16.2546
+    },
+    {
+      "Country": "Spain",
+      "Region": "A Coruna",
+      "Latitude": 43.3623,
+      "Longitude": -8.4115
+    },
+    {
+      "Country": "Spain",
+      "Region": "Asturias",
+      "Latitude": 43.3619,
+      "Longitude": -5.8494
+    },
+    {
+      "Country": "Spain",
+      "Region": "Cantabria",
+      "Latitude": 43.4623,
+      "Longitude": -3.81
+    },
+    {
+      "Country": "Spain",
+      "Region": "Navarra",
+      "Latitude": 42.8125,
+      "Longitude": -1.6458
+    },
+    {
+      "Country": "Spain",
+      "Region": "La Rioja",
+      "Latitude": 42.4658,
+      "Longitude": -2.4496
+    },
+    {
+      "Country": "Spain",
+      "Region": "Valladolid",
+      "Latitude": 41.6523,
+      "Longitude": -4.7245
+    },
+    {
+      "Country": "Spain",
+      "Region": "Alicante",
+      "Latitude": 38.3452,
+      "Longitude": -0.4815
+    },
+    {
+      "Country": "Spain",
+      "Region": "Cordoba",
+      "Latitude": 37.8882,
+      "Longitude": -4.7794
+    },
+    {
+      "Country": "Spain",
+      "Region": "Salamanca",
+      "Latitude": 40.9701,
+      "Longitude": -5.6635
+    },
+    {
+      "Country": "Spain",
+      "Region": "Burgos",
+      "Latitude": 42.3439,
+      "Longitude": -3.6969
+    },
+    {
+      "Country": "Spain",
+      "Region": "Andalusia",
+      "Latitude": 37.5443,
+      "Longitude": -4.7278
+    },
+    {
+      "Country": "Spain",
+      "Region": "Galicia",
+      "Latitude": 42.7568,
+      "Longitude": -7.9106
+    },
+    {
+      "Country": "Spain",
+      "Region": "Castile and Leon",
+      "Latitude": 41.7544,
+      "Longitude": -4.7819
+    },
+    {
+      "Country": "Spain",
+      "Region": "Castile-La Mancha",
+      "Latitude": 39.581,
+      "Longitude": -3.0046
+    },
+    {
+      "Country": "Spain",
+      "Region": "Canary Islands",
+      "Latitude": 28.2916,
+      "Longitude": -16.6291
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Ireland",
+      "Latitude": 53.1424,
+      "Longitude": -8.1547
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Dublin",
+      "Latitude": 53.3498,
+      "Longitude": -6.2603
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Cork",
+      "Latitude": 51.8985,
+      "Longitude": -8.4756
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Galway",
+      "Latitude": 53.2707,
+      "Longitude": -9.0568
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Limerick",
+      "Latitude": 52.6638,
+      "Longitude": -8.6267
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Waterford",
+      "Latitude": 52.2593,
+      "Longitude": -7.1101
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Kilkenny",
+      "Latitude": 52.6541,
+      "Longitude": -7.2448
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Sligo",
+      "Latitude": 54.2766,
+      "Longitude": -8.4761
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Louth",
+      "Latitude": 53.9979,
+      "Longitude": -6.4057
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Westmeath",
+      "Latitude": 53.5254,
+      "Longitude": -7.3383
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Kerry",
+      "Latitude": 52.2712,
+      "Longitude": -9.7074
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Clare",
+      "Latitude": 52.8431,
+      "Longitude": -8.9867
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Wexford",
+      "Latitude": 52.3369,
+      "Longitude": -6.463
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Wicklow",
+      "Latitude": 52.9803,
+      "Longitude": -6.045
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Carlow",
+      "Latitude": 52.8361,
+      "Longitude": -6.9261
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Kildare",
+      "Latitude": 53.2156,
+      "Longitude": -6.6669
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Mayo",
+      "Latitude": 53.855,
+      "Longitude": -9.287
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Longford",
+      "Latitude": 53.7273,
+      "Longitude": -7.7979
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Monaghan",
+      "Latitude": 54.2492,
+      "Longitude": -6.9681
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Roscommon",
+      "Latitude": 53.6333,
+      "Longitude": -8.18
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Meath",
+      "Latitude": 53.6528,
+      "Longitude": -6.6814
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Tipperary",
+      "Latitude": 52.4734,
+      "Longitude": -8.1623
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Offaly",
+      "Latitude": 53.273,
+      "Longitude": -7.4885
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Leitrim",
+      "Latitude": 53.9469,
+      "Longitude": -8.0901
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Laois",
+      "Latitude": 53.0344,
+      "Longitude": -7.3003
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Donegal",
+      "Latitude": 54.6546,
+      "Longitude": -8.1043
+    },
+    {
+      "Country": "Ireland",
+      "Region": "Cavan",
+      "Latitude": 53.9914,
+      "Longitude": -7.3604
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Netherlands",
+      "Latitude": 52.1326,
+      "Longitude": 5.2913
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "North Holland",
+      "Latitude": 52.3874,
+      "Longitude": 4.6462
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "South Holland",
+      "Latitude": 52.0705,
+      "Longitude": 4.3007
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Utrecht",
+      "Latitude": 52.0907,
+      "Longitude": 5.1214
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "North Brabant",
+      "Latitude": 51.6978,
+      "Longitude": 5.3037
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Groningen",
+      "Latitude": 53.2194,
+      "Longitude": 6.5665
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Gelderland",
+      "Latitude": 51.9851,
+      "Longitude": 5.8987
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Limburg",
+      "Latitude": 50.8514,
+      "Longitude": 5.691
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Overijssel",
+      "Latitude": 52.5168,
+      "Longitude": 6.083
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Flevoland",
+      "Latitude": 52.5185,
+      "Longitude": 5.4714
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Friesland",
+      "Latitude": 53.2012,
+      "Longitude": 5.7999
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Zeeland",
+      "Latitude": 51.4988,
+      "Longitude": 3.6109
+    },
+    {
+      "Country": "Netherlands",
+      "Region": "Drenthe",
+      "Latitude": 52.9937,
+      "Longitude": 6.5634
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Switzerland",
+      "Latitude": 46.8182,
+      "Longitude": 8.2275
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Zurich",
+      "Latitude": 47.3769,
+      "Longitude": 8.5417
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Geneva",
+      "Latitude": 46.2044,
+      "Longitude": 6.1432
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Basel-Stadt",
+      "Latitude": 47.5596,
+      "Longitude": 7.5886
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Bern",
+      "Latitude": 46.948,
+      "Longitude": 7.4474
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Vaud",
+      "Latitude": 46.5197,
+      "Longitude": 6.6323
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Lucerne",
+      "Latitude": 47.0502,
+      "Longitude": 8.3093
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "St. Gallen",
+      "Latitude": 47.4245,
+      "Longitude": 9.3767
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Ticino",
+      "Latitude": 46.1924,
+      "Longitude": 9.014
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Zug",
+      "Latitude": 47.1662,
+      "Longitude": 8.5155
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Fribourg",
+      "Latitude": 46.8063,
+      "Longitude": 7.1613
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Neuchatel",
+      "Latitude": 46.99,
+      "Longitude": 6.9329
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Aargau",
+      "Latitude": 47.3926,
+      "Longitude": 8.0442
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Schaffhausen",
+      "Latitude": 47.7,
+      "Longitude": 8.6333
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Schwyz",
+      "Latitude": 47.0208,
+      "Longitude": 8.653
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Glarus",
+      "Latitude": 46.9856,
+      "Longitude": 9.0698
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Thurgau",
+      "Latitude": 47.5577,
+      "Longitude": 8.898
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Obwalden",
+      "Latitude": 46.8965,
+      "Longitude": 8.2454
+    },
+    {
+      "Country": "Switzerland",
+      "Region": "Solothurn",
+      "Latitude": 47.2079,
+      "Longitude": 7.5371
+    },
+    {
+      "Country": "United States",
+      "Region": "United States",
+      "Latitude": 39.8283,
+      "Longitude": -98.5795
+    },
+    {
+      "Country": "United States",
+      "Region": "New York",
+      "Latitude": 42.6526,
+      "Longitude": -73.7562
+    },
+    {
+      "Country": "United States",
+      "Region": "California",
+      "Latitude": 38.5816,
+      "Longitude": -121.4944
+    },
+    {
+      "Country": "United States",
+      "Region": "Illinois",
+      "Latitude": 39.7817,
+      "Longitude": -89.6501
+    },
+    {
+      "Country": "United States",
+      "Region": "Texas",
+      "Latitude": 30.2672,
+      "Longitude": -97.7431
+    },
+    {
+      "Country": "United States",
+      "Region": "Arizona",
+      "Latitude": 33.4484,
+      "Longitude": -112.074
+    },
+    {
+      "Country": "United States",
+      "Region": "Pennsylvania",
+      "Latitude": 40.2732,
+      "Longitude": -76.8867
+    },
+    {
+      "Country": "United States",
+      "Region": "Colorado",
+      "Latitude": 39.7392,
+      "Longitude": -104.9903
+    },
+    {
+      "Country": "United States",
+      "Region": "District of Columbia",
+      "Latitude": 38.9072,
+      "Longitude": -77.0369
+    },
+    {
+      "Country": "United States",
+      "Region": "Massachusetts",
+      "Latitude": 42.3601,
+      "Longitude": -71.0589
+    },
+    {
+      "Country": "United States",
+      "Region": "Florida",
+      "Latitude": 30.4383,
+      "Longitude": -84.2807
+    },
+    {
+      "Country": "United States",
+      "Region": "Georgia",
+      "Latitude": 33.749,
+      "Longitude": -84.388
+    },
+    {
+      "Country": "United States",
+      "Region": "Michigan",
+      "Latitude": 42.7325,
+      "Longitude": -84.5555
+    },
+    {
+      "Country": "United States",
+      "Region": "Minnesota",
+      "Latitude": 44.9537,
+      "Longitude": -93.0899
+    },
+    {
+      "Country": "United States",
+      "Region": "Nevada",
+      "Latitude": 39.1638,
+      "Longitude": -119.7674
+    },
+    {
+      "Country": "United States",
+      "Region": "Oregon",
+      "Latitude": 44.9429,
+      "Longitude": -123.0351
+    },
+    {
+      "Country": "United States",
+      "Region": "Tennessee",
+      "Latitude": 36.1627,
+      "Longitude": -86.7816
+    },
+    {
+      "Country": "United States",
+      "Region": "Washington",
+      "Latitude": 47.0379,
+      "Longitude": -122.9007
+    },
+    {
+      "Country": "United States",
+      "Region": "Virginia",
+      "Latitude": 37.5407,
+      "Longitude": -77.436
+    },
+    {
+      "Country": "United States",
+      "Region": "Maryland",
+      "Latitude": 38.9784,
+      "Longitude": -76.4922
+    },
+    {
+      "Country": "United States",
+      "Region": "Ohio",
+      "Latitude": 39.9612,
+      "Longitude": -82.9988
+    },
+    {
+      "Country": "United States",
+      "Region": "North Carolina",
+      "Latitude": 35.7796,
+      "Longitude": -78.6382
+    },
+    {
+      "Country": "United States",
+      "Region": "New Jersey",
+      "Latitude": 40.2206,
+      "Longitude": -74.7597
+    },
+    {
+      "Country": "United States",
+      "Region": "Wisconsin",
+      "Latitude": 43.0731,
+      "Longitude": -89.4012
+    },
+    {
+      "Country": "United States",
+      "Region": "Missouri",
+      "Latitude": 38.5767,
+      "Longitude": -92.1735
+    },
+    {
+      "Country": "United States",
+      "Region": "South Carolina",
+      "Latitude": 34.0007,
+      "Longitude": -81.0348
+    },
+    {
+      "Country": "United States",
+      "Region": "Connecticut",
+      "Latitude": 41.7637,
+      "Longitude": -72.6851
+    },
+    {
+      "Country": "United States",
+      "Region": "Utah",
+      "Latitude": 40.7608,
+      "Longitude": -111.891
+    },
+    {
+      "Country": "United States",
+      "Region": "Louisiana",
+      "Latitude": 30.4515,
+      "Longitude": -91.1871
+    },
+    {
+      "Country": "United States",
+      "Region": "Kansas",
+      "Latitude": 39.0473,
+      "Longitude": -95.6752
+    },
+    {
+      "Country": "United States",
+      "Region": "Iowa",
+      "Latitude": 41.5868,
+      "Longitude": -93.625
+    },
+    {
+      "Country": "United States",
+      "Region": "Kentucky",
+      "Latitude": 38.2009,
+      "Longitude": -84.8733
+    },
+    {
+      "Country": "United States",
+      "Region": "New Hampshire",
+      "Latitude": 43.2081,
+      "Longitude": -71.5376
+    },
+    {
+      "Country": "United States",
+      "Region": "Arkansas",
+      "Latitude": 34.7465,
+      "Longitude": -92.2896
+    },
+    {
+      "Country": "United States",
+      "Region": "Idaho",
+      "Latitude": 43.615,
+      "Longitude": -116.2023
+    },
+    {
+      "Country": "United States",
+      "Region": "Hawaii",
+      "Latitude": 21.3069,
+      "Longitude": -157.8583
+    },
+    {
+      "Country": "United States",
+      "Region": "Maine",
+      "Latitude": 44.3106,
+      "Longitude": -69.7795
+    },
+    {
+      "Country": "United States",
+      "Region": "Delaware",
+      "Latitude": 39.1582,
+      "Longitude": -75.5244
+    },
+    {
+      "Country": "United States",
+      "Region": "Oklahoma",
+      "Latitude": 35.4676,
+      "Longitude": -97.5164
+    },
+    {
+      "Country": "United States",
+      "Region": "Nebraska",
+      "Latitude": 40.8136,
+      "Longitude": -96.7026
+    },
+    {
+      "Country": "United States",
+      "Region": "New Mexico",
+      "Latitude": 35.687,
+      "Longitude": -105.9378
+    },
+    {
+      "Country": "United States",
+      "Region": "North Dakota",
+      "Latitude": 46.8083,
+      "Longitude": -100.7837
+    },
+    {
+      "Country": "United States",
+      "Region": "Rhode Island",
+      "Latitude": 41.824,
+      "Longitude": -71.4128
+    },
+    {
+      "Country": "United States",
+      "Region": "Vermont",
+      "Latitude": 44.2601,
+      "Longitude": -72.5754
+    },
+    {
+      "Country": "United States",
+      "Region": "Alaska",
+      "Latitude": 58.3019,
+      "Longitude": -134.4197
+    },
+    {
+      "Country": "United States",
+      "Region": "Mississippi",
+      "Latitude": 32.2988,
+      "Longitude": -90.1848
+    },
+    {
+      "Country": "United States",
+      "Region": "Montana",
+      "Latitude": 46.5891,
+      "Longitude": -112.0391
+    },
+    {
+      "Country": "United States",
+      "Region": "South Dakota",
+      "Latitude": 44.3668,
+      "Longitude": -100.3535
+    },
+    {
+      "Country": "United States",
+      "Region": "Wyoming",
+      "Latitude": 41.14,
+      "Longitude": -104.8202
+    },
+    {
+      "Country": "United States",
+      "Region": "Alabama",
+      "Latitude": 32.3668,
+      "Longitude": -86.3
+    },
+    {
+      "Country": "United States",
+      "Region": "Indiana",
+      "Latitude": 39.7684,
+      "Longitude": -86.1581
+    },
+    {
+      "Country": "United States",
+      "Region": "West Virginia",
+      "Latitude": 38.3498,
+      "Longitude": -81.6326
+    },
+    {
+      "Country": "United States",
+      "Region": "Puerto Rico",
+      "Latitude": 18.4655,
+      "Longitude": -66.1057
+    },
+    {
+      "Country": "Germany",
+      "Region": "Germany",
+      "Latitude": 51.1657,
+      "Longitude": 10.4515
+    },
+    {
+      "Country": "Austria",
+      "Region": "Austria",
+      "Latitude": 47.5162,
+      "Longitude": 14.5501
+    }
+  ]
+}

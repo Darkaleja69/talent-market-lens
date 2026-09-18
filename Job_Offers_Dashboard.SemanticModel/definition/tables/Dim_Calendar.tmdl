@@ -1,0 +1,143 @@
+table Dim_Calendar
+	lineageTag: b2905304-1848-4894-8448-ccc7c6202465
+
+	column Date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 371e4638-3041-42a1-81d6-2abb969e556d
+		summarizeBy: none
+		sourceColumn: Date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column DateKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 52f00cab-6474-4f62-9075-8267ebb23532
+		summarizeBy: none
+		sourceColumn: DateKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: 160a1a30-8bd3-4d02-a9b2-1e1f2d8ba413
+		summarizeBy: none
+		sourceColumn: Year
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: 6d9b24b3-8690-4800-97df-01f425abcb28
+		summarizeBy: none
+		sourceColumn: MonthNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthName
+		dataType: string
+		lineageTag: e463c868-d461-49b8-b539-2296863385ca
+		summarizeBy: none
+		sourceColumn: MonthName
+
+		annotation SummarizationSetBy = Automatic
+
+	column ShortMonth
+		dataType: string
+		lineageTag: 88431b53-e488-43b5-b9cb-66a89050d56d
+		summarizeBy: none
+		sourceColumn: ShortMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonth
+		dataType: string
+		lineageTag: cb761898-d93e-42ad-9f60-b449d5f011b3
+		summarizeBy: none
+		sourceColumn: YearMonth
+
+		annotation SummarizationSetBy = Automatic
+
+	column Quarter
+		dataType: int64
+		formatString: 0
+		lineageTag: b7b72d6f-545c-4046-91bf-519149ce2743
+		summarizeBy: none
+		sourceColumn: Quarter
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearQuarter
+		dataType: string
+		lineageTag: 459c0e45-e804-4f80-bd73-7cc71dc81e9e
+		summarizeBy: none
+		sourceColumn: YearQuarter
+
+		annotation SummarizationSetBy = Automatic
+
+	column WeekISO
+		dataType: int64
+		formatString: 0
+		lineageTag: d271dfc0-2124-4024-a168-3e4052044433
+		summarizeBy: none
+		sourceColumn: WeekISO
+
+		annotation SummarizationSetBy = Automatic
+
+	column Day
+		dataType: int64
+		formatString: 0
+		lineageTag: 131f9f3a-5964-4673-a3f4-e773f9c74ada
+		summarizeBy: none
+		sourceColumn: Day
+
+		annotation SummarizationSetBy = Automatic
+
+	column WeekDay
+		dataType: int64
+		formatString: 0
+		lineageTag: 897322b3-e0da-413d-8e3c-e39caebf5e23
+		summarizeBy: none
+		sourceColumn: WeekDay
+
+		annotation SummarizationSetBy = Automatic
+
+	column DayName
+		dataType: string
+		lineageTag: 8a609a63-2551-4c93-b5fb-ddde218e331f
+		summarizeBy: none
+		sourceColumn: DayName
+
+		annotation SummarizationSetBy = Automatic
+
+	column IsWeekend
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: bf1db8fc-2063-4414-a999-1896df9875f9
+		summarizeBy: none
+		sourceColumn: IsWeekend
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Dim_Calendar = m
+		mode: import
+		queryGroup: Dimensions
+		source =
+				let
+				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
+				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
+				    dim_calendar = gold_Schema{[Name="dim_calendar",Kind="Table"]}[Data],
+				    #"Filas filtradas" = Table.SelectRows(dim_calendar, each [Year] >= 2025 and [Year] <= 2027)
+				in
+				    #"Filas filtradas"
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "Job_Offers_Dashboard"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "9bc3f838-ccf2-4548-b2a7-a8a6488036f8"
+  }
+}

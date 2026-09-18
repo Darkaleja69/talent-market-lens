@@ -1,0 +1,65 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "20000000000000000001",
+  "position": {
+    "x": 50,
+    "y": 214,
+    "z": 300,
+    "height": 104,
+    "width": 1240,
+    "tabOrder": 300
+  },
+  "visual": {
+    "visualType": "textbox",
+    "query": {
+      "queryState": {}
+    },
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "How the data is built",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI Semibold",
+                      "fontSize": "14pt",
+                      "color": "#0F172A"
+                    }
+                  }
+                ]
+              },
+              {
+                "textRuns": [
+                  {
+                    "value": "Scraping (Python)  →  Azure Data Lake Gen2  →  Databricks Bronze (Auto Loader)  →  Silver (MERGE by job_id)  →  PySpark enrichment  →  Gold star schema  →  Power BI",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "11pt",
+                      "color": "#1D4ED8"
+                    }
+                  }
+                ]
+              },
+              {
+                "textRuns": [
+                  {
+                    "value": "Seven job boards are scraped daily and uploaded as Parquet to ADLS Gen2. Databricks ingests new files with Auto Loader (Bronze) and upserts them into a deduplicated Silver table with MERGE. A PySpark layer derives skills, annual salaries in EUR, work mode and normalized geography; the Gold layer exposes a star schema that this report consumes.",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "11pt",
+                      "color": "#475569"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

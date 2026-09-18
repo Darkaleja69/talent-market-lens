@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/bookmarksMetadata/1.0.0/schema.json",
+  "items": [
+    {
+      "name": "31daa076090481ce10aa",
+      "displayName": "Market Pulse",
+      "children": [
+        "bm_panel_open_ca119cac145af4d072c0",
+        "bm_panel_closed_ca119cac145af4d072c0",
+        "bm_panel_clear_ca119cac145af4d072c0"
+      ]
+    },
+    {
+      "name": "f6d2d633001b102a5734",
+      "displayName": "Roles & Skills",
+      "children": [
+        "aa6cb465c6752cac2986",
+        "198ecbc78e1840335abe",
+        "0cf767864db28770269c"
+      ]
+    },
+    {
+      "name": "c0d1df1fb3a13a86e06b",
+      "displayName": "Salary Insights",
+      "children": [
+        "a1178b1add089483803f",
+        "2b83abcca08c757a2965",
+        "f95b7d8fb5df5e6f9e13"
+      ]
+    },
+    {
+      "name": "be3b37ac6036934254c8",
+      "displayName": "Opportunity Explorer",
+      "children": [
+        "4a127cfba033a560a99a",
+        "f3b2d7f21077d5052f63",
+        "add9a9d7eb5d5dc8a5e9"
+      ]
+    }
+  ]
+}

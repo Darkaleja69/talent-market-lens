@@ -1,0 +1,11 @@
+# Indeed Jobs Scraper - dependencias
+# Stack: patchright (Playwright con stealth integrado) para renderizar SPAs React de Indeed
+# y evadir deteccion de bots de forma pasiva.
+
+patchright>=1.49.0          # Fork de Playwright con stealth integrado
+fake-useragent>=1.5.1       # User-Agents reales de Chrome
+pandas>=2.2.0               # DataFrames y export CSV
+openpyxl>=3.1.2             # Backend XLSX con formato
+pyarrow>=15.0.0             # Backend Parquet (esquema tipado, nativo Spark/Databricks)
+deltalake>=0.18.0           # Delta Lake (nativo Databricks, ACID, time travel)
+python-dotenv>=1.0.1        # Variables de entorno

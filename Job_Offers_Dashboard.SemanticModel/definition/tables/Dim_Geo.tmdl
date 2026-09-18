@@ -1,0 +1,124 @@
+table Dim_Geo
+	lineageTag: 758a992b-b833-4553-87d9-932c9f5139ee
+
+	column Country
+		dataType: string
+		lineageTag: 9ef16772-f257-42a0-959b-a8654ee66f2d
+		summarizeBy: none
+		sourceColumn: Country
+
+		annotation SummarizationSetBy = Automatic
+
+	column Region
+		dataType: string
+		lineageTag: 5c542553-2373-44d5-8d1a-fb4dcf19df7c
+		summarizeBy: none
+		sourceColumn: Region
+
+		annotation SummarizationSetBy = Automatic
+
+	/// Clave para el mapa regional: Country|Region.
+	column MapKey = 'Dim_Geo'[Country] & "|" & 'Dim_Geo'[Region]
+		dataType: string
+		lineageTag: 2b50302d-5b4c-441a-b059-1ed6803b551c
+		summarizeBy: none
+
+	column City
+		dataType: string
+		lineageTag: 0e6f93a9-1416-4e1b-b2d3-82a96b4c51da
+		summarizeBy: none
+		sourceColumn: City
+
+	partition Dim_Geo = m
+		mode: import
+		queryGroup: Dimensions
+		source =
+				let
+				    Tabla = #table(
+				        type table [Country = text, Region = text, City = text],
+				        {
+				            {"Spain", "Madrid", "Madrid"},
+				            {"Spain", "Catalonia", "Barcelona"},
+				            {"Spain", "Valencia", "Valencia"},
+				            {"Spain", "Sevilla", "Sevilla"},
+				            {"Spain", "Basque Country", "Bilbao"},
+				            {"Spain", "Málaga", "Málaga"},
+				            {"Spain", "Zaragoza", "Zaragoza"},
+				            {"Spain", "Granada", "Granada"},
+				            {"Spain", "Pontevedra", "Vigo"},
+				            {"Spain", "Murcia", "Murcia"},
+				            {"Spain", "Islas Baleares", "Palma"},
+				            {"Spain", "Las Palmas", "Las Palmas de Gran Canaria"},
+				            {"Spain", "Santa Cruz de Tenerife", "Santa Cruz de Tenerife"},
+				            {"Spain", "A Coruña", "A Coruña"},
+				            {"Spain", "Asturias", "Oviedo"},
+				            {"Spain", "Cantabria", "Santander"},
+				            {"Spain", "Navarra", "Pamplona"},
+				            {"Spain", "La Rioja", "Logroño"},
+				            {"Spain", "Valladolid", "Valladolid"},
+				            {"Spain", "Alicante", "Alicante"},
+				            {"Spain", "Córdoba", "Córdoba"},
+				            {"Spain", "Salamanca", "Salamanca"},
+				            {"Spain", "Burgos", "Burgos"},
+				            {"Ireland", "Dublin", "Dublin"},
+				            {"Ireland", "Cork", "Cork"},
+				            {"Ireland", "Galway", "Galway"},
+				            {"Ireland", "Limerick", "Limerick"},
+				            {"Ireland", "Waterford", "Waterford"},
+				            {"Ireland", "Kilkenny", "Kilkenny"},
+				            {"Ireland", "Sligo", "Sligo"},
+				            {"Ireland", "Louth", "Drogheda"},
+				            {"Ireland", "Westmeath", "Athlone"},
+				            {"Ireland", "Kerry", "Tralee"},
+				            {"Ireland", "Clare", "Ennis"},
+				            {"Ireland", "Wexford", "Wexford"},
+				            {"Netherlands", "North Holland", "Amsterdam"},
+				            {"Netherlands", "South Holland", "Rotterdam"},
+				            {"Netherlands", "Utrecht", "Utrecht"},
+				            {"Netherlands", "North Brabant", "Eindhoven"},
+				            {"Netherlands", "Groningen", "Groningen"},
+				            {"Netherlands", "Gelderland", "Nijmegen"},
+				            {"Netherlands", "Limburg", "Maastricht"},
+				            {"Netherlands", "Overijssel", "Zwolle"},
+				            {"Netherlands", "Flevoland", "Almere"},
+				            {"Switzerland", "Zurich", "Zurich"},
+				            {"Switzerland", "Geneva", "Geneva"},
+				            {"Switzerland", "Basel-Stadt", "Basel"},
+				            {"Switzerland", "Bern", "Bern"},
+				            {"Switzerland", "Vaud", "Lausanne"},
+				            {"Switzerland", "Lucerne", "Lucerne"},
+				            {"Switzerland", "St. Gallen", "St. Gallen"},
+				            {"Switzerland", "Ticino", "Lugano"},
+				            {"Switzerland", "Zug", "Zug"},
+				            {"Switzerland", "Fribourg", "Fribourg"},
+				            {"Switzerland", "Neuchâtel", "Neuchâtel"},
+				            {"United States", "New York", "New York"},
+				            {"United States", "California", "Los Angeles"},
+				            {"United States", "Illinois", "Chicago"},
+				            {"United States", "Texas", "Houston"},
+				            {"United States", "Arizona", "Phoenix"},
+				            {"United States", "Pennsylvania", "Philadelphia"},
+				            {"United States", "Washington", "Seattle"},
+				            {"United States", "Colorado", "Denver"},
+				            {"United States", "District of Columbia", "Washington D.C."},
+				            {"United States", "Massachusetts", "Boston"},
+				            {"United States", "Florida", "Miami"},
+				            {"United States", "Georgia", "Atlanta"},
+				            {"United States", "Michigan", "Detroit"},
+				            {"United States", "Minnesota", "Minneapolis"},
+				            {"United States", "Nevada", "Las Vegas"},
+				            {"United States", "Oregon", "Portland"},
+				            {"United States", "Tennessee", "Nashville"}
+				        }
+				    ),
+				    Tipada = Table.TransformColumnTypes(Tabla, {
+				        {"Country", type text}, {"Region", type text},
+				        {"City", type text}
+				    })
+				in
+				    Tipada
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

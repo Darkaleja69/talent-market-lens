@@ -1,0 +1,103 @@
+# Configuracion del scraper LinkedIn Jobs (Data, Espana)
+# Editar delays y volumenes segun tolerancia al riesgo de bloqueo.
+
+# Terminos de busqueda por defecto (roles Data).
+# Cada ciudad puede sobrescribir esta lista con su propia clave `roles:`
+# (util para buscar solo ciertos perfiles en ciertos paises).
+roles:
+  - Data Engineer
+  - Data Analyst
+  - Data Scientist
+  - Analytics Engineer
+
+# Ciudades objetivo (texto de busqueda + geoId verificado del HTML real de LinkedIn)
+# geoId se usa como metodo principal; si falla, se cae al texto de location.
+# Estos geoIds se verificaron cargando las paginas reales de LinkedIn Jobs
+# y leyendo <input name="geoId" value="..." type="hidden">.
+# NOTA: runs anteriores (data/run.log lineas 32-55) usaron 105646814 para Madrid
+# y sufrieron bloqueos (bug authwall ya corregido en login.py). El geoId actual
+# 103374081 es el verificado y usado sin bloqueos desde run.log:76 en adelante.
+cities:
+  Madrid:
+    text: "Madrid, Spain"
+    geoId: "103374081"      # Madrid, Community of Madrid, Spain (verificado)
+  Barcelona:
+    text: "Barcelona, Spain"
+    geoId: "105088894"      # Barcelona, Catalonia, Spain (verificado)
+  Bilbao:
+    text: "Bilbao, Spain"
+    geoId: "101962740"      # Bilbao, Basque Country, Spain (verificado)
+  # --- Internacional: busqueda por PAIS COMPLETO, solo Data Engineer y AI Engineer.
+  # Se maximiza cobertura: ventana de 30 dias y hasta 500 ofertas por rol/pais
+  # (jobs_per_search por ciudad). El API invitado corta en ~1000 por busqueda.
+  # La location por texto da cobertura nacional (Irlanda: Dublin, Cork, Sligo...).
+  Ireland:
+    text: "Ireland"
+    roles: [Data Engineer, AI Engineer]
+    jobs_per_search: 500
+    date_filter: "r2592000"
+  Netherlands:
+    text: "Netherlands"
+    roles: [Data Engineer, AI Engineer]
+    jobs_per_search: 500
+    date_filter: "r2592000"
+  # Zurich mantiene los 4 roles por defecto (ciudad).
+  Zurich:
+    text: "Zurich, Switzerland"
+
+# Filtro de antiguedad: r86400=24h, r604800=7d, r2592000=30d, ""=cualquiera
+# OJO: el API invitado pagina de 10 en 10 y CORTA en start=1000 (HTTP 400),
+# asi que ~1000 es el maximo por combinacion y filtro. Una ventana mas amplia
+# (30d) suele llenar mas ese cupo que una de 7d.
+date_filter: "r604800"
+
+# Volumen: ofertas maximas por combinacion (role x ciudad).
+# LIMITE DEL API INVITADO: ~1000 (start>=1000 -> HTTP 400). Aunque el tope es
+# alto, aqui se prioriza CALIDAD sobre cantidad: se listan pocas ofertas por
+# combinacion y se detallan TODAS (detail_max_jobs=0), para que cada fila tenga
+# descripcion completa, skills, empresa, experiencia y modalidad.
+jobs_per_search: 50
+max_pages: 8                   # solo aplica al flujo autenticado (browser)
+
+# Delays "humanos" en segundos [min, max] -> uniforme aleatorio
+delays:
+  between_scrolls: [1.5, 3.5]    # entre pasos de scroll en el SERP
+  between_details: [5.0, 12.0]   # entre detalle y detalle (modo autenticado)
+  guest_between_details: [1.5, 4.0]  # idem en modo invitado (API HTTP, rapido)
+  between_searches: [8.0, 20.0]  # entre busqueda (role,ciudad) y la siguiente
+  after_city: [30.0, 60.0]       # pausa larga al terminar una ciudad
+  scroll_step_px: [200, 400]     # incremento de scroll por paso
+
+# Cada cuantos detalles se vuelca un checkpoint (snapshot completo del store).
+# Subirlo reduce el churn de disco en runs grandes; se conserva state.json.
+checkpoint_every_details: 25
+
+# Anti-bloqueo
+max_block_retries: 2             # fallos consecutivos antes de conmutar a Apify
+scroll_max_steps: 25             # limite de pasos de scroll por SERP (safety)
+challenge_wait_minutes: 5        # si aparece CAPTCHA/2FA y el navegador es visible
+                                 # (HEADLESS=false), esperar a que lo resuelvas a
+                                 # mano en la ventana antes de abortar/conmutar
+detail_max_jobs: 0                # 0 = detallar TODAS las ofertas listadas en
+                                  # cada combo. Con jobs_per_search=50 son ~50 por
+                                  # combo: 24 x 50 x ~3s ≈ 1h. Asi ninguna fila
+                                  # queda sin descripcion/skills/empresa/exp.
+
+# Respaldo Apify
+use_apify_fallback: true
+apify_actor: "curious_coder/linkedin-jobs-scraper"
+
+# Salida tabular (lista para Databricks Lakehouse)
+output:
+  csv: "data/output/jobs.csv"
+  parquet: "data/output/jobs.parquet"
+  checkpoint_dir: "data/checkpoints"
+  raw_html_dir: "data/raw_html"
+
+# Navegador
+headless: false                  # sobreescribible por .env HEADLESS
+viewport:
+  width: 1536
+  height: 864
+locale: "es-ES"
+timezone: "Europe/Madrid"

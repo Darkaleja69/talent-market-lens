@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------------------
+# Dependencias del nucleo analitico (Databricks / PySpark + tests)
+#
+# En Databricks NO hace falta instalar pyspark: lo aporta el Runtime
+# (clusters DBR 15.x LTS traen Spark 3.5 / Python 3.11). Este fichero sirve
+# para reproducir el pipeline y ejecutar los tests en local.
+#
+#   pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+
+# Motor de transformacion (Silver/Gold). DBR 15.3 LTS usa Spark 3.5;
+# en local sirve cualquier version >=3.5 (incluida 4.x).
+pyspark>=3.5
+
+# Tests unitarios de las funciones puras y de integracion Spark
+pytest>=8.0
+
+# Solo si ejecutas Delta Lake en local (no necesario en Databricks)
+# delta-spark>=3.2,<4.0

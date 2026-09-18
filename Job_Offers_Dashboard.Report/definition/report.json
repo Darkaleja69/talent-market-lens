@@ -1,0 +1,131 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.3.0/schema.json",
+  "themeCollection": {
+    "baseTheme": {
+      "name": "Fluent2-CY26SU08",
+      "reportVersionAtImport": {
+        "visual": "2.12.0",
+        "report": "3.4.0",
+        "page": "2.3.1"
+      },
+      "type": "SharedResources"
+    },
+    "customTheme": {
+      "name": "TalentMarketLens-Pro.json",
+      "reportVersionAtImport": {
+        "visual": "2.12.0",
+        "report": "3.4.0",
+        "page": "2.3.1"
+      },
+      "type": "RegisteredResources"
+    }
+  },
+  "objects": {
+    "section": [
+      {
+        "properties": {
+          "verticalAlignment": {
+            "expr": {
+              "Literal": {
+                "Value": "'Top'"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "outspacePane": [
+      {
+        "properties": {
+          "expanded": {
+            "expr": {
+              "Literal": {
+                "Value": "false"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "resourcePackages": [
+    {
+      "name": "SharedResources",
+      "type": "SharedResources",
+      "items": [
+        {
+          "name": "Fluent2-CY26SU08",
+          "path": "BaseThemes/Fluent2-CY26SU08.json",
+          "type": "BaseTheme"
+        }
+      ]
+    },
+    {
+      "name": "RegisteredResources",
+      "type": "RegisteredResources",
+      "items": [
+        {
+          "name": "all_scopes.json",
+          "path": "all_scopes.json",
+          "type": "ShapeMap"
+        },
+        {
+          "name": "emoji_objects_24dp_000000_FILL4022421033211836.png",
+          "path": "emoji_objects_24dp_000000_FILL4022421033211836.png",
+          "type": "Image"
+        },
+        {
+          "name": "euro_24dp_000000_FILL0_wght40038264401525515135.png",
+          "path": "euro_24dp_000000_FILL0_wght40038264401525515135.png",
+          "type": "Image"
+        },
+        {
+          "name": "filter_alt_24dp_000000_FILL0_w7022724743199601.png",
+          "path": "filter_alt_24dp_000000_FILL0_w7022724743199601.png",
+          "type": "Image"
+        },
+        {
+          "name": "filter_alt_off_24dp_000000_FIL855092392453762.png",
+          "path": "filter_alt_off_24dp_000000_FIL855092392453762.png",
+          "type": "Image"
+        },
+        {
+          "name": "info_24dp_000000_FILL0_wght40006952239606475707.png",
+          "path": "info_24dp_000000_FILL0_wght40006952239606475707.png",
+          "type": "Image"
+        },
+        {
+          "name": "ink_eraser_24dp_000000_FILL0_w3642202815660268.png",
+          "path": "ink_eraser_24dp_000000_FILL0_w3642202815660268.png",
+          "type": "Image"
+        },
+        {
+          "name": "search_insights_24dp_000000_FI8598787868740726.png",
+          "path": "search_insights_24dp_000000_FI8598787868740726.png",
+          "type": "Image"
+        },
+        {
+          "name": "TalentMarketLens-Pro.json",
+          "path": "TalentMarketLens-Pro.json",
+          "type": "CustomTheme"
+        },
+        {
+          "name": "target_24dp_000000_FILL0_wght45294504187900082.png",
+          "path": "target_24dp_000000_FILL0_wght45294504187900082.png",
+          "type": "Image"
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "useStylableVisualContainerHeader": true,
+    "exportDataMode": "AllowSummarized",
+    "defaultDrillFilterOtherVisuals": true,
+    "allowChangeFilterTypes": true,
+    "useEnhancedTooltips": true,
+    "useDefaultAggregateDisplayName": true,
+    "queryLimitOption": "None",
+    "customMemoryLimit": "1048576",
+    "customTimeoutLimit": "225"
+  }
+}

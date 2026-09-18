@@ -1,0 +1,8 @@
+data/profile/
+data/delta_table/
+data/logs/
+data/*.xlsx
+data/*.parquet
+__pycache__/
+*.pyc
+.env

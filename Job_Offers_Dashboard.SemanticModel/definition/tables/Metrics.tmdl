@@ -1,0 +1,571 @@
+table Metrics
+	lineageTag: 1a2b3c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d
+
+	/// Number of job offers in the selected context (all sources).
+	measure 'Total Job Offers' =
+			
+			VAR MinSeleccionado =
+			    SELECTEDVALUE(
+			        'Salary Min'[Salary Min],
+			        0
+			    )
+			VAR MaxSeleccionado =
+			    SELECTEDVALUE(
+			        'Salary Max'[Salary Max],
+			        20000000
+			    )
+			RETURN
+			    CALCULATE(
+			        COUNTROWS(Fact_Offers),
+			        FILTER(
+			            Fact_Offers,
+			            Fact_Offers[SalaryMaxAnnual_EUR] >= MinSeleccionado
+			                && Fact_Offers[SalaryMaxAnnual_EUR] <= MaxSeleccionado
+			        )
+			    )
+		formatString: #,##0
+		lineageTag: 10d7607c-764d-42b7-86f6-e6c506f5bc1f
+
+	measure 'Companies Hiring' =
+			CALCULATE (
+				DISTINCTCOUNT ( 'Fact_Offers'[company_name] ),
+				TRIM ( 'Fact_Offers'[company_name] ) <> ""
+			)
+		formatString: #,##0
+		lineageTag: acc4d52a-51b0-427b-8991-e0d53e781d58
+
+	measure 'Countries Hiring' =
+			CALCULATE (
+				DISTINCTCOUNT ( 'Fact_Offers'[location_country] ),
+				TRIM ( 'Fact_Offers'[location_country] ) <> ""
+			)
+		formatString: #,##0
+		lineageTag: 7a6a02c3-f652-4da8-8d8d-4fc9d3fc54b6
+
+	measure 'Cities Hiring' =
+			CALCULATE (
+				DISTINCTCOUNT ( 'Fact_Offers'[location_city] ),
+				TRIM ( 'Fact_Offers'[location_city] ) <> ""
+			)
+		formatString: #,##0
+		lineageTag: 06f63ca4-6d83-4d7d-913c-ba5d805cface
+
+	measure 'Offers Last 7 Days' =
+			VAR LastValid =
+				CALCULATE ( MAX ( 'Fact_Offers'[posted_date] ) )
+			RETURN
+				CALCULATE (
+					[Total Job Offers],
+					'Fact_Offers'[posted_date] > LastValid - 7
+				)
+		formatString: #,##0
+		lineageTag: cb4f146d-03dd-44ba-8264-31c12b6452de
+
+	measure 'Offers Last 30 Days' =
+			VAR LastValid =
+				CALCULATE ( MAX ( 'Fact_Offers'[posted_date] ) )
+			RETURN
+				CALCULATE (
+					[Total Job Offers],
+					'Fact_Offers'[posted_date] > LastValid - 30
+				)
+		formatString: #,##0
+		lineageTag: 2d2a8941-ca77-4b94-b859-771e2b5317c6
+
+	measure 'Last Posting Date' = CALCULATE ( MAX ( 'Fact_Offers'[posted_date] ))
+		formatString: yyyy-MM-dd
+		lineageTag: c9ac53ee-02b0-4d88-9059-8cff95a7e11f
+
+	measure 'Remote Offers' = CALCULATE ( [Total Job Offers], 'Fact_Offers'[WorkModeBucket] = "Remote" )
+		formatString: #,##0
+		lineageTag: 852cbf2d-07ac-46a5-aa3c-ac6d4290ff51
+
+	measure 'Hybrid Offers' = CALCULATE ( [Total Job Offers], 'Fact_Offers'[WorkModeBucket] = "Hybrid" )
+		formatString: #,##0
+		lineageTag: b01a8908-601b-4687-bb40-c4ef32b6ad82
+
+	measure 'Remote Share' = DIVIDE ( [Remote Offers], [Total Job Offers] )
+		formatString: 0.0%
+		lineageTag: 5132b35a-3d12-461f-8114-3bf2cf0de1b6
+
+	measure 'Hybrid Share' = DIVIDE ( [Hybrid Offers], [Total Job Offers] )
+		formatString: 0.0%
+		lineageTag: 1bd065d8-df67-4afa-8eb7-94ed3d047294
+
+	measure 'On-site Share' =
+			DIVIDE (
+				CALCULATE ( [Total Job Offers], 'Fact_Offers'[WorkModeBucket] = "On-site" ),
+				[Total Job Offers]
+			)
+		formatString: 0.0%
+		lineageTag: e79fcf76-ccaa-49e2-a386-bca7244cca16
+
+	measure 'Remote-Friendly Share' = DIVIDE ( [Remote Offers] + [Hybrid Offers], [Total Job Offers] )
+		formatString: 0.0%
+		lineageTag: bc5825fb-3709-4da5-9de3-69d6404edb61
+
+	measure 'Offers By Skill With Salary' =
+			CALCULATE (
+				[Skill Demand],
+				'Fact_Offers'[SalaryMidAnnual_EUR] > 0,
+				'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000,
+				'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR]
+			)
+		formatString: #,##0
+		lineageTag: 05f3ab20-be35-4653-93f4-21806f89973e
+
+	measure 'Salary Disclosure Rate' = DIVIDE ( [Offers By Skill With Salary], [Total Job Offers] )
+		formatString: 0.0%
+		lineageTag: 9ee1ac41-4d34-4096-9b10-76d514a19447
+
+	measure 'Avg Min Salary EUR' = CALCULATE ( AVERAGE ( 'Fact_Offers'[SalaryMinAnnual_EUR] ), 'Fact_Offers'[SalaryMinAnnual_EUR] > 0, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMaxAnnual_EUR] > 0, 'Fact_Offers'[SalaryMaxAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: #,##0 €
+		lineageTag: 26c48fa0-576a-4385-8334-6231bafcef0c
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'Avg Max Salary EUR' = CALCULATE ( AVERAGE ( 'Fact_Offers'[SalaryMaxAnnual_EUR] ), 'Fact_Offers'[SalaryMinAnnual_EUR] > 0, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMaxAnnual_EUR] > 0, 'Fact_Offers'[SalaryMaxAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: " #,##0 €"
+		lineageTag: 9c61c526-4213-481c-987b-10bd91d43572
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'Avg Mid Salary EUR' = CALCULATE ( AVERAGE ( 'Fact_Offers'[SalaryMidAnnual_EUR] ), 'Fact_Offers'[SalaryMidAnnual_EUR] > 0, 'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: #,##0 €
+		lineageTag: e26795eb-51d6-4fe8-9e39-e6d1b450a177
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'Median Min Salary EUR' = CALCULATE ( MEDIAN ( 'Fact_Offers'[SalaryMinAnnual_EUR] ), 'Fact_Offers'[SalaryMinAnnual_EUR] > 0, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMaxAnnual_EUR] > 0, 'Fact_Offers'[SalaryMaxAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: #,##0 €
+		lineageTag: 6a8ea2f4-4125-4a58-91fd-e4d36d915178
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'Median Max Salary EUR' = CALCULATE ( MEDIAN ( 'Fact_Offers'[SalaryMaxAnnual_EUR] ), 'Fact_Offers'[SalaryMinAnnual_EUR] > 0, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMaxAnnual_EUR] > 0, 'Fact_Offers'[SalaryMaxAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: " #,##0 €"
+		lineageTag: acf19aee-1e5a-4d3c-9daf-877c4fc7a19e
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'Median Mid Salary EUR' = CALCULATE ( MEDIAN ( 'Fact_Offers'[SalaryMidAnnual_EUR] ), 'Fact_Offers'[SalaryMidAnnual_EUR] > 0, 'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: #,##0 €
+		lineageTag: c16780e2-aa5e-4d59-84ec-858df8761277
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'P25 Mid Salary EUR' = CALCULATE ( PERCENTILE.INC ( 'Fact_Offers'[SalaryMidAnnual_EUR], 0.25 ), 'Fact_Offers'[SalaryMidAnnual_EUR] > 0, 'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: #,##0 €
+		lineageTag: 9180850b-35fd-4e8e-8019-e34fa55ad397
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'P75 Mid Salary EUR' = CALCULATE ( PERCENTILE.INC ( 'Fact_Offers'[SalaryMidAnnual_EUR], 0.75 ), 'Fact_Offers'[SalaryMidAnnual_EUR] > 0, 'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000, 'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR] )
+		formatString: #,##0 €
+		lineageTag: f03feb0c-b5bf-45e1-adaf-bd19f6d98403
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	measure 'Share of Offers' = DIVIDE ( [Total Job Offers], CALCULATE ( [Total Job Offers], ALLSELECTED ( 'Fact_Offers' ) ) )
+		formatString: 0.0%
+		lineageTag: dbefc966-be79-4543-b2f8-a635c1305a4e
+
+	/// Número de ofertas que mencionan cada skill (coincidencia exacta por token, sin falsos positivos por subcadena).
+	measure 'Skill Demand' = CALCULATE ( COUNTROWS ( 'Fact_OfferSkills' ), 'Dim_SkillList' )
+		formatString: #,##0
+		lineageTag: a0398b0d-ac40-42dc-9065-9feb45f92d36
+
+	/// Porcentaje de ofertas que mencionan el skill sobre el total de ofertas del contexto.
+	measure 'Skill Share' = DIVIDE ( [Skill Demand], CALCULATE ( [Total Job Offers], ALLSELECTED ( 'Fact_Offers' ), ALL ( 'Dim_SkillList' ) ) )
+		formatString: 0.0%
+		lineageTag: 5f0a7472-264d-40c6-8508-7c03f87412e3
+
+	measure 'Skill Median Salary EUR' =
+			CALCULATE (
+				MEDIAN ( 'Fact_Offers'[SalaryMidAnnual_EUR] ),
+				'Fact_OfferSkills',
+				'Dim_SkillList',
+				'Fact_Offers'[SalaryMidAnnual_EUR] > 0,
+				'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000,
+				'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR]
+			)
+		formatString: #,##0
+		lineageTag: 3f359c99-ce9f-4fe9-b37f-30c38295853b
+
+	measure 'Selected Currency Code' = SELECTEDVALUE ( 'Dim_Currency'[CurrencyCode], "EUR" )
+		lineageTag: da7312cf-be31-4dfc-bece-48b5a341bd79
+
+	measure 'Selected Currency Rate' = SELECTEDVALUE ( 'Dim_Currency'[UnitsPerEUR], 1 )
+		formatString: #,##0.0000
+		lineageTag: 64ae2050-9e8e-4765-8d78-1494f2afa460
+
+	/// Texto legible del filtro de país (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText País' = ```
+			IF (
+			    ISFILTERED ( 'Dim_Geo'[Country] ),
+			    VAR V = VALUES ( 'Dim_Geo'[Country] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Country: " & 
+			        //CONCATENATEX ( TOPN ( 3, V, 'Dim_Geo'[Country] ), 'Dim_Geo'[Country], ", " )
+			        CONCATENATEX ( values ('Dim_Geo'[Country] ), 'Dim_Geo'[Country], ", " )
+			        //& IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			        ,
+			    BLANK ()
+			)
+			```
+		lineageTag: 1ee5c347-2ae6-4193-8411-367984c70957
+
+	/// Texto legible del filtro de región (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Región' =
+			IF (
+			    ISFILTERED ( 'Dim_Geo'[Region] ),
+			    VAR V = VALUES ( 'Dim_Geo'[Region] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Region: " & CONCATENATEX ( TOPN ( 3, V, 'Dim_Geo'[Region] ), 'Dim_Geo'[Region], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 02f4cabf-7673-46c1-b1a0-5ca3d98b78cc
+
+	/// Texto legible del filtro de rol (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Rol' =
+			IF (
+			    ISFILTERED ( 'Fact_Offers'[role_category] ),
+			    VAR V = VALUES ( 'Fact_Offers'[role_category] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Role: " & CONCATENATEX ( TOPN ( 3, V, 'Fact_Offers'[role_category] ), 'Fact_Offers'[role_category], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 52dff6da-1958-4452-8a02-49aedf746ebd
+
+	/// Texto legible del filtro de experiencia (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Experiencia' =
+			IF (
+			    ISFILTERED ( 'Fact_Offers'[experience_level] ),
+			    VAR V = VALUES ( 'Fact_Offers'[experience_level] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Experience: " & CONCATENATEX ( TOPN ( 3, V, 'Fact_Offers'[experience_level] ), 'Fact_Offers'[experience_level], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 107bedb1-a022-40bf-8fb5-bb731dcc527a
+
+	/// Texto legible del filtro de modalidad (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Modalidad' =
+			IF (
+			    ISFILTERED ( 'Fact_Offers'[WorkModeBucket] ),
+			    VAR V = VALUES ( 'Fact_Offers'[WorkModeBucket] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Work Mode: " & CONCATENATEX ( TOPN ( 3, V, 'Fact_Offers'[WorkModeBucket] ), 'Fact_Offers'[WorkModeBucket], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 0f8fdbf1-c891-42ad-a9f4-4f1c88905407
+
+	/// Texto legible del filtro de tipo de empleo (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Empleo' =
+			IF (
+			    ISFILTERED ( 'Fact_Offers'[employment_type] ),
+			    VAR V = VALUES ( 'Fact_Offers'[employment_type] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Employment type: " & CONCATENATEX ( TOPN ( 3, V, 'Fact_Offers'[employment_type] ), 'Fact_Offers'[employment_type], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 846e2e3c-fe1e-4070-b0d4-3511f0dbe7dc
+
+	/// Texto legible del filtro de empresa (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Empresa' =
+			IF (
+			    ISFILTERED ( 'Dim_Companies'[company_name] ),
+			    VAR V = VALUES ( 'Dim_Companies'[company_name] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Company: " & CONCATENATEX ( TOPN ( 3, V, 'Dim_Companies'[company_name] ), 'Dim_Companies'[company_name], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 80af3a04-d4c7-4404-9f75-423b22352228
+
+	/// Texto legible del filtro de skill (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Skill' =
+			IF (
+			    ISFILTERED ( 'Dim_SkillList'[SkillName] ),
+			    VAR V = VALUES ( 'Dim_SkillList'[SkillName] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Skills: " & CONCATENATEX ( TOPN ( 3, V, 'Dim_SkillList'[SkillName] ), 'Dim_SkillList'[SkillName], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 8ac46485-5e02-46db-9789-535dc20c936f
+
+	/// Texto con todos los filtros seleccionados en el contexto actual, para mostrar junto al subtítulo.
+	measure 'Selected Filters Text' =
+			VAR Items =
+			    FILTER (
+			        {   [FilterText País],
+			            [FilterText Región],
+			            [FilterText Ciudad],
+			            [FilterText Experiencia],
+			            [FilterText Rol],
+			            [FilterText Modalidad],
+			            [FilterText Empleo],
+			            [FilterText Empresa],
+			            [FilterText Skill],
+			            [FilterText Source],
+			            [FilterText Salario Min],
+			            [FilterText Salario Max]
+			        },
+			        NOT ISBLANK ( [Value] )
+			    )
+			VAR AllText =
+			    CONCATENATEX ( Items, [Value], "   |   " )
+			VAR MaxLen = 400
+			RETURN
+			    IF (
+			        ISBLANK ( AllText ),
+			        "No filters applied",
+			        IF ( LEN ( AllText ) <= MaxLen, AllText, LEFT ( AllText, MaxLen ) & "…" )
+			    )
+		lineageTag: d842c54e-e8b6-438c-8b04-4fa1e977750d
+
+	measure 'Show Offer' =
+			
+			VAR MinSeleccionado =
+			    SELECTEDVALUE('Salary Min'[Salary Min], 0)
+			VAR MaxSeleccionado =
+			    SELECTEDVALUE('Salary Max'[Salary Max], 999999)
+			VAR MinOferta =
+			    MAX(Fact_Offers[SalaryMinAnnual_EUR])
+			VAR MaxOferta =
+			    MAX(Fact_Offers[SalaryMaxAnnual_EUR])
+			RETURN
+			    IF(
+			        MinOferta > 0
+			            && MaxOferta > 0
+			            && MinOferta <= MaxOferta
+			            && MaxOferta <= 1000000
+			            && MaxOferta >= MinSeleccionado
+			            && MinOferta <= MaxSeleccionado,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: eaeee577-2f8c-4cef-b6e8-8d4df83b5081
+
+	measure 'Selected Country' = SELECTEDVALUE ( 'Geo Selection'[Selection], "All" )
+		formatString: @
+		lineageTag: f1234567-89ab-cdef-0123-456789abcdef
+
+	measure 'Geo - Unmapped Regions' =
+			CALCULATE (
+				COUNTROWS ( Fact_Offers ),
+				Fact_Offers[GeoRegion] = "(Other)"
+			)
+		formatString: #,##0
+		lineageTag: ab123456-7890-abcd-ef12-3456789abcdef
+
+	measure 'Geo - Unmapped Countries' =
+			VAR Countries = { "Spain", "Ireland", "Netherlands", "Switzerland", "United States", "Europe" }
+			RETURN
+				CALCULATE (
+					COUNTROWS ( Fact_Offers ),
+					NOT ( Fact_Offers[GeoCountry] IN Countries )
+				)
+		formatString: #,##0
+		lineageTag: cd234567-8901-bcde-f123-456789abcdef
+
+	measure 'Geo - Coverage %' =
+			VAR Total = COUNTROWS ( Fact_Offers )
+			VAR Unmapped = [Geo - Unmapped Regions]
+			RETURN
+				DIVIDE ( Total - Unmapped, Total )
+		formatString: 0.0%
+		lineageTag: ef345678-9012-cdef-a123-456789abcdef
+
+	/// Texto legible del filtro de scraper/fuente (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Source' =
+			IF (
+			    ISFILTERED ( 'Fact_Offers'[source_scraper] ),
+			    VAR V = VALUES ( 'Fact_Offers'[source_scraper] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Source: " & CONCATENATEX ( TOPN ( 3, V, 'Fact_Offers'[source_scraper] ), 'Fact_Offers'[source_scraper], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: ab4f69b6-30d9-40b8-a2a2-1e33d65e0c65
+
+	/// Texto legible del filtro de salario mínimo (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Salario Min' =
+			IF (
+			    ISFILTERED ( 'Salary Min'[Salary Min] ),
+			    "Salary Min: " & FORMAT ( MIN ( 'Salary Min'[Salary Min] ), "#,##0" ) & " €",
+			    BLANK ()
+			)
+		lineageTag: 0812dc83-478a-49c8-b047-c06d3bdc6f85
+
+	/// Texto legible del filtro de salario máximo (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Salario Max' =
+			IF (
+			    ISFILTERED ( 'Salary Max'[Salary Max] ),
+			    "Salary Max: " & FORMAT ( MAX ( 'Salary Max'[Salary Max] ), "#,##0" ) & " €",
+			    BLANK ()
+			)
+		lineageTag: e466a5ae-9d48-4dd4-8283-9cdaaaa482ff
+
+	/// Texto legible del selector geográfico (Geo Selection), oculto, usado por 'Selected Filters Text'.
+	measure 'FilterText Geo' =
+			IF (
+			    ISFILTERED ( 'Geo Selection'[Selection] ),
+			    VAR V = VALUES ( 'Geo Selection'[Selection] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "Country: " & CONCATENATEX ( TOPN ( 3, V, 'Geo Selection'[Selection] ), 'Geo Selection'[Selection], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: fa94cb9c-1775-49bf-a276-d5b6a0f5ec5e
+
+	/// Texto legible del filtro de ciudad (oculto, usado por 'Selected Filters Text').
+	measure 'FilterText Ciudad' =
+			IF (
+			    ISFILTERED ( 'Dim_Geo'[City] ),
+			    VAR V = VALUES ( 'Dim_Geo'[City] )
+			    VAR N = COUNTROWS ( V )
+			    RETURN
+			        "City: " & CONCATENATEX ( TOPN ( 3, V, 'Dim_Geo'[City] ), 'Dim_Geo'[City], ", " ) & IF ( N > 3, " (+" & N - 3 & " more)", "" ),
+			    BLANK ()
+			)
+		lineageTag: 8714a575-fe87-46a4-96cd-9b6d00fda772
+
+	/// Ofertas por país para el mapa de fondo de Europa (usa el país de Dim_EuropeCountries).
+	measure 'Geo - Country Offers' =
+			CALCULATE (
+			    [Total Job Offers],
+			    'Fact_Offers'[GeoCountry] = MAX ( 'Dim_EuropeCountries'[Country] )
+			)
+		formatString: #,##0
+		lineageTag: cae4519e-cfc8-411b-af50-dd20ec5ff1a2
+
+	/// Ofertas por feature del mapa segun el ambito (Scope). MapFeature se relaciona con Fact_Offers a traves de MapFeatureBridge, por lo que la seleccion del mapa filtra el resto del informe.
+	measure 'Geo - Map Value' =
+			VAR S = SELECTEDVALUE ( 'MapFeature'[Scope] )
+			VAR C = SELECTEDVALUE ( 'MapFeature'[Country] )
+			VAR R = SELECTEDVALUE ( 'MapFeature'[Region] )
+			VAR MapCountries = { "Spain", "Ireland", "Netherlands", "Switzerland" }
+			VAR V =
+				IF (
+					S = "Europe",
+					IF (
+						R IN MapCountries,
+						CALCULATE ( [Total Job Offers], 'Fact_Offers'[GeoCountry] = R ),
+						0
+					),
+					CALCULATE ( [Total Job Offers], 'Fact_Offers'[GeoCountry] = C, 'Fact_Offers'[GeoRegion] = R )
+				)
+			RETURN
+				COALESCE ( V, 0 )
+		formatString: #,##0
+		lineageTag: fa23df7d-f032-4607-98f8-2e6e9af006e4
+
+	measure 'Last Update Time' = "Last Update: " & MAX(Last_Update[Last_Update])
+		lineageTag: a2e8e75d-6f26-4042-b6a4-2cb08410ae4a
+
+	measure 'Countries Hiring Text' = [Countries Hiring] &" Countries"
+		lineageTag: 4394cc6d-8aab-4de7-b14d-3a70b50c4a32
+
+	measure 'Selected Filters Text Salary_Insights' = ```
+			
+			 VAR Items =
+			    FILTER (
+			        {
+			            [FilterText Geo],
+			            [FilterText Región],
+			            [FilterText Experiencia],
+			            [FilterText Rol],
+			            [FilterText Modalidad],
+			            [FilterText Empleo],
+			            [FilterText Empresa],
+			            [FilterText Skill],
+			            [FilterText Source],
+			            [FilterText Salario Min],
+			            [FilterText Salario Max]
+			        },
+			        NOT ISBLANK ( [Value] )
+			    )
+			VAR AllText =
+			    CONCATENATEX ( Items, [Value], "   |   " )
+			VAR MaxLen = 400
+			RETURN
+			    IF (
+			        ISBLANK ( AllText ),
+			        "No filters applied",
+			        IF ( LEN ( AllText ) <= MaxLen, AllText, LEFT ( AllText, MaxLen ) & "…" )
+			    )
+			```
+		lineageTag: 4f5b9bd8-2f7d-4ec7-9ef4-a901fc5d31f1
+
+	/// Color por feature del mapa: gradiente azul por numero de ofertas dentro del ambito, transparente fuera de el. Sin seleccion se muestra Europa.
+	measure 'Geo - Map Color' =
+			VAR Sel = SELECTEDVALUE ( 'Geo Selection'[Selection] )
+			VAR ActiveScope = IF ( ISFILTERED ( 'Geo Selection'[Selection] ), Sel, "Europe" )
+			VAR Scp = SELECTEDVALUE ( 'MapFeature'[Scope] )
+			VAR Reg = SELECTEDVALUE ( 'MapFeature'[Region] )
+			VAR IsFrame = NOT ISBLANK ( Reg ) && LEFT ( Reg, 7 ) = "__Frame"
+			VAR InScope = NOT ISBLANK ( ActiveScope ) && ActiveScope = Scp
+			VAR V = [Geo - Map Value]
+			VAR MaxV = MAXX ( ALLSELECTED ( 'MapFeature' ), [Geo - Map Value] )
+			VAR Ratio = IF ( MaxV > 0, DIVIDE ( V, MaxV ), 0 )
+			VAR R = INT ( 168 + ( 30 - 168 ) * Ratio )
+			VAR G = INT ( 196 + ( 66 - 196 ) * Ratio )
+			VAR B = INT ( 240 + ( 159 - 240 ) * Ratio )
+			VAR HexChars = "0123456789ABCDEF"
+			VAR Hex =
+				"#" &
+				MID ( HexChars, QUOTIENT ( R, 16 ) + 1, 1 ) & MID ( HexChars, MOD ( R, 16 ) + 1, 1 ) &
+				MID ( HexChars, QUOTIENT ( G, 16 ) + 1, 1 ) & MID ( HexChars, MOD ( G, 16 ) + 1, 1 ) &
+				MID ( HexChars, QUOTIENT ( B, 16 ) + 1, 1 ) & MID ( HexChars, MOD ( B, 16 ) + 1, 1 )
+			RETURN
+				IF (
+					IsFrame || NOT InScope,
+					"rgba(0,0,0,0)",
+					IF ( V <= 0, "#94A3B8", Hex )
+				)
+		formatString: @
+		lineageTag: fb345678-9012-cdef-a123-456789abcdef
+
+	/// Filtro de visibilidad del Shape Map: solo mantiene las features del ambito seleccionado.
+	measure 'Geo - Show Map Feature' =
+			VAR Sel = SELECTEDVALUE ( 'Geo Selection'[Selection] )
+			VAR ActiveScope = IF ( ISFILTERED ( 'Geo Selection'[Selection] ), Sel, "Europe" )
+			VAR Scp = SELECTEDVALUE ( 'MapFeature'[Scope] )
+			VAR Reg = SELECTEDVALUE ( 'MapFeature'[Region] )
+			RETURN
+				IF (
+					NOT ISBLANK ( Reg ) && LEFT ( Reg, 7 ) = "__Frame",
+					0,
+					IF ( NOT ISBLANK ( ActiveScope ) && ActiveScope = Scp, 1, 0 )
+				)
+		formatString: 0
+		lineageTag: 6f3c2b1a-9e8d-4c7b-a6f5-1234567890ab
+
+	measure 'Offers With Salary' =
+			CALCULATE (
+				[Total Job Offers],
+				'Fact_Offers'[SalaryMidAnnual_EUR] > 0,
+				'Fact_Offers'[SalaryMidAnnual_EUR] <= 1000000,
+				'Fact_Offers'[SalaryMinAnnual_EUR] <= 'Fact_Offers'[SalaryMaxAnnual_EUR]
+			)
+		formatString: #,##0
+		lineageTag: d695cd4a-2527-403d-886e-0f905c696ffc
+
+		annotation PBI_FormatHint = {"isCustom":true}
+
+	column Value
+		lineageTag: ba0b6353-d0be-43c7-90d7-5428af264598
+		sourceColumn: [Value]
+
+	partition Metrics = calculated
+		mode: import
+		source = {1}
+

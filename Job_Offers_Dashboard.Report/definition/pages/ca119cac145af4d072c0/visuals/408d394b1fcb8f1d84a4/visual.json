@@ -1,0 +1,16 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "408d394b1fcb8f1d84a4",
+  "position": {
+    "x": 4.5070422535211261,
+    "y": 63.6604774535809,
+    "z": 11000,
+    "height": 970.185676392573,
+    "width": 96.92152917505031,
+    "tabOrder": 14000
+  },
+  "visualGroup": {
+    "displayName": "Vertical Pane",
+    "groupMode": "ScaleMode"
+  }
+}

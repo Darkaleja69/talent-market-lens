@@ -1,0 +1,61 @@
+table Dim_Currency
+	lineageTag: cea17d36-fd83-4b96-9d5c-6b1135843dd0
+
+	column CurrencyCode
+		dataType: string
+		lineageTag: 6debcef8-975e-421a-970c-dcc719d3689f
+		summarizeBy: none
+		sourceColumn: CurrencyCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrencyName
+		dataType: string
+		lineageTag: 70c60e6f-1941-42cf-8632-35e927fca2dd
+		summarizeBy: none
+		sourceColumn: CurrencyName
+
+		annotation SummarizationSetBy = Automatic
+
+	column AltCode
+		dataType: string
+		lineageTag: c64d275b-e1ac-4295-9387-e45ca13d7ef3
+		summarizeBy: none
+		sourceColumn: AltCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column UnitsPerEUR
+		dataType: double
+		lineageTag: 49d23173-dae1-4cac-96b4-48d7e5c79492
+		summarizeBy: sum
+		sourceColumn: UnitsPerEUR
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column FXSnapshotDate
+		dataType: string
+		lineageTag: d1dc7d0e-aaee-459e-bf79-c23262fdbe17
+		summarizeBy: none
+		sourceColumn: FXSnapshotDate
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Dim_Currency = m
+		mode: import
+		queryGroup: Dimensions
+		source =
+				let
+				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
+				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
+				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
+				    dim_currency = gold_Schema{[Name="dim_currency",Kind="Table"]}[Data]
+				in
+				    dim_currency
+
+	annotation PBI_NavigationStepName = Navegación
+
+	annotation PBI_ResultType = Table
+

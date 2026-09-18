@@ -1,0 +1,44 @@
+model Model
+	culture: es-ES
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: es-ES
+	valueFilterBehavior: independent
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+queryGroup Dimensions
+
+	annotation PBI_QueryGroupOrder = 0
+
+queryGroup 'Fact Tables'
+
+	annotation PBI_QueryGroupOrder = 1
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["Dim_Companies","Dim_Geo","Dim_RegionMap","Dim_Geo_Coords","Fact_Offers","Last_Update","Dim_Calendar","Dim_SkillList","Dim_Currency","Fact_OfferSkills"]
+
+annotation PBI_ProTooling = ["DevMode","MCP-PBIModeling"]
+
+ref table Dim_Companies
+ref table Fact_Offers
+ref table Dim_Geo
+ref table Dim_RegionMap
+ref table Metrics
+ref table Dim_Geo_Coords
+ref table 'Salary Min'
+ref table 'Salary Max'
+ref table Dim_Country
+ref table 'Geo Selection'
+ref table Dim_EuropeCountries
+ref table Last_Update
+ref table Dim_Calendar
+ref table Dim_SkillList
+ref table Dim_Currency
+ref table Fact_OfferSkills
+ref table MapFeature
+ref table MapFeatureBridge
+
+ref cultureInfo es-ES
+

@@ -1,0 +1,66 @@
+{
+  "country": "Netherlands",
+  "source": "Capitales/centroids administrativos (investigacion web)",
+  "regions": [
+    {
+      "region": "North Holland",
+      "latitude": 52.3874,
+      "longitude": 4.6462
+    },
+    {
+      "region": "South Holland",
+      "latitude": 52.0705,
+      "longitude": 4.3007
+    },
+    {
+      "region": "Utrecht",
+      "latitude": 52.0907,
+      "longitude": 5.1214
+    },
+    {
+      "region": "North Brabant",
+      "latitude": 51.6978,
+      "longitude": 5.3037
+    },
+    {
+      "region": "Groningen",
+      "latitude": 53.2194,
+      "longitude": 6.5665
+    },
+    {
+      "region": "Gelderland",
+      "latitude": 51.9851,
+      "longitude": 5.8987
+    },
+    {
+      "region": "Limburg",
+      "latitude": 50.8514,
+      "longitude": 5.691
+    },
+    {
+      "region": "Overijssel",
+      "latitude": 52.5168,
+      "longitude": 6.083
+    },
+    {
+      "region": "Flevoland",
+      "latitude": 52.5185,
+      "longitude": 5.4714
+    },
+    {
+      "region": "Friesland",
+      "latitude": 53.2012,
+      "longitude": 5.7999
+    },
+    {
+      "region": "Zeeland",
+      "latitude": 51.4988,
+      "longitude": 3.6109
+    },
+    {
+      "region": "Drenthe",
+      "latitude": 52.9937,
+      "longitude": 6.5634
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+/// Lista de países únicos (desde Fact_Offers[GeoCountry] y Dim_Geo[Country]) usada por el selector geográfico.
+table Dim_Country
+	lineageTag: 575cf493-4e5b-4045-bc8a-e7d1ad3c6477
+
+	column Country
+		lineageTag: eb3c3164-4d8e-4196-9c61-31fb6471f217
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Country]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition Dim_Country = calculated
+		mode: import
+		source =
+				DISTINCT (
+				    UNION (
+				        SELECTCOLUMNS ( DISTINCT ( 'Fact_Offers'[GeoCountry] ), "Country", 'Fact_Offers'[GeoCountry] ),
+				        SELECTCOLUMNS ( DISTINCT ( 'Dim_Geo'[Country] ), "Country", 'Dim_Geo'[Country] ),
+				        SELECTCOLUMNS ( DISTINCT ( 'Dim_EuropeCountries'[Country] ), "Country", 'Dim_EuropeCountries'[Country] )
+				    )
+				)
+

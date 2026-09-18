@@ -1,0 +1,226 @@
+/// Features del mapa por ambito (Scope), generadas en Power Query. MapKey = nombre de feature exacto en el TopoJSON. CountryKey sirve para la relacion con Dim_Country.
+table MapFeature
+	lineageTag: 5742fbcb-be44-4c4f-9b9e-1143bc8dcb05
+
+	column Scope
+		dataType: string
+		lineageTag: 284d101e-9973-48aa-93d5-40ba5768defb
+		sourceColumn: Scope
+
+	column ScopeSel
+		dataType: string
+		lineageTag: 0ab4d7e6-2c18-4b3f-87c7-9c324bcc60f6
+		sourceColumn: ScopeSel
+
+	column MapKey
+		dataType: string
+		lineageTag: b10b454a-5726-40ae-932c-56f33bf9e366
+		sourceColumn: MapKey
+
+	column Country
+		dataType: string
+		lineageTag: b11a175e-3e24-4288-aaf8-4a34b4d1c1c3
+		sourceColumn: Country
+
+	column Region
+		dataType: string
+		lineageTag: 965c3042-f051-431a-959d-3881a8b62d4b
+		sourceColumn: Region
+
+	column CountryKey
+		dataType: string
+		lineageTag: 025ad21e-ba06-4e5d-a0cf-2707a3cee316
+		sourceColumn: CountryKey
+
+	partition MapFeature = m
+		mode: import
+		source =
+				let
+				    Origen = #table(
+				        type table [Scope = text, ScopeSel = text, MapKey = text, Country = text, Region = text],
+				        {
+				{ "Europe", "Europe", "Denmark", "Europe", "Denmark" },
+				{ "Europe", "Europe", "Ireland", "Europe", "Ireland" },
+				{ "Europe", "Europe", "Austria", "Europe", "Austria" },
+				{ "Europe", "Europe", "Czech Republic", "Europe", "Czech Republic" },
+				{ "Europe", "Europe", "Finland", "Europe", "Finland" },
+				{ "Europe", "Europe", "France", "Europe", "France" },
+				{ "Europe", "Europe", "Germany", "Europe", "Germany" },
+				{ "Europe", "Europe", "Italy", "Europe", "Italy" },
+				{ "Europe", "Europe", "Belgium", "Europe", "Belgium" },
+				{ "Europe", "Europe", "Luxembourg", "Europe", "Luxembourg" },
+				{ "Europe", "Europe", "Netherlands", "Europe", "Netherlands" },
+				{ "Europe", "Europe", "Norway", "Europe", "Norway" },
+				{ "Europe", "Europe", "Poland", "Europe", "Poland" },
+				{ "Europe", "Europe", "Portugal", "Europe", "Portugal" },
+				{ "Europe", "Europe", "Spain", "Europe", "Spain" },
+				{ "Europe", "Europe", "Sweden", "Europe", "Sweden" },
+				{ "Europe", "Europe", "Switzerland", "Europe", "Switzerland" },
+				{ "Europe", "Europe", "United Kingdom", "Europe", "United Kingdom" },
+				{ "Spain", "Spain", "Albacete", "Spain", "Albacete" },
+				{ "Spain", "Spain", "Alicante", "Spain", "Alicante" },
+				{ "Spain", "Spain", "Almería", "Spain", "Almería" },
+				{ "Spain", "Spain", "Ávila", "Spain", "Ávila" },
+				{ "Spain", "Spain", "Badajoz", "Spain", "Badajoz" },
+				{ "Spain", "Spain", "Islas Baleares", "Spain", "Islas Baleares" },
+				{ "Spain", "Spain", "Catalonia", "Spain", "Catalonia" },
+				{ "Spain", "Spain", "Burgos", "Spain", "Burgos" },
+				{ "Spain", "Spain", "Cáceres", "Spain", "Cáceres" },
+				{ "Spain", "Spain", "Cádiz", "Spain", "Cádiz" },
+				{ "Spain", "Spain", "Castellón", "Spain", "Castellón" },
+				{ "Spain", "Spain", "Ciudad Real", "Spain", "Ciudad Real" },
+				{ "Spain", "Spain", "Córdoba", "Spain", "Córdoba" },
+				{ "Spain", "Spain", "A Coruña", "Spain", "A Coruña" },
+				{ "Spain", "Spain", "Cuenca", "Spain", "Cuenca" },
+				{ "Spain", "Spain", "Granada", "Spain", "Granada" },
+				{ "Spain", "Spain", "Guadalajara", "Spain", "Guadalajara" },
+				{ "Spain", "Spain", "Basque Country", "Spain", "Basque Country" },
+				{ "Spain", "Spain", "Huelva", "Spain", "Huelva" },
+				{ "Spain", "Spain", "Huesca", "Spain", "Huesca" },
+				{ "Spain", "Spain", "Jaén", "Spain", "Jaén" },
+				{ "Spain", "Spain", "León", "Spain", "León" },
+				{ "Spain", "Spain", "La Rioja", "Spain", "La Rioja" },
+				{ "Spain", "Spain", "Lugo", "Spain", "Lugo" },
+				{ "Spain", "Spain", "Madrid", "Spain", "Madrid" },
+				{ "Spain", "Spain", "Málaga", "Spain", "Málaga" },
+				{ "Spain", "Spain", "Murcia", "Spain", "Murcia" },
+				{ "Spain", "Spain", "Navarra", "Spain", "Navarra" },
+				{ "Spain", "Spain", "Ourense", "Spain", "Ourense" },
+				{ "Spain", "Spain", "Asturias", "Spain", "Asturias" },
+				{ "Spain", "Spain", "Palencia", "Spain", "Palencia" },
+				{ "Spain", "Spain", "Pontevedra", "Spain", "Pontevedra" },
+				{ "Spain", "Spain", "Salamanca", "Spain", "Salamanca" },
+				{ "Spain", "Spain", "Cantabria", "Spain", "Cantabria" },
+				{ "Spain", "Spain", "Segovia", "Spain", "Segovia" },
+				{ "Spain", "Spain", "Sevilla", "Spain", "Sevilla" },
+				{ "Spain", "Spain", "Soria", "Spain", "Soria" },
+				{ "Spain", "Spain", "Teruel", "Spain", "Teruel" },
+				{ "Spain", "Spain", "Toledo", "Spain", "Toledo" },
+				{ "Spain", "Spain", "Valencia", "Spain", "Valencia" },
+				{ "Spain", "Spain", "Valladolid", "Spain", "Valladolid" },
+				{ "Spain", "Spain", "Zamora", "Spain", "Zamora" },
+				{ "Spain", "Spain", "Zaragoza", "Spain", "Zaragoza" },
+				{ "Spain", "Spain", "Ceuta", "Spain", "Ceuta" },
+				{ "Spain", "Spain", "Melilla", "Spain", "Melilla" },
+				{ "Spain", "Spain", "Las Palmas", "Spain", "Las Palmas" },
+				{ "Spain", "Spain", "Santa Cruz de Tenerife", "Spain", "Santa Cruz de Tenerife" },
+				{ "Ireland", "Ireland", "Donegal", "Ireland", "Donegal" },
+				{ "Ireland", "Ireland", "Leitrim", "Ireland", "Leitrim" },
+				{ "Ireland", "Ireland", "Cavan", "Ireland", "Cavan" },
+				{ "Ireland", "Ireland", "Monaghan", "Ireland", "Monaghan" },
+				{ "Ireland", "Ireland", "Louth", "Ireland", "Louth" },
+				{ "Ireland", "Ireland", "Dublin", "Ireland", "Dublin" },
+				{ "Ireland", "Ireland", "Wicklow", "Ireland", "Wicklow" },
+				{ "Ireland", "Ireland", "Wexford", "Ireland", "Wexford" },
+				{ "Ireland", "Ireland", "Kilkenny", "Ireland", "Kilkenny" },
+				{ "Ireland", "Ireland", "Waterford", "Ireland", "Waterford" },
+				{ "Ireland", "Ireland", "Cork", "Ireland", "Cork" },
+				{ "Ireland", "Ireland", "Kerry", "Ireland", "Kerry" },
+				{ "Ireland", "Ireland", "Limerick", "Ireland", "Limerick" },
+				{ "Ireland", "Ireland", "Clare", "Ireland", "Clare" },
+				{ "Ireland", "Ireland", "Galway", "Ireland", "Galway" },
+				{ "Ireland", "Ireland", "Mayo", "Ireland", "Mayo" },
+				{ "Ireland", "Ireland", "Sligo", "Ireland", "Sligo" },
+				{ "Ireland", "Ireland", "Meath", "Ireland", "Meath" },
+				{ "Ireland", "Ireland", "Kildare", "Ireland", "Kildare" },
+				{ "Ireland", "Ireland", "Carlow", "Ireland", "Carlow" },
+				{ "Ireland", "Ireland", "Laois", "Ireland", "Laois" },
+				{ "Ireland", "Ireland", "Offaly", "Ireland", "Offaly" },
+				{ "Ireland", "Ireland", "Westmeath", "Ireland", "Westmeath" },
+				{ "Ireland", "Ireland", "Longford", "Ireland", "Longford" },
+				{ "Ireland", "Ireland", "Roscommon", "Ireland", "Roscommon" },
+				{ "Ireland", "Ireland", "Tipperary", "Ireland", "Tipperary" },
+				{ "Netherlands", "Netherlands", "Groningen", "Netherlands", "Groningen" },
+				{ "Netherlands", "Netherlands", "Drenthe", "Netherlands", "Drenthe" },
+				{ "Netherlands", "Netherlands", "Overijssel", "Netherlands", "Overijssel" },
+				{ "Netherlands", "Netherlands", "Gelderland", "Netherlands", "Gelderland" },
+				{ "Netherlands", "Netherlands", "Limburg", "Netherlands", "Limburg" },
+				{ "Netherlands", "Netherlands", "Zeeland", "Netherlands", "Zeeland" },
+				{ "Netherlands", "Netherlands", "North Brabant", "Netherlands", "North Brabant" },
+				{ "Netherlands", "Netherlands", "South Holland", "Netherlands", "South Holland" },
+				{ "Netherlands", "Netherlands", "North Holland", "Netherlands", "North Holland" },
+				{ "Netherlands", "Netherlands", "Friesland", "Netherlands", "Friesland" },
+				{ "Netherlands", "Netherlands", "Flevoland", "Netherlands", "Flevoland" },
+				{ "Netherlands", "Netherlands", "Utrecht", "Netherlands", "Utrecht" },
+				{ "Switzerland", "Switzerland", "Valais", "Switzerland", "Valais" },
+				{ "Switzerland", "Switzerland", "Ticino", "Switzerland", "Ticino" },
+				{ "Switzerland", "Switzerland", "Grisons", "Switzerland", "Grisons" },
+				{ "Switzerland", "Switzerland", "Schaffhausen", "Switzerland", "Schaffhausen" },
+				{ "Switzerland", "Switzerland", "Thurgau", "Switzerland", "Thurgau" },
+				{ "Switzerland", "Switzerland", "Zurich", "Switzerland", "Zurich" },
+				{ "Switzerland", "Switzerland", "Aargau", "Switzerland", "Aargau" },
+				{ "Switzerland", "Switzerland", "Basel-Stadt", "Switzerland", "Basel-Stadt" },
+				{ "Switzerland", "Switzerland", "Basel-Landschaft", "Switzerland", "Basel-Landschaft" },
+				{ "Switzerland", "Switzerland", "St. Gallen", "Switzerland", "St. Gallen" },
+				{ "Switzerland", "Switzerland", "Solothurn", "Switzerland", "Solothurn" },
+				{ "Switzerland", "Switzerland", "Jura", "Switzerland", "Jura" },
+				{ "Switzerland", "Switzerland", "Geneva", "Switzerland", "Geneva" },
+				{ "Switzerland", "Switzerland", "Vaud", "Switzerland", "Vaud" },
+				{ "Switzerland", "Switzerland", "Neuchâtel", "Switzerland", "Neuchâtel" },
+				{ "Switzerland", "Switzerland", "Bern", "Switzerland", "Bern" },
+				{ "Switzerland", "Switzerland", "Lucerne", "Switzerland", "Lucerne" },
+				{ "Switzerland", "Switzerland", "Zug", "Switzerland", "Zug" },
+				{ "Switzerland", "Switzerland", "Uri", "Switzerland", "Uri" },
+				{ "Switzerland", "Switzerland", "Schwyz", "Switzerland", "Schwyz" },
+				{ "Switzerland", "Switzerland", "Glarus", "Switzerland", "Glarus" },
+				{ "Switzerland", "Switzerland", "Nidwalden", "Switzerland", "Nidwalden" },
+				{ "Switzerland", "Switzerland", "Fribourg", "Switzerland", "Fribourg" },
+				{ "Switzerland", "Switzerland", "Obwalden", "Switzerland", "Obwalden" },
+				{ "Switzerland", "Switzerland", "Appenzell Ausserrhoden", "Switzerland", "Appenzell Ausserrhoden" },
+				{ "Switzerland", "Switzerland", "Appenzell Innerrhoden", "Switzerland", "Appenzell Innerrhoden" },
+				{ "United States", "United States", "United States|Alabama", "United States", "Alabama" },
+				{ "United States", "United States", "United States|Arizona", "United States", "Arizona" },
+				{ "United States", "United States", "United States|Colorado", "United States", "Colorado" },
+				{ "United States", "United States", "United States|Florida", "United States", "Florida" },
+				{ "United States", "United States", "United States|Georgia", "United States", "Georgia" },
+				{ "United States", "United States", "United States|Indiana", "United States", "Indiana" },
+				{ "United States", "United States", "United States|Kansas", "United States", "Kansas" },
+				{ "United States", "United States", "United States|Maine", "United States", "Maine" },
+				{ "United States", "United States", "United States|Massachusetts", "United States", "Massachusetts" },
+				{ "United States", "United States", "United States|Minnesota", "United States", "Minnesota" },
+				{ "United States", "United States", "United States|New Jersey", "United States", "New Jersey" },
+				{ "United States", "United States", "United States|North Carolina", "United States", "North Carolina" },
+				{ "United States", "United States", "United States|North Dakota", "United States", "North Dakota" },
+				{ "United States", "United States", "United States|Oklahoma", "United States", "Oklahoma" },
+				{ "United States", "United States", "United States|Pennsylvania", "United States", "Pennsylvania" },
+				{ "United States", "United States", "United States|South Dakota", "United States", "South Dakota" },
+				{ "United States", "United States", "United States|Texas", "United States", "Texas" },
+				{ "United States", "United States", "United States|Wyoming", "United States", "Wyoming" },
+				{ "United States", "United States", "United States|Connecticut", "United States", "Connecticut" },
+				{ "United States", "United States", "United States|Missouri", "United States", "Missouri" },
+				{ "United States", "United States", "United States|West Virginia", "United States", "West Virginia" },
+				{ "United States", "United States", "United States|Illinois", "United States", "Illinois" },
+				{ "United States", "United States", "United States|New Mexico", "United States", "New Mexico" },
+				{ "United States", "United States", "United States|Arkansas", "United States", "Arkansas" },
+				{ "United States", "United States", "United States|California", "United States", "California" },
+				{ "United States", "United States", "United States|Delaware", "United States", "Delaware" },
+				{ "United States", "United States", "United States|District of Columbia", "United States", "District of Columbia" },
+				{ "United States", "United States", "United States|Hawaii", "United States", "Hawaii" },
+				{ "United States", "United States", "United States|Iowa", "United States", "Iowa" },
+				{ "United States", "United States", "United States|Kentucky", "United States", "Kentucky" },
+				{ "United States", "United States", "United States|Maryland", "United States", "Maryland" },
+				{ "United States", "United States", "United States|Michigan", "United States", "Michigan" },
+				{ "United States", "United States", "United States|Mississippi", "United States", "Mississippi" },
+				{ "United States", "United States", "United States|Montana", "United States", "Montana" },
+				{ "United States", "United States", "United States|New Hampshire", "United States", "New Hampshire" },
+				{ "United States", "United States", "United States|New York", "United States", "New York" },
+				{ "United States", "United States", "United States|Ohio", "United States", "Ohio" },
+				{ "United States", "United States", "United States|Oregon", "United States", "Oregon" },
+				{ "United States", "United States", "United States|Tennessee", "United States", "Tennessee" },
+				{ "United States", "United States", "United States|Utah", "United States", "Utah" },
+				{ "United States", "United States", "United States|Virginia", "United States", "Virginia" },
+				{ "United States", "United States", "United States|Washington", "United States", "Washington" },
+				{ "United States", "United States", "United States|Wisconsin", "United States", "Wisconsin" },
+				{ "United States", "United States", "United States|Nebraska", "United States", "Nebraska" },
+				{ "United States", "United States", "United States|South Carolina", "United States", "South Carolina" },
+				{ "United States", "United States", "United States|Idaho", "United States", "Idaho" },
+				{ "United States", "United States", "United States|Nevada", "United States", "Nevada" },
+				{ "United States", "United States", "United States|Vermont", "United States", "Vermont" },
+				{ "United States", "United States", "United States|Louisiana", "United States", "Louisiana" },
+				{ "United States", "United States", "United States|Rhode Island", "United States", "Rhode Island" }
+				        }
+				    ),
+				    ConClavePais = Table.AddColumn(Origen, "CountryKey", each if [Scope] = "Europe" then [Region] else "~" & [Region], type text)
+				in
+				    ConClavePais
+

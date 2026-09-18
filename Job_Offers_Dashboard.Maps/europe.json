@@ -1,0 +1,41 @@
+{
+  "name": "Europe",
+  "source": "Centroids nacionales (investigacion web)",
+  "countries": [
+    {
+      "country": "Spain",
+      "latitude": 40.4637,
+      "longitude": -3.7492
+    },
+    {
+      "country": "United States",
+      "latitude": 39.8283,
+      "longitude": -98.5795
+    },
+    {
+      "country": "Ireland",
+      "latitude": 53.1424,
+      "longitude": -8.1547
+    },
+    {
+      "country": "Netherlands",
+      "latitude": 52.1326,
+      "longitude": 5.2913
+    },
+    {
+      "country": "Switzerland",
+      "latitude": 46.8182,
+      "longitude": 8.2275
+    },
+    {
+      "country": "Germany",
+      "latitude": 51.1657,
+      "longitude": 10.4515
+    },
+    {
+      "country": "Austria",
+      "latitude": 47.5162,
+      "longitude": 14.5501
+    }
+  ]
+}

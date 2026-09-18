@@ -1,0 +1,31 @@
+/// Puente entre MapFeature y Fact_Offers: asigna a cada oferta la feature de region (ambito pais) y la feature de pais (ambito Europa). Permite que la seleccion del mapa filtre Fact_Offers.
+table MapFeatureBridge
+	isHidden
+	lineageTag: c0f4a906-5150-49aa-aa08-cc74c4b78bf2
+
+	column MapKey
+		dataType: string
+		lineageTag: 87384312-c9dd-465a-b260-0649b43ddc57
+		sourceColumn: MapKey
+
+	column job_id
+		dataType: string
+		lineageTag: 723350c0-181b-4609-97d6-b0183469f1ff
+		sourceColumn: job_id
+
+	partition MapFeatureBridge = m
+		mode: import
+		source =
+				let
+				    Hechos = Table.SelectColumns(Fact_Offers, {"job_id", "GeoCountry", "GeoRegion"}),
+				    Features = Table.SelectColumns(MapFeature, {"Scope", "Region", "MapKey"}),
+				    FeaturesEuropa = Table.SelectRows(Features, each [Scope] = "Europe"),
+				    PorRegion = Table.NestedJoin(Hechos, {"GeoCountry", "GeoRegion"}, Features, {"Scope", "Region"}, "F", JoinKind.Inner),
+				    PorRegion2 = Table.SelectColumns(Table.ExpandTableColumn(PorRegion, "F", {"MapKey"}, {"MapKey"}), {"job_id", "MapKey"}),
+				    PorPais = Table.NestedJoin(Hechos, {"GeoCountry"}, FeaturesEuropa, {"Region"}, "F", JoinKind.Inner),
+				    PorPais2 = Table.SelectColumns(Table.ExpandTableColumn(PorPais, "F", {"MapKey"}, {"MapKey"}), {"job_id", "MapKey"}),
+				    Puente = Table.Distinct(Table.Combine({PorRegion2, PorPais2})),
+				    Tipada = Table.TransformColumnTypes(Puente, {{"job_id", type text}, {"MapKey", type text}})
+				in
+				    Tipada
+
