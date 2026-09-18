@@ -90,7 +90,7 @@ Every notebook reads its configuration from widgets and, if none are passed,
 resolves via environment variable or falls back to the default. In Databricks
 Workflows, define the parameters at the task level.
 
-### 5.1 Bronze — `Ingesta Bronce Prueba.ipynb`
+### 5.1 Bronze — `bronze_ingest.ipynb`
 
 For each source, Auto Loader with `trigger(availableNow=True)`:
 
@@ -107,8 +107,8 @@ Details: `schemaLocation` and `checkpointLocation` under
 
 ### 5.2 Silver — one notebook per source
 
-`Transformacion Plata Indeed.ipynb`, `... InfoJobs.ipynb`,
-`... Linkedin.ipynb`, `... MultiSite.ipynb`.
+`silver_indeed.ipynb`, `silver_infojobs.ipynb`,
+`silver_linkedin.ipynb`, `silver_multisite.ipynb`.
 
 Each one: reads `bronze.<source>`, renames columns, applies
 `Enrich_Job_Offers_Dataframes.enrich()`, normalizes company/location, de-duplicates
@@ -116,7 +116,7 @@ and writes `silver.offers_<source>` and `silver.companies_<source>`.
 
 **Parameters:** `catalog`, `bronze_schema`, `silver_schema`.
 
-### 5.3 Gold — `Transformacion Oro Complete_Catalog.ipynb`
+### 5.3 Gold — `gold_build.ipynb`
 
 Unions the four Silver tables (`unionByName(allowMissingColumns=True)`),
 de-duplicates and builds the Gold tables with `Prepare_Gold.build_gold()` +

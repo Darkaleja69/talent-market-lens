@@ -33,10 +33,10 @@ multi_site_job_scraper   ─┘                         append + mergeSchema)
 - Una **tabla Bronze por fuente** (`job_offers.bronze.{source}`), ingesta
   incremental con Auto Loader (`cloudFiles`), Parquet de entrada, Delta de
   salida, `mergeSchema` y `trigger(availableNow=True)`.
-- **Un notebook Silver por fuente** (`Transformacion Plata {Fuente}.ipynb`) que
+- **Un notebook Silver por fuente** (`silver_<fuente>.ipynb`) que
   normaliza, enriquece y deduplica. Escribe `silver.offers_<fuente>` y
   `silver.companies_<fuente>`.
-- Un único notebook **Oro** (`Transformacion Oro Complete_Catalog.ipynb`) que
+- Un único notebook **Oro** (`gold_build.ipynb`) que
   unifica las cuatro Silver con `unionByName(allowMissingColumns=True)`,
   deduplica y construye las tablas Gold.
 

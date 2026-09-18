@@ -91,7 +91,7 @@ Todos los notebooks leen su configuración de widgets y, si no se pasan,
 resuelven por variable de entorno o usan el default. En Databricks Workflows,
 define los parámetros a nivel de tarea.
 
-### 5.1 Bronze — `Ingesta Bronce Prueba.ipynb`
+### 5.1 Bronze — `bronze_ingest.ipynb`
 
 Por cada fuente, Auto Loader con `trigger(availableNow=True)`:
 
@@ -108,8 +108,8 @@ Detalles: `schemaLocation` y `checkpointLocation` bajo
 
 ### 5.2 Silver — un notebook por fuente
 
-`Transformacion Plata Indeed.ipynb`, `... InfoJobs.ipynb`,
-`... Linkedin.ipynb`, `... MultiSite.ipynb`.
+`silver_indeed.ipynb`, `silver_infojobs.ipynb`,
+`silver_linkedin.ipynb`, `silver_multisite.ipynb`.
 
 Cada uno: lee `bronze.<fuente>`, renombra columnas, aplica
 `Enrich_Job_Offers_Dataframes.enrich()`, normaliza empresa/location, deduplica y escribe
@@ -117,7 +117,7 @@ Cada uno: lee `bronze.<fuente>`, renombra columnas, aplica
 
 **Parámetros:** `catalog`, `bronze_schema`, `silver_schema`.
 
-### 5.3 Gold — `Transformacion Oro Complete_Catalog.ipynb`
+### 5.3 Gold — `gold_build.ipynb`
 
 Une las cuatro Silver (`unionByName(allowMissingColumns=True)`), deduplica y
 construye las tablas Gold con `Prepare_Gold.build_gold()` +
