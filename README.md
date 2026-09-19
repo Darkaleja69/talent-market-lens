@@ -1,5 +1,7 @@
 # Talent Market Lens
 
+> **English** · [Español](docs/es/README.md)
+
 **An end-to-end data platform for the data & analytics job market: multi-source scraping → Medallion architecture on Databricks → salary, skills and geography analytics in Power BI.**
 
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -48,6 +50,56 @@ A complete, production-minded data platform built end to end:
 - **Analytics engineering** — a clean star schema (`fact_offers`, `fact_offer_skills` and conformed dimensions) with documented business definitions.
 - **BI & semantic modeling** — a 17-table, 58-measure Power BI model and a 5-page report built directly on the Gold layer.
 - **Software engineering practices** — externalized configuration, zero secrets in the repository, unit + Spark integration tests and clear documentation.
+
+---
+
+## Screenshots
+
+### Databricks — Git-based ELT job with notebook lineage
+
+![Databricks Git Based ELT job showing the Bronze, Silver and Gold notebook dependency graph](docs/images/databrick_job_lineage.png)
+
+The whole platform runs as a single **dependency graph**: `Bronze_Ingestion` fans out to the four source-specific Silver notebooks (`Silver_Indeed`, `Silver_InfoJobs`, `Silver_LinkedIn`, `Silver_Multi_site`), which converge into `Gold_Complete_Catalog`. Every task is a notebook committed to Git, so the pipeline is versioned, reviewable and reproducible instead of click-ops.
+
+### Power BI report
+
+The report is composed of five analytical pages plus a global filter pane, all consuming the Gold star schema directly.
+
+#### Market Pulse
+
+![Market Pulse page](docs/images/powerbi_market_pulse.png)
+
+The executive overview: headline KPIs (**unique job postings**, **companies hiring**, **remote-friendly share** and **salary disclosure rate**), the **posting-volume trend by month**, the **top roles** and **top companies** ranked by demand, the **experience-level** breakdown and a table of the **highest paid postings of the last 7 days**. *(Job titles in the table are intentionally blurred for privacy.)*
+
+#### Roles & Skills
+
+![Roles and Skills page](docs/images/powerbi_roles_skills.png)
+
+Where demand meets money. A **demand-vs-salary bubble chart** plots every skill by market share (x) against median salary (y), coloured by category, so you can immediately spot skills that combine high demand *and* high pay. It is complemented by a **skill-demand donut by category**, a ranked **Skills Benchmark** table (offers, demand, share, median salary) and **median salary by skill category**.
+
+#### Salary Insights
+
+![Salary Insights page](docs/images/powerbi_salary_insights.png)
+
+Pay analysis with country context: a KPI strip (**average, median, P25 and P75 mid salary**, plus **salary disclosure rate**) over the **average salary by role category** and **by work mode** (remote / hybrid / on-site / not specified). The **Top Paying Skills** table and a **country selector with a filled map** complete the geographic and skill-level view.
+
+#### Opportunity Explorer
+
+![Opportunity Explorer page](docs/images/powerbi_opportunity_explorer.png)
+
+The drill-down layer: a searchable list of **individual postings** with company, country, city, work mode, role category, annual median salary, posting date and source, filtered by a **minimum salary**. *(Job titles are intentionally blurred for privacy.)*
+
+#### About & Methodology
+
+![About and Methodology page](docs/images/powerbi_about_methodology.png)
+
+Transparency built into the report: data freshness, the **"how the data is built"** pipeline trace (scraping → ADLS Gen2 → Bronze → Silver → Gold → Power BI), **offers by source**, **salary data-quality flags**, **posting-date provenance** (`posted` vs `scraped`), a **coverage-table per source** and the documented **methodology and known limitations**.
+
+#### Global filter pane
+
+![Report filter pane with slicers](docs/images/powerbi_filter_pane.png)
+
+A single slicer panel drives the whole report — **region, experience level, role, work mode, company, skills, source and salary range** — so any question can be sliced consistently across every page.
 
 ---
 
@@ -116,7 +168,7 @@ The Power BI semantic model exposes **17 tables and 58 measures** across 5 repor
 ```
 talent-market-lens/
 ├── databricks_notebooks/       # Bronze, Silver (per source) and Gold PySpark notebooks + modules
-├── docs/                       # Runbook and data-source contract
+├── docs/                       # Runbook, data-source contract and screenshots (docs/images/)
 ├── scrapers-pipeline/          # Local orchestration and upload to ADLS (PowerShell)
 ├── indeed_jobs_scraper/        # Scraper: Indeed
 ├── linkedin_jobs_scraper/      # Scraper: LinkedIn
