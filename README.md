@@ -4,6 +4,10 @@
 
 **An end-to-end data platform for the data & analytics job market: multi-source scraping → Medallion architecture on Databricks → salary, skills and geography analytics in Power BI.**
 
+[![Talent Market Lens — 10-second demo](docs/media/talent-market-lens-demo.gif)](https://github.com/Darkaleja69)
+
+> A 10-second overview: from raw job postings to decision-ready data.
+
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PySpark](https://img.shields.io/badge/PySpark-3.5-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org/)
 [![Databricks](https://img.shields.io/badge/Databricks-Unity%20Catalog-FF3621?logo=databricks&logoColor=white)](https://www.databricks.com/)
@@ -13,6 +17,39 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 > **Status:** v1 — the ELT pipeline, data model and Power BI report are fully working end to end. Future iterations are outlined in the [roadmap](ROADMAP.md).
+
+---
+
+## Architecture
+
+![Talent Market Lens — local scrapers → Azure ADLS Gen2 → Bronze (Auto Loader) → Silver (PySpark) → Gold (star schema) → Power BI](docs/images/architecture.png)
+
+One reproducible flow: scrapers land raw Parquet in Azure ADLS Gen2, Auto Loader appends it to Bronze Delta tables, PySpark normalizes and de-duplicates it in Silver, and Gold exposes a star schema that Power BI consumes directly.
+
+```mermaid
+flowchart LR
+    A["Local scrapers<br/>Python + Playwright/Requests"] -->|Parquet| B[("Azure ADLS Gen2<br/>landing/")]
+    B -->|"Auto Loader (cloudFiles)"| C["Bronze<br/>Delta · 1 table per source"]
+    C --> D["Silver<br/>enrich + normalize + dedup"]
+    D --> E["Gold<br/>star schema"]
+    E --> F["Power BI<br/>semantic model + report"]
+
+    subgraph Databricks / Unity Catalog
+        C
+        D
+        E
+    end
+```
+
+**Layer responsibilities**
+
+| Layer | What happens | Technology |
+|---|---|---|
+| **Ingestion** | Daily scrapers write Parquet to `landing/<source>/`; a trigger file signals the run. | Python, Playwright, PowerShell, AzCopy |
+| **Bronze** | Raw data per source, append with audit columns (`_ingest_date`, `_source_file`). | Auto Loader, Delta Lake |
+| **Silver** | Column renaming, enrichment (skills, seniority, salary → annual EUR, work mode, geo), de-duplication. | PySpark (columnar), `enrich()` |
+| **Gold** | Unified, de-duplicated star schema ready for BI. | PySpark, Delta Lake |
+| **Semantic layer** | Star model, DAX measures and a 5-page report. | Power BI (PBIP / PBIR / TMDL) |
 
 ---
 
@@ -100,35 +137,6 @@ Transparency built into the report: data freshness, the **"how the data is built
 ![Report filter pane with slicers](docs/images/powerbi_filter_pane.png)
 
 A single slicer panel drives the whole report — **region, experience level, role, work mode, company, skills, source and salary range** — so any question can be sliced consistently across every page.
-
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    A["Local scrapers<br/>Python + Playwright/Requests"] -->|Parquet| B[("Azure ADLS Gen2<br/>landing/")]
-    B -->|"Auto Loader (cloudFiles)"| C["Bronze<br/>Delta · 1 table per source"]
-    C --> D["Silver<br/>enrich + normalize + dedup"]
-    D --> E["Gold<br/>star schema"]
-    E --> F["Power BI<br/>semantic model + report"]
-
-    subgraph Databricks / Unity Catalog
-        C
-        D
-        E
-    end
-```
-
-**Layer responsibilities**
-
-| Layer | What happens | Technology |
-|---|---|---|
-| **Ingestion** | Daily scrapers write Parquet to `landing/<source>/`; a trigger file signals the run. | Python, Playwright, PowerShell, AzCopy |
-| **Bronze** | Raw data per source, append with audit columns (`_ingest_date`, `_source_file`). | Auto Loader, Delta Lake |
-| **Silver** | Column renaming, enrichment (skills, seniority, salary → annual EUR, work mode, geo), de-duplication. | PySpark (columnar), `enrich()` |
-| **Gold** | Unified, de-duplicated star schema ready for BI. | PySpark, Delta Lake |
-| **Semantic layer** | Star model, DAX measures and a 5-page report. | Power BI (PBIP / PBIR / TMDL) |
 
 ---
 
@@ -227,6 +235,46 @@ Data quality is treated as a first-class concern, not an afterthought:
 - Coverage and availability are surfaced in the report itself, so every metric is transparent to the consumer.
 
 **Next iterations** are outlined in the [roadmap](ROADMAP.md).
+
+---
+
+## Key Engineering Decisions
+
+The choices a reviewer or interviewer is most likely to probe:
+
+**Why Auto Loader?**
+Incremental file ingestion without hand-rolled state: it discovers new Parquet files as they land, evolves the schema automatically (`mergeSchema`) and keeps checkpoints so each run only processes what is new. It replaces brittle "list the folder and diff" logic and scales to large landing zones.
+
+**Why Delta Lake?**
+ACID transactions, schema enforcement/evolution and time travel on top of cheap object storage. Writes are reliable, reads are consistent, and `MERGE` enables idempotent updates instead of append-only guesses.
+
+**Why the Medallion architecture?**
+Separation of concerns. Bronze keeps raw, auditable data; Silver holds typed, normalized, de-duplicated records; Gold exposes business-ready tables. Each layer can be re-run and tested independently, and a bug in enrichment never costs the raw data.
+
+**Why a star schema for Gold?**
+BI and DAX are built for it: a central fact table with conformed dimensions gives simple relationships, fast aggregations and a model a non-engineer can read — instead of one wide, denormalized table that is hard to extend.
+
+**Why PySpark instead of pandas?**
+The volume does not fit comfortably in single-machine memory, and the transformations must run on Databricks regardless of the local environment. Columnar PySpark (no UDFs) parallelizes the work, and the same functions are covered by both unit and Spark integration tests.
+
+**How is idempotency achieved?**
+Every layer is deterministic: natural/business keys define de-duplication, and Delta `MERGE` / partition-level overwrites make a re-run converge to the same state. Re-executing the notebooks does not duplicate rows — the integration tests assert this explicitly.
+
+**How is data quality handled?**
+Quality is modeled, not hoped for. Each salary is classified (`ok` / `missing` / `unknown_period` / `outlier_review` / `invalid`) and normalized to annual EUR only when the period is known; posting dates keep their provenance (`posted` vs `scraped`); and skills, seniority, work mode and geography are mapped to canonical catalogs. Coverage and freshness are surfaced in the report, so every metric is auditable.
+
+---
+
+## What I would do next
+
+v1 is deliberately the **data platform**, not the finished product: ingestion, the Medallion pipeline and the star schema are the foundation the next layers are built on. The next iteration is **Applied ML** — an ML-powered job recommendation and matching layer on top of the Gold model, delivered with a full **MLOps lifecycle**.
+
+- **Features from Gold** — skills, role, seniority, salary band, geography and demand signals as reusable, tested features.
+- **Ranking / matching model** — explainable candidate-to-posting recommendations, with evaluation beyond raw accuracy.
+- **MLOps lifecycle** — experiment tracking, model registry, scheduled batch scoring and monitoring for drift and data quality.
+- **Serving** — scored recommendations surfaced back through the semantic layer.
+
+Operational maturity (incremental loading, monitoring, schema contracts) continues in parallel — see the [roadmap](ROADMAP.md).
 
 ---
 

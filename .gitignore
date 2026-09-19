@@ -56,6 +56,14 @@ backup_*/
 *.tmp
 
 # ---------------------------------------------------------------------------
+# Medios generados (no versionar: pesados o regenerables)
+# El GIF y el poster SI se versionan (docs/media/talent-market-lens-demo.gif,
+# docs/media/talent-market-lens-poster.png)
+# ---------------------------------------------------------------------------
+docs/media/frames-*/
+*.mp4
+
+# ---------------------------------------------------------------------------
 # Python
 # ---------------------------------------------------------------------------
 __pycache__/

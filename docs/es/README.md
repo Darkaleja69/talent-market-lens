@@ -4,6 +4,10 @@
 
 **Una plataforma de datos end-to-end para el mercado laboral de datos y analítica: scraping multi-fuente → arquitectura Medallion en Databricks → analítica de salarios, skills y geografía en Power BI.**
 
+[![Talent Market Lens — demo de 10 segundos](../media/talent-market-lens-demo.gif)](https://github.com/Darkaleja69)
+
+> Una vista de 10 segundos: de ofertas de empleo desordenadas a datos listos para decidir.
+
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![PySpark](https://img.shields.io/badge/PySpark-3.5-E25A1C?logo=apachespark&logoColor=white)](https://spark.apache.org/)
 [![Databricks](https://img.shields.io/badge/Databricks-Unity%20Catalog-FF3621?logo=databricks&logoColor=white)](https://www.databricks.com/)
@@ -13,6 +17,39 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#licencia)
 
 > **Estado:** v1 — el pipeline ELT, el modelo de datos y el informe Power BI funcionan de punta a punta. Las siguientes iteraciones se detallan en el [roadmap](ROADMAP.md).
+
+---
+
+## Arquitectura
+
+![Talent Market Lens — scrapers locales → Azure ADLS Gen2 → Bronze (Auto Loader) → Silver (PySpark) → Gold (esquema en estrella) → Power BI](../images/architecture.png)
+
+Un único flujo reproducible: los scrapers dejan Parquet crudo en Azure ADLS Gen2, Auto Loader lo añade a las tablas Delta de Bronze, PySpark lo normaliza y deduplica en Silver, y Gold expone un esquema en estrella que Power BI consume directamente.
+
+```mermaid
+flowchart LR
+    A["Scrapers locales<br/>Python + Playwright/Requests"] -->|Parquet| B[("Azure ADLS Gen2<br/>landing/")]
+    B -->|"Auto Loader (cloudFiles)"| C["Bronze<br/>Delta · 1 tabla por fuente"]
+    C --> D["Silver<br/>enriquecer + normalizar + dedup"]
+    D --> E["Gold<br/>esquema en estrella"]
+    E --> F["Power BI<br/>modelo semántico + informe"]
+
+    subgraph Databricks / Unity Catalog
+        C
+        D
+        E
+    end
+```
+
+**Responsabilidades por capa**
+
+| Capa | Qué ocurre | Tecnología |
+|---|---|---|
+| **Ingesta** | Los scrapers diarios escriben Parquet en `landing/<fuente>/`; un fichero trigger señala la ejecución. | Python, Playwright, PowerShell, AzCopy |
+| **Bronze** | Datos crudos por fuente, con append y columnas de auditoría (`_ingest_date`, `_source_file`). | Auto Loader, Delta Lake |
+| **Silver** | Renombrado de columnas, enriquecimiento (skills, seniority, salario → EUR anual, modalidad, geo) y deduplicación. | PySpark (columnar), `enrich()` |
+| **Gold** | Esquema en estrella unificado y deduplicado, listo para BI. | PySpark, Delta Lake |
+| **Capa semántica** | Modelo en estrella, medidas DAX y un informe de 5 páginas. | Power BI (PBIP / PBIR / TMDL) |
 
 ---
 
@@ -100,35 +137,6 @@ Transparencia dentro del propio informe: frescura de los datos, la traza del pip
 ![Panel de filtros del informe con segmentadores](../images/powerbi_filter_pane.png)
 
 Un único panel de segmentadores gobierna todo el informe — **región, nivel de experiencia, rol, modalidad, empresa, skills, fuente y rango salarial** — para segmentar cualquier pregunta de forma coherente en todas las páginas.
-
----
-
-## Arquitectura
-
-```mermaid
-flowchart LR
-    A["Scrapers locales<br/>Python + Playwright/Requests"] -->|Parquet| B[("Azure ADLS Gen2<br/>landing/")]
-    B -->|"Auto Loader (cloudFiles)"| C["Bronze<br/>Delta · 1 tabla por fuente"]
-    C --> D["Silver<br/>enriquecer + normalizar + dedup"]
-    D --> E["Gold<br/>esquema en estrella"]
-    E --> F["Power BI<br/>modelo semántico + informe"]
-
-    subgraph Databricks / Unity Catalog
-        C
-        D
-        E
-    end
-```
-
-**Responsabilidades por capa**
-
-| Capa | Qué ocurre | Tecnología |
-|---|---|---|
-| **Ingesta** | Los scrapers diarios escriben Parquet en `landing/<fuente>/`; un fichero trigger señala la ejecución. | Python, Playwright, PowerShell, AzCopy |
-| **Bronze** | Datos crudos por fuente, con append y columnas de auditoría (`_ingest_date`, `_source_file`). | Auto Loader, Delta Lake |
-| **Silver** | Renombrado de columnas, enriquecimiento (skills, seniority, salario → EUR anual, modalidad, geo) y deduplicación. | PySpark (columnar), `enrich()` |
-| **Gold** | Esquema en estrella unificado y deduplicado, listo para BI. | PySpark, Delta Lake |
-| **Capa semántica** | Modelo en estrella, medidas DAX y un informe de 5 páginas. | Power BI (PBIP / PBIR / TMDL) |
 
 ---
 
@@ -227,6 +235,46 @@ La calidad de datos se trata como una preocupación de primer nivel, no como alg
 - La cobertura y la disponibilidad se exponen en el propio informe, para que cada métrica sea transparente para quien la consume.
 
 **Las siguientes iteraciones** se describen en el [roadmap](ROADMAP.md).
+
+---
+
+## Decisiones clave de ingeniería
+
+Las decisiones que con más probabilidad te preguntarán en una entrevista o revisión:
+
+**¿Por qué Auto Loader?**
+Ingesta incremental de ficheros sin gestionar el estado a mano: descubre los nuevos Parquet según llegan, evoluciona el esquema automáticamente (`mergeSchema`) y mantiene checkpoints, de modo que cada ejecución solo procesa lo nuevo. Sustituye la lógica frágil de "listar la carpeta y comparar" y escala a landings grandes.
+
+**¿Por qué Delta Lake?**
+Transacciones ACID, enforcement y evolución de esquema y time travel sobre almacenamiento de objetos barato. Las escrituras son fiables, las lecturas consistentes y `MERGE` permite actualizaciones idempotentes en lugar de appends a ciegas.
+
+**¿Por qué la arquitectura Medallion?**
+Separación de responsabilidades. Bronze conserva el dato crudo y auditable; Silver contiene registros tipados, normalizados y deduplicados; Gold expone tablas listas para negocio. Cada capa se puede reejecutar y testear por separado, y un error de enriquecimiento nunca cuesta el dato original.
+
+**¿Por qué un esquema en estrella en Gold?**
+BI y DAX están hechos para ello: una tabla de hechos central con dimensiones conformadas da relaciones simples, agregaciones rápidas y un modelo que un no ingeniero puede leer, en lugar de una tabla ancha y desnormalizada difícil de extender.
+
+**¿Por qué PySpark en lugar de pandas?**
+El volumen no cabe cómodamente en la memoria de una máquina y las transformaciones deben correr en Databricks, no solo en local. PySpark columnar (sin UDFs) paraleliza el trabajo y las mismas funciones están cubiertas por tests unitarios y de integración con Spark.
+
+**¿Cómo se consigue la idempotencia?**
+Cada capa es determinista: las claves de negocio definen la deduplicación y `MERGE` / sobrescritura por partición hacen que una reejecución converja al mismo estado. Volver a ejecutar los notebooks no duplica filas; los tests de integración lo verifican explícitamente.
+
+**¿Cómo se gestiona la calidad de los datos?**
+La calidad se modela, no se espera. Cada salario se clasifica (`ok` / `missing` / `unknown_period` / `outlier_review` / `invalid`) y solo se normaliza a EUR anual cuando el periodo es conocido; las fechas conservan su procedencia (`posted` vs `scraped`); y skills, seniority, modalidad y geografía se mapean a catálogos canónicos. La cobertura y la frescura se exponen en el informe, así que cada métrica es auditable.
+
+---
+
+## Qué haría después
+
+La v1 es deliberadamente la **plataforma de datos**, no el producto final: la ingesta, el pipeline Medallion y el esquema en estrella son la base sobre la que se construyen las siguientes capas. La siguiente iteración es **ML aplicado**: una capa de recomendación y matching de ofertas construida sobre el modelo Gold y entregada con un **ciclo de vida MLOps** completo.
+
+- **Features desde Gold** — skills, rol, seniority, banda salarial, geografía y señales de demanda como features reutilizables y testeadas.
+- **Modelo de ranking / matching** — recomendaciones explicables candidato ↔ oferta, con evaluación más allá de la accuracy.
+- **Ciclo de vida MLOps** — tracking de experimentos, registro de modelos, scoring por lotes programado y monitorización de drift y calidad.
+- **Servido** — recomendaciones puntuadas expuestas de vuelta a través de la capa semántica.
+
+La madurez operativa (carga incremental, monitorización, contratos de esquema) continúa en paralelo — ver el [roadmap](ROADMAP.md).
 
 ---
 
