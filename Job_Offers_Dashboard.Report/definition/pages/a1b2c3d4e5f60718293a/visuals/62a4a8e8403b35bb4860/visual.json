@@ -251,62 +251,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "332b1e0e60c8ac30e824",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Dim_SkillList"
-              }
-            },
-            "Property": "SkillCategory"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "77d6a7d560d3eb83ae80",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Skill Demand"
-          }
-        },
-        "type": "Advanced"
-      },
-      {
-        "name": "858747d178c2c00b1bd4",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Skill Share"
-          }
-        },
-        "type": "Advanced"
-      },
-      {
-        "name": "c7ca31bba600a8db683e",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Skill Median Salary EUR"
-          }
-        },
-        "type": "Advanced"
       }
     ]
   }

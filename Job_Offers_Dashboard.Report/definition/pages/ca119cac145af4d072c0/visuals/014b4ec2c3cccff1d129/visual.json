@@ -329,20 +329,6 @@
         }
       },
       {
-        "name": "71dc2a3c0ed4bac129dc",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Total Job Offers"
-          }
-        },
-        "type": "Advanced"
-      },
-      {
         "name": "f8723fc04d6148926aad",
         "field": {
           "Column": {

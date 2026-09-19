@@ -316,34 +316,6 @@
           ]
         },
         "howCreated": "User"
-      },
-      {
-        "name": "8adcec18c3991a723a51",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "MapFeature"
-              }
-            },
-            "Property": "MapKey"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "b4331b6895a0b09536bc",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Geo - Map Value"
-          }
-        },
-        "type": "Advanced"
       }
     ]
   }

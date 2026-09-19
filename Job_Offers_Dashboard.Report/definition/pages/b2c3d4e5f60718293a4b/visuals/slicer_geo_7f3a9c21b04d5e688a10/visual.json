@@ -176,7 +176,7 @@
                           [
                             {
                               "Literal": {
-                                "Value": "'Ireland'"
+                                "Value": "'Spain'"
                               }
                             }
                           ]
@@ -246,23 +246,5 @@
       ]
     },
     "drillFilterOtherVisuals": true
-  },
-  "filterConfig": {
-    "filters": [
-      {
-        "name": "4544862b152572506ab6",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Geo Selection"
-              }
-            },
-            "Property": "Selection"
-          }
-        },
-        "type": "Categorical"
-      }
-    ]
   }
 }

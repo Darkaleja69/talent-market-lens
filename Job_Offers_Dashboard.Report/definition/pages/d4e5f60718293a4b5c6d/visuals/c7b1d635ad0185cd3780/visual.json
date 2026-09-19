@@ -2,11 +2,11 @@
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
   "name": "c7b1d635ad0185cd3780",
   "position": {
-    "x": 153.52226720647775,
-    "y": 66.072874493927131,
+    "x": 152.74593669803249,
+    "y": 65.697177074422584,
     "z": 5000,
-    "height": 985.263157894737,
-    "width": 1725.6680161943323,
+    "height": 985.45765611633874,
+    "width": 1750.8297690333618,
     "tabOrder": 5000
   },
   "visual": {
@@ -152,6 +152,23 @@
             }
           ]
         }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Measure": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "Metrics"
+                  }
+                },
+                "Property": "Median Min Salary EUR"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
       }
     },
     "objects": {
@@ -280,135 +297,5 @@
       ]
     },
     "drillFilterOtherVisuals": true
-  },
-  "filterConfig": {
-    "filters": [
-      {
-        "name": "43d32b3740e3007d7914",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "title"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "4a488b7ecea1230a070b",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "company_name"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "eb789d330a05a1155cb4",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "location_city"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "8aa0ed557d47801965c5",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "WorkModeBucket"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "52063fc9c749a7dcd609",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Median Min Salary EUR"
-          }
-        },
-        "type": "Advanced"
-      },
-      {
-        "name": "38b980704bc500731a7e",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "posted_date"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "3d74713c80d0a765989c",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "source_scraper"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "0a13c8a4a580ec34d707",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "role_category"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "fd796971674c5529288a",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "location_country"
-          }
-        },
-        "type": "Categorical"
-      }
-    ]
   }
 }

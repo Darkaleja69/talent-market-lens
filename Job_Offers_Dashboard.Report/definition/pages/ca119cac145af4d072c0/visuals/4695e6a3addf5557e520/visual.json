@@ -3,7 +3,7 @@
   "name": "4695e6a3addf5557e520",
   "position": {
     "x": 38.17466344494305,
-    "y": 74.773482858422085,
+    "y": 72.433960312003,
     "z": 6500,
     "height": 85.333333333333329,
     "width": 283.42857142857144,
@@ -375,20 +375,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "6636732d8c22cd2abd80",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Dim_Geo"
-              }
-            },
-            "Property": "City"
-          }
-        },
-        "type": "Categorical"
       }
     ]
   }

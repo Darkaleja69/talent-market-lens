@@ -310,20 +310,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "af2f97479423c71032b7",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Skill Median Salary EUR"
-          }
-        },
-        "type": "Advanced"
       }
     ]
   }

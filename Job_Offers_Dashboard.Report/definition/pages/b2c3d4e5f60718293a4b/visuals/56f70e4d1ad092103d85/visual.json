@@ -331,34 +331,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "a69fcca2585aaa29ec04",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Skill Median Salary EUR"
-          }
-        },
-        "type": "Advanced"
-      },
-      {
-        "name": "afc1d3752bba22dc7012",
-        "field": {
-          "Measure": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Metrics"
-              }
-            },
-            "Property": "Skill Demand"
-          }
-        },
-        "type": "Advanced"
       }
     ]
   }

@@ -3,7 +3,7 @@
   "name": "360729b1a0aae0f755ab",
   "position": {
     "x": 38.17466344494305,
-    "y": 812.55568086594383,
+    "y": 810.21615831952477,
     "z": 3000,
     "height": 116.85699568094465,
     "width": 284,
@@ -123,23 +123,5 @@
     },
     "drillFilterOtherVisuals": true
   },
-  "parentGroupName": "026f11de2b174265c825",
-  "filterConfig": {
-    "filters": [
-      {
-        "name": "37ba7bf5d56c4661a46c",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Salary Max"
-              }
-            },
-            "Property": "Salary Max"
-          }
-        },
-        "type": "Advanced"
-      }
-    ]
-  }
+  "parentGroupName": "026f11de2b174265c825"
 }

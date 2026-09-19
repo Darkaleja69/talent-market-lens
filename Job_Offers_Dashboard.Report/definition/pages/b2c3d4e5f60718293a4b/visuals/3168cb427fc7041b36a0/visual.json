@@ -3,7 +3,7 @@
   "name": "3168cb427fc7041b36a0",
   "position": {
     "x": 54.462015350571377,
-    "y": 74.773482858422085,
+    "y": 72.433960312003,
     "z": 8000,
     "height": 85.333333333333329,
     "width": 283.42857142857144,
@@ -326,20 +326,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "e42fcd47ddb723049220",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Dim_Geo"
-              }
-            },
-            "Property": "Country"
-          }
-        },
-        "type": "Categorical"
       }
     ]
   }

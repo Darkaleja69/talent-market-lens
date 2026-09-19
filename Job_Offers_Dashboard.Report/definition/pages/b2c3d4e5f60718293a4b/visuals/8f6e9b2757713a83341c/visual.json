@@ -3,7 +3,7 @@
   "name": "8f6e9b2757713a83341c",
   "position": {
     "x": 54.462015350571377,
-    "y": 262.94962679771567,
+    "y": 260.61010425129655,
     "z": 9000,
     "height": 85.333333333333329,
     "width": 280.38095238095241,
@@ -439,23 +439,5 @@
     },
     "drillFilterOtherVisuals": true
   },
-  "parentGroupName": "678656e8f6b7a4a5f8ed",
-  "filterConfig": {
-    "filters": [
-      {
-        "name": "d89482520ab04db050b3",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "role_category"
-          }
-        },
-        "type": "Categorical"
-      }
-    ]
-  }
+  "parentGroupName": "678656e8f6b7a4a5f8ed"
 }
