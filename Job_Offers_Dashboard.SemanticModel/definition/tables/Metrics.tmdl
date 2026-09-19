@@ -114,7 +114,7 @@ table Metrics
 		formatString: #,##0
 		lineageTag: 05f3ab20-be35-4653-93f4-21806f89973e
 
-	measure 'Salary Disclosure Rate' = DIVIDE ( [Offers By Skill With Salary], [Total Job Offers] )
+	measure 'Salary Disclosure Rate' = DIVIDE ( [Offers With Salary], [Total Job Offers] )
 		formatString: 0.0%
 		lineageTag: 9ee1ac41-4d34-4096-9b10-76d514a19447
 

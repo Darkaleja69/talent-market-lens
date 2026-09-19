@@ -145,7 +145,7 @@ def test_enrich_columnas_y_reglas(spark):
 
     assert set(out["skills"]) == {"Python", "SQL"}
     assert out["role_category"] == "Data Engineer"
-    assert out["experience_level"] == "Mid-Senior"
+    assert out["experience_level"] == "Senior"
     assert out["salary_min_annual"] == 40000.0
     assert out["salary_max_annual"] == 55000.0
     assert out["salary_quality"] == "ok"
@@ -156,6 +156,28 @@ def test_enrich_columnas_y_reglas(spark):
     assert out["location_region"] == "Madrid"
     assert out["posted_date_source"] == "posted"
     assert out["skills_source"] == "derived"
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("Algo de responsabilidad", "Mid-Senior"),
+    ("Intermedio", "Mid-Senior"),
+    ("Practicas", "Intern"),
+    ("Sin Experiencia", "Junior"),
+    ("No corresponde", "Unknown"),
+    ("Unkown", "Unknown"),
+    ("Associate", "Mid-Senior"),
+    ("Director", "Executive"),
+    ("Entry", "Junior"),
+    ("Not Applicable", "Unknown"),
+    ("Senior", "Senior"),
+])
+def test_enrich_normaliza_experience_level_existente(spark, raw, expected):
+    # Un valor ya presente (aunque venga en castellano o fuera de la escala)
+    # se normaliza a una de las 6 categorias canonicas conservando la traza.
+    row = dict(SAMPLE, job_id="exp", experience_level=raw)
+    out = e.enrich(_df(spark, [row])).collect()[0]
+    assert out["experience_level"] == expected
+    assert out["experience_level_source"] == "existing"
 
 
 def test_enrich_periodo_desconocido_no_falsea_anual(spark):

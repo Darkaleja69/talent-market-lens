@@ -29,3 +29,5 @@ table MapFeatureBridge
 				in
 				    Tipada
 
+	annotation PBI_ResultType = Table
+

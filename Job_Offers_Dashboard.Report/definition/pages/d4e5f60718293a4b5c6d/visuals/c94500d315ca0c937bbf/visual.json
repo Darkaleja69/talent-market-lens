@@ -308,6 +308,11 @@
         }
       ]
     },
+    "syncGroup": {
+      "groupName": "Country",
+      "fieldChanges": true,
+      "filterChanges": true
+    },
     "drillFilterOtherVisuals": true
   },
   "parentGroupName": "c6eb13a5b232174dd981",
@@ -323,6 +328,35 @@
               }
             },
             "Property": "Region"
+          }
+        },
+        "type": "Categorical",
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "026f4dae4b1166609c30",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Dim_Geo"
+              }
+            },
+            "Property": "Country"
           }
         },
         "type": "Categorical",
@@ -349,7 +383,7 @@
                                 "Source": "d"
                               }
                             },
-                            "Property": "Region"
+                            "Property": "Country"
                           }
                         }
                       ],
@@ -369,35 +403,6 @@
             }
           ]
         },
-        "objects": {
-          "general": [
-            {
-              "properties": {
-                "isInvertedSelectionMode": {
-                  "expr": {
-                    "Literal": {
-                      "Value": "true"
-                    }
-                  }
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "a6ee53f8ab0c3e09a380",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Dim_Geo"
-              }
-            },
-            "Property": "Country"
-          }
-        },
-        "type": "Categorical",
         "objects": {
           "general": [
             {

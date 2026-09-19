@@ -20,6 +20,31 @@ def test_role_german_analyst_and_database():
     assert e.role_category("Account Executive") == "Other"
 
 
+def test_normalize_experience_level_spanish_and_english():
+    # Valores crudos (castellano e ingles) -> 6 categorias canonicas.
+    assert e.normalize_experience_level("Algo de responsabilidad") == "Mid-Senior"
+    assert e.normalize_experience_level("Intermedio") == "Mid-Senior"
+    assert e.normalize_experience_level("Practicas") == "Intern"
+    assert e.normalize_experience_level("Sin Experiencia") == "Junior"
+    assert e.normalize_experience_level("No corresponde") == "Unknown"
+    assert e.normalize_experience_level("Unkown") == "Unknown"
+    assert e.normalize_experience_level("Associate") == "Mid-Senior"
+    assert e.normalize_experience_level("Director") == "Executive"
+    assert e.normalize_experience_level("Entry") == "Junior"
+    assert e.normalize_experience_level("Not Applicable") == "Unknown"
+    assert e.normalize_experience_level("Senior") == "Senior"
+    assert e.normalize_experience_level("") == "Unknown"
+    assert e.normalize_experience_level("otro nivel raro") == "Unknown"
+
+
+def test_experience_level_rules_output_canonical_categories():
+    assert e.experience_level("Senior Data Engineer") == "Senior"
+    assert e.experience_level("Mid-Senior Data Analyst") == "Mid-Senior"
+    assert e.experience_level("Junior Data Analyst") == "Junior"
+    assert e.experience_level("Becario de analitica") == "Intern"
+    assert e.experience_level("Head of Data") == "Executive"
+
+
 def test_work_mode_multilingual():
     assert e.work_mode_normalized("Thuiswerken") == "Remote"
     assert e.work_mode_normalized("Homeoffice möglich") == "Remote"

@@ -259,22 +259,6 @@
   "filterConfig": {
     "filters": [
       {
-        "name": "f2a2b3c4d5e6f708192a",
-        "displayName": "Valid posting dates only",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Fact_Offers"
-              }
-            },
-            "Property": "IsValidPostingDate"
-          }
-        },
-        "type": "Categorical",
-        "howCreated": "User"
-      },
-      {
         "name": "c49e95546757d51a4733",
         "field": {
           "Column": {

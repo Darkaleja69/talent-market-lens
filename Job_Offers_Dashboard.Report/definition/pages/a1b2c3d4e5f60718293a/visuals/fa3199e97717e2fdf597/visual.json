@@ -308,6 +308,11 @@
         }
       ]
     },
+    "syncGroup": {
+      "groupName": "Country",
+      "fieldChanges": true,
+      "filterChanges": true
+    },
     "drillFilterOtherVisuals": true
   },
   "parentGroupName": "d29849fd5b4eb272a8f6",
@@ -323,6 +328,35 @@
               }
             },
             "Property": "Region"
+          }
+        },
+        "type": "Categorical",
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "026f4dae4b1166609c30",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Dim_Geo"
+              }
+            },
+            "Property": "Country"
           }
         },
         "type": "Categorical",
@@ -349,7 +383,7 @@
                                 "Source": "d"
                               }
                             },
-                            "Property": "Region"
+                            "Property": "Country"
                           }
                         }
                       ],
@@ -384,34 +418,6 @@
             }
           ]
         }
-      },
-      {
-        "name": "560dc9a09be3d0223322",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Dim_Geo"
-              }
-            },
-            "Property": "Country"
-          }
-        },
-        "type": "Categorical"
-      },
-      {
-        "name": "2adbf30bd10eb5a3c930",
-        "field": {
-          "Column": {
-            "Expression": {
-              "SourceRef": {
-                "Entity": "Dim_Geo"
-              }
-            },
-            "Property": "City"
-          }
-        },
-        "type": "Categorical"
       }
     ]
   }

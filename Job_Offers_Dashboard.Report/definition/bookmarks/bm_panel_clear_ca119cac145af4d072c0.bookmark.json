@@ -1,9 +1,11 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/bookmark/2.1.0/schema.json",
-  "displayName": "Market Pulse Limpiar filtros",
+  "displayName": "Market Pulse Clean Filters",
   "name": "bm_panel_clear_ca119cac145af4d072c0",
   "options": {
-    "targetVisualNames": []
+    "targetVisualNames": [
+      "b32dac300e1c527d2485"
+    ]
   },
   "explorationState": {
     "version": "1.3",
@@ -15,23 +17,64 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "f2a2b3c4d5e6f708192a",
-                  "type": "Categorical",
-                  "expression": {
-                    "Column": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Fact_Offers"
+                  "name": "c49e95546757d51a4733",
+                  "type": "RelativeDate",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "f",
+                        "Entity": "Fact_Offers",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "Between": {
+                            "Expression": {
+                              "Column": {
+                                "Expression": {
+                                  "SourceRef": {
+                                    "Source": "f"
+                                  }
+                                },
+                                "Property": "posted_date"
+                              }
+                            },
+                            "LowerBound": {
+                              "DateSpan": {
+                                "Expression": {
+                                  "DateAdd": {
+                                    "Expression": {
+                                      "DateAdd": {
+                                        "Expression": {
+                                          "Now": {}
+                                        },
+                                        "Amount": 1,
+                                        "TimeUnit": 0
+                                      }
+                                    },
+                                    "Amount": -6,
+                                    "TimeUnit": 2
+                                  }
+                                },
+                                "TimeUnit": 0
+                              }
+                            },
+                            "UpperBound": {
+                              "DateSpan": {
+                                "Expression": {
+                                  "Now": {}
+                                },
+                                "TimeUnit": 0
+                              }
+                            }
+                          }
                         }
-                      },
-                      "Property": "IsValidPostingDate"
-                    }
+                      }
+                    ]
                   },
-                  "howCreated": 1
-                },
-                {
-                  "name": "617538ebb2560434efa1",
-                  "type": "Categorical",
                   "expression": {
                     "Column": {
                       "Expression": {
@@ -39,13 +82,13 @@
                           "Entity": "Fact_Offers"
                         }
                       },
-                      "Property": "PostedYearMonth"
+                      "Property": "posted_date"
                     }
                   },
                   "howCreated": 0
                 },
                 {
-                  "name": "57e57405f2a3bc6e2021",
+                  "name": "71dc2a3c0ed4bac129dc",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -58,6 +101,60 @@
                     }
                   },
                   "howCreated": 0
+                },
+                {
+                  "name": "f8723fc04d6148926aad",
+                  "type": "Categorical",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "f",
+                        "Entity": "Fact_Offers",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "In": {
+                            "Expressions": [
+                              {
+                                "Column": {
+                                  "Expression": {
+                                    "SourceRef": {
+                                      "Source": "f"
+                                    }
+                                  },
+                                  "Property": "posted_date_source"
+                                }
+                              }
+                            ],
+                            "Values": [
+                              [
+                                {
+                                  "Literal": {
+                                    "Value": "'posted'"
+                                  }
+                                }
+                              ]
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "posted_date_source"
+                    }
+                  },
+                  "howCreated": 1
                 }
               ]
             },
@@ -73,7 +170,7 @@
                           "Entity": "Fact_Offers"
                         }
                       },
-                      "Property": "PostedYearMonth"
+                      "Property": "posted_date"
                     }
                   }
                 ],
@@ -102,21 +199,6 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "1eccb601d85ab369aadc",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Total Job Offers"
-                    }
-                  },
-                  "howCreated": 0
-                },
-                {
                   "name": "7a3bdc538c0c7c30ef94",
                   "type": "Advanced",
                   "expression": {
@@ -130,15 +212,11 @@
                     }
                   },
                   "howCreated": 1
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
+                },
+                {
+                  "name": "99dedcec2baa1ded2de2",
+                  "type": "Advanced",
+                  "expression": {
                     "Measure": {
                       "Expression": {
                         "SourceRef": {
@@ -147,9 +225,14 @@
                       },
                       "Property": "Total Job Offers"
                     }
-                  }
-                ]
-              }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {}
             }
           },
           "10347cb90ff476bc6162": {
@@ -207,6 +290,12 @@
               }
             }
           },
+          "149a68cbfd8768dbe19f": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
           "914c6e833e9ec42e77a1": {
             "filters": {
               "byExpr": [
@@ -224,21 +313,6 @@
                     }
                   },
                   "howCreated": 1
-                },
-                {
-                  "name": "14d37f04f7f0757fd98a",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Total Job Offers"
-                    }
-                  },
-                  "howCreated": 0
                 },
                 {
                   "name": "f76f30c872bd04129deb",
@@ -294,6 +368,21 @@
                         }
                       },
                       "Property": "company_name"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "5d5a5f16805de769c2ed",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Total Job Offers"
                     }
                   },
                   "howCreated": 0
@@ -358,6 +447,12 @@
               "objects": {}
             }
           },
+          "2bc4ebf2212417537524": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
           "32510a036300cda5f51e": {
             "singleVisual": {
               "visualType": "image",
@@ -368,7 +463,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "81bff92385159608c810",
+                  "name": "37ba7bf5d56c4661a46c",
                   "type": "Advanced",
                   "expression": {
                     "Column": {
@@ -407,21 +502,6 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "15b793e06d61db562fcd",
-                  "type": "Categorical",
-                  "expression": {
-                    "Column": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Dim_Geo"
-                        }
-                      },
-                      "Property": "Country"
-                    }
-                  },
-                  "howCreated": 0
-                },
-                {
                   "name": "635dd6bb6efbb23c8cea",
                   "type": "Categorical",
                   "expression": {
@@ -437,7 +517,22 @@
                   "howCreated": 0
                 },
                 {
-                  "name": "2992719b7b40fb03b52b",
+                  "name": "026f4dae4b1166609c30",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Dim_Geo"
+                        }
+                      },
+                      "Property": "Country"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "6636732d8c22cd2abd80",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
@@ -494,11 +589,17 @@
               "objects": {}
             }
           },
+          "5274612b694ce8e4d0c5": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
           "55e06346c4c65cce83b8": {
             "filters": {
               "byExpr": [
                 {
-                  "name": "a1338d73a72562b61a5b",
+                  "name": "60e1857038a036498306",
                   "type": "Advanced",
                   "expression": {
                     "Column": {
@@ -533,6 +634,12 @@
               }
             }
           },
+          "58476436725ce62d627c": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
           "5c1226f5ecd16571ffeb": {
             "singleVisual": {
               "visualType": "image",
@@ -552,6 +659,76 @@
             "singleVisual": {
               "visualType": "shape",
               "objects": {}
+            }
+          },
+          "5e0c2f1740c3080609a0": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "8a3c32430c7003ae6fb6",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Dim_SkillList"
+                        }
+                      },
+                      "Property": "SkillName"
+                    }
+                  },
+                  "howCreated": 1
+                },
+                {
+                  "name": "9cf87e4741ce9a17805d",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "source_scraper"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "slicer",
+              "objects": {
+                "merge": {
+                  "data": [
+                    {
+                      "properties": {
+                        "mode": {
+                          "expr": {
+                            "Literal": {
+                              "Value": "'Dropdown'"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "activeProjections": {
+                "Values": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "source_scraper"
+                    }
+                  }
+                ]
+              }
             }
           },
           "5edf190392da8cb7fba5": {
@@ -613,7 +790,50 @@
                 },
                 {
                   "name": "88b915c118f8c8b87057",
-                  "type": "Advanced",
+                  "type": "Categorical",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "f",
+                        "Entity": "Fact_Offers",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "Not": {
+                            "Expression": {
+                              "In": {
+                                "Expressions": [
+                                  {
+                                    "Column": {
+                                      "Expression": {
+                                        "SourceRef": {
+                                          "Source": "f"
+                                        }
+                                      },
+                                      "Property": "SalaryMidAnnual_EUR"
+                                    }
+                                  }
+                                ],
+                                "Values": [
+                                  [
+                                    {
+                                      "Literal": {
+                                        "Value": "null"
+                                      }
+                                    }
+                                  ]
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
                   "expression": {
                     "Column": {
                       "Expression": {
@@ -659,6 +879,62 @@
                 {
                   "name": "7f1a2b3c4d5e6f708192a3b4c5d6e7f80",
                   "type": "RelativeDate",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "f",
+                        "Entity": "Fact_Offers",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "Between": {
+                            "Expression": {
+                              "Column": {
+                                "Expression": {
+                                  "SourceRef": {
+                                    "Source": "f"
+                                  }
+                                },
+                                "Property": "posted_date"
+                              }
+                            },
+                            "LowerBound": {
+                              "DateSpan": {
+                                "Expression": {
+                                  "DateAdd": {
+                                    "Expression": {
+                                      "DateAdd": {
+                                        "Expression": {
+                                          "Now": {}
+                                        },
+                                        "Amount": 1,
+                                        "TimeUnit": 0
+                                      }
+                                    },
+                                    "Amount": -7,
+                                    "TimeUnit": 0
+                                  }
+                                },
+                                "TimeUnit": 0
+                              }
+                            },
+                            "UpperBound": {
+                              "DateSpan": {
+                                "Expression": {
+                                  "Now": {}
+                                },
+                                "TimeUnit": 0
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
                   "expression": {
                     "Column": {
                       "Expression": {
@@ -684,13 +960,28 @@
                       "Property": "job_url"
                     }
                   },
-                  "howCreated": 0
+                  "howCreated": 1
                 }
               ]
             },
             "singleVisual": {
               "visualType": "tableEx",
               "objects": {},
+              "orderBy": [
+                {
+                  "Direction": 2,
+                  "Expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "SalaryMidAnnual_EUR"
+                    }
+                  }
+                }
+              ],
               "activeProjections": {
                 "Values": [
                   {
@@ -769,7 +1060,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "44d4dc19734f817b71ea",
+                  "name": "359ce6a28660d00b2c2c",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -778,7 +1069,7 @@
                           "Entity": "Metrics"
                         }
                       },
-                      "Property": "Countries Hiring"
+                      "Property": "Salary Disclosure Rate"
                     }
                   },
                   "howCreated": 0
@@ -787,21 +1078,7 @@
             },
             "singleVisual": {
               "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Countries Hiring"
-                    }
-                  }
-                ]
-              }
+              "objects": {}
             }
           },
           "a4830a56e99ea6a84808": {
@@ -814,7 +1091,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "df47dab0c689a884bfce",
+                  "name": "71539040d731c4d68928",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -935,7 +1212,7 @@
                   "howCreated": 0
                 },
                 {
-                  "name": "c621f56c099aeb5f4d26",
+                  "name": "646dc256a8eb56790050",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -992,7 +1269,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "a4ee7911f271ba7480c2",
+                  "name": "cb7b7b9310ac31e0011a",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -1043,7 +1320,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "b2b243f978a9a4c9806f",
+                  "name": "d767a3b7128a7890e072",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -1097,7 +1374,7 @@
                   "howCreated": 0
                 },
                 {
-                  "name": "a661637df1a4aa41cd44",
+                  "name": "b97889776683ccb69abc",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -1258,7 +1535,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "0aae7726c67a9797dc9f",
+                  "name": "96dfb4f7d6e5b0cd7100",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
@@ -1307,12 +1584,6 @@
                   }
                 ]
               }
-            }
-          },
-          "149a68cbfd8768dbe19f": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
             }
           }
         },

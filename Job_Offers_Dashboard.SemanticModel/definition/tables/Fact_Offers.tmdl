@@ -258,6 +258,15 @@ table Fact_Offers
 
 		annotation SummarizationSetBy = Automatic
 
+	column IsValidPostingDate
+		dataType: boolean
+		formatString: """TRUE"";""TRUE"";""FALSE"""
+		lineageTag: 0fb2110a-36cc-4922-9b8e-505b9715aa87
+		summarizeBy: none
+		sourceColumn: IsValidPostingDate
+
+		annotation SummarizationSetBy = Automatic
+
 	partition Fact_Offers = m
 		mode: import
 		queryGroup: 'Fact Tables'
@@ -273,7 +282,7 @@ table Fact_Offers
 				    MergeReg = Table.NestedJoin(conRegPrep2, {"__C","__R"}, Dim_RegionMap, {"SourceCountry","SourceRegion"}, "Reg", JoinKind.LeftOuter),
 				    conReg = Table.AddColumn(MergeReg, "GeoRegion", each try [Reg][TargetRegion]{0} otherwise "(Other)", type text),
 				    sinReg = Table.RemoveColumns(conReg, {"__C","__R","Reg"})
-				    in
+				in
 				    sinReg
 
 	annotation PBI_NavigationStepName = Navegación

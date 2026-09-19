@@ -224,3 +224,5 @@ table MapFeature
 				in
 				    ConClavePais
 
+	annotation PBI_ResultType = Table
+

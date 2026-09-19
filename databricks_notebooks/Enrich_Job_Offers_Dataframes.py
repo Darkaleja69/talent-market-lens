@@ -8,11 +8,17 @@ anade, en pasadas independientes (cada una opcional via flag):
                         Postgres -> PostgreSQL, ...) y patrones estrictos para
                         keywords cortas/ambiguas (p.ej. "R" no matchea "R&D").
     - experience_level    : cascada when/rlike de mayor a menor seniority.
-                            Ahora se evalua PRIMERO el titulo (alta precision) y,
-                            si no aporta, la descripcion con frases de contexto
-                            excluidas ("senior stakeholders", "reporting to ...")
-                            para reducir falsos positivos. No clasificable ->
-                            "Unknown" (valor explicito, filtrable en BI).
+                            Vocabulario en ingles y salida acotada a 6
+                            categorias: Unknown, Intern, Junior, Mid-Senior,
+                            Senior, Executive. Los valores YA existentes que
+                            llegan en castellano (p.ej. "Practicas",
+                            "Intermedio", "Sin Experiencia") se normalizan a
+                            la misma escala. Primero se evalua el titulo (alta
+                            precision) y, si no aporta, la descripcion con
+                            frases de contexto excluidas ("senior
+                            stakeholders", "reporting to ...") para reducir
+                            falsos positivos. No clasificable -> "Unknown"
+                            (valor explicito, filtrable en BI).
     - employment_type     : cascada when/rlike por tipo de jornada: primero en el
                             title; si no encuenta nada, en la descripcion.
     - salary_min/max_annual + salary_midpoint : normaliza el salario a base anual
@@ -196,20 +202,96 @@ SKILLS_REGEX = "(?i)(" + "|".join(
 ) + ")"
 
 # Reglas de seniority. ORDEN = prioridad (mayor a menor): la primera regla que
-# matchee gana. `senior` suelto como ultimo recurso (replica
-# models.EXPERIENCE_LEVEL_MAP); riesgo de falso positivo ("senior
-# stakeholders") se mitiga con _EXP_EXCLUDE_PHRASES sobre la descripcion.
+# matchee gana. Vocabulario UNICAMENTE en ingles y salida acotada a las 6
+# categorias canonicas:
+#   Unknown, Intern, Junior, Mid-Senior, Senior, Executive
+# `senior` y `staff`/`principal` ya NO se funden en Mid-Senior; tienen su propia
+# categoria. `director` se agrupa en Executive. `associate` en Mid-Senior. El
+# riesgo de falso positivo ("senior stakeholders") se mitiga con
+# _EXP_EXCLUDE_PHRASES sobre la descripcion.
 _EXP_RULES = [
-    ("Executive",   r"(?i)\b(?:executive|ejecutivo|executivo|vp|"
-                    r"vice\s+president|head\s+of|chief)\b"),
-    ("Director",    r"(?i)\b(?:director(?:a)?|directiva)\b"),
-    ("Mid-Senior",  r"(?i)\b(?:mid[\s\-–]+senior|senior|sr\.?|staff|principal)\b"),
-    ("Associate",   r"(?i)\b(?:associate|asociad[oa])\b"),
-    ("Intern",   r"(?i)\b(?:internship|intern|practicas|prácticas|becari[oa]|"
-                 r"pasant[íi]a|trainee|apprentice|placement)\b"),
-    ("Entry",       r"(?i)\b(?:entry\s*[- ]?level|entry|j[úu]nior|jr\.?|"
-                    r"graduate|early\s+career|nivel de entrada)\b"),
+    ("Executive",   r"(?i)\b(?:executive|ejecutiv[oa]|executivo|director(?:a)?|"
+                    r"directiva|vp|vice\s+president|head\s+of|chief)\b"),
+    ("Mid-Senior",  r"(?i)\b(?:mid[\s\-–]+senior|associate|asociad[oa]|"
+                    r"intermedio)\b"),
+    ("Senior",      r"(?i)\b(?:senior|sr\.?|staff|principal)\b"),
+    ("Junior",      r"(?i)\b(?:j[úu]nior|jr\.?|entry\s*[- ]?level|entry|"
+                    r"graduate|early\s+career|nivel\s+de\s+entrada|"
+                    r"sin\s+experiencia)\b"),
+    ("Intern",      r"(?i)\b(?:internship|intern|practicas|prácticas|becari[oa]|"
+                    r"pasant[íi]a|trainee|apprentice|placement)\b"),
 ]
+
+# Categorias canonicas de seniority (ingles, enum cerrado).
+EXPERIENCE_LEVEL_CATEGORIES = (
+    "Unknown", "Intern", "Junior", "Mid-Senior", "Senior", "Executive",
+)
+
+# Normalizacion de valores YA existentes de experience_level (incluidos los
+# que llegan en castellano desde LinkedIn: "Algo de responsabilidad",
+# "Intermedio", "No corresponde", "Practicas", "Sin Experiencia") a una de las
+# 6 categorias canonicas. Claves en minuscula y con espacios colapsados. Un
+# valor no reconocido -> "Unknown".
+EXPERIENCE_LEVEL_MAP = {
+    # --- Unknown ---
+    "": "Unknown",
+    "unknown": "Unknown",
+    "unkown": "Unknown",
+    "not applicable": "Unknown",
+    "not-applicable": "Unknown",
+    "n/a": "Unknown",
+    "na": "Unknown",
+    "no corresponde": "Unknown",
+    "no aplica": "Unknown",
+    # --- Intern ---
+    "intern": "Intern",
+    "internship": "Intern",
+    "practicas": "Intern",
+    "prácticas": "Intern",
+    "becario": "Intern",
+    "becaria": "Intern",
+    "pasantia": "Intern",
+    "pasantía": "Intern",
+    "trainee": "Intern",
+    "apprentice": "Intern",
+    "placement": "Intern",
+    # --- Junior ---
+    "junior": "Junior",
+    "jr": "Junior",
+    "entry": "Junior",
+    "entry level": "Junior",
+    "entry-level": "Junior",
+    "sin experiencia": "Junior",
+    "graduate": "Junior",
+    "early career": "Junior",
+    "nivel de entrada": "Junior",
+    # --- Mid-Senior ---
+    "mid-senior": "Mid-Senior",
+    "mid senior": "Mid-Senior",
+    "mid-senior level": "Mid-Senior",
+    "intermedio": "Mid-Senior",
+    "associate": "Mid-Senior",
+    "asociado": "Mid-Senior",
+    "asociada": "Mid-Senior",
+    "algo de responsabilidad": "Mid-Senior",
+    # --- Senior ---
+    "senior": "Senior",
+    "sr": "Senior",
+    "staff": "Senior",
+    "principal": "Senior",
+    # --- Executive ---
+    "executive": "Executive",
+    "director": "Executive",
+    "directora": "Executive",
+    "directiva": "Executive",
+    "ejecutivo": "Executive",
+    "ejecutiva": "Executive",
+    "executivo": "Executive",
+    "vp": "Executive",
+    "vice president": "Executive",
+    "head of": "Executive",
+    "chief": "Executive",
+}
 
 # Frases de CONTEXTO que, si aparecen en la descripcion, no son el nivel del
 # candidato ("interactua con senior management", "reporting to the senior
@@ -928,6 +1010,7 @@ def experience_level(text: str) -> str:
     PRIMERA regla de _EXP_RULES que matchee. Las frases de contexto de
     _EXP_EXCLUDE_PHRASES se eliminan antes del matching.
 
+    Salida acotada a las 6 categorias canonicas (EXPERIENCE_LEVEL_CATEGORIES).
     No clasificable -> "Unknown" (la columna de enrich() deriva del titulo
     primero y, si no aporta, de la descripcion).
     """
@@ -938,6 +1021,20 @@ def experience_level(text: str) -> str:
         if re.search(pattern, scrubbed):
             return level
     return "Unknown"
+
+
+def normalize_experience_level(value: str) -> str:
+    """Normaliza un valor crudo YA existente de experience_level a una de las
+    6 categorias canonicas en ingles (EXPERIENCE_LEVEL_CATEGORIES).
+
+    Acepta variantes en castellano e ingles: "Algo de responsabilidad" y
+    "Associate" -> Mid-Senior; "Intermedio" -> Mid-Senior; "Practicas" ->
+    Intern; "Sin Experiencia" y "Entry" -> Junior; "No corresponde" y
+    "Not Applicable" -> Unknown; "Director" -> Executive; "Unkown" -> Unknown.
+    Un valor vacio o no reconocido -> "Unknown".
+    """
+    key = re.sub(r"\s+", " ", (value or "").strip().lower())
+    return EXPERIENCE_LEVEL_MAP.get(key, "Unknown")
 
 
 def employment_type(text: str) -> str:
@@ -1265,6 +1362,23 @@ def enrich(
     exp_from_desc = cascade(exp_desc_src, _EXP_RULES, default="Unknown")
     exp_new = F.when(exp_from_title != "Unknown", exp_from_title) \
         .otherwise(exp_from_desc)
+    # Normalizacion de los valores YA existentes de experience_level (vienen en
+    # castellano o ingles desde el scraper) a las 6 categorias canonicas. Los
+    # huecos se dejan intactos para que el fill/derivacion de abajo los rellene.
+    exp_canon_map = F.create_map([
+        F.lit(item)
+        for kv in EXPERIENCE_LEVEL_MAP.items()
+        for item in (kv[0], kv[1])
+    ])
+
+    def canon_experience(col):
+        key = F.regexp_replace(F.lower(F.trim(col)), r"\s+", " ")
+        return F.coalesce(exp_canon_map[key], F.lit("Unknown"))
+
+    exp_existing = F.when(
+        not_blank(F.col(experience_level_col)),
+        canon_experience(F.col(experience_level_col)),
+    ).otherwise(F.col(experience_level_col))
     # employment_type: primero en el title; si el title no aporta nada,
     # entonces en la descripcion.
     emp_from_title = cascade(F.col(title_col), _EMP_RULES, default="")
@@ -1331,7 +1445,8 @@ def enrich(
         result = result.withColumn("experience_level_source", exp_src)
     fill(experience_level_col, exp_new,
          not_blank(F.col(experience_level_col)),
-         experience_level_col in result.columns)
+         experience_level_col in result.columns,
+         keep_value=exp_existing)
     if add_employment_type:
         fill(employment_type_col, emp_new,
              not_blank(F.col(employment_type_col)),

@@ -17,7 +17,7 @@ queryGroup 'Fact Tables'
 
 annotation __PBI_TimeIntelligenceEnabled = 0
 
-annotation PBI_QueryOrder = ["Dim_Companies","Dim_Geo","Dim_RegionMap","Dim_Geo_Coords","Fact_Offers","Last_Update","Dim_Calendar","Dim_SkillList","Dim_Currency","Fact_OfferSkills"]
+annotation PBI_QueryOrder = ["Dim_Companies","Dim_Geo","Dim_RegionMap","Dim_Geo_Coords","Fact_Offers","Last_Update","Dim_Calendar","Dim_SkillList","Dim_Currency","Fact_OfferSkills","MapFeature","MapFeatureBridge"]
 
 annotation PBI_ProTooling = ["DevMode","MCP-PBIModeling"]
 

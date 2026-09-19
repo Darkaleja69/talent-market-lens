@@ -264,6 +264,20 @@
             }
           ]
         }
+      },
+      {
+        "name": "21f597c650a1126d4495",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Metrics"
+              }
+            },
+            "Property": "Total Job Offers"
+          }
+        },
+        "type": "Advanced"
       }
     ]
   }
