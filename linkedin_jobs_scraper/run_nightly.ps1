@@ -73,6 +73,41 @@ function Get-WatchdogDecision {
     }
 }
 
+function Get-RetryDecision {
+    # Consulta a la politica Python de reintentos (T-21..T-23). Los wrappers no
+    # deciden si relanzan: solo actuan sobre 'decision=stop'/'decision=retry'.
+    # Ante cualquier fallo al consultar, se mantiene el comportamiento previo
+    # (reintentar).
+    param(
+        [string]$Source,
+        [bool]$WatchdogBlocked = $false,
+        [bool]$Permanent = $false,
+        [bool]$Completed = $false,
+        [int]$ExitCode = 0,
+        $Blocked = $null
+    )
+    $policyDir = Join-Path (Split-Path -Parent $ProjectRoot) "scrapers-pipeline"
+    if (-not (Test-Path -LiteralPath (Join-Path $policyDir "verification\retry_policy.py"))) {
+        return "RETRYPOLICY source=$Source decision=retry reason=policy_unavailable"
+    }
+    $prevPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = $policyDir
+    try {
+        $policyArgs = @("--source", $Source, "--exit-code", "$ExitCode")
+        if ($WatchdogBlocked) { $policyArgs += "--watchdog-blocked" }
+        if ($Permanent) { $policyArgs += "--permanent" }
+        if ($Completed) { $policyArgs += "--completed" }
+        if ($Blocked -eq $true) { $policyArgs += "--blocked" }
+        elseif ($Blocked -eq $false) { $policyArgs += "--not-blocked" }
+        $out = & python -m verification.retry_policy @policyArgs 2>$null
+        return ($out | Select-Object -Last 1)
+    } catch {
+        return "RETRYPOLICY source=$Source decision=retry reason=policy_unavailable"
+    } finally {
+        $env:PYTHONPATH = $prevPythonPath
+    }
+}
+
 function Test-AndAcquireLock {
     if (Test-Path -LiteralPath $LockFile) {
         $pidStr = Get-Content -LiteralPath $LockFile -ErrorAction SilentlyContinue
@@ -218,10 +253,17 @@ while ($attempt -lt $MaxAttempts) {
             ForEach-Object { Write-NLog "  STDERR: $_" }
     }
 
+    # T-22: la politica Python decide si se relanza. Una detencion por watchdog
+    # o un patron permanente termina el run sin consumir otro intento.
+    $permanent = (($stdoutRaw + $stderrRaw) -match $noRetryPattern)
+    $policyLine = Get-RetryDecision -Source "linkedin" -WatchdogBlocked $watchdogBlocked `
+        -Permanent $permanent -ExitCode $exitCode
+    if ($policyLine -match 'decision=stop') {
+        Write-NLog "No se reintenta: $policyLine"
+        break
+    }
+
     if ($attempt -lt $MaxAttempts) {
-        # T-22: cuando $watchdogBlocked sea $true debe salirse del bucle SIN
-        # relanzar (el supervisor ya detuvo el arbol por RF-15). Punto exacto
-        # de intervencion: aqui, antes de pausar/reintentar.
         Write-NLog "Pausando $RetryPauseSec s antes de reintentar (reanudara con state.json)."
         Start-Sleep -Seconds $RetryPauseSec
     }
