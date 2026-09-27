@@ -111,32 +111,32 @@ comprobación indicada antes de continuar.
   - **Depende de:** T-03, T-13.
   - **Hecho cuando:** los seis portales mantienen contadores independientes y sus fixtures demuestran que el avance de uno no se atribuye a los demás.
 
-- [ ] **T-19 — Supervisar el progreso de Indeed, LinkedIn e InfoJobs** (~25 min)
+- [x] **T-19 — Supervisar el progreso de Indeed, LinkedIn e InfoJobs** (~25 min)
   - **RF:** RF-12, RF-15.
   - **Depende de:** T-14–T-17.
   - **Hecho cuando:** al superar el periodo de inactividad se detiene solo el árbol de procesos de la fuente bloqueada y queda registrado el motivo.
 
-- [ ] **T-20 — Supervisar cada proceso hijo de Multi-site** (~25 min)
+- [x] **T-20 — Supervisar cada proceso hijo de Multi-site** (~25 min)
   - **RF:** RF-2, RF-12, RF-15.
   - **Depende de:** T-14, T-18.
   - **Hecho cuando:** un test de integración detiene solo el portal sin progreso y confirma que los otros cinco siguen ejecutándose.
 
-- [ ] **T-21 — Evitar reintentos tras detención por watchdog en Indeed** (~20 min)
+- [x] **T-21 — Evitar reintentos tras detención por watchdog en Indeed** (~20 min)
   - **RF:** RF-12, RF-15.
   - **Depende de:** T-19.
   - **Hecho cuando:** un test demuestra que una detención por falta de progreso termina ese run sin relanzarlo, mientras un error distinto conserva su política existente.
 
-- [ ] **T-22 — Evitar reintentos tras detención por watchdog en LinkedIn** (~20 min)
+- [x] **T-22 — Evitar reintentos tras detención por watchdog en LinkedIn** (~20 min)
   - **RF:** RF-12, RF-15.
   - **Depende de:** T-19.
   - **Hecho cuando:** un test demuestra que la causa de bloqueo termina el run sin consumir otro intento.
 
-- [ ] **T-23 — Evitar reintentos tras detención por watchdog en InfoJobs** (~20 min)
+- [x] **T-23 — Evitar reintentos tras detención por watchdog en InfoJobs** (~20 min)
   - **RF:** RF-12, RF-15.
   - **Depende de:** T-19.
   - **Hecho cuando:** un test demuestra que la causa de bloqueo termina el run sin consumir otro intento.
 
-- [ ] **T-24 — Probar límites e aislamiento del watchdog** (~25 min)
+- [x] **T-24 — Probar límites e aislamiento del watchdog** (~25 min)
   - **RF:** RF-12, RF-15.
   - **Depende de:** T-19–T-23.
   - **Hecho cuando:** tests cubren contador creciente, límite justo antes/en/después del timeout y detención de un único portal Multi-site.
