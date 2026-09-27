@@ -637,3 +637,211 @@ def test_investigation_context_is_frozen():
     )
     with pytest.raises(Exception):
         context.trigger = investigation.TRIGGER_REQUIRED_FIELD  # type: ignore[misc]
+
+
+# --- Unconfirmed web investigation (T-36; RF-9, RF-10, RF-11) ----------------
+
+
+def _context(source_id: str = "indeed") -> investigation.InvestigationContext:
+    """Build a minimal investigation context for the web-check tests."""
+    source = sources.get_source(source_id)
+    return investigation.InvestigationContext(
+        source=source_id,
+        display_name=source.display_name,
+        group=source.group,
+        trigger=investigation.TRIGGER_SOURCE_FAILED,
+        field=None,
+        search=None,
+        region=None,
+        city=None,
+        example_url=None,
+        example_offer=None,
+        metric=None,
+        evidence=(),
+        rule_reference=None,
+    )
+
+
+def test_unconfirmed_web_constants_match_the_design():
+    assert investigation.INVESTIGATION_CONFIRMED == "confirmed"
+    assert investigation.INVESTIGATION_UNCONFIRMED == "unconfirmed"
+
+
+def test_inaccessible_web_is_unconfirmed():
+    outcome = investigation.record_web_check(_context(), accessible=False)
+    assert outcome.state == investigation.INVESTIGATION_UNCONFIRMED
+
+
+def test_inaccessible_web_never_asserts_a_cause():
+    outcome = investigation.record_web_check(
+        _context(), accessible=False, probable_cause="el selector cambió"
+    )
+    assert outcome.probable_cause is None
+
+
+def test_inaccessible_web_has_no_verified_observations():
+    outcome = investigation.record_web_check(
+        _context(), accessible=False, observations=("parecía otro selector",)
+    )
+    assert outcome.observations == ()
+
+
+def test_unconfirmed_web_shortcut_keeps_guidance():
+    context = _context()
+    outcome = investigation.unconfirmed_web(
+        context,
+        detail="la web no responde",
+        recommendation="actualizar el selector de empresa",
+        manual_check="abrir la URL de ejemplo y revisar el bloque de empresa",
+    )
+
+    assert outcome.state == investigation.INVESTIGATION_UNCONFIRMED
+    assert outcome.context is context
+    assert outcome.observations == ()
+    assert outcome.probable_cause is None
+    assert outcome.detail == "la web no responde"
+    assert outcome.recommendation == "actualizar el selector de empresa"
+    assert (
+        outcome.manual_check
+        == "abrir la URL de ejemplo y revisar el bloque de empresa"
+    )
+
+
+def test_accessible_web_keeps_facts_hypothesis_and_recommendation():
+    outcome = investigation.record_web_check(
+        _context(),
+        accessible=True,
+        observations=("el título aparece en el h2",),
+        probable_cause="el selector cambió de ubicación",
+        recommendation="actualizar el parser del título",
+        manual_check="comprobar el h2 de la oferta de ejemplo",
+    )
+
+    assert outcome.state == investigation.INVESTIGATION_CONFIRMED
+    assert outcome.observations == ("el título aparece en el h2",)
+    assert outcome.probable_cause == "el selector cambió de ubicación"
+    assert outcome.recommendation == "actualizar el parser del título"
+    assert outcome.manual_check == "comprobar el h2 de la oferta de ejemplo"
+
+
+def test_is_unconfirmed_distinguishes_both_states():
+    context = _context()
+    assert (
+        investigation.is_unconfirmed(
+            investigation.record_web_check(context, accessible=False)
+        )
+        is True
+    )
+    assert (
+        investigation.is_unconfirmed(
+            investigation.record_web_check(context, accessible=True)
+        )
+        is False
+    )
+
+
+def test_accessible_web_without_facts_stays_confirmed_with_defaults():
+    outcome = investigation.record_web_check(_context(), accessible=True)
+
+    assert outcome.state == investigation.INVESTIGATION_CONFIRMED
+    assert outcome.observations == ()
+    assert outcome.probable_cause is None
+    assert outcome.detail is None
+    assert outcome.recommendation is None
+    assert outcome.manual_check is None
+    assert investigation.is_unconfirmed(outcome) is False
+
+
+def test_source_state_preserved_true_for_identical_mapping():
+    source = _source("indeed", {"title": _field("title", True, 1000)})
+    correct = status.classify_source("indeed", source)
+    mapping = {"indeed": correct}
+    snapshot = dataclasses.asdict(correct)
+
+    assert investigation.source_state_preserved(mapping, mapping) is True
+    # A distinct mapping with equal values is also preserved.
+    assert investigation.source_state_preserved(mapping, {"indeed": correct}) is True
+    # The helper is read-only: it never mutates the status it compares.
+    assert dataclasses.asdict(correct) == snapshot
+
+
+def test_source_state_preserved_false_on_artificial_changes():
+    source = _source("indeed", {"title": _field("title", True, 1000)})
+    correct = status.classify_source("indeed", source)
+    before = {"indeed": correct}
+
+    changed_state = dataclasses.replace(correct, state=status.SOURCE_FAILED)
+    assert (
+        investigation.source_state_preserved(before, {"indeed": changed_state})
+        is False
+    )
+
+    changed_failures = dataclasses.replace(correct, failures=("zero offers",))
+    assert (
+        investigation.source_state_preserved(before, {"indeed": changed_failures})
+        is False
+    )
+
+    changed_incidents = dataclasses.replace(correct, incidents=("title",))
+    assert (
+        investigation.source_state_preserved(before, {"indeed": changed_incidents})
+        is False
+    )
+
+    changed_fields = dataclasses.replace(
+        correct, investigation_fields=("salary",)
+    )
+    assert (
+        investigation.source_state_preserved(before, {"indeed": changed_fields})
+        is False
+    )
+
+    # A different set of source keys is also a change.
+    assert investigation.source_state_preserved(before, {}) is False
+    assert (
+        investigation.source_state_preserved(before, {"linkedin": correct})
+        is False
+    )
+
+
+def test_web_check_does_not_change_the_ingestion_state():
+    source = _source(
+        "indeed",
+        {
+            "title": _field("title", True, 1000),
+            "company": _field("company", True, 850),
+        },
+    )
+    result = status.classify_source("indeed", source)
+    offers = _indeed_offers(3)
+
+    before = {"indeed": result}
+    status_snapshot = dataclasses.asdict(result)
+    completeness_snapshot = dataclasses.asdict(source)
+    offers_snapshot = [dict(offer) for offer in offers]
+
+    context = _context()
+    investigation.record_web_check(
+        context, accessible=False, probable_cause="hipótesis descartada"
+    )
+    investigation.record_web_check(
+        context,
+        accessible=True,
+        observations=("hecho verificado",),
+        probable_cause="causa probable",
+    )
+    after = {"indeed": result}
+
+    # If any of these had been mutated by the web check, the snapshots captured
+    # before it would no longer match.
+    assert dataclasses.asdict(result) == status_snapshot
+    assert dataclasses.asdict(source) == completeness_snapshot
+    assert offers == offers_snapshot
+    # The helper corroborates that the ingestion state did not change.
+    assert investigation.source_state_preserved(before, after) is True
+
+
+def test_investigation_outcome_is_frozen():
+    outcome = investigation.record_web_check(_context(), accessible=False)
+    with pytest.raises(Exception):
+        outcome.state = investigation.INVESTIGATION_CONFIRMED  # type: ignore[misc]

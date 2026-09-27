@@ -1,4 +1,4 @@
-"""Bounded context to investigate an anomaly on the real website (T-35).
+"""Bounded context to investigate an anomaly on the real website (T-35, T-36).
 
 The diagnostic only needs to contrast a handful of cases with the real site
 (plan section 5, technical decision 7): a **failed source** (RF-9) or a
@@ -16,7 +16,9 @@ Design rules:
 
 - The module is **pure**: standard library plus the existing ``verification.*``
   modules, no network, no Azure, no direct PyArrow use (it never reads Parquet)
-  and no side effects. "Not confirmed" representations belong to T-36.
+  and no side effects. :func:`record_web_check` also represents a manual check
+  (T-36), keeping facts and hypotheses apart and never asserting a cause when
+  the page could not be verified.
 - It **never changes the source state** (RF-12): it only reads a
   :class:`verification.status.SourceStatus` and returns data.
 - It **never invents data**: a missing ``completeness`` or absent offers simply
@@ -40,6 +42,11 @@ from verification.status import SOURCE_FAILED, SourceStatus
 TRIGGER_SOURCE_FAILED = "source_failed"
 TRIGGER_REQUIRED_FIELD = "required_field_below_target"
 TRIGGER_OPTIONAL_FIELD = "optional_field_at_or_below_threshold"
+
+# Web-check outcome (T-36; RF-9, RF-10, RF-11). The person contrasts the
+# anomaly with the real website by hand; the system only represents the result.
+INVESTIGATION_CONFIRMED = "confirmed"
+INVESTIGATION_UNCONFIRMED = "unconfirmed"
 
 # status.py failure reasons, translated for the person (RF-11). The strings are
 # produced by verification.status, so they are matched exactly.
@@ -82,6 +89,25 @@ class InvestigationContext:
     metric: str | None
     evidence: tuple[str, ...]
     rule_reference: str | None
+
+
+@dataclass(frozen=True)
+class InvestigationOutcome:
+    """Result of contrasting one anomaly with the real website (T-36).
+
+    Facts (``observations``) and hypotheses (``probable_cause``) are kept
+    separate: an unconfirmed check stores no cause, because RF-9/RF-10 forbid
+    presenting a cause as confirmed when the page could not be verified. The
+    outcome never carries nor alters the ingestion state (RF-12).
+    """
+
+    context: InvestigationContext
+    state: str
+    observations: tuple[str, ...]
+    probable_cause: str | None
+    recommendation: str | None
+    manual_check: str | None
+    detail: str | None
 
 
 def needs_investigation(status: SourceStatus) -> bool:
@@ -399,3 +425,93 @@ def build_contexts(
         seen.add(key)
         contexts.append(context)
     return tuple(contexts)
+
+
+def record_web_check(
+    context: InvestigationContext,
+    *,
+    accessible: bool,
+    observations: Sequence[str] = (),
+    probable_cause: str | None = None,
+    recommendation: str | None = None,
+    manual_check: str | None = None,
+    detail: str | None = None,
+) -> InvestigationOutcome:
+    """Represent a manual check on the real website (RF-9, RF-10, RF-11).
+
+    The check is person-assisted: this only stores what happened, it never
+    navigates or launches a scraper (RF-9, RF-10, RF-12). When the page is not
+    accessible or cannot be verified (``accessible`` false) the investigation is
+    left **unconfirmed**: no fact is asserted (``observations`` empty) and the
+    ``probable_cause`` is discarded, because no cause can be confirmed without
+    verifying the page. The recommendation, the manual check and the note are
+    still kept as guidance. With ``accessible`` true the state is confirmed and
+    the facts and hypothesis are preserved as given.
+    """
+    if not accessible:
+        return InvestigationOutcome(
+            context=context,
+            state=INVESTIGATION_UNCONFIRMED,
+            observations=(),
+            probable_cause=None,
+            recommendation=recommendation,
+            manual_check=manual_check,
+            detail=detail,
+        )
+    return InvestigationOutcome(
+        context=context,
+        state=INVESTIGATION_CONFIRMED,
+        observations=tuple(observations),
+        probable_cause=probable_cause,
+        recommendation=recommendation,
+        manual_check=manual_check,
+        detail=detail,
+    )
+
+
+def unconfirmed_web(
+    context: InvestigationContext,
+    *,
+    detail: str | None = None,
+    recommendation: str | None = None,
+    manual_check: str | None = None,
+) -> InvestigationOutcome:
+    """Shortcut for a website that is not accessible or not verifiable (T-36)."""
+    return record_web_check(
+        context,
+        accessible=False,
+        detail=detail,
+        recommendation=recommendation,
+        manual_check=manual_check,
+    )
+
+
+def is_unconfirmed(outcome: InvestigationOutcome) -> bool:
+    """Return whether the web check could not be confirmed (RF-9, RF-10)."""
+    return outcome.state == INVESTIGATION_UNCONFIRMED
+
+
+def source_state_preserved(
+    before: Mapping[str, SourceStatus],
+    after: Mapping[str, SourceStatus],
+) -> bool:
+    """Return whether the ingestion state did not change (RF-12).
+
+    Pure read-only helper: it compares the state and motives (failures,
+    incidents and fields flagged for investigation) of every source without
+    mutating either mapping. It lets tests assert that representing a web check
+    never touches the source classification.
+    """
+    if set(before) != set(after):
+        return False
+    for source_id, before_status in before.items():
+        after_status = after[source_id]
+        if (
+            before_status.state != after_status.state
+            or before_status.failures != after_status.failures
+            or before_status.incidents != after_status.incidents
+            or before_status.investigation_fields
+            != after_status.investigation_fields
+        ):
+            return False
+    return True
