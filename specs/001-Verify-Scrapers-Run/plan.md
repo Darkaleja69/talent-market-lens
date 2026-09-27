@@ -52,7 +52,10 @@ cada proceso hijo de forma independiente.
    incluso si ninguna fuente produjo datos. Un run finalizado sin datos es
    analizable y sus fuentes se clasifican según RF-3/RF-14; solo la ausencia de
    evidencia suficiente para identificar o leer un run produce un resultado
-   inconcluso (RF-1, RF-3, RF-13).
+   inconcluso (RF-1, RF-3, RF-13). Si la ejecución más reciente aún no ha
+   llegado a su registro final (sigue en curso), el diagnóstico no puede
+   analizarla y se marca inconcluso indicando que el proceso no ha terminado
+   (RF-1, RF-13).
 2. Interpretar `scrapers-pipeline/logs/upload-<fecha>.log` para extraer inicio,
    fin, estado, errores, ficheros subidos/rechazados y resultado global del
    pipeline (RF-1, RF-3, RF-14).

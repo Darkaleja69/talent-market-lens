@@ -782,6 +782,63 @@ def test_T12_truncated_only_run_is_inconclusive(tmp_path):
     assert diagnostic.summary is None
 
 
+def test_T11_latest_run_in_progress_is_inconclusive(tmp_path):
+    # Only an Inicio line, no Fin: the latest run has not finished.
+    _write(
+        tmp_path,
+        "logs/upload-2026-09-26.log",
+        "00:00:05  [INFO]  ====  Inicio pipeline scrapers  (2026-09-26) ====\n"
+        "00:05:00  [INFO]  [indeed] status=ok subidos=3 rechazados=0\n",
+    )
+
+    diagnostic = re_mod.build_run_diagnostic(tmp_path, tmp_path / "logs")
+
+    assert diagnostic.analyzable is False
+    assert diagnostic.summary is None
+    assert diagnostic.sources == {}
+    assert diagnostic.inconclusive_reason == re_mod.INCONCLUSIVE_RUN_IN_PROGRESS
+
+
+def test_T11_later_unfinished_run_wins_over_previous_finished(tmp_path):
+    # A finished run then a newer unfinished one: the latest global run decides.
+    _write(
+        tmp_path,
+        "logs/upload-2026-09-26.log",
+        "00:00:05  [INFO]  ====  Inicio pipeline scrapers  (2026-09-26) ====\n"
+        "01:00:00  [INFO]  ====  Fin pipeline. Fallos: 0  Duracion: 100s ====\n"
+        "02:00:00  [INFO]  ====  Inicio pipeline scrapers  (2026-09-26) ====\n"
+        "02:05:00  [INFO]  [indeed] status=ok subidos=1 rechazados=0\n",
+    )
+
+    diagnostic = re_mod.build_run_diagnostic(tmp_path, tmp_path / "logs")
+
+    assert diagnostic.analyzable is False
+    assert diagnostic.inconclusive_reason == re_mod.INCONCLUSIVE_RUN_IN_PROGRESS
+    # select_last_run keeps returning the finished run for other callers.
+    assert re_mod.select_last_run(tmp_path / "logs").finished_at == (
+        "2026-09-26T01:00:00"
+    )
+
+
+def test_T11_most_recent_run_finished_is_analyzable(tmp_path):
+    _write(
+        tmp_path,
+        "logs/upload-2026-09-26.log",
+        "00:00:05  [INFO]  ====  Inicio pipeline scrapers  (2026-09-26) ====\n"
+        "01:00:00  [INFO]  ====  Fin pipeline. Fallos: 0  Duracion: 100s ====\n"
+        "02:00:00  [INFO]  ====  Inicio pipeline scrapers  (2026-09-26) ====\n"
+        "03:00:00  [INFO]  ====  Fin pipeline. Fallos: 1  Duracion: 200s ====\n",
+    )
+
+    diagnostic = re_mod.build_run_diagnostic(tmp_path, tmp_path / "logs")
+
+    assert diagnostic.analyzable is True
+    assert diagnostic.inconclusive_reason is None
+    assert diagnostic.summary is not None
+    assert diagnostic.summary.finished_at == "2026-09-26T03:00:00"
+    assert diagnostic.summary.global_failures == 1
+
+
 # --------------------------------------------------------------------------
 # R1: evidence from another execution must never be attributed to the run
 # --------------------------------------------------------------------------

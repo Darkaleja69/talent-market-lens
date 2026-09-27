@@ -43,6 +43,10 @@ OUTCOME_ERROR = "error"  # technical failure / non-zero exit
 OUTCOME_BLOCKED = "blocked"  # CAPTCHA / anti-bot block
 OUTCOME_NO_EVIDENCE = "no_evidence"
 
+# Diagnostic reason when the most recent pipeline block has no "Fin pipeline"
+# line: the run is still in progress and cannot be verified yet (RF-13).
+INCONCLUSIVE_RUN_IN_PROGRESS = "latest pipeline run has not finished yet"
+
 _INICIO_RE = re.compile(
     r"====\s*Inicio pipeline scrapers\s*\((\d{4}-\d{2}-\d{2})\)\s*===="
 )
@@ -294,6 +298,16 @@ def select_last_run(logs_dir: Path) -> PipelineSummary | None:
     """
     completed = [run for run in discover_runs(logs_dir) if run.completed]
     return completed[-1] if completed else None
+
+
+def latest_run(logs_dir: Path) -> PipelineSummary | None:
+    """Return the most recent pipeline block, finished or not.
+
+    ``select_last_run`` skips unfinished blocks (T-11); the diagnostic uses this
+    to tell an in-progress run from no run at all (RF-13).
+    """
+    runs = discover_runs(logs_dir)
+    return runs[-1] if runs else None
 
 
 # --------------------------------------------------------------------------
@@ -981,21 +995,32 @@ def collect_sources(
 def build_run_diagnostic(
     projects_root: Path | None = None, logs_dir: Path | None = None
 ) -> DiagnosticRun:
-    """Select the last finished run and gather its per-source evidence.
+    """Select the most recent run and gather its per-source evidence.
 
-    ``analyzable`` is False only when no finished run can be identified or read
-    (RF-13). A finished run without offers is still analysable; sources that
-    lack evidence are reported individually as ``OUTCOME_NO_EVIDENCE``.
+    Only the **most recent** pipeline block counts: if it has not finished yet
+    (no ``Fin pipeline`` line), the diagnostic is inconclusive with
+    ``INCONCLUSIVE_RUN_IN_PROGRESS`` instead of analysing a half-done run; a
+    previous finished run is not substituted for it (RF-13). A finished run
+    without offers is still analysable; sources that lack evidence are reported
+    individually as ``OUTCOME_NO_EVIDENCE``.
     """
     root = Path(projects_root) if projects_root is not None else DEFAULT_PROJECTS_ROOT
     logs = Path(logs_dir) if logs_dir is not None else root / DEFAULT_LOGS_SUBDIR
-    summary = select_last_run(logs)
+    summary = latest_run(logs)
     if summary is None:
         return DiagnosticRun(
             summary=None,
             sources={},
             analyzable=False,
             inconclusive_reason="no completed pipeline run found in logs",
+        )
+    if not summary.completed:
+        # The latest run is still in progress: there is nothing to verify yet.
+        return DiagnosticRun(
+            summary=None,
+            sources={},
+            analyzable=False,
+            inconclusive_reason=INCONCLUSIVE_RUN_IN_PROGRESS,
         )
     return DiagnosticRun(
         summary=summary,

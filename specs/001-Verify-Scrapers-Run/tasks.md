@@ -72,7 +72,7 @@ comprobación indicada antes de continuar.
 - [x] **T-11 — Seleccionar la última ejecución con estado final** (~20 min)
   - **RF:** RF-1, RF-13.
   - **Depende de:** T-06–T-10.
-  - **Hecho cuando:** se selecciona el último run finalizado aunque no haya generado ofertas; solo se devuelve inconcluso cuando no se puede identificar o leer un run.
+  - **Hecho cuando:** se selecciona el último run finalizado aunque no haya generado ofertas; solo se devuelve inconcluso cuando no se puede identificar o leer un run. Si la ejecución más reciente aún no ha terminado, el diagnóstico queda inconcluso indicando que no puede verificar el proceso todavía.
 
 - [x] **T-12 — Probar descubrimiento y casos sin evidencia** (~20 min)
   - **RF:** RF-1, RF-3, RF-13.

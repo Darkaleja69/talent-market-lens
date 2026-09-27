@@ -22,7 +22,7 @@ Ante un fallo, el diagnóstico contrasta la fuente con su web real y recomienda 
 
 ### RF-1 — Analizar la ejecución más reciente completada
 
-**Criterio de aceptación (EARS):** Cuando la persona solicite el diagnóstico después de una ejecución diaria, el sistema deberá analizar la última ejecución que alcanzó un estado final, aunque alguna o todas las fuentes no hayan producido datos, y presentar su resultado por fuente.
+**Criterio de aceptación (EARS):** Cuando la persona solicite el diagnóstico después de una ejecución diaria, el sistema deberá analizar la última ejecución que alcanzó un estado final, aunque alguna o todas las fuentes no hayan producido datos, y presentar su resultado por fuente. Si la ejecución más reciente todavía no ha alcanzado un estado final, el sistema deberá marcar el diagnóstico como inconcluso e indicar que no puede verificar el proceso porque aún no ha terminado.
 
 ### RF-2 — Cubrir las fuentes y las búsquedas previstas
 
@@ -81,7 +81,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 
 ### RF-13 — Informar cuando no se pueda analizar la ejecución
 
-**Criterio de aceptación (EARS):** Cuando no exista una ejecución analizable o falten por completo los datos y registros necesarios, el sistema deberá marcar el diagnóstico como inconcluso e indicar qué no pudo comprobar.
+**Criterio de aceptación (EARS):** Cuando no exista una ejecución analizable o falten por completo los datos y registros necesarios, el sistema deberá marcar el diagnóstico como inconcluso e indicar qué no pudo comprobar. Una ejecución en curso (sin estado final) no es analizable: el sistema deberá indicar que no puede verificar el proceso hasta que haya acabado.
 
 ### RF-14 — Clasificar el resultado global
 
@@ -115,7 +115,8 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Una oferta no publica un dato (por ejemplo, salario): se cuenta como dato ausente, sin atribuir por ello el fallo al scraper.
 - Un dato contiene un valor que no cumple el contrato de datos: se cuenta como inválido y reduce la completitud de ese dato.
 - Dentro de Multi-site, unos portales pueden quedar correctos y otros fallidos en la misma ejecución.
-- Hay varias ejecuciones el mismo día: se diagnostica la última que terminó y dejó datos.
+- Hay varias ejecuciones el mismo día y todas han terminado: se diagnostica la última que terminó y dejó datos.
+- La ejecución más reciente aún está en curso (no ha alcanzado un estado final): el diagnóstico queda inconcluso indicando que no puede verificar el proceso por no haber acabado.
 - La web real no está accesible o no se puede verificar: la fuente conserva su estado (correcta o fallida) y la investigación queda sin concluir, indicándolo explícitamente.
 - Los datos preparados y los disponibles en la landing difieren: se detalla la discrepancia y no se confirma la publicación como correcta.
 - Los datos debían subirse pero aún no aparecen al diagnosticar: se reportan como pendientes de publicar.
