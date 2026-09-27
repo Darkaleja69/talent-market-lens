@@ -165,32 +165,32 @@ comprobación indicada antes de continuar.
 
 ## 5. Publicación y tendencias
 
-- [ ] **T-29 — Crear adaptador de lectura remota para Azure** (~25 min)
+- [x] **T-29 — Crear adaptador de lectura remota para Azure** (~25 min)
   - **RF:** RF-6, RF-8, RF-13.
   - **Depende de:** T-06.
   - **Hecho cuando:** el adaptador permite listar y descargar a temporales mediante el AzCopy existente, y elimina temporales al cerrar la operación.
 
-- [ ] **T-30 — Verificar manifests y objetos publicados** (~25 min)
+- [x] **T-30 — Verificar manifests y objetos publicados** (~25 min)
   - **RF:** RF-6, RF-8.
   - **Depende de:** T-29.
   - **Hecho cuando:** tests con Azure simulado detectan objeto ausente, legibilidad, discrepancia de filas/checksum y manifest rechazado.
 
-- [ ] **T-31 — Distinguir snapshot, delta y publicación pendiente** (~25 min)
+- [x] **T-31 — Distinguir snapshot, delta y publicación pendiente** (~25 min)
   - **RF:** RF-3, RF-6, RF-8.
   - **Depende de:** T-27, T-30.
   - **Hecho cuando:** un snapshot no vacío con delta `OnlyNewOffers` vacío no se clasifica como cero ofertas capturadas y los objetos aún no visibles se informan como pendientes.
 
-- [ ] **T-32 — Añadir huella de fuentes y búsquedas al manifest existente** (~25 min)
+- [x] **T-32 — Añadir huella de fuentes y búsquedas al manifest existente** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-01, T-06.
   - **Hecho cuando:** tests comprueban que la huella cambia al cambiar fuentes/búsquedas y no contiene credenciales.
 
-- [ ] **T-33 — Calcular tendencia de hasta cinco ejecuciones comparables** (~25 min)
+- [x] **T-33 — Calcular tendencia de hasta cinco ejecuciones comparables** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-29, T-32.
   - **Hecho cuando:** fixtures de Azure producen tendencia por fuente/campo usando solo huellas coincidentes y señalan cuántas ejecuciones se compararon.
 
-- [ ] **T-34 — Cubrir histórico insuficiente y cambios de configuración** (~20 min)
+- [x] **T-34 — Cubrir histórico insuficiente y cambios de configuración** (~20 min)
   - **RF:** RF-7, RF-13.
   - **Depende de:** T-33.
   - **Hecho cuando:** tests con cero a cuatro ejecuciones y manifests sin huella no se presentan como series comparables falsas.
