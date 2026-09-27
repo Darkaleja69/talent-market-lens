@@ -21,6 +21,10 @@ Opciones:
   --coherence site        validar coherencia de filas (indeed|linkedin|
                           infojobs|multi_site)
   --manifest path.json    escribe un manifest JSON con estado por fichero
+  --fingerprint-source s  anota en el manifest una huella (fingerprint) de las
+                          fuentes y busquedas efectivas del scraper (s=indeed|
+                          linkedin|infojobs|multi_site). Sin este flag el
+                          manifest no cambia.
   --quarantine-dir dir    mueve los ficheros INVALIDOS a esta carpeta (asi
                           no se suben a ADLS)
 
@@ -37,6 +41,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from coherence import coherence_issues
+from verification import fingerprint
+from verification import sources
 
 
 def read_and_coerce_micros(path):
@@ -93,6 +99,9 @@ def main():
                          "infojobs|multi_site")
     ap.add_argument("--manifest", default=None,
                     help="path del manifest JSON a escribir")
+    ap.add_argument("--fingerprint-source", default=None,
+                    help="anotar huella de fuentes/busquedas efectivas: "
+                         "indeed|linkedin|infojobs|multi_site")
     ap.add_argument("--quarantine-dir", default=None,
                     help="mover ficheros invalidos a esta carpeta")
     args = ap.parse_args()
@@ -104,6 +113,12 @@ def main():
 
     required = [c.strip() for c in args.required_cols.split(",") if c.strip()]
     coherence_site = args.coherence.strip() or None
+    fingerprint_name = (args.fingerprint_source or "").strip() or None
+    fingerprint_scope = (
+        sources.fingerprint_scope(fingerprint_name) if fingerprint_name else ()
+    )
+    fingerprint_sources = set()
+    fingerprint_searches = []
     files = sorted(glob.glob(os.path.join(args.directorio, "*.parquet")))
     if not files:
         print("sin parquets en", args.directorio)
@@ -146,6 +161,20 @@ def main():
                         "%d fila(s) incoherente(s) (coherence=%s)"
                         % (bad_rows, coherence_site)
                     )
+            # Huella de comparabilidad (T-32, RF-7): se lee de los ficheros
+            # VALIDOS, usando las columnas de traza del propio Parquet. No
+            # altera la validacion, la cuarentena ni la subida.
+            if fingerprint_scope:
+                fingerprint_sources.update(fingerprint_scope)
+                for source_id in fingerprint_scope:
+                    table_site = (
+                        source_id if source_id in sources.MULTI_SITE_SITES else None
+                    )
+                    fingerprint_searches.extend(
+                        fingerprint.search_dimensions_from_table(
+                            t, source_id, site=table_site
+                        )
+                    )
             entry["rows"] = t.num_rows
             entry["converted"] = converted
             entry["bytes"] = os.path.getsize(f)
@@ -169,18 +198,31 @@ def main():
                           file=sys.stderr)
         entries.append(entry)
 
+    manifest_fingerprint = None
+    if fingerprint_name and fingerprint_sources:
+        try:
+            manifest_fingerprint = fingerprint.build_fingerprint(
+                fingerprint_sources, fingerprint_searches
+            )
+        except ValueError as exc:
+            # Nunca se publica una huella con posibles credenciales; la
+            # validacion y la subida de los Parquet no se ven afectadas.
+            print("huella omitida: %r" % exc, file=sys.stderr)
+
     if args.manifest:
-        _write_manifest(args.manifest, entries, errors)
+        _write_manifest(args.manifest, entries, errors, manifest_fingerprint)
     return 1 if errors else 0
 
 
-def _write_manifest(path, entries, errors):
+def _write_manifest(path, entries, errors, fingerprint=None):
     summary = {
         "schema_version": 1,
         "total_files": len(entries),
         "bad_files": errors,
         "files": entries,
     }
+    if fingerprint is not None:
+        summary["fingerprint"] = fingerprint
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(summary, fh, ensure_ascii=False, indent=2)
 

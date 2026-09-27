@@ -71,6 +71,21 @@ _MULTI_SITE_REQUIRED_COLUMNS: tuple[str, ...] = (
     "scraped_at",
 )
 
+# Trace columns that record the search/region/city a row was obtained with.
+# They carry only "what was searched", never credentials, and are read from
+# the scraper's own Parquet to build the comparability fingerprint (T-32,
+# RF-7). Keys are dimension names; values are the origin column names.
+_DIRECT_SEARCH_TRACE_COLUMNS: dict[str, dict[str, str]] = {
+    "indeed": {"search": "search_term", "city": "city_query", "region": "country"},
+    "linkedin": {"search": "search_role", "city": "search_city"},
+    "infojobs": {"search": "keyword_buscada", "city": "ciudad_buscada"},
+}
+_MULTI_SITE_TRACE_COLUMNS: dict[str, str] = {
+    "search": "search_role",
+    "city": "search_city",
+    "site": "site",
+}
+
 
 @dataclass(frozen=True)
 class Source:
@@ -294,3 +309,30 @@ def required_columns(source_id: str) -> tuple[str, ...]:
 def multi_site_portals() -> tuple[Source, ...]:
     """Return the six Multi-site portals, each measured independently."""
     return _MULTI_SITE_SOURCES
+
+
+def search_trace_columns(source_id: str) -> dict[str, str]:
+    """Return the search trace column map of a source.
+
+    Maps dimension names (``search``, ``region``, ``city``, ``site``) to the
+    origin Parquet column that records them. Unknown sources yield an empty
+    map, so a caller can safely ask about any id (T-32, RF-7).
+    """
+    if source_id in MULTI_SITE_SITE_IDS:
+        return dict(_MULTI_SITE_TRACE_COLUMNS)
+    return dict(_DIRECT_SEARCH_TRACE_COLUMNS.get(source_id, {}))
+
+
+def fingerprint_scope(scraper: str) -> tuple[str, ...]:
+    """Return the source ids whose fingerprint a scraper writes.
+
+    Multi-site covers its six independent portals; a known direct source
+    covers itself; any other name has no scope and yields ``()`` (T-32,
+    RF-2, RF-7).
+    """
+    name = (scraper or "").strip()
+    if name == "multi_site":
+        return MULTI_SITE_SITE_IDS
+    if name in _BY_ID:
+        return (name,)
+    return ()
