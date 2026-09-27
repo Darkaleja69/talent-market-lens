@@ -41,6 +41,7 @@ from .config import COUNTRIES, CountryConfig, DESC_CACHE_FILE, MAX_SERPS_PER_RUN
 from .desc_cache import load_cache, save_cache, update_cache_from_offers
 from .models import JobOffer
 from .parser import parse_serp, enrich_offers_via_right_panel
+from .progress import RunProgressCounter
 from .state import RunState
 from . import schema as job_schema
 from . import exporters
@@ -77,6 +78,10 @@ class ScraperRunner:
         self._by_city: dict[str, int] = {}
         self._serps_completed = 0
         self.captcha_aborted = False
+        # Cumulative run progress (RF-15): parsed counts every offer including
+        # duplicates already known; new counts only first-seen job_keys.
+        self._progress = RunProgressCounter("indeed")
+        self._progress_seen: set[str] = set()
 
         self.state = RunState(output_dir)
         self.desc_cache = load_cache(output_dir / DESC_CACHE_FILE)
@@ -135,6 +140,21 @@ class ScraperRunner:
         save_cache(self.output_dir / DESC_CACHE_FILE, self.desc_cache)
         self._export(all_offers, total_before)
         return all_offers
+
+    def _record_page_progress(self, offers: list[JobOffer]) -> str:
+        """Update the cumulative run counter and return the PROGRESS line.
+
+        Every parsed offer counts toward ``parsed`` (duplicates included);
+        ``new`` only counts offers whose job_key has not been seen this run.
+        """
+        new_on_page = 0
+        for offer in offers:
+            key = offer.job_key
+            if key and key not in self._progress_seen:
+                self._progress_seen.add(key)
+                new_on_page += 1
+        self._progress.add(len(offers), new_on_page)
+        return self._progress.line(at=datetime.now(timezone.utc))
 
     def _maybe_long_pause(self) -> None:
         if self.pause_every <= 0:
@@ -214,6 +234,7 @@ class ScraperRunner:
                     jks = [o.job_key for o in offers if o.job_key]
                     self.state.mark_processed(jks)
                     log.info("pagina %d: %d ofertas (acumulado ciudad: %d)", page_num, len(offers), len(city_offers))
+                    log.info("%s", self._record_page_progress(offers))
                     self._maybe_long_pause()
                     break
                 except CaptchaDetected as e:
