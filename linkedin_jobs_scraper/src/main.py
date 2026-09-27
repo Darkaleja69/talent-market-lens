@@ -45,12 +45,22 @@ from .login import BlockedException, LoginFailedError, ensure_logged_in
 from .models import JobOffer, now_utc_iso
 from .parse_detail import parse_detail
 from .parse_serp import to_job_offer
+from .progress import RunProgressCounter
 from .search import run_search
 from .store import Store
 
 log = logging.getLogger("linkedin_scraper")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+def _emit_progress(progress: RunProgressCounter, parsed_delta: int,
+                   new_delta: int = 0) -> str:
+    """Update the run counter and log the machine-readable PROGRESS line."""
+    progress.add(parsed_delta, new_delta)
+    line = progress.line(at=now_utc_iso())
+    log.info("%s", line)
+    return line
 
 
 class _WarningCounterHandler(logging.Handler):
@@ -171,7 +181,8 @@ def _filter_combos(config: dict[str, Any], args: argparse.Namespace
 
 def _scrape_one_local(context, page, role: str, city_name: str,
                       city_cfg: dict[str, str],
-                      config: dict[str, Any], store: Store, do_detail: bool
+                      config: dict[str, Any], store: Store,
+                      progress: RunProgressCounter, do_detail: bool
                       ) -> tuple[int, Any, str]:
     """Nucleo local para UNA combinacion (role, ciudad).
 
@@ -207,9 +218,12 @@ def _scrape_one_local(context, page, role: str, city_name: str,
     base_offers: list[JobOffer] = []
     for raw in cards:
         base_offers.append(to_job_offer(raw, role, city_name, source="local"))
-    store.add_many(base_offers)
+    added = store.add_many(base_offers)
     log.info("[%s/%s] %d ofertas base anadidas (sin detalle aun).",
              role, city_name, len(base_offers))
+    # Progress: every SERP card counts (even those already in the snapshot);
+    # `new` is how many were not present before.
+    _emit_progress(progress, len(base_offers), added)
 
     if not do_detail:
         store.checkpoint(tag=f"{role}_{city_name}_serp")
@@ -249,6 +263,8 @@ def _scrape_one_local(context, page, role: str, city_name: str,
             # escribia en un objeto huerfano y se perdia.
             store.add(offer)
             n_detail_ok += 1
+            # A visited detail is work for the run even if the offer was known.
+            _emit_progress(progress, 1, 0)
         except BlockedException:
             log.warning("Bloqueo en detalle %s. Relanzando para conmutar.",
                         offer.job_id)
@@ -385,6 +401,7 @@ def main() -> int:
              len(combos), do_detail, use_apify)
 
     store = Store(config)
+    progress = RunProgressCounter("linkedin")
     if args.append:
         log.info("--append: cargando CSV previo para idempotencia...")
         store.load_from_csv()
@@ -483,7 +500,7 @@ def main() -> int:
                         try:
                             n, page, combo_state = _scrape_one_local(
                                 context, page, role, city_name, city_cfg,
-                                config, store, do_detail)
+                                config, store, progress, do_detail)
                             overall_ok += n
                             if combo_state == "empty":
                                 overall_empty += 1
