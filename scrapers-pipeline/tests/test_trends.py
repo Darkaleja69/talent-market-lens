@@ -250,6 +250,36 @@ def test_build_trend_five_runs_reports_series_and_directions():
     assert description.delta == pytest.approx(0.0)
 
 
+def test_build_trend_field_trend_carries_counts_per_run():
+    runs = []
+    for day, valid in zip(range(22, 25), (80, 90, 100)):
+        field = completeness.FieldCompleteness(
+            field="title",
+            required=True,
+            total=100,
+            valid=valid,
+            absent=100 - valid,
+            invalid=0,
+            completeness_pct=float(valid),
+        )
+        measured = completeness.SourceCompleteness(
+            source="indeed", total_offers=100, fields={"title": field}
+        )
+        runs.append(
+            trends.RunSnapshot(
+                label=f"2026-09-{day}",
+                fingerprint=_fp_indeed(),
+                completeness_by_source={"indeed": measured},
+            )
+        )
+
+    result = trends.build_trend(runs)
+    title = result.sources["indeed"].fields["title"]
+
+    assert title.values == (80.0, 90.0, 100.0)
+    assert title.counts == ((80, 100), (90, 100), (100, 100))
+
+
 def test_build_trend_skips_sources_and_fields_not_in_every_run():
     fp = _fp_indeed()
     run_one = _snapshot(

@@ -70,13 +70,20 @@ class RunSnapshot:
 
 @dataclass(frozen=True)
 class FieldTrend:
-    """Chronological completeness series of one field (oldest -> newest)."""
+    """Chronological completeness series of one field (oldest -> newest).
+
+    ``counts`` holds the ``(valid, total)`` pair of every run, in the same
+    order and length as ``values``, so the report can show every percentage
+    with its counts (NFR). It defaults to ``()`` to keep older constructions
+    (5 positional arguments) working.
+    """
 
     field: str
     required: bool
     values: tuple[float, ...]
     direction: str
     delta: float
+    counts: tuple[tuple[int, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -228,19 +235,21 @@ def _direction(delta: float) -> str:
 def _field_trend(
     runs: Sequence[RunSnapshot], source_id: str, field: str
 ) -> FieldTrend:
-    """Build the chronological series and last step of one field."""
-    values = tuple(
-        run.completeness_by_source[source_id].fields[field].completeness_pct
-        for run in runs
-    )
+    """Build the chronological series, counts and last step of one field."""
+    stats = [
+        run.completeness_by_source[source_id].fields[field] for run in runs
+    ]
+    values = tuple(stat.completeness_pct for stat in stats)
+    counts = tuple((stat.valid, stat.total) for stat in stats)
     delta = values[-1] - values[-2]
-    required = runs[-1].completeness_by_source[source_id].fields[field].required
+    required = stats[-1].required
     return FieldTrend(
         field=field,
         required=required,
         values=values,
         direction=_direction(delta),
         delta=delta,
+        counts=counts,
     )
 
 
