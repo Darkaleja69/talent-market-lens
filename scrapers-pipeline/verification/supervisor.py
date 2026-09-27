@@ -60,13 +60,20 @@ DEFAULT_TAIL_BYTES = 64 * 1024
 
 
 def read_last_progress_event(
-    path: str | os.PathLike[str], max_bytes: int = DEFAULT_TAIL_BYTES
+    path: str | os.PathLike[str],
+    max_bytes: int = DEFAULT_TAIL_BYTES,
+    since: datetime | None = None,
 ) -> ProgressEvent | None:
     """Return the last usable ``PROGRESS`` event of a stream file, or ``None``.
 
     Tolerant to a missing, empty or still-being-written file: only the trailing
     ``max_bytes`` are read and a partial last line simply yields no event, so an
     earlier complete line is used instead.
+
+    ``since`` scopes the search to the current run: append-only logs (the
+    Multi-site portals' ``run.log``) keep events from previous nights, so any
+    event whose ``ts`` is earlier than ``since`` is ignored. Events without a
+    ``ts`` cannot be attributed and are kept.
     """
     try:
         with open(path, "rb") as handle:
@@ -80,8 +87,11 @@ def read_last_progress_event(
 
     for line in reversed(data.decode("utf-8", errors="replace").splitlines()):
         event = parse_progress_event(line)
-        if event is not None:
-            return event
+        if event is None:
+            continue
+        if since is not None and event.at is not None and event.at < since:
+            continue
+        return event
     return None
 
 
@@ -98,6 +108,8 @@ class ProgressTracker:
         self.source = source
         self.last_parsed = 0
         self.last_progress_at = started_at
+        # Process start of this run: scopes append-only stream reading to it.
+        self.started_at = started_at
 
     def observe(
         self, event: ProgressEvent | None, now: datetime
@@ -257,7 +269,9 @@ class Supervisor:
                     decisions[source] = unit.last_decision
                 continue
 
-            event = read_last_progress_event(unit.stream)
+            event = read_last_progress_event(
+                unit.stream, since=unit.tracker.started_at
+            )
             decision = unit.tracker.observe(event, moment)
             unit.last_decision = decision
             decisions[source] = decision
@@ -366,6 +380,7 @@ def save_state(
         "source": unit.source,
         "pid": unit.pid,
         "stream": unit.stream,
+        "started_at": _iso(unit.tracker.started_at),
         "last_parsed": unit.tracker.last_parsed,
         "last_progress_at": _iso(unit.tracker.last_progress_at),
         "stopped": halted,
@@ -437,8 +452,12 @@ def main(argv: list[str] | None = None) -> int:
     started_at: datetime | None
     if arg_started_at is not None:
         started_at = arg_started_at
+    elif same_run:
+        started_at = _parse_iso(state.get("started_at")) or _parse_iso(
+            state.get("last_progress_at")
+        )
     else:
-        started_at = _parse_iso(state.get("last_progress_at"))
+        started_at = None
 
     tracker = ProgressTracker(args.source, started_at)
     if same_run:

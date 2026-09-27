@@ -74,6 +74,50 @@ def test_T19_tracker_ignores_event_from_another_source():
 
 
 # --------------------------------------------------------------------------
+# T-20: append-only Multi-site run.log scoped to the current run
+# --------------------------------------------------------------------------
+
+
+def test_T20_read_last_progress_event_ignores_previous_night(tmp_path):
+    log = tmp_path / "run.log"
+    _write(
+        log,
+        _progress("nvb", 999, T0 - timedelta(days=1)),  # last night
+        _progress("nvb", 5, T0),  # this run
+    )
+
+    scoped = supervisor.read_last_progress_event(log, since=T0)
+    assert scoped is not None
+    assert scoped.parsed == 5
+
+    # Without a run scope the newest line is still returned.
+    unscoped = supervisor.read_last_progress_event(log)
+    assert unscoped is not None
+    assert unscoped.parsed == 5
+
+
+def test_T20_only_stale_progress_is_not_run_progress(tmp_path):
+    log = tmp_path / "run.log"
+    _write(log, _progress("glassdoor", 999, T0 - timedelta(days=1)))
+
+    assert supervisor.read_last_progress_event(log, since=T0) is None
+
+
+def test_T20_supervisor_scopes_append_only_log_to_the_run(tmp_path):
+    calls: list[int] = []
+    sup = supervisor.Supervisor(stop=calls.append)
+    log = tmp_path / "run.log"
+    # Yesterday's high counter alone must not count as this run's progress.
+    _write(log, _progress("glassdoor", 999, T0 - timedelta(days=1)))
+    sup.register("glassdoor", 7, log, started_at=T0)
+
+    assert sup.poll(now=T0)["glassdoor"].keep
+    assert sup.poll(now=T0 + timedelta(minutes=39))["glassdoor"].keep
+    assert sup.poll(now=T0 + timedelta(minutes=41))["glassdoor"].blocked
+    assert calls == [7]
+
+
+# --------------------------------------------------------------------------
 # Growing counter keeps the process alive
 # --------------------------------------------------------------------------
 

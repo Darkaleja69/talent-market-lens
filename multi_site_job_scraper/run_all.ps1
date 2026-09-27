@@ -32,6 +32,14 @@ $RunStart = Get-Date
 # tardar varias horas). Si se agota, se mata el proceso y se hace merge parcial.
 $PerScraperTimeoutMin = 1080
 
+# Watchdog de progreso por portal (RF-15, T-20): la decision la toma el
+# supervisor Python (scrapers-pipeline/verification/supervisor.py) sobre el
+# contador PROGRESS de cada data/<site>/run.log. Solo se detiene el portal sin
+# progreso; los demas siguen. $WatchdogExitCode (75) no colisiona con los exit
+# codes de los portales (0/non-cero) ni con "timeout".
+$WatchdogExitCode = 75
+$WatchdogReason   = "watchdog_no_progress"
+
 Write-Host "=== Multi-Site Job Scraper - Paralelo ===" -ForegroundColor Cyan
 Write-Host "Lanzando 6 scrapers en procesos independientes..." -ForegroundColor Yellow
 
@@ -61,8 +69,38 @@ if (Test-Path -LiteralPath $mergeRunner) {
 $procs = @()
 $results = @{}
 $outputs = @()
+$watchdogBlocked = @()
 $mergeInfo = @{ Exit = 0; Ran = $false; Mode = "" }
 $globalExit = 0
+
+function Get-WatchdogDecision {
+    # Consulta puntual al supervisor Python para un portal: lee la ultima linea
+    # PROGRESS de su run.log acotada al run actual y persiste su estado por
+    # portal. Devuelve la linea legible o $null si no se puede consultar.
+    param(
+        [string]$Source,
+        [int]$ProcessId,
+        [string]$Stream,
+        [string]$State,
+        [string]$StartedAt
+    )
+    $supervisorDir = Join-Path (Split-Path -Parent $root) "scrapers-pipeline"
+    if (-not (Test-Path -LiteralPath (Join-Path $supervisorDir "verification\supervisor.py"))) {
+        return $null
+    }
+    $prevPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = $supervisorDir
+    try {
+        $out = & python -m verification.supervisor `
+            --source $Source --pid $ProcessId --stream $Stream `
+            --state $State --started-at $StartedAt 2>$null
+        return ($out | Select-Object -Last 1)
+    } catch {
+        return $null
+    } finally {
+        $env:PYTHONPATH = $prevPythonPath
+    }
+}
 
 try {
     for ($i = 0; $i -lt $defs.Count; $i++) {
@@ -72,6 +110,8 @@ try {
         if (-not (Test-Path -LiteralPath $dataDir)) {
             New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
         }
+        # Estado del watchdog acotado al run: descarta el de la noche previa.
+        Remove-Item -LiteralPath (Join-Path $dataDir ".watchdog.json") -Force -ErrorAction SilentlyContinue
         # Lanzar python directamente. Inicia como nueva ventana de consola donde
         # el output del scraper se ve en vivo. No redirigimos stdout/stderr a
         # ficheros porque cada scraper escribe su propio log a data/<site>/run.log
@@ -82,7 +122,7 @@ try {
             -WorkingDirectory $root `
             -WindowStyle Normal `
             -PassThru
-        $procs += @{ Name=$d.Name; Proc=$p; StartedAt=(Get-Date); TimedOut=$false }
+        $procs += @{ Name=$d.Name; Proc=$p; StartedAt=(Get-Date); TimedOut=$false; WatchdogBlocked=$false }
         Write-Host ("  [{0}] PID {1}" -f $d.Name, $p.Id) -ForegroundColor Green
         # Escalonado: lanzar 4 Chromium a la vez puede colgar el arranque
         # (timeout de launch). Dejamos que cada navegador arranque en solitario.
@@ -105,7 +145,7 @@ try {
     while ($true) {
         $allExited = $true
         foreach ($e in $procs) {
-            if ($e.TimedOut) { continue }
+            if ($e.TimedOut -or $e.WatchdogBlocked) { continue }
             if (-not $e.Proc.HasExited) {
                 if ($PerScraperTimeoutMin -gt 0) {
                     $elapsed = (Get-Date) - $e.StartedAt
@@ -118,6 +158,22 @@ try {
                         continue
                     }
                 }
+
+                # Watchdog de progreso por portal (RF-15, T-20): el supervisor
+                # decide con el contador PROGRESS acotado al run actual. Si lo
+                # declara bloqueado, ya detuvo su arbol; se registra y se sigue
+                # con los demas portales sin tocar sus procesos.
+                $stateFile = Join-Path $root "data\$($e.Name)\.watchdog.json"
+                $logFile = Join-Path $root "data\$($e.Name)\run.log"
+                $decision = Get-WatchdogDecision -Source $e.Name -ProcessId $e.Proc.Id `
+                    -Stream $logFile -State $stateFile -StartedAt $RunStart.ToString("o")
+                if ($decision -match 'state=blocked') {
+                    Write-Host ("  [{0}] WATCHDOG: sin progreso; arbol de procesos detenido (motivo {1})." -f $e.Name, $WatchdogReason) -ForegroundColor Red
+                    $e.WatchdogBlocked = $true
+                    $watchdogBlocked += @{ site=$e.Name; pid=[int]$e.Proc.Id; reason=$WatchdogReason }
+                    continue
+                }
+
                 $allExited = $false
             }
         }
@@ -137,6 +193,12 @@ try {
         if ($e.TimedOut) {
             Write-Host ("  [{0}] timeout (matado por el wrapper)" -f $e.Name) -ForegroundColor Red
             $results[$e.Name] = "timeout"
+            $globalExit = 1
+            continue
+        }
+        if ($e.WatchdogBlocked) {
+            Write-Host ("  [{0}] watchdog_no_progress (detenido por el supervisor)" -f $e.Name) -ForegroundColor Red
+            $results[$e.Name] = $WatchdogExitCode
             $globalExit = 1
             continue
         }
@@ -216,6 +278,10 @@ finally {
         per_scraper_timeout_min = $PerScraperTimeoutMin
         results  = $results
         outputs_merged = $outputs
+        # Portales detenidos por falta de progreso (RF-15, T-20). Su resultado
+        # en `results` es $WatchdogExitCode (no cero) para que read_multi_site_runs
+        # los clasifique como fallidos sin romper el esquema existente.
+        watchdog_blocked = $watchdogBlocked
         merge_ran  = [bool]$mergeInfo.Ran
         merge_mode = $mergeInfo.Mode
         merge_exit = [int]$mergeInfo.Exit
