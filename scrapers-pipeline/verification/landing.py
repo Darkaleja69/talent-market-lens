@@ -28,15 +28,20 @@ real AzCopy or credentials (plan section 8).
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
+import posixpath
 import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol, runtime_checkable
+
+from verification import completeness
 
 DEFAULT_CONTAINER = "landing"
 STORAGE_ACCOUNT_ENV = "LANDING_STORAGE_ACCOUNT"
@@ -70,6 +75,31 @@ _SIZE_UNITS: dict[str, int] = {
 # ``returncode``/``stdout``/``stderr``. Tests inject a fake runner.
 Runner = Callable[[list[str]], "subprocess.CompletedProcess"]
 
+# --- File verification states (T-30; RF-6, RF-8) ----------------------------
+#
+# One state per published file, plus the aggregate manifest states. These are
+# intentionally plain strings so the report layer can render them without an
+# extra enum import.
+FILE_OK = "ok"
+FILE_MISSING = "not_found"  # the object is not visible in the landing
+FILE_UNREADABLE = "unreadable"  # present but not a readable Parquet
+FILE_ROWS_MISMATCH = "rows_mismatch"
+FILE_CHECKSUM_MISMATCH = "checksum_mismatch"
+FILE_REJECTED = "rejected"  # the manifest already marked the file as bad
+FILE_UNVERIFIED = "unverified"  # nothing in the manifest to compare against
+
+# Overall states of a manifest check.
+STATE_OK = "ok"
+STATE_PENDING = "pending"
+STATE_MISMATCH = "mismatch"
+STATE_REJECTED = "rejected"
+STATE_UNVERIFIED = "unverified"
+
+_MISMATCH_STATES = frozenset({FILE_ROWS_MISMATCH, FILE_CHECKSUM_MISMATCH})
+# A drive-like fragment (``C:``), including Windows alternate-data-stream
+# syntax, never belongs to a remote key mapped under a temporary directory.
+_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+
 
 @dataclass(frozen=True)
 class RemoteObject:
@@ -81,6 +111,70 @@ class RemoteObject:
 
     path: str
     size: int | None = None
+
+
+@dataclass(frozen=True)
+class ManifestFile:
+    """One file entry of a landing manifest (RF-6, RF-8).
+
+    The manifest written by ``ensure_compatible.py`` uses the keys ``file``,
+    ``status``, ``rows``, ``bytes``, ``sha256``, ``converted`` and ``error``;
+    the upload wrapper adds ``remote`` (the container-relative key under the
+    scraper, e.g. ``dia=2026-09-26/jobs.parquet``). Older manifests may lack
+    ``remote`` or carry empty rows/sha256, so every optional field is read
+    tolerantly.
+    """
+
+    file: str
+    status: str = ""
+    rows: int | None = None
+    bytes: int | None = None
+    sha256: str | None = None
+    remote: str | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class Manifest:
+    """Parsed landing manifest for one scraper and stamp (RF-6, RF-8).
+
+    ``fingerprint`` is reserved for the comparability fingerprint of T-32: it
+    is read when present and never required, so manifests written before that
+    task remain usable (RF-7).
+    """
+
+    scraper: str
+    stamp: str
+    schema_version: int | None
+    total_files: int | None
+    bad_files: int | None
+    files: tuple[ManifestFile, ...]
+    fingerprint: dict | None = None
+
+
+@dataclass(frozen=True)
+class FileCheck:
+    """Verification outcome of a single published file (RF-8)."""
+
+    file: str
+    remote: str | None
+    state: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class ManifestCheck:
+    """Verification outcome of one manifest and its published objects (RF-8).
+
+    ``rejected`` is True when the manifest itself declared bad files (or any
+    entry is marked ``bad``); ``state`` summarises the whole check.
+    """
+
+    scraper: str
+    stamp: str
+    rejected: bool
+    files: tuple[FileCheck, ...]
+    state: str
 
 
 class RemoteError(RuntimeError):
@@ -189,19 +283,38 @@ def _default_runner(command: list[str]) -> subprocess.CompletedProcess:
 def _safe_relative(remote_path: str) -> Path:
     """Map a remote key to a relative local path, rejecting escapes.
 
-    Leading slashes and ``.`` segments are dropped; any ``..`` segment is
-    rejected so a remote key can never write outside the temporary directory.
+    A remote key is untrusted input (it comes from manifests and listings), so
+    every segment is validated before it is joined under the temporary
+    directory. Empty segments and ``.`` are dropped; a segment that is ``..``,
+    contains a path separator, or looks like a Windows drive/ADS fragment
+    (``C:``) is rejected, as is an empty result. This blocks traversal and the
+    UNC/device forms that used to slip through a double leading slash.
     """
-    parts = [
-        part
-        for part in PurePosixPath(remote_path.replace("\\", "/")).parts
-        if part not in ("", ".", "/")
-    ]
-    if not parts or any(part == ".." for part in parts):
-        raise ValueError(
-            "Ruta remota no válida para descargar a un temporal."
-        )
+    normalized = remote_path.replace("\\", "/")
+    parts = [part for part in normalized.split("/") if part not in ("", ".")]
+    if not parts:
+        raise ValueError("Ruta remota no válida para descargar a un temporal.")
+    for part in parts:
+        if (
+            part == ".."
+            or "/" in part
+            or "\\" in part
+            or ":" in part
+            or _DRIVE_RE.match(part)
+        ):
+            raise ValueError(
+                "Ruta remota no válida para descargar a un temporal."
+            )
     return Path(*parts)
+
+
+def _is_within(path: Path, base: Path) -> bool:
+    """Return True when ``path`` is ``base`` or lives inside it."""
+    try:
+        path.relative_to(base)
+    except ValueError:
+        return False
+    return True
 
 
 class AzCopyReader:
@@ -348,9 +461,15 @@ class AzCopyReader:
         """Return a safe local path for downloading ``remote_path``.
 
         The container-relative key is mapped under the reader's temporary
-        directory. ``..`` segments and empty keys are rejected.
+        directory. Empty keys, ``..`` segments, drive-like fragments and any
+        key whose resolved path would leave the temporary directory are
+        rejected, so a corrupt manifest can never write outside it.
         """
-        return self._ensure_temp_dir() / _safe_relative(remote_path)
+        temp_dir = self._ensure_temp_dir()
+        candidate = temp_dir / _safe_relative(remote_path)
+        if not _is_within(candidate.resolve(), temp_dir.resolve()):
+            raise ValueError("Ruta remota no válida para descargar a un temporal.")
+        return candidate
 
     def close(self) -> None:
         """Remove this reader's temporary directory; idempotent.
@@ -361,3 +480,308 @@ class AzCopyReader:
         if self._temp_dir is not None:
             shutil.rmtree(self._temp_dir, ignore_errors=True)
             self._temp_dir = None
+
+
+# --- T-30: manifest parsing and publication checks (RF-6, RF-8) --------------
+#
+# The diagnostic reads the manifest the pipeline already writes
+# (``_manifests/<scraper>/<stamp>.json``) and re-checks the published objects:
+# existence, readability, row count and sha256. Parsing is pure so it can be
+# tested without any remote. A failure to reach Azure raises
+# :class:`RemoteError` and is *never* turned into a publication failure: the
+# caller reports the publication as "not checked" (RF-8, RF-13).
+
+
+def _as_int(value: object) -> int | None:
+    """Return ``value`` as an int, or ``None`` (bools are not ints here)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def _as_optional_str(value: object) -> str | None:
+    """Return a stripped non-empty string, or ``None``."""
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return None
+
+
+def _as_mapping(value: object) -> dict | None:
+    """Return a shallow dict copy of a mapping, or ``None``."""
+    if isinstance(value, Mapping):
+        return dict(value)
+    return None
+
+
+def _parse_manifest_file(item: Mapping) -> ManifestFile:
+    """Build a :class:`ManifestFile` from one manifest entry, tolerantly."""
+    file_name = item.get("file")
+    status = item.get("status")
+    return ManifestFile(
+        file=file_name if isinstance(file_name, str) else "",
+        status=status if isinstance(status, str) else "",
+        rows=_as_int(item.get("rows")),
+        bytes=_as_int(item.get("bytes")),
+        sha256=_as_optional_str(item.get("sha256")),
+        remote=_as_optional_str(item.get("remote")),
+        error=_as_optional_str(item.get("error")),
+    )
+
+
+def parse_manifest(
+    payload: object, *, scraper: str = "", stamp: str = ""
+) -> Manifest | None:
+    """Parse a manifest payload without raising.
+
+    Returns ``None`` when the payload does not have the minimal expected shape,
+    i.e. it is not a mapping or has no ``files`` list. Entries are read
+    tolerantly: incomplete or mistyped optional fields become ``None``/empty,
+    non-mapping entries are skipped. ``scraper`` and ``stamp`` are context the
+    caller already knows (they are not stored inside the manifest body).
+    """
+    if not isinstance(payload, Mapping):
+        return None
+    raw_files = payload.get("files")
+    if not isinstance(raw_files, list):
+        return None
+    files = tuple(
+        _parse_manifest_file(item) for item in raw_files if isinstance(item, Mapping)
+    )
+    return Manifest(
+        scraper=scraper,
+        stamp=stamp,
+        schema_version=_as_int(payload.get("schema_version")),
+        total_files=_as_int(payload.get("total_files")),
+        bad_files=_as_int(payload.get("bad_files")),
+        files=files,
+        fingerprint=_as_mapping(payload.get("fingerprint")),
+    )
+
+
+def _infer_scraper_stamp(remote_key: str) -> tuple[str, str]:
+    """Infer ``(scraper, stamp)`` from a ``_manifests/<scraper>/<stamp>`` key."""
+    parts = PurePosixPath(remote_key).parts
+    if len(parts) >= 3 and parts[0] == "_manifests":
+        return parts[-2], PurePosixPath(parts[-1]).stem
+    return "", ""
+
+
+def list_manifest_keys(reader: RemoteReader, scraper: str) -> list[str]:
+    """List the manifest keys of ``scraper`` under ``_manifests/<scraper>/``.
+
+    Only the read-only ``list_objects`` operation is used (RF-8).
+    """
+    prefix = f"_manifests/{scraper}/" if scraper else "_manifests/"
+    return [obj.path for obj in reader.list_objects(prefix)]
+
+
+def load_manifest(
+    reader: RemoteReader,
+    remote_key: str,
+    *,
+    scraper: str = "",
+    stamp: str = "",
+) -> Manifest | None:
+    """Download and parse one manifest, returning ``None`` when unusable.
+
+    The object is downloaded to a temporary location (the reader's own
+    ``temp_path`` when available, otherwise a private temporary directory),
+    read as UTF-8 JSON and parsed. Missing/invalid content yields ``None``; a
+    connectivity/credential failure raises :class:`RemoteError` and is left to
+    the caller as "not checked" (RF-8, RF-13).
+
+    ``scraper``/``stamp`` default to the values inferred from the key.
+    """
+    inferred_scraper, inferred_stamp = _infer_scraper_stamp(remote_key)
+    scraper = scraper or inferred_scraper
+    stamp = stamp or inferred_stamp
+
+    temp_path_attr = getattr(reader, "temp_path", None)
+    own_dir: tempfile.TemporaryDirectory | None = None
+    try:
+        if callable(temp_path_attr):
+            local = Path(temp_path_attr(remote_key))
+        else:
+            own_dir = tempfile.TemporaryDirectory(prefix="landing-manifest-")
+            local = Path(own_dir.name) / _safe_relative(remote_key)
+        reader.download(remote_key, local)
+        payload = json.loads(local.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    finally:
+        if own_dir is not None:
+            own_dir.cleanup()
+    return parse_manifest(payload, scraper=scraper, stamp=stamp)
+
+
+def _object_present(
+    objects: list[RemoteObject], full_key: str, remote: str
+) -> bool:
+    """Return True when the exact published key appears in a listing.
+
+    The exact container-relative key wins. As a fallback, ``azcopy list`` on
+    some builds returns bare filenames relative to the requested prefix, so a
+    key with no separator matching the remote file name also counts as
+    present.
+    """
+    expected_name = PurePosixPath(remote).name
+    for obj in objects:
+        key = obj.path.strip().strip("/")
+        if key == full_key:
+            return True
+        if "/" not in key and key == expected_name:
+            return True
+    return False
+
+
+def _sha256_file(path: Path) -> str:
+    """Return the lowercase sha256 hex digest of a local file."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _verify_entry(
+    manifest: Manifest,
+    entry: ManifestFile,
+    reader: RemoteReader,
+    base_dir: Path,
+) -> FileCheck:
+    """Verify one manifest entry against its published object (RF-8)."""
+    if entry.status == "bad":
+        detail = entry.error or "El manifest marcó este fichero como rechazado."
+        return FileCheck(
+            file=entry.file, remote=entry.remote, state=FILE_REJECTED, detail=detail
+        )
+    if not entry.remote:
+        return FileCheck(
+            file=entry.file,
+            remote=None,
+            state=FILE_MISSING,
+            detail="No se puede localizar el objeto: falta la ruta remota.",
+        )
+
+    remote = entry.remote.lstrip("/")
+    full_key = f"{manifest.scraper}/{remote}".strip("/") if manifest.scraper else remote
+    directory = posixpath.dirname(remote)
+    prefix_parts = [part for part in (manifest.scraper, directory) if part]
+    prefix = f"{'/'.join(prefix_parts)}/" if prefix_parts else ""
+    objects = reader.list_objects(prefix)
+    if not _object_present(objects, full_key, remote):
+        return FileCheck(
+            file=entry.file,
+            remote=remote,
+            state=FILE_MISSING,
+            detail="El objeto no aparece todavía en la landing.",
+        )
+
+    local = base_dir / _safe_relative(remote)
+    reader.download(full_key, local)
+    result = completeness.read_obtained_parquet(str(local))
+    if not result.readable:
+        return FileCheck(
+            file=entry.file,
+            remote=remote,
+            state=FILE_UNREADABLE,
+            detail=result.error or "El objeto no se puede leer como Parquet.",
+        )
+    if entry.rows is not None and result.rows != entry.rows:
+        return FileCheck(
+            file=entry.file,
+            remote=remote,
+            state=FILE_ROWS_MISMATCH,
+            detail=f"Filas declaradas {entry.rows} != filas reales {result.rows}.",
+        )
+    if entry.sha256:
+        actual = _sha256_file(local)
+        if actual.lower() != entry.sha256.lower():
+            return FileCheck(
+                file=entry.file,
+                remote=remote,
+                state=FILE_CHECKSUM_MISMATCH,
+                detail="El sha256 publicado no coincide con el objeto descargado.",
+            )
+    if entry.rows is None and not entry.sha256:
+        return FileCheck(
+            file=entry.file,
+            remote=remote,
+            state=FILE_UNVERIFIED,
+            detail="El manifest no aporta filas ni sha256 para verificar el objeto.",
+        )
+    return FileCheck(
+        file=entry.file,
+        remote=remote,
+        state=FILE_OK,
+        detail="El objeto coincide con el manifest.",
+    )
+
+
+def _overall_state(checks: tuple[FileCheck, ...], rejected: bool) -> str:
+    """Summarise the per-file states into one manifest state (RF-8)."""
+    if rejected:
+        return STATE_REJECTED
+    states = {check.state for check in checks}
+    if states & _MISMATCH_STATES:
+        return STATE_MISMATCH
+    if FILE_MISSING in states:
+        return STATE_PENDING
+    if not checks:
+        return STATE_UNVERIFIED
+    if states == {FILE_OK}:
+        return STATE_OK
+    # Present but unreadable, or with nothing to compare against: the
+    # publication could not be confirmed.
+    return STATE_UNVERIFIED
+
+
+def verify_manifest(
+    manifest: Manifest,
+    reader: RemoteReader,
+    *,
+    workdir: str | Path | None = None,
+) -> ManifestCheck:
+    """Verify that a manifest's objects are published and consistent (RF-8).
+
+    Every accepted entry is checked for existence, readability, declared row
+    count and sha256; entries the manifest marked ``bad`` (or a ``bad_files``
+    count above zero) are reported as rejected. When the manifest carries no
+    rows/sha256 the corresponding comparison is skipped instead of inventing a
+    mismatch.
+
+    Downloads go to ``workdir`` when given; otherwise a private temporary
+    directory is created and removed when the check ends. A :class:`RemoteError`
+    (connectivity/credentials) propagates unchanged so the caller can report the
+    publication as *not checked* rather than as wrong (RF-8, RF-13).
+    """
+    own_dir: tempfile.TemporaryDirectory | None = None
+    if workdir is not None:
+        base_dir = Path(workdir)
+        base_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        own_dir = tempfile.TemporaryDirectory(prefix="landing-verify-")
+        base_dir = Path(own_dir.name)
+
+    try:
+        rejected = manifest.bad_files is not None and manifest.bad_files > 0
+        checks: list[FileCheck] = []
+        for entry in manifest.files:
+            check = _verify_entry(manifest, entry, reader, base_dir)
+            if check.state == FILE_REJECTED:
+                rejected = True
+            checks.append(check)
+        frozen = tuple(checks)
+        return ManifestCheck(
+            scraper=manifest.scraper,
+            stamp=manifest.stamp,
+            rejected=rejected,
+            files=frozen,
+            state=_overall_state(frozen, rejected),
+        )
+    finally:
+        if own_dir is not None:
+            own_dir.cleanup()
