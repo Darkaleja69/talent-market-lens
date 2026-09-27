@@ -7,7 +7,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from verification import completeness, sources
+from verification import completeness, field_contract, sources
 
 # Mandatory columns per source, mirroring `RequiredColumns` in config.ps1.
 EXPECTED_REQUIRED_COLUMNS = {
@@ -264,3 +264,262 @@ def test_unique_offers_reads_a_written_parquet(tmp_path):
     read_back = pq.read_table(str(path))
 
     assert completeness.count_unique_offers(read_back, "infojobs") == 2
+
+
+# --- T-27: per-field validity and completeness (RF-4, RF-5) ------------------
+
+# Expected per-field outcome for `_indeed_table`: (required, valid, absent,
+# invalid, completeness_pct) over its 4 unique offers.
+INDEED_EXPECTED = {
+    "id": (False, 4, 0, 0, 100.0),
+    "title": (True, 2, 1, 1, 50.0),
+    "company": (True, 2, 1, 1, 50.0),
+    "description": (True, 3, 1, 0, 75.0),
+    "salary": (False, 2, 1, 1, 50.0),
+    "skills": (False, 0, 4, 0, 0.0),
+    "work_mode": (False, 2, 1, 1, 50.0),
+    "location": (False, 3, 1, 0, 75.0),
+    "posted_date": (False, 3, 0, 1, 75.0),
+}
+
+
+def _indeed_table() -> pa.Table:
+    """Four unique Indeed offers plus one exact duplicate on the dedup key.
+
+    It mixes valid values, genuinely absent ones (``None``/blank) and values
+    that violate the contract, across every measured field.
+    """
+    return pa.table(
+        {
+            "job_key": ["i1", "i1", "i2", "i3", "i4"],
+            "title": [
+                "Data Engineer",
+                "duplicate of i1",
+                "https://example.com/job",  # invalid: URL
+                "Analyst",
+                None,  # absent
+            ],
+            "company": ["ACME Corp", "duplicate", "4,5", "Globex", "   "],
+            "description_text": [
+                "Long description",
+                "duplicate",
+                "",  # absent
+                "Another description",
+                "Third description",
+            ],
+            "salary_text": [
+                "40.000-55.000 EUR",
+                "duplicate",
+                None,  # absent
+                "competitive",  # invalid, but salary_min below rescues it
+                "competitive",  # invalid and nothing else present
+            ],
+            "salary_min": [None, None, None, 30000.0, None],
+            "salary_max": [None, None, None, 45000.0, None],
+            "workplace_type": ["Remote", "duplicate", "Flexible", "Híbrido", None],
+            "location": ["Madrid", "duplicate", None, "Barcelona", "Valencia"],
+            "posted_date": [
+                "2026-09-26",
+                "duplicate",
+                "not-a-date",
+                "2026-09-20",
+                "2026-09-21",
+            ],
+        }
+    )
+
+
+def test_measure_offers_completeness_reports_every_measured_field():
+    offers = completeness.unique_offers(_indeed_table(), "indeed")
+
+    result = completeness.measure_offers_completeness(offers, "indeed")
+
+    assert result.source == "indeed"
+    assert result.total_offers == 4
+    assert tuple(result.fields) == field_contract.MEASURED_FIELDS
+    for field, (required, valid, absent, invalid, pct) in INDEED_EXPECTED.items():
+        stats = result.fields[field]
+        assert stats.field == field
+        assert stats.total == 4
+        assert stats.required is required, field
+        assert stats.valid == valid, field
+        assert stats.absent == absent, field
+        assert stats.invalid == invalid, field
+        assert stats.completeness_pct == pct, field
+        # Counters are exhaustive: absent + invalid + valid == total (RF-4).
+        assert stats.valid + stats.absent + stats.invalid == stats.total
+
+
+def test_measure_completeness_deduplicates_before_counting_the_denominator():
+    table = _indeed_table()  # 5 rows, but `i1` repeats: 4 unique offers.
+
+    result = completeness.measure_completeness(table, "indeed")
+
+    assert result.total_offers == 4
+    assert table.num_rows == 5
+    for stats in result.fields.values():
+        assert stats.total == 4
+
+
+def test_measure_completeness_empty_table_is_zero_not_a_division_error():
+    table = pa.table({"job_key": pa.array([], type=pa.string())})
+
+    result = completeness.measure_completeness(table, "indeed")
+
+    assert result.total_offers == 0
+    assert tuple(result.fields) == field_contract.MEASURED_FIELDS
+    for stats in result.fields.values():
+        assert stats.total == 0
+        assert stats.valid == 0
+        assert stats.absent == 0
+        assert stats.invalid == 0
+        assert stats.completeness_pct == 0.0
+
+
+def test_required_flags_come_from_the_contract():
+    result = completeness.measure_completeness(_indeed_table(), "indeed")
+
+    for field in ("title", "company", "description"):
+        assert result.fields[field].required is True
+    for field in set(field_contract.MEASURED_FIELDS) - {
+        "title",
+        "company",
+        "description",
+    }:
+        assert result.fields[field].required is False
+
+
+def test_absent_and_invalid_are_counted_separately():
+    table = pa.table(
+        {
+            "job_key": ["a", "b"],
+            # Row `a` is genuinely absent everywhere; row `b` is present but
+            # breaks the contract in every field.
+            "title": [None, "https://example.com/job"],
+            "company": ["", "4,5"],
+            "description_text": ["   ", "https://example.com/job"],
+            "salary_text": [None, "competitive"],
+            "workplace_type": [None, "Flexible"],
+            "location": [None, "https://example.com/job"],
+            "posted_date": [None, "not-a-date"],
+        }
+    )
+
+    result = completeness.measure_completeness(table, "indeed")
+
+    for field in (
+        "title",
+        "company",
+        "description",
+        "salary",
+        "work_mode",
+        "location",
+        "posted_date",
+    ):
+        stats = result.fields[field]
+        assert stats.total == 2, field
+        assert stats.valid == 0, field
+        assert stats.absent == 1, field
+        assert stats.invalid == 1, field
+        assert stats.completeness_pct == 0.0, field
+
+
+def test_field_without_aliases_is_absent_and_never_invalid():
+    # Indeed and InfoJobs do not publish `skills`; a stray column must not be
+    # mistaken for a real, contract-violating value.
+    assert sources.field_aliases("indeed", "skills") == ()
+    assert sources.field_aliases("infojobs", "skills") == ()
+
+    offer = {"job_key": "a", "skills": "Python|SQL"}
+
+    assert (
+        completeness.classify_offer_field(
+            "skills", offer, sources.field_aliases("indeed", "skills")
+        )
+        is field_contract.ABSENT
+    )
+
+    table = pa.table(
+        {
+            "job_key": ["a", "b"],
+            "title": ["t", "t"],
+            "company": ["c", "c"],
+            "description_text": ["d", "d"],
+            "skills": ["Python|SQL", "||"],
+        }
+    )
+    stats = completeness.measure_completeness(table, "indeed").fields["skills"]
+    assert stats.valid == 0
+    assert stats.absent == 2
+    assert stats.invalid == 0
+
+
+def test_classify_offer_field_alias_preference_valid_beats_invalid():
+    aliases = ("description_full", "description_snippet")
+
+    valid_fallback = {
+        "description_full": "https://example.com/job",  # invalid URL
+        "description_snippet": "Real snippet",  # valid
+    }
+    assert (
+        completeness.classify_offer_field("description", valid_fallback, aliases)
+        is field_contract.VALID
+    )
+
+    invalid_only = {
+        "description_full": None,  # absent
+        "description_snippet": "https://example.com/job",  # invalid
+    }
+    assert (
+        completeness.classify_offer_field("description", invalid_only, aliases)
+        is field_contract.INVALID
+    )
+
+    absent_only = {"other": "x"}
+    assert (
+        completeness.classify_offer_field("description", absent_only, aliases)
+        is field_contract.ABSENT
+    )
+
+
+def test_description_alias_fallback_prefers_a_valid_snippet():
+    table = pa.table(
+        {
+            "job_id": ["d1", "d2", "d3", "d4"],
+            "description_full": [
+                "https://example.com/job",  # invalid
+                None,  # absent
+                "https://example.com/job",  # invalid
+                None,  # absent
+            ],
+            "description_snippet": ["Real snippet", "Snippet only", "", None],
+        }
+    )
+
+    stats = completeness.measure_completeness(table, "irishjobs").fields["description"]
+
+    assert stats.total == 4
+    assert stats.valid == 2
+    assert stats.invalid == 1
+    assert stats.absent == 1
+    assert stats.completeness_pct == 50.0
+
+
+def test_field_completeness_is_frozen():
+    stats = completeness.FieldCompleteness(
+        field="title",
+        required=True,
+        total=1,
+        valid=1,
+        absent=0,
+        invalid=0,
+        completeness_pct=100.0,
+    )
+    with pytest.raises(Exception):
+        stats.valid = 0  # type: ignore[misc]
+
+
+def test_source_completeness_is_frozen():
+    result = completeness.SourceCompleteness(source="indeed", total_offers=0, fields={})
+    with pytest.raises(Exception):
+        result.total_offers = 1  # type: ignore[misc]
