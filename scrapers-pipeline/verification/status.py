@@ -97,10 +97,17 @@ def classify_source(
 
     The checks are applied in order and short-circuit on the first failure:
 
-    1. missing evidence (``evidence_available`` false or ``completeness`` None);
-    2. structural failure (unreadable file or missing mandatory columns);
+    1. structural failure (unreadable file or missing mandatory columns);
+    2. missing evidence (``evidence_available`` false or ``completeness`` None);
     3. zero offers;
     4. per-field thresholds over ``completeness.fields``.
+
+    A structural failure is checked **before** the missing-completeness
+    fallback because it is the more specific, actionable finding (RF-3,
+    RF-11): a corrupt file or one without the mandatory columns yields no
+    ``completeness`` and would otherwise be reported as generic "missing
+    evidence", hiding the real reason. It also takes precedence over an
+    explicit ``evidence_available=False`` for the same reason.
 
     For step 4, a mandatory field below 90 % fails the source; a mandatory
     field between 90 % (inclusive) and 100 % is an incident that does not fail
@@ -110,9 +117,6 @@ def classify_source(
     in ``completeness`` are evaluated; no thresholds are invented for fields
     that were not measured.
     """
-    if not evidence_available or completeness is None:
-        return _failed(source_id, _MISSING_EVIDENCE)
-
     if structural_failure:
         reason = (
             f"{_STRUCTURAL_FAILURE}: {structural_error}"
@@ -120,6 +124,9 @@ def classify_source(
             else _STRUCTURAL_FAILURE
         )
         return _failed(source_id, reason)
+
+    if not evidence_available or completeness is None:
+        return _failed(source_id, _MISSING_EVIDENCE)
 
     if completeness.total_offers == 0:
         return _failed(source_id, _ZERO_OFFERS)

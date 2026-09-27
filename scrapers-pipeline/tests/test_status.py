@@ -175,6 +175,43 @@ def test_structural_failure_without_detail_has_a_plain_reason():
     assert result.failures == ("structural failure",)
 
 
+def test_structural_failure_wins_over_missing_completeness():
+    # A corrupt Parquet yields no completeness; the structural reason must not
+    # be hidden behind a generic "missing evidence" (RF-3, RF-11).
+    result = status.classify_source(
+        "indeed",
+        None,
+        structural_failure=True,
+        structural_error="corrupt parquet",
+    )
+
+    assert result.state == status.SOURCE_FAILED
+    assert result.failures == ("structural failure: corrupt parquet",)
+
+
+def test_structural_failure_wins_over_unavailable_evidence():
+    # Documented precedence: the structural failure is the most specific,
+    # actionable finding, so it is reported even with evidence_available=False.
+    result = status.classify_source(
+        "indeed",
+        None,
+        evidence_available=False,
+        structural_failure=True,
+        structural_error="corrupt parquet",
+    )
+
+    assert result.state == status.SOURCE_FAILED
+    assert result.failures == ("structural failure: corrupt parquet",)
+
+
+def test_missing_completeness_without_structural_is_missing_evidence():
+    # The reorder must not change the plain missing-completeness case.
+    result = status.classify_source("indeed", None, structural_failure=False)
+
+    assert result.state == status.SOURCE_FAILED
+    assert result.failures == ("missing evidence",)
+
+
 # --- Contract-driven required flags and scope --------------------------------
 
 

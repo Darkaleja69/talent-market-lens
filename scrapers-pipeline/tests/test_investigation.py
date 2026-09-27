@@ -845,3 +845,102 @@ def test_investigation_outcome_is_frozen():
     outcome = investigation.record_web_check(_context(), accessible=False)
     with pytest.raises(Exception):
         outcome.state = investigation.INVESTIGATION_CONFIRMED  # type: ignore[misc]
+
+
+# --- Actionable guidance (T-40, RF-11) ---------------------------------------
+
+
+def _guidance_context(
+    trigger: str,
+    *,
+    source_id: str = "indeed",
+    field: str | None = None,
+    example_url: str | None = None,
+) -> investigation.InvestigationContext:
+    """Build a context with a chosen trigger for the guidance tests."""
+    source = sources.get_source(source_id)
+    return investigation.InvestigationContext(
+        source=source_id,
+        display_name=source.display_name,
+        group=source.group,
+        trigger=trigger,
+        field=field,
+        search="data engineer",
+        region="España",
+        city="Madrid",
+        example_url=example_url,
+        example_offer=None,
+        metric=None,
+        evidence=(),
+        rule_reference=None,
+    )
+
+
+_GUIDANCE_CASES = [
+    (investigation.TRIGGER_SOURCE_FAILED, None),
+    (investigation.TRIGGER_REQUIRED_FIELD, "company"),
+    (investigation.TRIGGER_OPTIONAL_FIELD, "salary"),
+]
+
+
+@pytest.mark.parametrize(("trigger", "field"), _GUIDANCE_CASES)
+def test_suggest_recommendation_is_non_empty_names_source_and_is_deterministic(
+    trigger, field
+):
+    context = _guidance_context(trigger, field=field)
+
+    text = investigation.suggest_recommendation(context)
+
+    assert text.strip()
+    assert "Indeed" in text
+    assert text == investigation.suggest_recommendation(context)
+
+
+@pytest.mark.parametrize(("trigger", "field"), _GUIDANCE_CASES)
+def test_suggest_manual_check_with_example_url_mentions_it(trigger, field):
+    context = _guidance_context(
+        trigger, field=field, example_url="https://indeed.example/1"
+    )
+
+    text = investigation.suggest_manual_check(context)
+
+    assert text.strip()
+    assert "https://indeed.example/1" in text
+    assert text == investigation.suggest_manual_check(context)
+
+
+def test_suggest_manual_check_without_example_url_stays_actionable():
+    context = _guidance_context(investigation.TRIGGER_SOURCE_FAILED)
+
+    text = investigation.suggest_manual_check(context)
+
+    assert text.strip()
+    assert "Volver a ejecutar Indeed" in text
+    assert "https://" not in text
+
+
+def test_field_guidance_names_the_affected_field():
+    required = _guidance_context(
+        investigation.TRIGGER_REQUIRED_FIELD, field="company"
+    )
+    optional = _guidance_context(
+        investigation.TRIGGER_OPTIONAL_FIELD,
+        field="salary",
+        example_url="https://indeed.example/2",
+    )
+
+    assert "empresa (company)" in investigation.suggest_recommendation(required)
+    assert "empresa (company)" in investigation.suggest_manual_check(required)
+    assert "salario (salary)" in investigation.suggest_recommendation(optional)
+    assert "salario (salary)" in investigation.suggest_manual_check(optional)
+
+
+def test_suggestions_do_not_assert_a_confirmed_cause():
+    # The page was never verified, so the guidance must stay as a hypothesis.
+    context = _guidance_context(
+        investigation.TRIGGER_REQUIRED_FIELD, field="title"
+    )
+
+    text = investigation.suggest_recommendation(context)
+
+    assert "causa confirmada" not in text.lower()

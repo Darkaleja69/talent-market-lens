@@ -427,6 +427,95 @@ def build_contexts(
     return tuple(contexts)
 
 
+# Readable Spanish names of the canonical fields, so the guidance reads
+# naturally. Kept local (and small) to avoid a dependency on the report layer.
+_FIELD_ES: dict[str, str] = {
+    "id": "identificador",
+    "title": "título",
+    "company": "empresa",
+    "description": "descripción",
+    "salary": "salario",
+    "skills": "skills",
+    "work_mode": "modalidad",
+    "location": "ubicación",
+    "posted_date": "fecha de publicación",
+}
+
+
+def _field_label(field: str | None) -> str:
+    """Return a field with its Spanish name, e.g. ``salario (salary)``."""
+    if field is None:
+        return "el campo afectado"
+    return f"{_FIELD_ES.get(field, field)} ({field})"
+
+
+def suggest_recommendation(context: InvestigationContext) -> str:
+    """Return an actionable code change for an affected source (RF-11).
+
+    Pure and deterministic: it only reads the context. It covers the three
+    investigation triggers and never asserts a confirmed cause, because the
+    real website has not been verified (RF-9, RF-10). The text names the
+    source and, when there is one, the affected field.
+    """
+    source = context.display_name
+    if context.trigger == TRIGGER_SOURCE_FAILED:
+        return (
+            f"Revisar el scraper de {source}: comprobar que arranca, que las "
+            "búsquedas y regiones configuradas siguen vigentes y que el portal "
+            "es accesible. Si la evidencia apunta a un fallo estructural, "
+            "corregir el esquema o las columnas obligatorias del contrato de "
+            "datos antes de volver a ejecutarlo."
+        )
+    label = _field_label(context.field)
+    if context.trigger == TRIGGER_REQUIRED_FIELD:
+        return (
+            f"Revisar el parser de {source} para el campo obligatorio {label}: "
+            "actualizar el selector/expresión que lo extrae para que se recoja "
+            "en el 100 % de las ofertas y confirmar que no se descarta por un "
+            "valor que incumple el contrato de datos."
+        )
+    return (
+        f"Revisar el parser de {source} para el campo {label}: comprobar si el "
+        "dato cambió de componente o de ubicación en la web y ajustar el "
+        "selector/expresión. Es un campo no obligatorio, así que su ausencia "
+        "no invalida la fuente."
+    )
+
+
+def suggest_manual_check(context: InvestigationContext) -> str:
+    """Return how to verify a fix by hand for an affected source (RF-11).
+
+    Pure and deterministic. It names the source, the affected field and the
+    example URL when available, so the person can reproduce the check on the
+    real website without running a second full scrape (RF-9, RF-12).
+    """
+    source = context.display_name
+    if context.trigger == TRIGGER_SOURCE_FAILED:
+        if context.example_url is not None:
+            return (
+                f"Abrir {context.example_url} y confirmar que {source} muestra "
+                "ofertas para la búsqueda indicada; después volver a ejecutar "
+                "el scraper y comprobar en el informe que la fuente deja de "
+                "figurar como fallida."
+            )
+        return (
+            f"Volver a ejecutar {source} con la búsqueda y región indicadas y "
+            "comprobar en el log que se capturan ofertas y que el Parquet "
+            "resultante incluye las columnas obligatorias del contrato."
+        )
+    label = _field_label(context.field)
+    if context.example_url is not None:
+        return (
+            f"Abrir {context.example_url} y confirmar que {label} aparece y se "
+            f"recoge; después volver a ejecutar {source} y comprobar en el "
+            "informe que su completitud alcanza el objetivo."
+        )
+    return (
+        f"Volver a ejecutar {source} y comprobar en el informe que la "
+        f"completitud de {label} alcanza el objetivo."
+    )
+
+
 def record_web_check(
     context: InvestigationContext,
     *,
