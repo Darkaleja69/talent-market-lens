@@ -123,3 +123,144 @@ def test_obtained_parquet_is_frozen():
     )
     with pytest.raises(Exception):
         result.rows = 1  # type: ignore[misc]
+
+
+# --- T-26: deduplication by each source's own key (RF-4, RF-5) ---------------
+
+
+def test_deduplicate_offers_collapses_exact_duplicate_keys():
+    rows = [
+        {"job_key": "a", "title": "first"},
+        {"job_key": "a", "title": "duplicate of first"},
+        {"job_key": "b", "title": "second"},
+    ]
+
+    unique = completeness.deduplicate_offers(rows, "job_key")
+
+    assert unique == (
+        {"job_key": "a", "title": "first"},
+        {"job_key": "b", "title": "second"},
+    )
+
+
+def test_deduplicate_offers_keeps_first_appearance_order():
+    rows = [
+        {"job_key": "b", "title": "b first"},
+        {"job_key": "a", "title": "a"},
+        {"job_key": "b", "title": "b duplicate"},
+        {"job_key": "c", "title": "c"},
+    ]
+
+    unique = completeness.deduplicate_offers(rows, "job_key")
+
+    assert tuple(row["title"] for row in unique) == ("b first", "a", "c")
+
+
+def test_deduplicate_offers_strips_keys_but_is_case_sensitive():
+    rows = [
+        {"job_key": " A ", "title": "first"},
+        {"job_key": "A", "title": "duplicate of first"},
+        {"job_key": "a", "title": "opaque lower-case id"},
+    ]
+
+    unique = completeness.deduplicate_offers(rows, "job_key")
+
+    assert tuple(row["title"] for row in unique) == ("first", "opaque lower-case id")
+
+
+def test_deduplicate_offers_absent_or_empty_keys_do_not_collapse():
+    rows = [
+        {"job_key": None, "title": "none"},
+        {"job_key": "", "title": "empty"},
+        {"job_key": "   ", "title": "spaces"},
+        {"job_key": "dup", "title": "first dup"},
+        {"job_key": "dup", "title": "second dup"},
+    ]
+
+    unique = completeness.deduplicate_offers(rows, "job_key")
+
+    # Three unprovable keys each stay unique; the real duplicate collapses.
+    assert tuple(row["title"] for row in unique) == (
+        "none",
+        "empty",
+        "spaces",
+        "first dup",
+    )
+
+
+def test_deduplicate_offers_rows_missing_the_key_column_do_not_collapse():
+    rows = [{"title": "missing"}, {"title": "also missing"}]
+
+    unique = completeness.deduplicate_offers(rows, "job_key")
+
+    assert unique == ({"title": "missing"}, {"title": "also missing"})
+
+
+def test_unique_offers_totals_per_source():
+    indeed = pa.table(
+        {
+            "job_key": ["i1", "i1", "i2", "i3", "i3"],
+            "title": ["a", "b", "c", "d", "e"],
+        }
+    )
+    linkedin = pa.table(
+        {
+            "job_id": ["l1", "l2", "l2", "l3"],
+            "title": ["a", "b", "c", "d"],
+        }
+    )
+    irishjobs = pa.table(
+        {
+            "job_id": ["m1", "m1", "m2", "m3", "m3", "m3"],
+            "title": ["a", "b", "c", "d", "e", "f"],
+        }
+    )
+    infojobs = pa.table(
+        {
+            "id_oferta": ["o1", "o2", "o2", "o3", "o4", "o4"],
+            "title": ["a", "b", "c", "d", "e", "f"],
+        }
+    )
+
+    assert completeness.count_unique_offers(indeed, "indeed") == 3
+    assert completeness.unique_offers(indeed, "indeed")[0]["job_key"] == "i1"
+    assert completeness.count_unique_offers(linkedin, "linkedin") == 3
+    assert completeness.count_unique_offers(irishjobs, "irishjobs") == 3
+    assert completeness.count_unique_offers(infojobs, "infojobs") == 4
+
+
+def test_unique_offers_uses_the_dedup_key_of_each_of_the_nine_sources():
+    for source_id in sources.source_ids():
+        key = sources.dedup_key(source_id)
+        # The dedup column repeats; every other column is unique per row, so a
+        # count of 2 only holds if the source's own dedup key is the one used.
+        table = pa.table(
+            {
+                key: ["dup", "dup", "only"],
+                "other": ["x", "y", "z"],
+            }
+        )
+
+        unique = completeness.unique_offers(table, source_id)
+
+        assert len(unique) == 2, source_id
+        assert unique == (
+            {key: "dup", "other": "x"},
+            {key: "only", "other": "z"},
+        ), source_id
+        assert completeness.count_unique_offers(table, source_id) == 2, source_id
+
+
+def test_unique_offers_reads_a_written_parquet(tmp_path):
+    path = tmp_path / "infojobs.parquet"
+    table = pa.table(
+        {
+            "id_oferta": ["o1", "o1", "o2"],
+            "titulo": ["a", "b", "c"],
+        }
+    )
+    pq.write_table(table, str(path))
+
+    read_back = pq.read_table(str(path))
+
+    assert completeness.count_unique_offers(read_back, "infojobs") == 2

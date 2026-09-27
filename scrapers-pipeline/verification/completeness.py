@@ -6,14 +6,21 @@ of the source. This module only inspects readability and schema: per-offer
 value validity and per-field completeness are computed elsewhere
 (``field_contract.py`` and later tasks).
 
+T-26 (RF-4, RF-5): completeness is measured over *unique* offers, so this
+module also deduplicates rows by each source's own key (``job_key``,
+``job_id`` or ``id_oferta``). The deduplication is pure and independent of
+PyArrow: a table is only converted to plain dicts first.
+
 PyArrow is reused (already justified in the plan, section 6.3) and no new
 dependency is added. The reading is intentionally side-effect free and never
 raises on a bad file, so read failures stay data instead of crashes.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 
+import pyarrow as pa
 import pyarrow.parquet as pq
 
 from verification import sources
@@ -79,3 +86,49 @@ def read_source_parquet(path: str, source_id: str) -> ObtainedParquet:
     """Read a source's Parquet using its catalog mandatory columns."""
     result = read_obtained_parquet(path, sources.required_columns(source_id))
     return replace(result, source=source_id)
+
+
+def deduplicate_offers(
+    rows: Iterable[Mapping[str, object]], dedup_key: str
+) -> tuple[dict, ...]:
+    """Return the unique offers keyed by ``dedup_key``, in first-seen order.
+
+    The key of each row is read from ``dedup_key`` and normalized with
+    ``str(value).strip()``. The comparison is exact and case-sensitive after
+    that ``strip`` because job identifiers are opaque strings.
+
+    A row whose key is absent (no such column, ``None``), empty or
+    whitespace-only cannot be *proven* to duplicate another row, so each such
+    row counts as a unique offer of its own (positional identity). This keeps
+    the offer count honest and lets the field completeness of ``id`` later
+    count those missing keys as ``ABSENT``. For present keys, the first
+    appearance wins and its dict is the one preserved.
+    """
+    unique: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
+        value = row.get(dedup_key)
+        key = "" if value is None else str(value).strip()
+        if key == "":
+            # Absent/empty key: cannot be proven a duplicate, keep it as-is.
+            unique.append(dict(row))
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(dict(row))
+    return tuple(unique)
+
+
+def unique_offers(table: pa.Table, source_id: str) -> tuple[dict, ...]:
+    """Return the unique offers of a PyArrow table for a source.
+
+    Uses the source's own deduplication key from the catalog
+    (``sources.dedup_key``), i.e. ``job_key``, ``job_id`` or ``id_oferta``.
+    """
+    return deduplicate_offers(table.to_pylist(), sources.dedup_key(source_id))
+
+
+def count_unique_offers(table: pa.Table, source_id: str) -> int:
+    """Return the number of unique offers of a PyArrow table for a source."""
+    return len(unique_offers(table, source_id))
