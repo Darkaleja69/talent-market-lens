@@ -22,8 +22,19 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - Un commit atómico por tarea completada, cuando su comprobación pasa (tests en verde).
 - Mensaje convencional (`feat`/`fix`/`test`/`docs`/`chore`) con la intención y la tarea (p. ej. `feat(verification): T-14 regla de progreso`).
 - Si un commit necesita "y" para describirse, divídelo con `git add -p`.
-- El commit local es un checkpoint; no hagas push sin revisar antes los diffs.
+- El commit local es un checkpoint; se sube con frecuencia a la rama de la spec (respaldo y visibilidad). Lo que se revisa antes de publicar es el merge a `main`, no cada push.
 - Al cerrar cada grupo de tareas (~5), detente y revisa `git log -p` del grupo contra la spec activa.
+
+## Ramas y flujo de trabajo
+- Una rama por spec: `spec/<NNN>-<nombre-corto>` (p. ej. `spec/001-verify-scrapers-run`). Se crea desde `main` al iniciar la spec.
+- Todo el trabajo de una spec (código, tests y actualización de `specs/`) ocurre en su rama.
+- `main` solo recibe merges de specs terminadas; no se commitea directamente en `main`.
+- Se hace `git push` de la rama a `origin` con frecuencia para respaldar y dejar historial visible.
+- Una spec se fusiona a `main` cuando todas sus tareas están cerradas y sus tests en verde:
+  - `git switch main`, `git pull`, `git merge --no-ff spec/<...>` (el `--no-ff` deja un commit que marca el cierre de la spec).
+  - Etiquetar el hito: `git tag -a spec-001 -m "spec 001 completada"`.
+  - Borrar la rama: `git branch -d spec/<...>` y `git push origin --delete spec/<...>`.
+- Recomendado aunque trabajes en solitario: abrir un Pull Request de la rama contra `main` y revisarlo contra la spec antes de fusionar, para practicar el flujo de equipo.
 
 ## Al terminar cualquier tarea
 - Verifica mediante los tests establecidos que no hay errores. 
