@@ -27,6 +27,8 @@ quarantine/
 landing/
 output/
 **/output/
+# Estado de runtime acumulativo del pipeline (claves de subida); nunca versionar
+scrapers-pipeline/uploaded_keys/
 data/
 **/data/
 *.parquet
