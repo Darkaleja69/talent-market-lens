@@ -13,17 +13,23 @@ delta, so it can be stricter than the raw scraper configuration; that is a
 deliberate conservative choice: it may drop a genuinely comparable run, but it
 never mixes two different configurations into one series.
 
-The pure core (:func:`select_comparable_runs`, :func:`build_trend`) is separated
+The pure core (:func:`select_comparable_runs`, :func:`build_trend`,
+:func:`summarize_history`, :func:`build_trend_from_candidates`) is separated
 from the Azure boundary (:func:`load_published_completeness`,
-:func:`snapshot_from_manifest`, :func:`select_history`), so the tests use an
-in-memory reader plus temporary Parquet files and never touch the network
-(plan section 8).
+:func:`snapshot_from_manifest`, :func:`select_history`,
+:func:`select_history_summary`), so the tests use an in-memory reader plus
+temporary Parquet files and never touch the network (plan section 8).
+
+T-34 makes the drops explicit: :func:`summarize_history` counts the candidates
+rejected for having no fingerprint or a different one and explains it in
+Spanish, so an insufficient or mismatched history is never presented as a
+comparable series (RF-7, RF-13).
 """
 from __future__ import annotations
 
 import tempfile
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
 import pyarrow as pa
@@ -89,12 +95,41 @@ class TrendResult:
     ``comparable`` is True only when at least two runs could be compared, i.e.
     a series can be traced at all. When it is False, ``note`` explains it in
     Spanish and ``sources`` is empty.
+
+    The extra exclusion counters (T-34) are filled by
+    :func:`build_trend_from_candidates`; they keep their defaults when
+    :func:`build_trend` is used directly, so existing construction stays
+    backward compatible.
     """
 
     runs_used: int
     comparable: bool
     note: str | None
     sources: dict[str, SourceTrend]
+    considered: int = 0
+    excluded_without_fingerprint: int = 0
+    excluded_different_fingerprint: int = 0
+
+
+@dataclass(frozen=True)
+class HistorySummary:
+    """Why a history could (not) be compared, and what was dropped (T-34).
+
+    ``considered`` counts the analysed run plus every candidate examined.
+    ``runs_used`` is how many runs the default series would actually use
+    (``current`` plus comparable candidates, capped by
+    :data:`DEFAULT_HISTORY_LIMIT`). ``comparable`` is True only with at least
+    two usable runs. ``note`` is Spanish and, when applicable, states that
+    there is not enough history, that the configuration changed or that some
+    manifests carry no fingerprint.
+    """
+
+    runs_used: int
+    considered: int
+    excluded_without_fingerprint: int
+    excluded_different_fingerprint: int
+    comparable: bool
+    note: str | None
 
 
 # --- Pure core ---------------------------------------------------------------
@@ -245,6 +280,113 @@ def build_trend(runs: Sequence[RunSnapshot]) -> TrendResult:
     )
 
 
+def _has_fingerprint(fp: dict | None) -> bool:
+    """Return True when ``fp`` carries a usable comparability hash."""
+    return isinstance(fp, Mapping) and bool(fp.get("hash"))
+
+
+def _runs_phrase(count: int) -> str:
+    """Return a Spanish phrase for ``count`` previous runs."""
+    return "1 ejecución anterior" if count == 1 else f"{count} ejecuciones anteriores"
+
+
+def summarize_history(
+    current: RunSnapshot,
+    candidates: Sequence[RunSnapshot],
+) -> HistorySummary:
+    """Summarise how many runs are usable and why the rest were dropped (RF-7).
+
+    Pure and side-effect free. ``considered`` counts the analysed ``current``
+    plus every candidate (the ``current`` object is never counted twice). A
+    candidate is dropped as ``excluded_without_fingerprint`` when it has no
+    usable fingerprint (old manifests, never comparable by inference) and as
+    ``excluded_different_fingerprint`` when its fingerprint does not match
+    ``current``'s (the configuration changed). ``runs_used`` is the number of
+    runs the default series would actually use (``current`` plus comparable
+    candidates, capped by :data:`DEFAULT_HISTORY_LIMIT`).
+
+    ``note`` is Spanish and reflects, when applicable: too little comparable
+    history, a configuration change on some candidates, and candidates without
+    a fingerprint. ``comparable`` is True only with at least two usable runs.
+    """
+    considered = 1
+    without = 0
+    different = 0
+    for candidate in candidates:
+        if candidate is current:
+            continue
+        considered += 1
+        if not _has_fingerprint(candidate.fingerprint):
+            without += 1
+        elif not fingerprint.fingerprints_match(
+            current.fingerprint, candidate.fingerprint
+        ):
+            different += 1
+
+    runs_used = len(select_comparable_runs(current, candidates))
+    parts: list[str] = []
+    if runs_used < 2:
+        parts.append(NO_HISTORY_NOTE)
+    if different:
+        parts.append(
+            f"la configuración cambió en {_runs_phrase(different)}; "
+            "no se comparan esas partes"
+        )
+    if without:
+        parts.append(
+            f"{_runs_phrase(without)} sin huella de fuentes/búsquedas no se "
+            "consideran comparables"
+        )
+    note = ". ".join(parts) if parts else None
+    return HistorySummary(
+        runs_used=runs_used,
+        considered=considered,
+        excluded_without_fingerprint=without,
+        excluded_different_fingerprint=different,
+        comparable=runs_used >= 2,
+        note=note,
+    )
+
+
+def _combine_notes(primary: str | None, secondary: str | None) -> str | None:
+    """Combine two Spanish notes without losing or duplicating text."""
+    if not primary:
+        return secondary or None
+    if not secondary:
+        return primary
+    if primary in secondary:
+        return secondary
+    if secondary in primary:
+        return primary
+    return f"{primary} {secondary}"
+
+
+def build_trend_from_candidates(
+    current: RunSnapshot,
+    candidates: Sequence[RunSnapshot],
+    *,
+    limit: int = DEFAULT_HISTORY_LIMIT,
+) -> TrendResult:
+    """Build the trend of ``current`` against its comparable candidates (RF-7).
+
+    Selects up to ``limit`` comparable runs (:func:`select_comparable_runs`),
+    builds the series with :func:`build_trend` and annotates the result with
+    the exclusion counters and the Spanish note from :func:`summarize_history`.
+    The insufficient-history note from :func:`build_trend` is preserved. Runs
+    dropped for a missing or different fingerprint never enter the series.
+    """
+    selected = select_comparable_runs(current, candidates, limit=limit)
+    result = build_trend(selected)
+    summary = summarize_history(current, candidates)
+    return replace(
+        result,
+        considered=summary.considered,
+        excluded_without_fingerprint=summary.excluded_without_fingerprint,
+        excluded_different_fingerprint=summary.excluded_different_fingerprint,
+        note=_combine_notes(result.note, summary.note),
+    )
+
+
 # --- Azure boundary ----------------------------------------------------------
 
 
@@ -384,25 +526,22 @@ def snapshot_from_manifest(
     )
 
 
-def select_history(
+def _collect_history(
     reader: landing.RemoteReader,
     *,
     current_fingerprint: dict | None,
     scraper: str,
     label: str,
     sources_scope: Sequence[str],
-    limit: int = DEFAULT_HISTORY_LIMIT,
-) -> tuple[RunSnapshot, ...]:
-    """Return the comparable published runs of ``scraper``, oldest -> newest.
+) -> tuple[RunSnapshot, list[RunSnapshot]]:
+    """Return the analysed anchor and the other published runs of ``scraper``.
 
-    Thin helper over the pure core: it lists the scraper's manifests
-    (``landing.list_manifest_keys``), loads each one
-    (``landing.load_manifest``) and builds a :class:`RunSnapshot` for it. The
-    manifest whose stamp is ``label`` is used as the ``current`` anchor (with
-    ``current_fingerprint``); when it is not present, a fingerprint-only anchor
-    is used. Then :func:`select_comparable_runs` keeps only the runs whose
-    fingerprint matches and caps the series at ``limit``. Manifests without a
-    fingerprint are excluded (RF-7).
+    Shared by :func:`select_history` and :func:`select_history_summary`: it
+    lists the scraper's manifests (``landing.list_manifest_keys``), loads each
+    one (``landing.load_manifest``) and builds a :class:`RunSnapshot` for it.
+    The manifest whose stamp is ``label`` becomes the ``current`` anchor (with
+    ``current_fingerprint``); when it is absent, a fingerprint-only anchor is
+    used.
     """
     keys = landing.list_manifest_keys(reader, scraper)
     current: RunSnapshot | None = None
@@ -432,4 +571,69 @@ def select_history(
             fingerprint=current_fingerprint,
             completeness_by_source={},
         )
+    return current, candidates
+
+
+def select_history(
+    reader: landing.RemoteReader,
+    *,
+    current_fingerprint: dict | None,
+    scraper: str,
+    label: str,
+    sources_scope: Sequence[str],
+    limit: int = DEFAULT_HISTORY_LIMIT,
+) -> tuple[RunSnapshot, ...]:
+    """Return the comparable published runs of ``scraper``, oldest -> newest.
+
+    Thin helper over the pure core: it collects the scraper's manifests and
+    then :func:`select_comparable_runs` keeps only the runs whose fingerprint
+    matches and caps the series at ``limit``. Manifests without a fingerprint
+    are excluded (RF-7). Use :func:`select_history_summary` when the caller
+    also needs the exclusions explained.
+    """
+    current, candidates = _collect_history(
+        reader,
+        current_fingerprint=current_fingerprint,
+        scraper=scraper,
+        label=label,
+        sources_scope=sources_scope,
+    )
     return select_comparable_runs(current, candidates, limit=limit)
+
+
+def select_history_summary(
+    reader: landing.RemoteReader,
+    *,
+    current_fingerprint: dict | None,
+    scraper: str,
+    label: str,
+    sources_scope: Sequence[str],
+    limit: int = DEFAULT_HISTORY_LIMIT,
+) -> tuple[tuple[RunSnapshot, ...], HistorySummary]:
+    """Return the comparable runs *and* their :class:`HistorySummary` (T-34).
+
+    Same selection as :func:`select_history`; additionally reports, in Spanish,
+    how many runs were considered and how many were dropped for having no
+    fingerprint or a different one. This is the entry point the report layer
+    should use to avoid presenting an insufficient or mismatched history as a
+    real comparable series (RF-7, RF-13).
+    """
+    current, candidates = _collect_history(
+        reader,
+        current_fingerprint=current_fingerprint,
+        scraper=scraper,
+        label=label,
+        sources_scope=sources_scope,
+    )
+    runs = select_comparable_runs(current, candidates, limit=limit)
+    summary = summarize_history(current, candidates)
+    if summary.runs_used != len(runs) or summary.comparable != (len(runs) >= 2):
+        # A non-default ``limit`` changes how many runs are actually used.
+        comparable = len(runs) >= 2
+        note = summary.note
+        if not comparable and (note is None or NO_HISTORY_NOTE not in note):
+            note = NO_HISTORY_NOTE if note is None else f"{NO_HISTORY_NOTE}. {note}"
+        summary = replace(
+            summary, runs_used=len(runs), comparable=comparable, note=note
+        )
+    return runs, summary

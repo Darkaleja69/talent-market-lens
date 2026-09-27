@@ -537,3 +537,283 @@ def test_select_history_anchor_survives_when_current_manifest_is_absent():
     )
 
     assert [run.label for run in result] == ["20260925T010000", "20260926T010000"]
+
+
+# --------------------------------------------------------------------------
+# summarize_history / build_trend_from_candidates (T-34; RF-7, RF-13)
+# --------------------------------------------------------------------------
+
+
+def _comparable_snapshots(
+    count: int, fp: dict, *, label: str = "2026-09-30"
+) -> tuple[trends.RunSnapshot, list[trends.RunSnapshot]]:
+    """Return a ``current`` run plus ``count`` older comparable candidates."""
+    current = _snapshot(
+        label, fp, {"indeed": {"title": 100.0, "company": 100.0}}
+    )
+    candidates = [
+        _snapshot(
+            f"2026-09-{10 + index:02d}",
+            fp,
+            {"indeed": {"title": 90.0 + index, "company": 90.0}},
+        )
+        for index in range(count)
+    ]
+    return current, candidates
+
+
+def test_trend_result_keeps_positional_construction():
+    # The T-34 fields have defaults, so the old positional call still works.
+    result = trends.TrendResult(1, False, "nota", {})
+
+    assert result.considered == 0
+    assert result.excluded_without_fingerprint == 0
+    assert result.excluded_different_fingerprint == 0
+
+
+def test_build_trend_from_candidates_without_previous_runs_is_not_comparable():
+    current, _ = _comparable_snapshots(0, _fp_indeed())
+
+    result = trends.build_trend_from_candidates(current, [])
+
+    assert result.runs_used == 1
+    assert result.comparable is False
+    assert result.considered == 1
+    assert result.excluded_without_fingerprint == 0
+    assert result.excluded_different_fingerprint == 0
+    assert result.note is not None
+    assert "tendencia" in result.note
+    assert result.sources == {}
+
+
+@pytest.mark.parametrize("previous", [1, 2, 3, 4])
+def test_build_trend_from_candidates_uses_every_available_run(previous):
+    current, candidates = _comparable_snapshots(previous, _fp_indeed())
+
+    result = trends.build_trend_from_candidates(current, candidates)
+
+    assert result.runs_used == previous + 1
+    assert result.comparable is True
+    assert result.considered == previous + 1
+    assert result.excluded_without_fingerprint == 0
+    assert result.excluded_different_fingerprint == 0
+    assert result.note is None
+    source = result.sources["indeed"]
+    assert source.runs_used == previous + 1
+    assert len(source.fields["title"].values) == previous + 1
+
+
+def test_build_trend_from_candidates_caps_at_five():
+    current, candidates = _comparable_snapshots(8, _fp_indeed())
+
+    result = trends.build_trend_from_candidates(current, candidates)
+
+    assert result.considered == 9
+    assert result.runs_used == trends.DEFAULT_HISTORY_LIMIT
+    assert result.comparable is True
+    assert len(result.sources["indeed"].fields["title"].values) == 5
+
+
+def test_build_trend_from_candidates_excludes_different_fingerprint():
+    fp_a = _fp_indeed()
+    fp_b = _fp_linkedin()
+    current = _snapshot("2026-09-30", fp_a, {"indeed": {"title": 100.0}})
+    good = _snapshot("2026-09-29", fp_a, {"indeed": {"title": 90.0}})
+    other = _snapshot("2026-09-28", fp_b, {"indeed": {"title": 80.0}})
+
+    result = trends.build_trend_from_candidates(current, [good, other])
+
+    assert result.runs_used == 2
+    assert result.comparable is True
+    assert result.considered == 3
+    assert result.excluded_different_fingerprint == 1
+    assert result.excluded_without_fingerprint == 0
+    assert result.note is not None
+    assert "configuraci" in result.note
+    assert "cambi" in result.note
+    # The run with a different fingerprint never enters the series.
+    assert result.sources["indeed"].fields["title"].values == (90.0, 100.0)
+
+
+def test_build_trend_from_candidates_excludes_runs_without_fingerprint():
+    fp = _fp_indeed()
+    current = _snapshot("2026-09-30", fp, {"indeed": {"title": 100.0}})
+    good = _snapshot("2026-09-29", fp, {"indeed": {"title": 90.0}})
+    old = _snapshot("2026-09-28", None, {"indeed": {"title": 80.0}})
+
+    result = trends.build_trend_from_candidates(current, [good, old])
+
+    assert result.runs_used == 2
+    assert result.comparable is True
+    assert result.excluded_without_fingerprint == 1
+    assert result.excluded_different_fingerprint == 0
+    assert result.note is not None
+    assert "huella" in result.note
+    assert result.sources["indeed"].fields["title"].values == (90.0, 100.0)
+
+
+def test_build_trend_from_candidates_only_old_run_without_fingerprint():
+    current = _snapshot("2026-09-30", _fp_indeed(), {"indeed": {"title": 100.0}})
+    old = _snapshot("2026-09-28", None, {"indeed": {"title": 80.0}})
+
+    result = trends.build_trend_from_candidates(current, [old])
+
+    assert result.runs_used == 1
+    assert result.comparable is False
+    assert result.excluded_without_fingerprint == 1
+    assert result.note is not None
+    assert "tendencia" in result.note
+    assert "huella" in result.note
+    # No invented series from a manifest without a fingerprint.
+    assert result.sources == {}
+
+
+def test_summarize_history_counts_exclusions_and_combines_notes():
+    fp_a = _fp_indeed()
+    fp_b = _fp_linkedin()
+    current = _snapshot("2026-09-30", fp_a, {"indeed": {"title": 100.0}})
+    candidates = [
+        _snapshot("2026-09-29", fp_a, {"indeed": {"title": 90.0}}),
+        _snapshot("2026-09-28", fp_a, {"indeed": {"title": 80.0}}),
+        _snapshot("2026-09-27", fp_b, {"indeed": {"title": 70.0}}),
+        _snapshot("2026-09-26", None, {"indeed": {"title": 60.0}}),
+    ]
+
+    summary = trends.summarize_history(current, candidates)
+
+    assert summary.considered == 5
+    assert summary.runs_used == 3
+    assert summary.comparable is True
+    assert summary.excluded_different_fingerprint == 1
+    assert summary.excluded_without_fingerprint == 1
+    assert summary.note is not None
+    assert "cambi" in summary.note
+    assert "huella" in summary.note
+    assert "tendencia" not in summary.note
+
+
+def test_summarize_history_without_previous_runs_notes_missing_reference():
+    current = _snapshot("2026-09-30", _fp_indeed(), {})
+
+    summary = trends.summarize_history(current, [])
+
+    assert summary.considered == 1
+    assert summary.runs_used == 1
+    assert summary.comparable is False
+    assert summary.note is not None
+    assert "tendencia" in summary.note
+
+
+def test_summarize_history_keeps_insufficient_note_with_exclusions():
+    current = _snapshot("2026-09-30", _fp_indeed(), {"indeed": {"title": 100.0}})
+    candidates = [
+        _snapshot("2026-09-28", None, {"indeed": {"title": 80.0}}),
+        _snapshot("2026-09-27", _fp_linkedin(), {"indeed": {"title": 70.0}}),
+    ]
+
+    summary = trends.summarize_history(current, candidates)
+
+    assert summary.runs_used == 1
+    assert summary.comparable is False
+    assert "tendencia" in summary.note
+    assert "cambi" in summary.note
+    assert "huella" in summary.note
+
+
+def test_summarize_history_never_counts_current_twice():
+    fp = _fp_indeed()
+    current = _snapshot("2026-09-30", fp, {"indeed": {"title": 100.0}})
+
+    summary = trends.summarize_history(current, [current])
+
+    assert summary.considered == 1
+    assert summary.runs_used == 1
+    assert summary.excluded_without_fingerprint == 0
+    assert summary.excluded_different_fingerprint == 0
+
+
+# --------------------------------------------------------------------------
+# select_history_summary (fake Azure; T-34)
+# --------------------------------------------------------------------------
+
+
+def test_select_history_summary_reports_exclusions():
+    fp_a = _fp_indeed()
+    fp_b = _fp_linkedin()
+    objects = {
+        "_manifests/indeed/20260920T010000.json": _manifest_payload(fp_a),
+        "_manifests/indeed/20260921T010000.json": _manifest_payload(fp_a),
+        "_manifests/indeed/20260922T010000.json": _manifest_payload(fp_b),
+        "_manifests/indeed/20260923T010000.json": _manifest_payload(None),
+        "_manifests/indeed/20260924T010000.json": _manifest_payload(fp_a),
+        "_manifests/indeed/20260926T010000.json": _manifest_payload(fp_a),
+    }
+
+    runs, summary = trends.select_history_summary(
+        FakeReader(objects),
+        current_fingerprint=fp_a,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+
+    assert [run.label for run in runs] == [
+        "20260920T010000",
+        "20260921T010000",
+        "20260924T010000",
+        "20260926T010000",
+    ]
+    assert summary.considered == 6
+    assert summary.runs_used == 4
+    assert summary.comparable is True
+    assert summary.excluded_different_fingerprint == 1
+    assert summary.excluded_without_fingerprint == 1
+    assert summary.note is not None
+    assert "cambi" in summary.note
+    assert "huella" in summary.note
+
+
+def test_select_history_summary_without_comparable_history_is_not_comparable():
+    fp = _fp_indeed()
+    reader = FakeReader(
+        {"_manifests/indeed/20260926T010000.json": _manifest_payload(fp)}
+    )
+
+    runs, summary = trends.select_history_summary(
+        reader,
+        current_fingerprint=fp,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+
+    assert [run.label for run in runs] == ["20260926T010000"]
+    assert summary.runs_used == 1
+    assert summary.comparable is False
+    assert summary.note is not None
+    assert "tendencia" in summary.note
+
+
+def test_select_history_summary_with_limit_of_one_is_not_comparable():
+    fp = _fp_indeed()
+    reader = FakeReader(
+        {
+            "_manifests/indeed/20260925T010000.json": _manifest_payload(fp),
+            "_manifests/indeed/20260926T010000.json": _manifest_payload(fp),
+        }
+    )
+
+    runs, summary = trends.select_history_summary(
+        reader,
+        current_fingerprint=fp,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+        limit=1,
+    )
+
+    assert [run.label for run in runs] == ["20260926T010000"]
+    assert summary.runs_used == 1
+    assert summary.comparable is False
+    assert summary.note is not None
+    assert "tendencia" in summary.note
