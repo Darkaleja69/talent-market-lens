@@ -8,12 +8,15 @@ implements the business rules behind:
   evidence and structural non-compliance also fail it;
 - RF-10: which fields must be investigated with the real website (mandatory
   fields below 100 % and non-mandatory fields at 60 % or less);
+- RF-13: an unanalysable run yields an ``inconclusive`` global outcome;
 - RF-14: each independent source is classified only as ``correct`` or
-  ``failed``.
+  ``failed``, and the set of sources yields the global outcome
+  (``correct``/``partial``/``failed``/``inconclusive``).
 
-Only **per-source** classification lives here. The global outcome
-(``correct``/``partial``/``failed``/``inconclusive``) is a separate concern and
-is deliberately not implemented in this module.
+Both the **per-source** classification (``classify_source``/``classify_sources``)
+and the **global** outcome (``classify_global``) live here. The module is pure:
+it performs no network or I/O and depends only on the standard library and the
+completeness model.
 """
 from __future__ import annotations
 
@@ -33,10 +36,20 @@ OPTIONAL_INVESTIGATION_PCT = 60.0
 SOURCE_CORRECT = "correct"
 SOURCE_FAILED = "failed"
 
+# RF-14: global outcome of the analysed run.
+GLOBAL_CORRECT = "correct"
+GLOBAL_PARTIAL = "partial"
+GLOBAL_FAILED = "failed"
+GLOBAL_INCONCLUSIVE = "inconclusive"
+
 # Readable reason fragments (code-facing text stays in English).
 _MISSING_EVIDENCE = "missing evidence"
 _ZERO_OFFERS = "zero offers"
 _STRUCTURAL_FAILURE = "structural failure"
+
+# User-facing (Spanish) reasons why the run cannot be classified (RF-13).
+_INCONCLUSIVE_DEFAULT = "no se pudo analizar la ejecución"
+_INCONCLUSIVE_NO_SOURCES = "no hay fuentes para clasificar la ejecución"
 
 
 @dataclass(frozen=True)
@@ -143,3 +156,95 @@ def classify_sources(
         source_id: classify_source(source_id, source_completeness)
         for source_id, source_completeness in completeness_by_source.items()
     }
+
+
+@dataclass(frozen=True)
+class GlobalStatus:
+    """Global outcome of a run plus the per-source split (RF-13, RF-14).
+
+    ``state`` is one of ``GLOBAL_CORRECT``, ``GLOBAL_PARTIAL``, ``GLOBAL_FAILED``
+    or ``GLOBAL_INCONCLUSIVE``; ``correct`` and ``failed`` hold the source ids in
+    the order they were received; ``inconclusive_reason`` is set (in Spanish)
+    only when the run could not be classified; ``source_count`` is the number of
+    sources that were classified.
+    """
+
+    state: str
+    correct: tuple[str, ...]
+    failed: tuple[str, ...]
+    inconclusive_reason: str | None
+    source_count: int
+
+
+def classify_global(
+    statuses: Mapping[str, SourceStatus],
+    *,
+    analyzable: bool = True,
+    inconclusive_reason: str | None = None,
+) -> GlobalStatus:
+    """Classify the global outcome from the per-source statuses (RF-13, RF-14).
+
+    RF-13 takes precedence: when ``analyzable`` is false the run itself could
+    not be analysed (no identifiable/readable run, or a run still in progress),
+    so the outcome is ``GLOBAL_INCONCLUSIVE`` with ``inconclusive_reason`` — the
+    reason received, or a default Spanish text when none is given — and the
+    per-source lists stay empty. An analysable run with no sources at all cannot
+    be classified either and is also ``GLOBAL_INCONCLUSIVE``.
+
+    Otherwise the outcome is ``GLOBAL_CORRECT`` when every source is correct,
+    ``GLOBAL_FAILED`` when every source is failed and ``GLOBAL_PARTIAL`` when
+    correct and failed sources are mixed. Any source state other than
+    ``SOURCE_CORRECT``/``SOURCE_FAILED`` is treated as failed (defensive: this
+    module only ever produces those two states).
+
+    The mapping order is preserved in ``correct`` and ``failed``.
+    """
+    source_count = len(statuses)
+    if not analyzable:
+        # Nothing is classified when the run cannot be analysed (RF-13).
+        return GlobalStatus(
+            state=GLOBAL_INCONCLUSIVE,
+            correct=(),
+            failed=(),
+            inconclusive_reason=inconclusive_reason or _INCONCLUSIVE_DEFAULT,
+            source_count=0,
+        )
+    if source_count == 0:
+        return GlobalStatus(
+            state=GLOBAL_INCONCLUSIVE,
+            correct=(),
+            failed=(),
+            inconclusive_reason=_INCONCLUSIVE_NO_SOURCES,
+            source_count=0,
+        )
+
+    correct = tuple(
+        source_id
+        for source_id, status_ in statuses.items()
+        if status_.state == SOURCE_CORRECT
+    )
+    failed = tuple(
+        source_id
+        for source_id, status_ in statuses.items()
+        if status_.state != SOURCE_CORRECT
+    )
+
+    if not failed:
+        state = GLOBAL_CORRECT
+    elif not correct:
+        state = GLOBAL_FAILED
+    else:
+        state = GLOBAL_PARTIAL
+
+    return GlobalStatus(
+        state=state,
+        correct=correct,
+        failed=failed,
+        inconclusive_reason=None,
+        source_count=source_count,
+    )
+
+
+def is_inconclusive(global_status: GlobalStatus) -> bool:
+    """Return whether a global outcome is inconclusive (RF-13)."""
+    return global_status.state == GLOBAL_INCONCLUSIVE
