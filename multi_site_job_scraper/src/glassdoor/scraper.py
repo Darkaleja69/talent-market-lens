@@ -22,6 +22,7 @@ from src.core.browser import launch_context, close_context, PROFILE_DIR
 from src.core.human import delay, mouse_jitter, scroll_slow
 from src.core.models import JobOffer, now_utc_iso
 from src.core.normalize import extract_skills
+from src.core.progress import RunProgressCounter
 from src.core.store import Store
 from . import serp
 from . import bff
@@ -87,6 +88,14 @@ class GlassdoorScraper:
         self.target = self.config.get("target", 1000)
         self._sig_stop = False
         self._csrf_token = ""
+        self._progress = RunProgressCounter(self.config.get("site", "glassdoor"))
+
+    def _emit_progress(self, parsed_delta: int, new_delta: int = 0) -> str:
+        """Update the portal counter and log the PROGRESS line (RF-15)."""
+        self._progress.add(parsed_delta, new_delta)
+        line = self._progress.line(at=now_utc_iso())
+        log.info("%s", line)
+        return line
 
     def run(self) -> int:
         roles = self.config.get("roles", [])
@@ -370,6 +379,7 @@ class GlassdoorScraper:
                 if (i + 1) % 10 == 0 and total > 0:
                     self.store.checkpoint(tag=f"gd_{role}_p{pg}_{i+1}")
 
+            self._emit_progress(len(cards[:jobs_per_search]), processed_this_page)
             log.info("Page %d '%s': %d procesadas (%d nuevas, fuente=%s)",
                      pg, role, len(cards), processed_this_page, source)
 

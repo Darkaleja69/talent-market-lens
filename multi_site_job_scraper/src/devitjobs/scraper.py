@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from src.core.models import JobOffer, now_utc_iso
 from src.core.normalize import as_text, extract_skills
+from src.core.progress import RunProgressCounter
 from src.core.store import Store
 from . import title_filter_nl
 from .api import DevITJobsClient
@@ -217,6 +218,14 @@ class DevITJobsScraper:
             parquet_path=project_root / out.get("parquet", "data/devitjobs/output/jobs.parquet"),
             checkpoint_dir=project_root / out.get("checkpoint_dir", "data/devitjobs/checkpoints"),
         )
+        self._progress = RunProgressCounter(self.config.get("site", "devitjobs"))
+
+    def _emit_progress(self, parsed_delta: int, new_delta: int = 0) -> str:
+        """Update the portal counter and log the PROGRESS line (RF-15)."""
+        self._progress.add(parsed_delta, new_delta)
+        line = self._progress.line(at=now_utc_iso())
+        log.info("%s", line)
+        return line
 
     # ------------------------------------------------------------------ run
     def run(self, max_jobs: int | None = None) -> int:
@@ -279,10 +288,12 @@ class DevITJobsScraper:
 
                 offer = self._to_offer(job, detail, site, country, country_name,
                                        base_url)
-                if self.store.add(offer):
+                added = self.store.add(offer)
+                if added:
                     total_new += 1
                     if total_new % 5 == 0:
                         self.store.checkpoint(tag=f"{site}_p{idx}")
+                self._emit_progress(1, 1 if added else 0)
                 _sleep(rng_req)
         except KeyboardInterrupt:
             interrupted = True

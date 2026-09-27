@@ -18,6 +18,7 @@ from src.core.browser import launch_context, close_context
 from src.core.human import delay, mouse_jitter, scroll_slow
 from src.core.models import JobOffer, now_utc_iso
 from src.core.normalize import extract_skills, parse_salary
+from src.core.progress import RunProgressCounter
 from src.core.store import Store
 from . import serp
 from . import detail as detail_parser
@@ -36,6 +37,14 @@ class JobsChScraper:
             parquet_path=project_root / out.get("parquet", "data/jobs_ch/output/jobs.parquet"),
             checkpoint_dir=project_root / out.get("checkpoint_dir", "data/jobs_ch/checkpoints"),
         )
+        self._progress = RunProgressCounter(self.config.get("site", "jobs_ch"))
+
+    def _emit_progress(self, parsed_delta: int, new_delta: int = 0) -> str:
+        """Update the portal counter and log the PROGRESS line (RF-15)."""
+        self._progress.add(parsed_delta, new_delta)
+        line = self._progress.line(at=now_utc_iso())
+        log.info("%s", line)
+        return line
 
     def run(self) -> int:
         roles = self.config.get("roles", [])
@@ -199,6 +208,7 @@ class JobsChScraper:
 
             if processed_page:
                 self.store.checkpoint(tag=f"{role}_p{pg}")
+            self._emit_progress(len(cards[:jobs_per_search]), processed_page)
 
             if not serp.has_next_page(page):
                 log.info("Sin pagina siguiente para '%s'. Fin.", role)

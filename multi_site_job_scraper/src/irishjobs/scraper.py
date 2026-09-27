@@ -13,6 +13,7 @@ from src.core.browser import launch_context, close_context
 from src.core.human import delay, mouse_jitter, scroll_slow
 from src.core.models import JobOffer, now_utc_iso
 from src.core.normalize import parse_salary
+from src.core.progress import RunProgressCounter
 from src.core.store import Store
 from . import serp
 from . import title_filter
@@ -36,6 +37,16 @@ class IrishJobsScraper:
         self._context = None
         self._page = None
         self._browser_alive = False
+        # Progress counter is bound to this portal's `site` (StepStone NL
+        # reuses this class but must emit source=stepstone_nl, not irishjobs).
+        self._progress = RunProgressCounter(self.config.get("site", "irishjobs"))
+
+    def _emit_progress(self, parsed_delta: int, new_delta: int = 0) -> str:
+        """Update the portal counter and log the PROGRESS line (RF-15)."""
+        self._progress.add(parsed_delta, new_delta)
+        line = self._progress.line(at=now_utc_iso())
+        log.info("%s", line)
+        return line
 
     def run(self) -> int:
         roles = self.config.get("roles", [])
@@ -279,6 +290,7 @@ class IrishJobsScraper:
             log.info("Page %d: %d tarjetas (%d nuevas en esta pagina)",
                      pg, len(raw_cards), new_on_page)
 
+            new_before = total
             for i, raw in enumerate(cards[:jobs_per_search]):
                 offer = self._card_to_offer(raw, role, city_name, site, country, country_name)
                 is_new = self.store.add(offer)
@@ -297,6 +309,7 @@ class IrishJobsScraper:
                 if (i + 1) % 10 == 0:
                     self.store.checkpoint(tag=f"{site}_{role}_{city_name}_p{pg}_{i+1}")
 
+            self._emit_progress(len(cards[:jobs_per_search]), total - new_before)
             self.store.checkpoint(tag=f"{site}_{role}_{city_name}_p{pg}")
 
             if pg >= max_pages:

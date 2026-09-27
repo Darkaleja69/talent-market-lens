@@ -17,6 +17,7 @@ from typing import Any, Optional
 from src.core.browser import close_context, launch_context
 from src.core.models import JobOffer, now_utc_iso
 from src.core.normalize import as_text, extract_skills
+from src.core.progress import RunProgressCounter
 from src.core.store import Store
 from src.irishjobs import title_filter
 from .api import API_URL, NvbBrowserApi
@@ -142,6 +143,14 @@ class NvbScraper:
             parquet_path=project_root / out.get("parquet", "data/nvb/output/jobs.parquet"),
             checkpoint_dir=project_root / out.get("checkpoint_dir", "data/nvb/checkpoints"),
         )
+        self._progress = RunProgressCounter(self.config.get("site", "nvb"))
+
+    def _emit_progress(self, parsed_delta: int, new_delta: int = 0) -> str:
+        """Update the portal counter and log the PROGRESS line (RF-15)."""
+        self._progress.add(parsed_delta, new_delta)
+        line = self._progress.line(at=now_utc_iso())
+        log.info("%s", line)
+        return line
 
     def run(self, max_jobs: int | None = None) -> int:
         cfg = self.config
@@ -203,6 +212,7 @@ class NvbScraper:
                                      query, NvbBrowserApi.total_of(data), pages)
                         if not jobs:
                             break
+                        new_before = total_new
                         older = 0
                         for job in jobs:
                             if max_total > 0 and total_new >= max_total:
@@ -221,6 +231,7 @@ class NvbScraper:
                                 total_new += 1
                                 if total_new % 25 == 0:
                                     self.store.checkpoint(tag=f"{site}_{query}_p{page_num}")
+                        self._emit_progress(len(jobs), total_new - new_before)
                         log.info("  p%d: %d ofertas (acumulado %d)", page_num,
                                  len(jobs), total_new)
                         if max_age and older == len(jobs):
