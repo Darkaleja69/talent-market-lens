@@ -165,10 +165,15 @@ It keeps `company_size`, `company_industry`, `company_description` in
 
 | Bronze | Silver |
 |---|---|
-| `description_snippet` | `description_clean` |
+| `description_full` / `description_snippet` | `description_clean` |
 | `site` | `source_scraper` |
 | `salary_disclosed` | `is_salary_available` |
 | `posted_relative` | `posted_date` (relative, computed from `scraped_at`) |
+
+> **`description_full` and `description_snippet` are the same field** under
+> different names depending on the platform/portal. The Silver layer normalizes
+> both to `description_clean`; the diagnostic contract accepts either one
+> (prefers `description_full` and falls back to `description_snippet`).
 
 ---
 
