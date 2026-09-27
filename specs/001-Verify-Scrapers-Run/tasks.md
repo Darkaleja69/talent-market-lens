@@ -143,22 +143,22 @@ comprobación indicada antes de continuar.
 
 ## 4. Contrato, completitud y estado de fuentes
 
-- [ ] **T-25 — Validar legibilidad y estructura de los Parquet obtenidos** (~20 min)
+- [x] **T-25 — Validar legibilidad y estructura de los Parquet obtenidos** (~20 min)
   - **RF:** RF-3, RF-5.
   - **Depende de:** T-04.
   - **Hecho cuando:** fixtures cubren Parquet legible, corrupto y sin columnas obligatorias; los dos últimos se clasifican como incumplimiento estructural.
 
-- [ ] **T-26 — Deduplicar por clave de fuente** (~20 min)
+- [x] **T-26 — Deduplicar por clave de fuente** (~20 min)
   - **RF:** RF-4, RF-5.
   - **Depende de:** T-02, T-03.
   - **Hecho cuando:** tests demuestran que `job_key`, `job_id` e `id_oferta` producen el total de ofertas únicas esperado por fuente.
 
-- [ ] **T-27 — Calcular validez y completitud por campo** (~25 min)
+- [x] **T-27 — Calcular validez y completitud por campo** (~25 min)
   - **RF:** RF-4, RF-5.
   - **Depende de:** T-05, T-25, T-26.
   - **Hecho cuando:** un fixture produce numerador, denominador, porcentaje y conteos de válidos/ausentes/inválidos para todos los campos mínimos.
 
-- [ ] **T-28 — Aplicar umbrales y estados por fuente** (~20 min)
+- [x] **T-28 — Aplicar umbrales y estados por fuente** (~20 min)
   - **RF:** RF-3, RF-10, RF-14.
   - **Depende de:** T-27.
   - **Hecho cuando:** tests verifican obligatorio 89.9/90/99/100 %, opcional 60/60.1 %, cero ofertas y falta de evidencia según los estados especificados.
