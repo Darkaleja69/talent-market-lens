@@ -20,6 +20,13 @@ $SafetyTimeoutHours = 4
 $LockFile           = Join-Path $ProjectRoot "data\.nightly.lock"
 $NightlyLog         = Join-Path $ProjectRoot "data\run_nightly.log"
 
+# Watchdog de progreso (RF-15, T-19): la decision la toma el supervisor Python
+# (scrapers-pipeline/verification/supervisor.py) sobre el contador PROGRESS, no
+# sobre la actividad generica del log. $WatchdogExitCode (75) no colisiona con
+# los exit codes de este scraper (0/1/2).
+$WatchdogExitCode   = 75
+$WatchdogReason     = "watchdog_no_progress"
+
 # Opciones del scraper (igual que el README: python -m scraper.main --login)
 #   --login pausa en el navegador para login manual antes de scrapear.
 #   --paginas / --ciudades / --keywords: dejas los defaults del scraper.
@@ -33,6 +40,35 @@ function Write-NLog([string]$msg) {
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
     Add-Content -LiteralPath $NightlyLog -Value $line -Encoding UTF8
     Write-Host $line
+}
+
+function Get-WatchdogDecision {
+    # Consulta puntual al supervisor Python: lee la ultima linea PROGRESS del
+    # stream y persiste su estado. Devuelve la linea legible o $null si el
+    # supervisor no esta disponible (en ese caso se mantiene el proceso).
+    param(
+        [string]$Source,
+        [int]$ProcessId,
+        [string]$Stream,
+        [string]$State,
+        [string]$StartedAt
+    )
+    $supervisorDir = Join-Path (Split-Path -Parent $ProjectRoot) "scrapers-pipeline"
+    if (-not (Test-Path -LiteralPath (Join-Path $supervisorDir "verification\supervisor.py"))) {
+        return $null
+    }
+    $prevPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = $supervisorDir
+    try {
+        $out = & python -m verification.supervisor `
+            --source $Source --pid $ProcessId --stream $Stream `
+            --state $State --started-at $StartedAt 2>$null
+        return ($out | Select-Object -Last 1)
+    } catch {
+        return $null
+    } finally {
+        $env:PYTHONPATH = $prevPythonPath
+    }
 }
 
 function Send-Alert([string]$msg) {
@@ -80,6 +116,7 @@ if (-not (Test-AndAcquireLock)) { exit 0 }
 
 $attempt = 0
 $exitCode = 1
+$watchdogReason = ""
 while ($attempt -lt $MaxAttempts) {
     $attempt++
     Write-NLog "Intento ${attempt}/${MaxAttempts} - lanzando python $($ScrapArgs -join ' ') ..."
@@ -87,6 +124,13 @@ while ($attempt -lt $MaxAttempts) {
     $start = Get-Date
     $stdoutFile = Join-Path $ProjectRoot "data\nightly_stdout_attempt${attempt}.log"
     $stderrFile = Join-Path $ProjectRoot "data\nightly_stderr_attempt${attempt}.log"
+    # Estado del watchdog de este intento: el supervisor Python guarda aqui el
+    # ultimo contador y su instante entre sondeos.
+    $watchdogState = Join-Path $ProjectRoot "data\.watchdog_attempt${attempt}.json"
+    # Cada intento parte de cero: descarta el estado de una ejecución previa.
+    Remove-Item -LiteralPath $watchdogState -Force -ErrorAction SilentlyContinue
+    $startedAtIso = $start.ToString("o")
+    $watchdogBlocked = $false
 
     $proc = Start-Process -FilePath "python" `
         -ArgumentList $ScrapArgs `
@@ -107,6 +151,18 @@ while ($attempt -lt $MaxAttempts) {
             try { $proc | Stop-Process -Force -ErrorAction SilentlyContinue } catch {}
             break
         }
+
+        # Watchdog de progreso (RF-15): la decision la toma el supervisor
+        # Python a partir del contador PROGRESS, no de la actividad generica
+        # del log. Si esta bloqueada, el supervisor ya detuvo el arbol.
+        $decision = Get-WatchdogDecision -Source "infojobs" -ProcessId $proc.Id `
+            -Stream $stdoutFile -State $watchdogState -StartedAt $startedAtIso
+        if ($decision -match 'state=blocked') {
+            Write-NLog "WATCHDOG: sin progreso en el periodo; arbol de procesos detenido. reason=$WatchdogReason"
+            $watchdogReason = $WatchdogReason
+            $watchdogBlocked = $true
+            break
+        }
     }
 
     if ($proc) {
@@ -115,6 +171,10 @@ while ($attempt -lt $MaxAttempts) {
         try { $proc.Refresh() } catch {}
     }
     $exitCode = if ($proc -and $null -ne $proc.ExitCode) { $proc.ExitCode } else { -1 }
+    if ($watchdogBlocked) {
+        # La parada por watchdog no es un error tecnico reintentable.
+        $exitCode = $WatchdogExitCode
+    }
     $elapsed = (Get-Date) - $start
     $mins = [int]$elapsed.TotalMinutes
     $secs = $elapsed.Seconds
@@ -133,12 +193,12 @@ while ($attempt -lt $MaxAttempts) {
         Write-NLog "RESULT: total=$resTotal incidencias=$($Matches[2]) blocked=$resBlocked"
     }
 
-    if ($exitCode -eq 0) {
+    if (-not $watchdogBlocked -and $exitCode -eq 0) {
         Write-NLog "Run completada OK (total=$resTotal). Saliendo del bucle."
         break
     }
 
-    if ($null -ne $resBlocked) {
+    if (-not $watchdogBlocked -and $null -ne $resBlocked) {
         if (-not $resBlocked) {
             # Resumen valido: el run termino y volco datos aunque el proceso
             # saliera con codigo != 0 (p.ej. crash al liberar recursos).
@@ -147,7 +207,7 @@ while ($attempt -lt $MaxAttempts) {
             break
         }
         Write-NLog "BLOQUEO por CAPTCHA (exit=$exitCode, total=$resTotal)."
-    } else {
+    } elseif (-not $watchdogBlocked) {
         Write-NLog "Fallo sin RESULT (exit=$exitCode). Stderr (ultimas 15 lineas):"
         if (Test-Path -LiteralPath $stderrFile) {
             Get-Content -LiteralPath $stderrFile -Tail 15 -ErrorAction SilentlyContinue |
@@ -156,6 +216,9 @@ while ($attempt -lt $MaxAttempts) {
     }
 
     if ($attempt -lt $MaxAttempts) {
+        # T-23: cuando $watchdogBlocked sea $true debe salirse del bucle SIN
+        # relanzar (el supervisor ya detuvo el arbol por RF-15). Punto exacto
+        # de intervencion: aqui, antes de pausar/reintentar.
         Write-NLog "Pausando $RetryPauseSec s antes de reintentar."
         Start-Sleep -Seconds $RetryPauseSec
     }
@@ -164,7 +227,8 @@ while ($attempt -lt $MaxAttempts) {
 Release-Lock
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $marker = Join-Path $ProjectRoot "data\last_nightly_run.txt"
-"last_run=$ts exit=$exitCode attempts=$attempt" | Set-Content -LiteralPath $marker -Encoding UTF8
+$watchdogField = if ($watchdogReason) { "watchdog=$watchdogReason" } else { "watchdog=none" }
+"last_run=$ts exit=$exitCode attempts=$attempt $watchdogField" | Set-Content -LiteralPath $marker -Encoding UTF8
 if ($exitCode -ne 0 -and $exitCode -ne 1) {
     Send-Alert "InfoJobs scraper: run NO completada (exit=$exitCode, intentos=$attempt). Revisa data\run_nightly.log"
 }

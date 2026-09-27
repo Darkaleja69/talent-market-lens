@@ -35,7 +35,12 @@ $Fromage            = 7
 $EnrichRate         = 0.9         # objetivo ~80-90% de ofertas con detalle completo
 $EnrichMax          = 15          # tope de clics por SERP (mas bajo = mas seguro; el resto desde cache)
 $CooldownSec        = 300         # 5 min de enfriamiento entre paises
-$StallTimeoutSec    = 1200        # watchdog: si no hay actividad en 20 min, matar y reintentar
+# Watchdog de progreso (RF-15, T-19): la decision la toma el supervisor Python
+# (scrapers-pipeline/verification/supervisor.py) sobre el contador PROGRESS, no
+# sobre la actividad generica del log. $WatchdogExitCode (75) no colisiona con
+# los exit codes de este scraper (0/1/2/3/130).
+$WatchdogExitCode   = 75
+$WatchdogReason     = "watchdog_no_progress"
 
 # Paises objetivo y sus ciudades.
 # ES (Madrid/Barcelona) se excluye: ya esta muy mirado y en cache.
@@ -50,6 +55,35 @@ function Write-NLog([string]$msg) {
     $null = New-Item -ItemType Directory -Force -Path (Split-Path $NightlyLog) -ErrorAction SilentlyContinue
     Add-Content -LiteralPath $NightlyLog -Value $line -Encoding UTF8
     Write-Host $line
+}
+
+function Get-WatchdogDecision {
+    # Consulta puntual al supervisor Python: lee la ultima linea PROGRESS del
+    # stream y persiste su estado. Devuelve la linea legible o $null si el
+    # supervisor no esta disponible (en ese caso se mantiene el proceso).
+    param(
+        [string]$Source,
+        [int]$ProcessId,
+        [string]$Stream,
+        [string]$State,
+        [string]$StartedAt
+    )
+    $supervisorDir = Join-Path (Split-Path -Parent $ProjectRoot) "scrapers-pipeline"
+    if (-not (Test-Path -LiteralPath (Join-Path $supervisorDir "verification\supervisor.py"))) {
+        return $null
+    }
+    $prevPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = $supervisorDir
+    try {
+        $out = & python -m verification.supervisor `
+            --source $Source --pid $ProcessId --stream $Stream `
+            --state $State --started-at $StartedAt 2>$null
+        return ($out | Select-Object -Last 1)
+    } catch {
+        return $null
+    } finally {
+        $env:PYTHONPATH = $prevPythonPath
+    }
 }
 
 function Test-AndAcquireLock {
@@ -108,6 +142,7 @@ Write-NLog "CDP pre-flight OK. Chrome responde en puerto $CdpPort."
 
 $overallExit = 0
 $abortedChallenge = $false
+$watchdogReason = ""
 
 for ($i = 0; $i -lt $Targets.Count; $i++) {
     $country = $Targets[$i].Country
@@ -122,6 +157,13 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
         $start = Get-Date
         $stdoutFile = Join-Path $ProjectRoot "output\nightly_stdout_${country}_attempt${attempt}.log"
         $stderrFile = Join-Path $ProjectRoot "output\nightly_stderr_${country}_attempt${attempt}.log"
+        # Estado del watchdog de esta unidad (fuente+pais+intento): el supervisor
+        # Python guarda aqui el ultimo contador y su instante entre sondeos.
+        $watchdogState = Join-Path $ProjectRoot "output\.watchdog_${country}_attempt${attempt}.json"
+        # Cada intento parte de cero: descarta el estado de una ejecución previa.
+        Remove-Item -LiteralPath $watchdogState -Force -ErrorAction SilentlyContinue
+        $startedAtIso = $start.ToString("o")
+        $watchdogBlocked = $false
 
         $pythonArgs = @(
             "-u",
@@ -148,7 +190,6 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
 
         $waited = 0
         $timeoutSec = $SafetyTimeoutHours * 60 * 60
-        $stalled = $false
         while (-not $proc.HasExited) {
             Start-Sleep -Seconds 30
             $waited += 30
@@ -160,28 +201,15 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
                 break
             }
 
-            # Watchdog de inactividad: si el scraper no escribe nada (ni stdout
-            # ni su log) durante $StallTimeoutSec, se considera colgado y se mata
-            # para que el reintento lo relance. Evita runs de 8h sin avanzar.
-            $activityTime = $null
-            try {
-                if (Test-Path -LiteralPath $stdoutFile) {
-                    $activityTime = (Get-Item -LiteralPath $stdoutFile).LastWriteTime
-                }
-            } catch {}
-            try {
-                $newestLog = Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "output") -Filter "log_*.log" -File -ErrorAction SilentlyContinue |
-                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
-                if ($newestLog -and (-not $activityTime -or $newestLog.LastWriteTime -gt $activityTime)) {
-                    $activityTime = $newestLog.LastWriteTime
-                }
-            } catch {}
-            if ($activityTime -and ((Get-Date) - $activityTime).TotalSeconds -ge $StallTimeoutSec) {
-                Write-NLog "[$country] WATCHDOG: sin actividad en ${StallTimeoutSec}s. Matando proceso y reintentando."
-                try { $proc | Stop-Process -Force -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 5
-                try { $proc | Stop-Process -Force -ErrorAction SilentlyContinue } catch {}
-                $stalled = $true
+            # Watchdog de progreso (RF-15): la decision la toma el supervisor
+            # Python a partir del contador PROGRESS, no de la actividad generica
+            # del log. Si esta bloqueada, el supervisor ya detuvo el arbol.
+            $decision = Get-WatchdogDecision -Source "indeed" -ProcessId $proc.Id `
+                -Stream $stdoutFile -State $watchdogState -StartedAt $startedAtIso
+            if ($decision -match 'state=blocked') {
+                Write-NLog "[$country] WATCHDOG: sin progreso en el periodo; arbol de procesos detenido. reason=$WatchdogReason"
+                $watchdogReason = $WatchdogReason
+                $watchdogBlocked = $true
                 break
             }
         }
@@ -192,6 +220,10 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
             try { $proc.Refresh() } catch {}
         }
         $exitCode = if ($proc -and $null -ne $proc.ExitCode) { $proc.ExitCode } else { -1 }
+        if ($watchdogBlocked) {
+            # La parada por watchdog no es un error tecnico reintentable.
+            $exitCode = $WatchdogExitCode
+        }
         $elapsed = (Get-Date) - $start
         $mins = [int]$elapsed.TotalMinutes
         $secs = $elapsed.Seconds
@@ -201,7 +233,7 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
         # Marcador de exito: "Scrape completado" significa que el run termino bien;
         # un exit != 0 despues de eso suele ser un crash al liberar recursos.
         $stdoutRaw = Get-Content -LiteralPath $stdoutFile -Raw -ErrorAction SilentlyContinue
-        if ($exitCode -ne 0 -and $stdoutRaw -match "Scrape completado:") {
+        if (-not $watchdogBlocked -and $exitCode -ne 0 -and $stdoutRaw -match "Scrape completado:") {
             Write-NLog "[$country] Scrape completado detectado en stdout aunque exit=$exitCode. Se considera OK."
             $exitCode = 0
         }
@@ -209,13 +241,16 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
         # Fallo de conexion CDP (Chrome presente pero la sesion no acepta conexion):
         # reintentar no arregla nada. Se trata como exit 3 y NO se reintenta.
         $stderrRaw = Get-Content -LiteralPath $stderrFile -Raw -ErrorAction SilentlyContinue
-        if ($exitCode -ne 0 -and $stderrRaw -match "connect_over_cdp") {
+        if (-not $watchdogBlocked -and $exitCode -ne 0 -and $stderrRaw -match "connect_over_cdp") {
             Write-NLog "[$country] CDP roto (connect_over_cdp). Se trata como exit 3; NO se reintenta."
             $exitCode = 3
         }
 
         $targetExit = $exitCode
 
+        # T-21: cuando $watchdogBlocked sea $true debe salirse del bucle de
+        # intentos SIN relanzar (el supervisor ya detuvo el arbol por RF-15).
+        # Punto exacto de intervencion: aqui, antes de decidir el reintento.
         if ($exitCode -eq 0) {
             Write-NLog "[$country] Run completada OK."
             break
@@ -262,7 +297,8 @@ Release-Lock
 $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $countries = ($Targets | ForEach-Object { $_.Country }) -join ","
 $marker = Join-Path $ProjectRoot "output\last_nightly_run_indeed.txt"
-"last_run=$ts exit=$overallExit terms=$SearchTerms countries=$countries pages=$Pages" | `
+$watchdogField = if ($watchdogReason) { "watchdog=$watchdogReason" } else { "watchdog=none" }
+"last_run=$ts exit=$overallExit terms=$SearchTerms countries=$countries pages=$Pages $watchdogField" | `
     Set-Content -LiteralPath $marker -Encoding UTF8
 if ($abortedChallenge) {
     Write-NLog "=== FIN RUN NOCTURNA INDEED exit=$overallExit (challenge anti-bot: espera 24h) ==="
