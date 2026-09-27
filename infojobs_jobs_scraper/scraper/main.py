@@ -35,6 +35,7 @@ from scraper.models import Offer
 from scraper.storage import save_all
 from scraper.state import RunState
 from scraper.notifier import notify
+from scraper.progress import RunProgressCounter
 
 load_dotenv()
 
@@ -86,6 +87,19 @@ def _save_all_offers(offers: list[Offer]) -> None:
         console.log(f"  {fmt}: {path_val}")
 
 
+def _emit_progress(progress: RunProgressCounter, parsed_delta: int,
+                   new_delta: int = 0) -> str:
+    """Update the run counter and print the machine-readable PROGRESS line.
+
+    ``parsed_delta`` counts every offer processed on the page (including ones
+    already seen in previous runs); ``new_delta`` only the new ones.
+    """
+    progress.add(parsed_delta, new_delta)
+    line = progress.line(at=datetime.now().isoformat(timespec="seconds"))
+    console.log(line)
+    return line
+
+
 def run(
     ciudades: list[dict] | None = None,
     keywords: list[str] | None = None,
@@ -104,6 +118,7 @@ def run(
 
     state = RunState()
     skipped_total = 0
+    progress = RunProgressCounter("infojobs")
 
     console.log(
         f"[bold]Scraper InfoJobs[/] -- "
@@ -193,6 +208,7 @@ def run(
                             for o in new_offers:
                                 state.mark(o.id_oferta)
                             all_offers.extend(new_offers)
+                            _emit_progress(progress, len(offers), len(new_offers))
 
                             if len(new_offers) == 0:
                                 zero_count += 1
