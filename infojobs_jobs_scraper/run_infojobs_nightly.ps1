@@ -217,6 +217,13 @@ while ($attempt -lt $MaxAttempts) {
 
     Write-NLog ("Intento {0} finalizado exit={1} tiempo={2}m{3}s" -f $attempt, $exitCode, $mins, $secs)
 
+    # Cortocircuito RF-15 (blindaje): el watchdog ya detuvo el arbol; se sale
+    # del bucle de reintentos directamente, sin depender de la politica Python.
+    if ($watchdogBlocked) {
+        Write-NLog "WATCHDOG: sin progreso; no se reintenta el run (exit=$WatchdogExitCode)."
+        break
+    }
+
     # El scraper imprime una linea maquina-legible antes de salir:
     #   RESULT total=N incidencias=M blocked=true|false
     # Distingue "sin ofertas nuevas" (ok) de "bloqueado por CAPTCHA".

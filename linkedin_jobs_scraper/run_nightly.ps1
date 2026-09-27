@@ -216,6 +216,13 @@ while ($attempt -lt $MaxAttempts) {
     Write-NLog ("Intento {0} finalizado exit={1} tiempo={2}m{3}s" `
         -f $attempt, $exitCode, $mins, $secs)
 
+    # Cortocircuito RF-15 (blindaje): el watchdog ya detuvo el arbol; se sale
+    # del bucle de reintentos directamente, sin depender de la politica Python.
+    if ($watchdogBlocked) {
+        Write-NLog "WATCHDOG: sin progreso; no se reintenta el run (exit=$WatchdogExitCode)."
+        break
+    }
+
     $stdoutRaw = Get-Content -LiteralPath $stdoutFile -Raw -ErrorAction SilentlyContinue
     $stderrRaw = Get-Content -LiteralPath $stderrFile -Raw -ErrorAction SilentlyContinue
 

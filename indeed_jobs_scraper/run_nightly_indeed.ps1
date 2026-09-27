@@ -284,6 +284,14 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
 
         $targetExit = $exitCode
 
+        # Cortocircuito RF-15 (blindaje): el watchdog ya detuvo el arbol. Se sale
+        # del bucle de reintentos directamente, sin depender de la politica Python
+        # (que si faltara devolveria "retry"). $targetExit queda en 75.
+        if ($watchdogBlocked) {
+            Write-NLog "[$country] WATCHDOG: sin progreso; no se reintenta este run (exit=$WatchdogExitCode)."
+            break
+        }
+
         # T-21: la decision de reintento la toma la politica Python (mas abajo).
         # Un challenge (exit 3) o el watchdog no se relanzan. $targetExit=3 sigue
         # alimentando $abortedChallenge (parada de toda la run) mas abajo.
