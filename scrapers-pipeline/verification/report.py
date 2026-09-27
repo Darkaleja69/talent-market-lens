@@ -1,8 +1,8 @@
-"""Console report of the daily-run diagnostic in Spanish (T-38).
+"""Console report of the daily-run diagnostic in Spanish (T-38, T-39).
 
 This module turns the pieces already computed by the other verification
 modules into a plain-text report a junior data engineer can read (RF-2, RF-4,
-RF-6, RF-7, RF-14, RF-15):
+RF-6, RF-7, RF-9, RF-10, RF-11, RF-14, RF-15):
 
 - the per-source state and the global state (:mod:`verification.status`);
 - the per-field completeness with counts and percentages
@@ -10,7 +10,9 @@ RF-6, RF-7, RF-14, RF-15):
 - the obtained vs. published comparison (:mod:`verification.publication`);
 - the completeness trend (:mod:`verification.trends`);
 - the run evidence and the watchdog progress/stop (:mod:`verification.run_evidence`,
-  :mod:`verification.progress`).
+  :mod:`verification.progress`);
+- the bounded web-check investigations (:mod:`verification.investigation`),
+  keeping the observed facts apart from the probable cause (T-39).
 
 Design rules:
 
@@ -30,6 +32,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from verification import (
+    investigation,
     publication as publication_module,
     run_evidence,
     sources,
@@ -104,6 +107,19 @@ STOP_REASON_ES: dict[str, str] = {
     "watchdog_no_progress": "bloqueo por falta de progreso",
 }
 
+# Spanish labels for the web-check investigation state (RF-9, RF-10, RF-11).
+INVESTIGATION_STATE_ES: dict[str, str] = {
+    investigation.INVESTIGATION_CONFIRMED: "confirmada",
+    investigation.INVESTIGATION_UNCONFIRMED: "no concluida",
+}
+
+# Spanish labels for the investigation trigger (RF-9, RF-10).
+INVESTIGATION_TRIGGER_ES: dict[str, str] = {
+    investigation.TRIGGER_SOURCE_FAILED: "fuente fallida",
+    investigation.TRIGGER_REQUIRED_FIELD: "campo obligatorio por debajo del objetivo",
+    investigation.TRIGGER_OPTIONAL_FIELD: "campo no obligatorio en el umbral",
+}
+
 # status.py failure reasons (code-facing English) matched exactly to translate
 # them for the person (RF-11). Their own numbers are intentionally dropped: the
 # affected field is rendered with its counts and percentage in the field block.
@@ -175,6 +191,10 @@ class DiagnosticReport:
     ``global_detail`` carries the inconclusive reason (Spanish) when the run
     could not be analysed (RF-13); ``trend_note`` explains an absent or partial
     trend and ``runs_used`` is how many comparable runs backed it (RF-7).
+
+    ``investigations`` holds the bounded web checks (T-35/T-36). It defaults to
+    ``()`` so older constructions keep working; the renderer never mixes the
+    observed facts with the probable cause (RF-9, RF-10, RF-11).
     """
 
     global_state: str
@@ -182,6 +202,7 @@ class DiagnosticReport:
     sources: tuple[SourceReport, ...]
     trend_note: str | None
     runs_used: int
+    investigations: tuple[investigation.InvestigationOutcome, ...] = ()
 
 
 def _dedupe(items: Iterable[str]) -> tuple[str, ...]:
@@ -352,11 +373,14 @@ def build_report(
     global_status: status_module.GlobalStatus,
     trend_note: str | None = None,
     runs_used: int = 0,
+    investigations: Sequence[investigation.InvestigationOutcome] = (),
 ) -> DiagnosticReport:
     """Wrap the source reports and the global outcome into one report (RF-14).
 
     The received source order is preserved. ``global_detail`` is the
     inconclusive reason when the run could not be analysed (RF-13).
+    ``investigations`` are the bounded web checks, in the given order; they
+    default to an empty tuple so existing callers stay valid.
     """
     return DiagnosticReport(
         global_state=global_status.state,
@@ -364,6 +388,7 @@ def build_report(
         sources=tuple(sources),
         trend_note=trend_note,
         runs_used=runs_used,
+        investigations=tuple(investigations),
     )
 
 
@@ -535,6 +560,147 @@ def render_source_report(source_report: SourceReport) -> str:
     return "\n".join(lines)
 
 
+def _render_investigation_context(
+    outcome: investigation.InvestigationOutcome,
+) -> list[str]:
+    """Render the bounded context of one web check (RF-9, RF-10, RF-11).
+
+    Shows the source name and group plus the search, region, city, affected
+    field, metric, example URL, parser/rule hint and local evidence carried by
+    the context. Missing values simply add no line, so a field-less source
+    failure (zero offers, missing evidence) stays readable.
+    """
+    context = outcome.context
+    group = GROUP_ES.get(context.group, context.group)
+    lines = [f"Fuente: {context.display_name} ({group})"]
+    state = INVESTIGATION_STATE_ES.get(outcome.state, outcome.state)
+    lines.append(
+        f"  Estado de la investigación: {state} ({outcome.state})"
+    )
+    trigger = INVESTIGATION_TRIGGER_ES.get(context.trigger, context.trigger)
+    lines.append(f"  Disparador: {trigger} ({context.trigger})")
+    if context.field is not None:
+        field_name = FIELD_ES.get(context.field, context.field)
+        lines.append(f"  Campo afectado: {field_name} ({context.field})")
+    if context.metric is not None:
+        lines.append(f"  Métrica: {context.metric}")
+    if context.search is not None:
+        lines.append(f"  Búsqueda: {context.search}")
+    if context.region is not None:
+        lines.append(f"  Región: {context.region}")
+    if context.city is not None:
+        lines.append(f"  Ciudad: {context.city}")
+    if context.example_url is not None:
+        lines.append(f"  URL de ejemplo: {context.example_url}")
+    if context.rule_reference is not None:
+        lines.append(f"  Regla/parser: {context.rule_reference}")
+    if context.evidence:
+        lines.append("  Evidencia local:")
+        for item in context.evidence:
+            lines.append(f"    - {item}")
+    else:
+        lines.append("  Evidencia local: sin evidencia registrada")
+    return lines
+
+
+def _render_section(label: str, texts: Sequence[str], empty_text: str) -> list[str]:
+    """Render one titled section from a sequence of strings (or its empty note)."""
+    lines = [f"  {label}:"]
+    for text in texts:
+        lines.append(f"    - {text}")
+    if not texts:
+        lines.append(f"    ({empty_text})")
+    return lines
+
+
+def render_investigation(
+    outcome: investigation.InvestigationOutcome,
+) -> str:
+    """Render one web-check outcome as Spanish console text (RF-9–RF-11).
+
+    The output keeps **facts and hypotheses apart**: the observed facts live
+    only under ``Hechos observados`` and the probable cause only under
+    ``Causa probable (hipótesis)``. An unconfirmed check is explicitly headed
+    with a warning, shows its detail, asserts no cause and states that the
+    source keeps its state; a confirmed check shows the four sections
+    (observations, probable cause, recommended change, manual check). Missing
+    pieces are reported as such, never invented.
+    """
+    lines = _render_investigation_context(outcome)
+
+    if investigation.is_unconfirmed(outcome):
+        lines.append(
+            "  Aviso: la web no se pudo verificar; la investigación queda sin "
+            "concluir y la fuente conserva su estado."
+        )
+        if outcome.detail is not None:
+            lines.append(f"  Detalle: {outcome.detail}")
+        # An unconfirmed check asserts no fact and no cause, even if an outcome
+        # was built by hand with them filled in: what was not verified on the
+        # page must never be presented as observed (RF-9, RF-10, RF-11).
+        observations: tuple[str, ...] = ()
+        probable_cause: str | None = None
+        observations_empty = (
+            "sin hechos verificados: la web no se pudo verificar"
+        )
+        cause_empty = (
+            "no se afirma ninguna causa: la web no se pudo verificar"
+        )
+    else:
+        observations = outcome.observations
+        probable_cause = outcome.probable_cause
+        observations_empty = "no se registraron hechos observados"
+        cause_empty = "no se afirma ninguna causa"
+
+    lines.extend(
+        _render_section("Hechos observados", observations, observations_empty)
+    )
+    cause = (probable_cause,) if probable_cause is not None else ()
+    lines.extend(_render_section("Causa probable (hipótesis)", cause, cause_empty))
+    recommendation = (
+        (outcome.recommendation,) if outcome.recommendation is not None else ()
+    )
+    lines.extend(
+        _render_section(
+            "Cambio recomendado",
+            recommendation,
+            "sin cambio recomendado",
+        )
+    )
+    manual_check = (
+        (outcome.manual_check,) if outcome.manual_check is not None else ()
+    )
+    lines.extend(
+        _render_section(
+            "Comprobación manual",
+            manual_check,
+            "sin comprobación manual indicada",
+        )
+    )
+    return "\n".join(lines)
+
+
+def render_investigations(
+    outcomes: Sequence[investigation.InvestigationOutcome],
+) -> str:
+    """Render every web-check outcome as consecutive blocks, in order (RF-11).
+
+    Each outcome becomes one block rendered by :func:`render_investigation`;
+    blocks are separated by a blank line. An empty sequence yields an empty
+    string, so callers can decide whether to add a title.
+    """
+    return "\n\n".join(render_investigation(outcome) for outcome in outcomes)
+
+
+def _investigations_section(report: DiagnosticReport) -> list[str]:
+    """Return the investigation section lines, or ``[]`` when there are none."""
+    if not report.investigations:
+        return []
+    lines = ["", "=== Investigación de la web real ==="]
+    lines.extend(render_investigations(report.investigations).splitlines())
+    return lines
+
+
 def render_report(report: DiagnosticReport) -> str:
     """Render the whole report as Spanish console text (RF-14).
 
@@ -558,6 +724,7 @@ def render_report(report: DiagnosticReport) -> str:
             "No se analizaron las fuentes: no hay resultados por fuente que "
             "presentar."
         )
+        lines.extend(_investigations_section(report))
         return "\n".join(lines) + "\n"
 
     correct = sum(
@@ -579,5 +746,7 @@ def render_report(report: DiagnosticReport) -> str:
         lines.append("")
         lines.append("----------------------------------------")
         lines.extend(render_source_report(source_report).splitlines())
+
+    lines.extend(_investigations_section(report))
 
     return "\n".join(lines) + "\n"

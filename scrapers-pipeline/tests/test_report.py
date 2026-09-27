@@ -14,6 +14,7 @@ import pytest
 from verification import (
     completeness,
     field_contract,
+    investigation,
     landing,
     publication,
     report,
@@ -625,3 +626,287 @@ def test_field_report_is_frozen():
     )
     with pytest.raises(Exception):
         field_report.valid = 0  # type: ignore[misc]
+
+
+# --- 11. Web investigation in the report (T-39; RF-9, RF-10, RF-11) ----------
+
+
+def _investigation_context(
+    source_id: str = "indeed",
+    *,
+    field: str | None = "company",
+    search: str | None = "data engineer",
+    region: str | None = "España",
+    city: str | None = "Madrid",
+    metric: str | None = "válidos 850/1000 (85.0%)",
+    example_url: str | None = "https://indeed.example/1",
+    rule_reference: str | None = "campo 'company'; alias de origen: company",
+    evidence: tuple[str, ...] = ("cero ofertas capturadas en la ejecución",),
+) -> investigation.InvestigationContext:
+    """Build a fully-populated investigation context for the report tests."""
+    source = sources.get_source(source_id)
+    return investigation.InvestigationContext(
+        source=source_id,
+        display_name=source.display_name,
+        group=source.group,
+        trigger=investigation.TRIGGER_REQUIRED_FIELD,
+        field=field,
+        search=search,
+        region=region,
+        city=city,
+        example_url=example_url,
+        example_offer=None,
+        metric=metric,
+        evidence=evidence,
+        rule_reference=rule_reference,
+    )
+
+
+def _section(text: str, start: str, end: str | None = None) -> str:
+    """Return the text between two section headers (exclusive)."""
+    segment = text.split(start, 1)[1]
+    if end is not None:
+        segment = segment.split(end, 1)[0]
+    return segment
+
+
+def test_investigation_state_labels_are_in_spanish():
+    assert report.INVESTIGATION_STATE_ES == {
+        "confirmed": "confirmada",
+        "unconfirmed": "no concluida",
+    }
+
+
+def test_unconfirmed_investigation_declares_no_verification_and_keeps_state():
+    outcome = investigation.unconfirmed_web(
+        _investigation_context(),
+        detail="la web no responde",
+        recommendation="actualizar el selector de empresa",
+        manual_check="abrir la URL de ejemplo y revisar el bloque de empresa",
+    )
+
+    text = report.render_investigation(outcome)
+
+    assert "no concluida" in text
+    assert "no se pudo verificar" in text
+    assert "sin concluir" in text
+    assert "conserva su estado" in text
+    assert "Detalle: la web no responde" in text
+    # No fact and no cause are asserted.
+    assert "sin hechos verificados" in text
+    assert "no se afirma ninguna causa" in text
+
+
+def test_unconfirmed_investigation_discards_a_supplied_cause():
+    # Even if a cause is handed in, an inaccessible page discards it and it
+    # must never appear as if it had been verified.
+    outcome = investigation.record_web_check(
+        _investigation_context(),
+        accessible=False,
+        probable_cause="el selector de empresa cambió",
+    )
+
+    text = report.render_investigation(outcome)
+
+    assert "el selector de empresa cambió" not in text
+
+
+def test_hand_built_unconfirmed_outcome_never_shows_facts_or_cause():
+    # Defense in depth: an outcome built by hand (skipping record_web_check)
+    # with facts and a cause must still render them as unverified, never as
+    # observed (RF-9, RF-10, RF-11).
+    outcome = investigation.InvestigationOutcome(
+        context=_investigation_context(),
+        state=investigation.INVESTIGATION_UNCONFIRMED,
+        observations=("hecho inventado",),
+        probable_cause="causa inventada",
+        recommendation="actualizar el parser de empresa",
+        manual_check="abrir la URL de ejemplo",
+        detail="la web no responde",
+    )
+
+    text = report.render_investigation(outcome)
+
+    assert "hecho inventado" not in text
+    assert "causa inventada" not in text
+    assert "sin hechos verificados: la web no se pudo verificar" in text
+    assert "no se afirma ninguna causa: la web no se pudo verificar" in text
+    # The guidance and the detail are still shown.
+    assert "actualizar el parser de empresa" in text
+    assert "abrir la URL de ejemplo" in text
+    assert "Detalle: la web no responde" in text
+
+
+def test_record_web_check_inaccessible_drops_supplied_observations():
+    # T-36 guard: observations passed to an inaccessible check never surface.
+    outcome = investigation.record_web_check(
+        _investigation_context(),
+        accessible=False,
+        observations=("parecía otro selector",),
+    )
+
+    text = report.render_investigation(outcome)
+
+    assert "parecía otro selector" not in text
+    assert "sin hechos verificados: la web no se pudo verificar" in text
+
+
+def test_confirmed_investigation_separates_facts_from_hypothesis():
+    outcome = investigation.record_web_check(
+        _investigation_context(),
+        accessible=True,
+        observations=("el nombre de la empresa aparece en un div distinto",),
+        probable_cause="el selector de empresa cambió de ubicación",
+        recommendation="actualizar el parser de empresa",
+        manual_check="abrir la URL de ejemplo y comprobar el div de empresa",
+    )
+
+    text = report.render_investigation(outcome)
+
+    assert "Hechos observados:" in text
+    assert "Causa probable (hipótesis):" in text
+    assert "Cambio recomendado:" in text
+    assert "Comprobación manual:" in text
+
+    facts = _section(
+        text, "Hechos observados:", "Causa probable (hipótesis):"
+    )
+    assert "el nombre de la empresa aparece en un div distinto" in facts
+    assert "el selector de empresa cambió de ubicación" not in facts
+
+    cause = _section(
+        text, "Causa probable (hipótesis):", "Cambio recomendado:"
+    )
+    assert "el selector de empresa cambió de ubicación" in cause
+    assert "actualizar el parser de empresa" not in cause
+
+    recommendation = _section(
+        text, "Cambio recomendado:", "Comprobación manual:"
+    )
+    assert "actualizar el parser de empresa" in recommendation
+    assert "abrir la URL de ejemplo y comprobar el div de empresa" not in recommendation
+
+    manual = _section(text, "Comprobación manual:")
+    assert "abrir la URL de ejemplo y comprobar el div de empresa" in manual
+
+
+def test_confirmed_investigation_with_missing_pieces_says_so():
+    outcome = investigation.record_web_check(
+        _investigation_context(field=None, metric=None, rule_reference=None),
+        accessible=True,
+    )
+
+    text = report.render_investigation(outcome)
+
+    assert "Estado de la investigación: confirmada (confirmed)" in text
+    assert "no se registraron hechos observados" in text
+    assert "no se afirma ninguna causa" in text
+    assert "sin cambio recomendado" in text
+    assert "sin comprobación manual indicada" in text
+
+
+def test_investigation_context_shows_source_search_region_field_metric_url_and_evidence():
+    text = report.render_investigation(
+        investigation.record_web_check(_investigation_context(), accessible=True)
+    )
+
+    assert "Fuente: Indeed (directa)" in text
+    assert "Búsqueda: data engineer" in text
+    assert "Región: España" in text
+    assert "Ciudad: Madrid" in text
+    assert "Campo afectado: empresa (company)" in text
+    assert "Métrica: válidos 850/1000 (85.0%)" in text
+    assert "URL de ejemplo: https://indeed.example/1" in text
+    assert "Regla/parser: campo 'company'; alias de origen: company" in text
+    assert "Evidencia local:" in text
+    assert "cero ofertas capturadas en la ejecución" in text
+
+
+def test_render_investigations_produces_one_block_per_outcome_in_order():
+    first = investigation.record_web_check(
+        _investigation_context("indeed"), accessible=True
+    )
+    second = investigation.record_web_check(
+        _investigation_context("linkedin", field="title"), accessible=True
+    )
+
+    text = report.render_investigations((first, second))
+
+    assert text.count("Fuente:") == 2
+    assert text.index("Fuente: Indeed") < text.index("Fuente: LinkedIn")
+
+    assert report.render_investigations(()) == ""
+
+
+def test_render_report_includes_investigation_section_only_when_present():
+    mapped = {"indeed": _failed_status("indeed")}
+    source_reports = [
+        report.build_source_report("indeed", status=mapped["indeed"])
+    ]
+    outcome = investigation.record_web_check(
+        _investigation_context("indeed"), accessible=True
+    )
+
+    without = report.build_report(
+        sources=source_reports,
+        global_status=status.classify_global(mapped),
+    )
+    assert "Investigación de la web real" not in report.render_report(without)
+
+    with_investigations = report.build_report(
+        sources=source_reports,
+        global_status=status.classify_global(mapped),
+        investigations=(outcome,),
+    )
+    text = report.render_report(with_investigations)
+
+    assert "=== Investigación de la web real ===" in text
+    assert "Fuente: Indeed (directa)" in text
+    # The rest of the report format is intact.
+    assert "Estado global: fallido" in text
+    assert "Motivos de fallo:" in text
+
+
+def test_render_report_includes_investigations_when_inconclusive():
+    outcome = investigation.record_web_check(
+        _investigation_context("indeed"), accessible=True
+    )
+    diagnostic = report.build_report(
+        sources=(),
+        global_status=status.classify_global(
+            {}, analyzable=False, inconclusive_reason="no hay ejecución"
+        ),
+        investigations=(outcome,),
+    )
+
+    text = report.render_report(diagnostic)
+
+    assert "Estado global: inconcluso" in text
+    assert "=== Investigación de la web real ===" in text
+
+
+def test_diagnostic_report_without_investigations_stays_compatible():
+    mapped = {"indeed": _correct_status("indeed")}
+    diagnostic = report.DiagnosticReport(
+        global_state=status.GLOBAL_CORRECT,
+        global_detail=None,
+        sources=(
+            report.build_source_report("indeed", status=mapped["indeed"]),
+        ),
+        trend_note=None,
+        runs_used=0,
+    )
+
+    assert diagnostic.investigations == ()
+    with pytest.raises(Exception):
+        diagnostic.investigations = ()  # type: ignore[misc]
+
+
+def test_build_report_defaults_investigations_to_empty_tuple():
+    mapped = {"indeed": _correct_status("indeed")}
+    diagnostic = report.build_report(
+        sources=[report.build_source_report("indeed", status=mapped["indeed"])],
+        global_status=status.classify_global(mapped),
+    )
+
+    assert diagnostic.investigations == ()
