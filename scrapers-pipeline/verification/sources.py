@@ -36,6 +36,41 @@ MULTI_SITE_SITE_IDS: tuple[str, ...] = (
     "glassdoor",
 )
 
+# Mandatory Parquet columns each source must expose, mirroring the
+# `RequiredColumns` field of `scrapers-pipeline/config.ps1` (the project's
+# operational authority). A file lacking any of these is a structural failure
+# of the source (RF-3).
+_DIRECT_REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "indeed": (
+        "job_key",
+        "title",
+        "company",
+        "viewjob_url",
+        "scraped_at",
+    ),
+    "linkedin": (
+        "job_id",
+        "job_url",
+        "title",
+        "company_name",
+        "scraped_at",
+    ),
+    "infojobs": (
+        "id_oferta",
+        "titulo",
+        "empresa",
+        "url_oferta",
+        "fecha_scraped",
+    ),
+}
+_MULTI_SITE_REQUIRED_COLUMNS: tuple[str, ...] = (
+    "job_id",
+    "job_url",
+    "title",
+    "company_name",
+    "scraped_at",
+)
+
 
 @dataclass(frozen=True)
 class Source:
@@ -46,6 +81,8 @@ class Source:
     group: str  # "direct" | "multi_site"
     site: str | None
     dedup_key: str
+    # Mandatory Parquet columns; mirrors `RequiredColumns` in config.ps1.
+    required_columns: tuple[str, ...]
     field_map: dict[str, tuple[str, ...]]
     evidence: dict[str, str]
 
@@ -94,6 +131,7 @@ _DIRECT_SOURCES: tuple[Source, ...] = (
         group="direct",
         site=None,
         dedup_key="job_key",
+        required_columns=_DIRECT_REQUIRED_COLUMNS["indeed"],
         field_map={
             "id": ("job_key",),
             "title": ("title",),
@@ -122,6 +160,7 @@ _DIRECT_SOURCES: tuple[Source, ...] = (
         group="direct",
         site=None,
         dedup_key="job_id",
+        required_columns=_DIRECT_REQUIRED_COLUMNS["linkedin"],
         field_map={
             "id": ("job_id",),
             "title": ("title",),
@@ -155,6 +194,7 @@ _DIRECT_SOURCES: tuple[Source, ...] = (
         group="direct",
         site=None,
         dedup_key="id_oferta",
+        required_columns=_DIRECT_REQUIRED_COLUMNS["infojobs"],
         field_map={
             "id": ("id_oferta",),
             "title": ("titulo",),
@@ -195,6 +235,7 @@ _MULTI_SITE_SOURCES: tuple[Source, ...] = tuple(
         group="multi_site",
         site=site,
         dedup_key="job_id",
+        required_columns=_MULTI_SITE_REQUIRED_COLUMNS,
         field_map=_multi_site_field_map(),
         evidence=_multi_site_evidence(site),
     )
@@ -243,6 +284,11 @@ def field_aliases(source_id: str, field: str | None = None):
 def dedup_key(source_id: str) -> str:
     """Return the unique-offer deduplication key of a source."""
     return get_source(source_id).dedup_key
+
+
+def required_columns(source_id: str) -> tuple[str, ...]:
+    """Return the mandatory Parquet columns of a source (mirrors config.ps1)."""
+    return get_source(source_id).required_columns
 
 
 def multi_site_portals() -> tuple[Source, ...]:
