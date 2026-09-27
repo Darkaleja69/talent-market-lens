@@ -76,8 +76,9 @@ function Get-WatchdogDecision {
 function Get-RetryDecision {
     # Consulta a la politica Python de reintentos (T-21..T-23). Los wrappers no
     # deciden si relanzan: solo actuan sobre 'decision=stop'/'decision=retry'.
-    # Ante cualquier fallo al consultar, se mantiene el comportamiento previo
-    # (reintentar).
+    # LIMITACION: si el CLI de politica no esta disponible, el fallback es
+    # 'retry' (comportamiento previo a T-21..T-23); en ese caso una detencion
+    # por watchdog no se evitara. El fallback es deliberado y no decide reglas.
     param(
         [string]$Source,
         [bool]$WatchdogBlocked = $false,
@@ -226,22 +227,23 @@ while ($attempt -lt $MaxAttempts) {
     $okCombos     = ([regex]::Matches($stdoutRaw, "estado=ok")).Count
     $failedCombos = ([regex]::Matches($stdoutRaw, "estado=(unknown|empty)")).Count
 
-    # Errores NO reintentables: limite de billing de Apify / challenge de login.
-    # Reintentar solo gastaria horas en vano y multiplicaria los logs.
+    # Error permanente (limite de billing de Apify / challenge de login): es una
+    # senal, no una decision. La politica Python (--permanent) decide detener.
+    # Se calcula una sola vez y un error permanente nunca se enmascara como exito.
     $noRetryPattern = "billing cycle|Monthly usage hard limit|maximum usage for your current billing|Challenge real durante login"
-    if (($stdoutRaw + $stderrRaw) -match $noRetryPattern) {
-        Write-NLog "Error permanente detectado (limite Apify / challenge de login). NO se reintenta esta noche."
-        break
+    $permanent = (($stdoutRaw + $stderrRaw) -match $noRetryPattern)
+    if ($permanent) {
+        Write-NLog "Error permanente detectado (limite Apify / challenge de login)."
     }
 
-    if (-not $watchdogBlocked -and $hasResumen -and $okCombos -gt 0) {
+    if (-not $watchdogBlocked -and -not $permanent -and $hasResumen -and $okCombos -gt 0) {
         Write-NLog "Run completada: $okCombos combinacion(es) con tarjetas OK (exit=$exitCode)."
         $exitCode = 0
         break
     }
     if ($hasResumen -and $okCombos -eq 0) {
-        Write-NLog "RESUMEN sin ninguna combinacion OK (fallidas/vacias=$failedCombos). Se trata como fallo y se reintenta."
-    } elseif ($exitCode -eq 0) {
+        Write-NLog "RESUMEN sin ninguna combinacion OK (fallidas/vacias=$failedCombos). Se trata como fallo; la politica de reintentos decidira."
+    } elseif (-not $watchdogBlocked -and -not $permanent -and $exitCode -eq 0) {
         Write-NLog "Run completada OK (exit 0). Saliendo del bucle de reintentos."
         break
     }
@@ -253,9 +255,8 @@ while ($attempt -lt $MaxAttempts) {
             ForEach-Object { Write-NLog "  STDERR: $_" }
     }
 
-    # T-22: la politica Python decide si se relanza. Una detencion por watchdog
-    # o un patron permanente termina el run sin consumir otro intento.
-    $permanent = (($stdoutRaw + $stderrRaw) -match $noRetryPattern)
+    # T-22: la politica Python decide si se relanza (unica fuente de verdad).
+    # Una detencion por watchdog o un patron permanente termina el run.
     $policyLine = Get-RetryDecision -Source "linkedin" -WatchdogBlocked $watchdogBlocked `
         -Permanent $permanent -ExitCode $exitCode
     if ($policyLine -match 'decision=stop') {

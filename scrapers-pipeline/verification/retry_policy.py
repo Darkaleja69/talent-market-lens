@@ -12,6 +12,8 @@ Transversal rules
   already halted by the supervisor and relaunching would defeat the watchdog.
 - A detected block (``blocked=True``, e.g. InfoJobs ``RESULT ... blocked=true``)
   is **never** retried: it is an anti-bot challenge, not a transient error.
+- A valid RESULT without a block (``blocked=False``, InfoJobs) is a finished
+  run even with ``exit_code != 0`` and zero offers: it is not retried either.
 
 For genuine technical errors the previous per-source behaviour is preserved:
 
@@ -32,6 +34,7 @@ DECISION_STOP = "stop"
 
 REASON_WATCHDOG = "watchdog_no_progress"
 REASON_BLOCKED = "blocked_antibot"
+REASON_VALID_RESULT = "valid_result"
 REASON_PERMANENT = "permanent_error"
 REASON_SUCCESS = "success"
 REASON_CHALLENGE = "challenge_antibot"
@@ -75,6 +78,11 @@ def evaluate_retry(
         return RetryDecision(name, False, REASON_SUCCESS)
     if blocked is True:
         return RetryDecision(name, False, REASON_BLOCKED)
+    if blocked is False:
+        # A parsed RESULT with blocked=false is a run that finished and dumped
+        # its data (InfoJobs), even when its total is zero and the process exit
+        # is non-zero: it must not be relaunched.
+        return RetryDecision(name, False, REASON_VALID_RESULT)
     if permanent:
         return RetryDecision(name, False, REASON_PERMANENT)
     if exit_code == 0:

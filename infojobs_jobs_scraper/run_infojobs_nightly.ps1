@@ -74,8 +74,9 @@ function Get-WatchdogDecision {
 function Get-RetryDecision {
     # Consulta a la politica Python de reintentos (T-21..T-23). Los wrappers no
     # deciden si relanzan: solo actuan sobre 'decision=stop'/'decision=retry'.
-    # Ante cualquier fallo al consultar, se mantiene el comportamiento previo
-    # (reintentar).
+    # LIMITACION: si el CLI de politica no esta disponible, el fallback es
+    # 'retry' (comportamiento previo a T-21..T-23); en ese caso una detencion
+    # por watchdog no se evitara. El fallback es deliberado y no decide reglas.
     param(
         [string]$Source,
         [bool]$WatchdogBlocked = $false,

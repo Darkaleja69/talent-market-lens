@@ -89,8 +89,9 @@ function Get-WatchdogDecision {
 function Get-RetryDecision {
     # Consulta a la politica Python de reintentos (T-21..T-23). Los wrappers no
     # deciden si relanzan: solo actuan sobre 'decision=stop'/'decision=retry'.
-    # Ante cualquier fallo al consultar, se mantiene el comportamiento previo
-    # (reintentar).
+    # LIMITACION: si el CLI de politica no esta disponible, el fallback es
+    # 'retry' (comportamiento previo a T-21..T-23); en ese caso una detencion
+    # por watchdog no se evitara. El fallback es deliberado y no decide reglas.
     param(
         [string]$Source,
         [bool]$WatchdogBlocked = $false,
@@ -283,26 +284,26 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
 
         $targetExit = $exitCode
 
-        # T-21: la decision de reintento la toma la politica Python (mas abajo,
-        # antes de la pausa). El watchdog y el challenge no se relanzan.
+        # T-21: la decision de reintento la toma la politica Python (mas abajo).
+        # Un challenge (exit 3) o el watchdog no se relanzan. $targetExit=3 sigue
+        # alimentando $abortedChallenge (parada de toda la run) mas abajo.
         if ($exitCode -eq 0) {
             Write-NLog "[$country] Run completada OK."
             break
         }
 
         if ($exitCode -eq 3) {
-            Write-NLog "[$country] Exit 3: challenge anti-bot o Chrome no disponible. NO se reintenta."
-            break
-        }
-
-        Write-NLog "[$country] Fallo tecnico detectado. Stderr (ultimas lineas):"
-        if (Test-Path -LiteralPath $stderrFile) {
-            $stderrLines = Get-Content -LiteralPath $stderrFile -Tail 15 -ErrorAction SilentlyContinue
-            foreach ($line in $stderrLines) {
-                Write-NLog "  STDERR: $line"
-            }
+            Write-NLog "[$country] Exit 3: challenge anti-bot o Chrome no disponible; la politica de reintentos decidira."
         } else {
-            Write-NLog "  (sin stderr capturado - posible error de Start-Process)"
+            Write-NLog "[$country] Fallo tecnico detectado. Stderr (ultimas lineas):"
+            if (Test-Path -LiteralPath $stderrFile) {
+                $stderrLines = Get-Content -LiteralPath $stderrFile -Tail 15 -ErrorAction SilentlyContinue
+                foreach ($line in $stderrLines) {
+                    Write-NLog "  STDERR: $line"
+                }
+            } else {
+                Write-NLog "  (sin stderr capturado - posible error de Start-Process)"
+            }
         }
 
         # T-21: la politica Python decide si se relanza. Una detencion por

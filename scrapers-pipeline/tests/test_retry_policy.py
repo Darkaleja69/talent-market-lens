@@ -106,8 +106,13 @@ def test_T23_infojobs_technical_failure_retries():
 
 
 def test_T23_infojobs_valid_result_without_block_stops():
+    decision = rp.evaluate_retry("infojobs", blocked=False, exit_code=-1)
+
+    assert decision.retry is False
+    assert decision.reason == rp.REASON_VALID_RESULT
     assert rp.should_retry("infojobs", exit_code=0, blocked=False) is False
     # A valid run with zero offers is still a finished run.
+    assert rp.should_retry("infojobs", exit_code=1, blocked=False) is False
     assert rp.should_retry("infojobs", exit_code=1, completed=True) is False
 
 
@@ -155,6 +160,16 @@ def test_cli_infojobs_blocked_stops(capsys):
     assert code == rp.CLI_STOP
     assert "decision=stop" in out
     assert f"reason={rp.REASON_BLOCKED}" in out
+
+
+def test_cli_infojobs_valid_result_stops(capsys):
+    # The wrapper passes --not-blocked when RESULT ... blocked=false.
+    code = rp.main(["--source", "infojobs", "--not-blocked", "--exit-code", "-1"])
+    out = capsys.readouterr().out
+
+    assert code == rp.CLI_STOP
+    assert "decision=stop" in out
+    assert f"reason={rp.REASON_VALID_RESULT}" in out
 
 
 # --------------------------------------------------------------------------
