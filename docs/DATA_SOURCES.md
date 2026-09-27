@@ -51,8 +51,8 @@ multi_site_job_scraper   ─┘                         append + mergeSchema)
 | 3 | InfoJobs | `infojobs_jobs_scraper/` | `bronze.infojobs` | `offers_infojobs`, `companies_infojobs` | ES | Parquet |
 | 4 | Multi-site | `multi_site_job_scraper/` | `bronze.multi_site` | `offers_multi_site`, `companies_multi_site` | IE / NL / CH / US | Parquet |
 
-**Multi-site** aggregates four portals into a single `jobs_unified.parquet` file:
-`irishjobs`, `stepstone_nl`, `jobs_ch` and `glassdoor`.
+**Multi-site** aggregates six portals into a single `jobs_unified.parquet` file:
+`irishjobs`, `stepstone_nl`, `devitjobs`, `nvb`, `jobs_ch` and `glassdoor`.
 
 > Status: all **four sources are implemented** in Bronze and Silver.
 
@@ -204,7 +204,61 @@ the provenance and reliability of each field:
 - **Currency** — converted through a versioned FX snapshot in `dim_currency`.
 - **Skills** — matched against a canonical catalog, consistent across sources.
 
-## 7. Extending the sources
+## 7. Data contract: field validity rules
+
+Validity is evaluated per offer and per canonical field before computing
+completeness. Every value is classified into exactly one of three states:
+
+- **valid** — present and compliant with the rule below;
+- **absent** — the offer genuinely does not publish the data (`None`, blank
+  text or an empty collection). This is **not** a contract violation; it is
+  counted as missing.
+- **invalid** — present but not compliant. It is **not** counted as valid and
+  reduces the completeness of that field.
+
+The rules reuse the structural validators in
+`scrapers-pipeline/coherence.py`. **No minimum text length is required for any
+field.**
+
+| Canonical field | Required | Valid | Absent | Invalid |
+|---|---|---|---|---|
+| `title` | yes | Non-empty text that is not a URL. | `None`, `""`, whitespace. | A URL; any non-text/impossible value. |
+| `company` | yes | Non-empty text that is not a URL and not a rating, e.g. `ACME Corp`. | `None`, `""`, whitespace. | A URL (e.g. a Glassdoor link) or a rating such as `4,5` / `4.0`. |
+| `description` | yes | Non-empty text that is not a URL. | `None`, `""`, whitespace. | A URL. |
+| `salary` | no | A number, a numeric string, or salary text carrying an amount (a digit or a currency symbol), e.g. `30000`, `"40.000-55.000 EUR"`. | `None`, `""`, whitespace, `NaN`. | Non-numeric text with no amount, e.g. `"competitive"`. |
+| `skills` | no | A list with at least one non-empty skill, or pipe/comma separated text with at least one real skill, e.g. `["Python","SQL"]`, `"Python|SQL"`. | `None`, `""`, `[]`. | A present value with no real skill, e.g. `"||"`, `[""," "]`. |
+| `work_mode` | no | Any accepted variant normalized to `Remote`, `Hybrid` or `On-site` (case- and accent-insensitive; see table below). | `None`, `""`, whitespace. | A present value with no recognizable mode, e.g. `Flexible`, `Mixto`. |
+| `location` | no | Non-empty location text (city/region/country), not a URL. | `None`, `""`, whitespace. | A URL. |
+| `posted_date` | no | A parseable date/datetime, e.g. `2026-09-26`, `2026-09-26T08:30:00Z`. | `None`, `""`, whitespace. | Text that cannot be parsed as a date. |
+| `id` (deduplication key) | no | A short identifier in the source format (`job_key`, `job_id` or `id_oferta`). | `None`, `""`, whitespace. | Values outside the allowed identifier format/length. |
+
+### Work mode variants and canonical normalization
+
+`work_mode` is matched case- and accent-insensitively (surrounding whitespace is
+ignored) and normalized to the canonical value exposed by
+`field_contract.normalize_work_mode()`:
+
+| Accepted variants | Canonical value |
+|---|---|
+| `remote`, `remoto`, `en remoto`, `a distancia`, `teletrabajo` | `Remote` |
+| `hybrid`, `hibrido`, `híbrido` | `Hybrid` |
+| `on-site`, `onsite`, `presencial` | `On-site` |
+
+These come from the real origin values: LinkedIn and InfoJobs emit Spanish
+modes (`Remoto`, `Hibrido`, `Presencial`, `Teletrabajo`, ...), while Multi-site
+and the Silver layer use the canonical English values.
+
+Notes:
+
+- `title`, `company` and `description` are mandatory: their target
+  completeness is 100 % (RF-4).
+- The deduplication key of each source is `job_key` (Indeed), `job_id`
+  (LinkedIn and each Multi-site portal) or `id_oferta` (InfoJobs); see
+  `scrapers-pipeline/verification/sources.py`.
+- Salary absence in a real posting counts as **absent**, never as a scraper
+  fault (spec edge case).
+
+## 8. Extending the sources
 
 Adding a new portal means creating a Silver notebook that reuses
 `Enrich_Job_Offers_Dataframes.enrich()` and writes the common schema from §3.
