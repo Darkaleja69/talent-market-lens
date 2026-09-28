@@ -197,32 +197,32 @@ comprobación indicada antes de continuar.
 
 ## 6. Investigación, informe y CLI
 
-- [ ] **T-35 — Preparar el contexto para investigar una anomalía** (~20 min)
+- [x] **T-35 — Preparar el contexto para investigar una anomalía** (~20 min)
   - **RF:** RF-9, RF-10, RF-11.
   - **Depende de:** T-07–T-10, T-27, T-28.
   - **Hecho cuando:** para una fuente/umbral afectado se genera fuente, búsqueda, región, URL de ejemplo, campo, métrica y evidencia local.
 
-- [ ] **T-36 — Representar una investigación web no confirmada** (~20 min)
+- [x] **T-36 — Representar una investigación web no confirmada** (~20 min)
   - **RF:** RF-9, RF-10, RF-11.
   - **Depende de:** T-35.
   - **Hecho cuando:** tests muestran que una web no accesible queda como investigación inconclusa, sin cambiar el estado de ingestión ni afirmar una causa.
 
-- [ ] **T-37 — Clasificar estados globales** (~20 min)
+- [x] **T-37 — Clasificar estados globales** (~20 min)
   - **RF:** RF-13, RF-14.
   - **Depende de:** T-11, T-28, T-30.
   - **Hecho cuando:** tests verifican correcto, parcial, fallido e inconcluso, incluidos todos los fallidos y run no identificable.
 
-- [ ] **T-38 — Presentar completitud y estado por fuente en español** (~25 min)
+- [x] **T-38 — Presentar completitud y estado por fuente en español** (~25 min)
   - **RF:** RF-2, RF-4, RF-6, RF-7, RF-14, RF-15.
   - **Depende de:** T-27, T-30, T-33, T-37.
   - **Hecho cuando:** fixtures generan un informe por fuente/portal con recuentos, porcentajes, tendencia, estado y evidencia de progreso o detención.
 
-- [ ] **T-39 — Presentar investigación y recomendaciones sin mezclar hechos e hipótesis** (~20 min)
+- [x] **T-39 — Presentar investigación y recomendaciones sin mezclar hechos e hipótesis** (~20 min)
   - **RF:** RF-9, RF-10, RF-11.
   - **Depende de:** T-35, T-36, T-38.
   - **Hecho cuando:** un informe de muestra separa observaciones, causa probable, recomendación y comprobación manual.
 
-- [ ] **T-40 — Conectar la CLI al flujo de diagnóstico** (~25 min)
+- [x] **T-40 — Conectar la CLI al flujo de diagnóstico** (~25 min)
   - **RF:** RF-1, RF-11–RF-14.
   - **Depende de:** T-11, T-30, T-33, T-38, T-39.
   - **Hecho cuando:** una prueba de integración analiza el último run finalizado, emite el informe y no ejecuta scrapers ni modifica datos/configuración/publicación.
