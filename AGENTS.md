@@ -6,8 +6,9 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 ## Comandos
 - Ejecutar: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scrapers-pipeline\run_scrapers_and_upload.ps1`
 - Tests: No hay tests generales. Cada scraper tiene su propio test, y los notebooks de Databricks tienen el suyo:
-    - Tests scrapers: `python -m pytest tests -q´
-    - Test databricks: `python -m pytest databricks_notebooks/tests -q´
+    - Tests scrapers: `python -m pytest tests -q`
+    - Test databricks: `python -m pytest databricks_notebooks/tests -q`
+    - Diagnóstico (desde la raíz del repositorio): `python -m pytest scrapers-pipeline/tests -q`
 
 ## Estilo y convenciones
 - Solo biblioteca estándar (pytest únicamente para tests).
