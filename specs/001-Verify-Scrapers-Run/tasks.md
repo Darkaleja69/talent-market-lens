@@ -229,47 +229,47 @@ comprobación indicada antes de continuar.
 
 ## 7. Integración y verificación final
 
-- [ ] **T-41 — Probar integración de evidencias y calidad por fuente** (~25 min)
+- [x] **T-41 — Probar integración de evidencias y calidad por fuente** (~25 min)
   - **RF:** RF-1–RF-5, RF-13, RF-14.
   - **Depende de:** T-12, T-25–T-28, T-37.
   - **Hecho cuando:** un fixture de las nueve fuentes verifica selección del run, parseo, campos, duplicados, umbrales y estados.
 
-- [ ] **T-42 — Probar integración de Azure, delta y tendencias** (~25 min)
+- [x] **T-42 — Probar integración de Azure, delta y tendencias** (~25 min)
   - **RF:** RF-6–RF-8, RF-13.
   - **Depende de:** T-30–T-34.
   - **Hecho cuando:** una landing simulada prueba objetos válidos, pendientes, rechazados, delta vacío y cinco ejecuciones comparables sin acceso real a Azure.
 
-- [ ] **T-43 — Probar integración del bloqueo de un portal** (~25 min)
+- [x] **T-43 — Probar integración del bloqueo de un portal** (~25 min)
   - **RF:** RF-3, RF-12, RF-14, RF-15.
   - **Depende de:** T-24, T-37.
   - **Hecho cuando:** un proceso simulado con contador creciente no se detiene y uno estancado se detiene sin relanzarse ni detener los demás portales.
 
-- [ ] **T-44 — Documentar el comando de tests del diagnóstico en AGENTS.md** (~15 min)
+- [x] **T-44 — Documentar el comando de tests del diagnóstico en AGENTS.md** (~15 min)
   - **RF:** RF-1–RF-15 (verificación del alcance).
   - **Depende de:** T-40.
   - **Hecho cuando:** AGENTS.md incluye el comando reproducible de la suite nueva y su directorio de ejecución.
 
-- [ ] **T-45 — Ejecutar la suite del diagnóstico** (~20 min)
+- [x] **T-45 — Ejecutar la suite del diagnóstico** (~20 min)
   - **RF:** RF-1–RF-15.
   - **Depende de:** T-41–T-44.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` termina correctamente.
 
-- [ ] **T-46 — Ejecutar regresión de Indeed y LinkedIn** (~25 min)
+- [x] **T-46 — Ejecutar regresión de Indeed y LinkedIn** (~25 min)
   - **RF:** RF-1–RF-5, RF-12, RF-15.
   - **Depende de:** T-15, T-16, T-21, T-22, T-45.
   - **Hecho cuando:** pasan las suites de Indeed y LinkedIn tras los cambios de progreso/watchdog.
 
-- [ ] **T-47 — Ejecutar regresión de InfoJobs** (~20 min)
+- [x] **T-47 — Ejecutar regresión de InfoJobs** (~20 min)
   - **RF:** RF-1–RF-5, RF-12, RF-15.
   - **Depende de:** T-17, T-23, T-45.
   - **Hecho cuando:** pasan pytest, Ruff y mypy de InfoJobs.
 
-- [ ] **T-48 — Ejecutar regresión de Multi-site** (~25 min)
+- [x] **T-48 — Ejecutar regresión de Multi-site** (~25 min)
   - **RF:** RF-2–RF-5, RF-12, RF-15.
   - **Depende de:** T-18, T-20, T-45.
   - **Hecho cuando:** pasa la suite de Multi-site y los tests cubren los seis portales independientes.
 
-- [ ] **T-49 — Validar una investigación real cuando se active un umbral** (~25 min; condicional)
+- [x] **T-49 — Validar una investigación real cuando se active un umbral** (~25 min; condicional)
   - **RF:** RF-9–RF-11.
   - **Depende de:** T-39, T-45.
   - **Hecho cuando:** ante un caso real disponible, se contrasta una oferta/campo con su web y el informe separa evidencia, hipótesis y resultado; si no es verificable, queda declarado como tal.
