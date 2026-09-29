@@ -11,7 +11,7 @@ sesión corta y se cierra con un commit atómico cuando pasa su comprobación.
 
 ## 1. Corrección y verificación
 
-- [ ] **T-01 — No degradar la publicación pendiente a "no comprobada"** (~25 min)
+- [x] **T-01 — No degradar la publicación pendiente a "no comprobada"** (~25 min)
   - **RF:** RF-1.
   - **Hecho cuando:** un test de integración demuestra que
     `run_diagnostic(reader=...)` con un objeto remoto no visible produce
@@ -19,7 +19,7 @@ sesión corta y se cierra con un commit atómico cuando pasa su comprobación.
     "pendiente de publicar"; un fallo de conectividad sigue siendo `not_checked`.
     Se actualiza el test que hoy documenta el defecto.
 
-- [ ] **T-02 — Ejecutar la suite del diagnóstico** (~15 min)
+- [x] **T-02 — Ejecutar la suite del diagnóstico** (~15 min)
   - **RF:** RF-1.
   - **Depende de:** T-01.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` termina en
