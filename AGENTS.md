@@ -28,6 +28,7 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 
 ## Ramas y flujo de trabajo
 - Una rama por spec: `spec/<NNN>-<nombre-corto>` (p. ej. `spec/001-verify-scrapers-run`). Se crea desde `main` al iniciar la spec.
+- Antes de crear una spec, comprueba en `specs/` que su número no esté ya en uso: los números de spec no se reutilizan ni se crean duplicados (si existen 001 y 002, la siguiente es 003).
 - Todo el trabajo de una spec (código, tests y actualización de `specs/`) ocurre en su rama.
 - `main` solo recibe merges de specs terminadas; no se commitea directamente en `main`.
 - Se hace `git push` de la rama a `origin` con frecuencia para respaldar y dejar historial visible.
