@@ -143,133 +143,133 @@ comprobación indicada antes de continuar.
 
 ## 4. Contrato, completitud y estado de fuentes
 
-- [ ] **T-25 — Validar legibilidad y estructura de los Parquet obtenidos** (~20 min)
+- [x] **T-25 — Validar legibilidad y estructura de los Parquet obtenidos** (~20 min)
   - **RF:** RF-3, RF-5.
   - **Depende de:** T-04.
   - **Hecho cuando:** fixtures cubren Parquet legible, corrupto y sin columnas obligatorias; los dos últimos se clasifican como incumplimiento estructural.
 
-- [ ] **T-26 — Deduplicar por clave de fuente** (~20 min)
+- [x] **T-26 — Deduplicar por clave de fuente** (~20 min)
   - **RF:** RF-4, RF-5.
   - **Depende de:** T-02, T-03.
   - **Hecho cuando:** tests demuestran que `job_key`, `job_id` e `id_oferta` producen el total de ofertas únicas esperado por fuente.
 
-- [ ] **T-27 — Calcular validez y completitud por campo** (~25 min)
+- [x] **T-27 — Calcular validez y completitud por campo** (~25 min)
   - **RF:** RF-4, RF-5.
   - **Depende de:** T-05, T-25, T-26.
   - **Hecho cuando:** un fixture produce numerador, denominador, porcentaje y conteos de válidos/ausentes/inválidos para todos los campos mínimos.
 
-- [ ] **T-28 — Aplicar umbrales y estados por fuente** (~20 min)
+- [x] **T-28 — Aplicar umbrales y estados por fuente** (~20 min)
   - **RF:** RF-3, RF-10, RF-14.
   - **Depende de:** T-27.
   - **Hecho cuando:** tests verifican obligatorio 89.9/90/99/100 %, opcional 60/60.1 %, cero ofertas y falta de evidencia según los estados especificados.
 
 ## 5. Publicación y tendencias
 
-- [ ] **T-29 — Crear adaptador de lectura remota para Azure** (~25 min)
+- [x] **T-29 — Crear adaptador de lectura remota para Azure** (~25 min)
   - **RF:** RF-6, RF-8, RF-13.
   - **Depende de:** T-06.
   - **Hecho cuando:** el adaptador permite listar y descargar a temporales mediante el AzCopy existente, y elimina temporales al cerrar la operación.
 
-- [ ] **T-30 — Verificar manifests y objetos publicados** (~25 min)
+- [x] **T-30 — Verificar manifests y objetos publicados** (~25 min)
   - **RF:** RF-6, RF-8.
   - **Depende de:** T-29.
   - **Hecho cuando:** tests con Azure simulado detectan objeto ausente, legibilidad, discrepancia de filas/checksum y manifest rechazado.
 
-- [ ] **T-31 — Distinguir snapshot, delta y publicación pendiente** (~25 min)
+- [x] **T-31 — Distinguir snapshot, delta y publicación pendiente** (~25 min)
   - **RF:** RF-3, RF-6, RF-8.
   - **Depende de:** T-27, T-30.
   - **Hecho cuando:** un snapshot no vacío con delta `OnlyNewOffers` vacío no se clasifica como cero ofertas capturadas y los objetos aún no visibles se informan como pendientes.
 
-- [ ] **T-32 — Añadir huella de fuentes y búsquedas al manifest existente** (~25 min)
+- [x] **T-32 — Añadir huella de fuentes y búsquedas al manifest existente** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-01, T-06.
   - **Hecho cuando:** tests comprueban que la huella cambia al cambiar fuentes/búsquedas y no contiene credenciales.
 
-- [ ] **T-33 — Calcular tendencia de hasta cinco ejecuciones comparables** (~25 min)
+- [x] **T-33 — Calcular tendencia de hasta cinco ejecuciones comparables** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-29, T-32.
   - **Hecho cuando:** fixtures de Azure producen tendencia por fuente/campo usando solo huellas coincidentes y señalan cuántas ejecuciones se compararon.
 
-- [ ] **T-34 — Cubrir histórico insuficiente y cambios de configuración** (~20 min)
+- [x] **T-34 — Cubrir histórico insuficiente y cambios de configuración** (~20 min)
   - **RF:** RF-7, RF-13.
   - **Depende de:** T-33.
   - **Hecho cuando:** tests con cero a cuatro ejecuciones y manifests sin huella no se presentan como series comparables falsas.
 
 ## 6. Investigación, informe y CLI
 
-- [ ] **T-35 — Preparar el contexto para investigar una anomalía** (~20 min)
+- [x] **T-35 — Preparar el contexto para investigar una anomalía** (~20 min)
   - **RF:** RF-9, RF-10, RF-11.
   - **Depende de:** T-07–T-10, T-27, T-28.
   - **Hecho cuando:** para una fuente/umbral afectado se genera fuente, búsqueda, región, URL de ejemplo, campo, métrica y evidencia local.
 
-- [ ] **T-36 — Representar una investigación web no confirmada** (~20 min)
+- [x] **T-36 — Representar una investigación web no confirmada** (~20 min)
   - **RF:** RF-9, RF-10, RF-11.
   - **Depende de:** T-35.
   - **Hecho cuando:** tests muestran que una web no accesible queda como investigación inconclusa, sin cambiar el estado de ingestión ni afirmar una causa.
 
-- [ ] **T-37 — Clasificar estados globales** (~20 min)
+- [x] **T-37 — Clasificar estados globales** (~20 min)
   - **RF:** RF-13, RF-14.
   - **Depende de:** T-11, T-28, T-30.
   - **Hecho cuando:** tests verifican correcto, parcial, fallido e inconcluso, incluidos todos los fallidos y run no identificable.
 
-- [ ] **T-38 — Presentar completitud y estado por fuente en español** (~25 min)
+- [x] **T-38 — Presentar completitud y estado por fuente en español** (~25 min)
   - **RF:** RF-2, RF-4, RF-6, RF-7, RF-14, RF-15.
   - **Depende de:** T-27, T-30, T-33, T-37.
   - **Hecho cuando:** fixtures generan un informe por fuente/portal con recuentos, porcentajes, tendencia, estado y evidencia de progreso o detención.
 
-- [ ] **T-39 — Presentar investigación y recomendaciones sin mezclar hechos e hipótesis** (~20 min)
+- [x] **T-39 — Presentar investigación y recomendaciones sin mezclar hechos e hipótesis** (~20 min)
   - **RF:** RF-9, RF-10, RF-11.
   - **Depende de:** T-35, T-36, T-38.
   - **Hecho cuando:** un informe de muestra separa observaciones, causa probable, recomendación y comprobación manual.
 
-- [ ] **T-40 — Conectar la CLI al flujo de diagnóstico** (~25 min)
+- [x] **T-40 — Conectar la CLI al flujo de diagnóstico** (~25 min)
   - **RF:** RF-1, RF-11–RF-14.
   - **Depende de:** T-11, T-30, T-33, T-38, T-39.
   - **Hecho cuando:** una prueba de integración analiza el último run finalizado, emite el informe y no ejecuta scrapers ni modifica datos/configuración/publicación.
 
 ## 7. Integración y verificación final
 
-- [ ] **T-41 — Probar integración de evidencias y calidad por fuente** (~25 min)
+- [x] **T-41 — Probar integración de evidencias y calidad por fuente** (~25 min)
   - **RF:** RF-1–RF-5, RF-13, RF-14.
   - **Depende de:** T-12, T-25–T-28, T-37.
   - **Hecho cuando:** un fixture de las nueve fuentes verifica selección del run, parseo, campos, duplicados, umbrales y estados.
 
-- [ ] **T-42 — Probar integración de Azure, delta y tendencias** (~25 min)
+- [x] **T-42 — Probar integración de Azure, delta y tendencias** (~25 min)
   - **RF:** RF-6–RF-8, RF-13.
   - **Depende de:** T-30–T-34.
   - **Hecho cuando:** una landing simulada prueba objetos válidos, pendientes, rechazados, delta vacío y cinco ejecuciones comparables sin acceso real a Azure.
 
-- [ ] **T-43 — Probar integración del bloqueo de un portal** (~25 min)
+- [x] **T-43 — Probar integración del bloqueo de un portal** (~25 min)
   - **RF:** RF-3, RF-12, RF-14, RF-15.
   - **Depende de:** T-24, T-37.
   - **Hecho cuando:** un proceso simulado con contador creciente no se detiene y uno estancado se detiene sin relanzarse ni detener los demás portales.
 
-- [ ] **T-44 — Documentar el comando de tests del diagnóstico en AGENTS.md** (~15 min)
+- [x] **T-44 — Documentar el comando de tests del diagnóstico en AGENTS.md** (~15 min)
   - **RF:** RF-1–RF-15 (verificación del alcance).
   - **Depende de:** T-40.
   - **Hecho cuando:** AGENTS.md incluye el comando reproducible de la suite nueva y su directorio de ejecución.
 
-- [ ] **T-45 — Ejecutar la suite del diagnóstico** (~20 min)
+- [x] **T-45 — Ejecutar la suite del diagnóstico** (~20 min)
   - **RF:** RF-1–RF-15.
   - **Depende de:** T-41–T-44.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` termina correctamente.
 
-- [ ] **T-46 — Ejecutar regresión de Indeed y LinkedIn** (~25 min)
+- [x] **T-46 — Ejecutar regresión de Indeed y LinkedIn** (~25 min)
   - **RF:** RF-1–RF-5, RF-12, RF-15.
   - **Depende de:** T-15, T-16, T-21, T-22, T-45.
   - **Hecho cuando:** pasan las suites de Indeed y LinkedIn tras los cambios de progreso/watchdog.
 
-- [ ] **T-47 — Ejecutar regresión de InfoJobs** (~20 min)
+- [x] **T-47 — Ejecutar regresión de InfoJobs** (~20 min)
   - **RF:** RF-1–RF-5, RF-12, RF-15.
   - **Depende de:** T-17, T-23, T-45.
   - **Hecho cuando:** pasan pytest, Ruff y mypy de InfoJobs.
 
-- [ ] **T-48 — Ejecutar regresión de Multi-site** (~25 min)
+- [x] **T-48 — Ejecutar regresión de Multi-site** (~25 min)
   - **RF:** RF-2–RF-5, RF-12, RF-15.
   - **Depende de:** T-18, T-20, T-45.
   - **Hecho cuando:** pasa la suite de Multi-site y los tests cubren los seis portales independientes.
 
-- [ ] **T-49 — Validar una investigación real cuando se active un umbral** (~25 min; condicional)
+- [x] **T-49 — Validar una investigación real cuando se active un umbral** (~25 min; condicional)
   - **RF:** RF-9–RF-11.
   - **Depende de:** T-39, T-45.
   - **Hecho cuando:** ante un caso real disponible, se contrasta una oferta/campo con su web y el informe separa evidencia, hipótesis y resultado; si no es verificable, queda declarado como tal.

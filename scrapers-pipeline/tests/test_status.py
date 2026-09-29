@@ -175,6 +175,43 @@ def test_structural_failure_without_detail_has_a_plain_reason():
     assert result.failures == ("structural failure",)
 
 
+def test_structural_failure_wins_over_missing_completeness():
+    # A corrupt Parquet yields no completeness; the structural reason must not
+    # be hidden behind a generic "missing evidence" (RF-3, RF-11).
+    result = status.classify_source(
+        "indeed",
+        None,
+        structural_failure=True,
+        structural_error="corrupt parquet",
+    )
+
+    assert result.state == status.SOURCE_FAILED
+    assert result.failures == ("structural failure: corrupt parquet",)
+
+
+def test_structural_failure_wins_over_unavailable_evidence():
+    # Documented precedence: the structural failure is the most specific,
+    # actionable finding, so it is reported even with evidence_available=False.
+    result = status.classify_source(
+        "indeed",
+        None,
+        evidence_available=False,
+        structural_failure=True,
+        structural_error="corrupt parquet",
+    )
+
+    assert result.state == status.SOURCE_FAILED
+    assert result.failures == ("structural failure: corrupt parquet",)
+
+
+def test_missing_completeness_without_structural_is_missing_evidence():
+    # The reorder must not change the plain missing-completeness case.
+    result = status.classify_source("indeed", None, structural_failure=False)
+
+    assert result.state == status.SOURCE_FAILED
+    assert result.failures == ("missing evidence",)
+
+
 # --- Contract-driven required flags and scope --------------------------------
 
 
@@ -306,3 +343,205 @@ def test_source_status_is_frozen():
     )
     with pytest.raises(Exception):
         result.state = status.SOURCE_FAILED  # type: ignore[misc]
+
+
+# --- Global outcome (T-37; RF-13, RF-14) -------------------------------------
+
+
+def _correct(source_id: str = "indeed") -> status.SourceStatus:
+    """A source that passes every threshold."""
+    return status.classify_source(
+        source_id,
+        _source({"title": _field("title", True, 1000)}, source=source_id),
+    )
+
+
+def _failed(source_id: str = "indeed") -> status.SourceStatus:
+    """A source that fails for lack of evidence."""
+    return status.classify_source(source_id, None)
+
+
+def test_global_constants_match_the_spec():
+    assert status.GLOBAL_CORRECT == "correct"
+    assert status.GLOBAL_PARTIAL == "partial"
+    assert status.GLOBAL_FAILED == "failed"
+    assert status.GLOBAL_INCONCLUSIVE == "inconclusive"
+
+
+def test_all_correct_sources_yield_correct():
+    mapping = {
+        "indeed": _correct("indeed"),
+        "linkedin": _correct("linkedin"),
+        "infojobs": _correct("infojobs"),
+    }
+
+    result = status.classify_global(mapping)
+
+    assert result.state == status.GLOBAL_CORRECT
+    assert result.correct == ("indeed", "linkedin", "infojobs")
+    assert result.failed == ()
+    assert result.inconclusive_reason is None
+    assert result.source_count == 3
+
+
+def test_all_failed_sources_yield_failed():
+    mapping = {
+        "indeed": _failed("indeed"),
+        "linkedin": _failed("linkedin"),
+        "infojobs": _failed("infojobs"),
+    }
+
+    result = status.classify_global(mapping)
+
+    assert result.state == status.GLOBAL_FAILED
+    assert result.correct == ()
+    assert result.failed == ("indeed", "linkedin", "infojobs")
+    assert result.source_count == 3
+
+
+def test_all_failed_includes_zero_offers_and_missing_evidence():
+    zero_offers = status.classify_source(
+        "glassdoor",
+        _source(
+            {"title": _field("title", True, 0, total=0)},
+            source="glassdoor",
+            total_offers=0,
+        ),
+    )
+    assert zero_offers.state == status.SOURCE_FAILED
+    mapping = {
+        "indeed": _failed("indeed"),
+        "glassdoor": zero_offers,
+    }
+
+    result = status.classify_global(mapping)
+
+    assert result.state == status.GLOBAL_FAILED
+    assert result.failed == ("indeed", "glassdoor")
+
+
+def test_mixed_sources_yield_partial_preserving_order():
+    mapping = {
+        "indeed": _correct("indeed"),
+        "linkedin": _failed("linkedin"),
+        "infojobs": _correct("infojobs"),
+        "glassdoor": _failed("glassdoor"),
+    }
+
+    result = status.classify_global(mapping)
+
+    assert result.state == status.GLOBAL_PARTIAL
+    assert result.correct == ("indeed", "infojobs")
+    assert result.failed == ("linkedin", "glassdoor")
+    assert result.inconclusive_reason is None
+    assert result.source_count == 4
+
+
+def test_single_correct_source_yields_correct():
+    result = status.classify_global({"indeed": _correct("indeed")})
+
+    assert result.state == status.GLOBAL_CORRECT
+    assert result.correct == ("indeed",)
+    assert result.failed == ()
+    assert result.source_count == 1
+
+
+def test_single_failed_source_yields_failed():
+    result = status.classify_global({"indeed": _failed("indeed")})
+
+    assert result.state == status.GLOBAL_FAILED
+    assert result.correct == ()
+    assert result.failed == ("indeed",)
+    assert result.source_count == 1
+
+
+def test_non_standard_source_state_is_treated_as_failed():
+    # Defensive: this module only produces correct/failed, but anything else
+    # must never be read as correct.
+    unexpected = status.SourceStatus(
+        source="linkedin",
+        state="partial",
+        failures=(),
+        incidents=(),
+        investigation_fields=(),
+    )
+    mapping = {"indeed": _correct("indeed"), "linkedin": unexpected}
+
+    result = status.classify_global(mapping)
+
+    assert result.state == status.GLOBAL_PARTIAL
+    assert result.correct == ("indeed",)
+    assert result.failed == ("linkedin",)
+
+
+def test_unanalyzable_run_is_inconclusive_with_the_given_reason():
+    mapping = {
+        "indeed": _correct("indeed"),
+        "linkedin": _correct("linkedin"),
+    }
+
+    result = status.classify_global(
+        mapping,
+        analyzable=False,
+        inconclusive_reason="latest pipeline run has not finished yet",
+    )
+
+    assert result.state == status.GLOBAL_INCONCLUSIVE
+    assert result.correct == ()
+    assert result.failed == ()
+    assert result.inconclusive_reason == "latest pipeline run has not finished yet"
+    assert result.source_count == 0
+
+
+def test_unanalyzable_run_without_reason_uses_a_spanish_default():
+    result = status.classify_global({}, analyzable=False)
+
+    assert result.state == status.GLOBAL_INCONCLUSIVE
+    assert result.inconclusive_reason == "no se pudo analizar la ejecución"
+    assert result.correct == ()
+    assert result.failed == ()
+    assert result.source_count == 0
+
+
+def test_unidentifiable_run_without_sources_is_inconclusive():
+    result = status.classify_global({}, analyzable=False)
+
+    assert status.is_inconclusive(result) is True
+    assert result.state == status.GLOBAL_INCONCLUSIVE
+    assert result.source_count == 0
+
+
+def test_analyzable_run_without_sources_is_inconclusive():
+    result = status.classify_global({}, analyzable=True)
+
+    assert result.state == status.GLOBAL_INCONCLUSIVE
+    assert result.inconclusive_reason == "no hay fuentes para clasificar la ejecución"
+    assert result.correct == ()
+    assert result.failed == ()
+    assert result.source_count == 0
+
+
+def test_is_inconclusive_only_true_for_inconclusive():
+    correct = status.classify_global({"indeed": _correct("indeed")})
+    partial = status.classify_global(
+        {"indeed": _correct("indeed"), "linkedin": _failed("linkedin")}
+    )
+    failed = status.classify_global({"indeed": _failed("indeed")})
+    inconclusive = status.classify_global({}, analyzable=False)
+
+    assert status.is_inconclusive(correct) is False
+    assert status.is_inconclusive(partial) is False
+    assert status.is_inconclusive(failed) is False
+    assert status.is_inconclusive(inconclusive) is True
+
+
+def test_global_status_is_frozen():
+    result = status.GlobalStatus(
+        state=status.GLOBAL_CORRECT,
+        correct=("indeed",),
+        failed=(),
+        inconclusive_reason=None,
+        source_count=1,
+    )
+    with pytest.raises(Exception):
+        result.state = status.GLOBAL_FAILED  # type: ignore[misc]

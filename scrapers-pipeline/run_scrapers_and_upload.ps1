@@ -369,6 +369,8 @@ function Invoke-ScraperUpload {
         if ($Scraper.ContainsKey("CoherenceSite") -and $Scraper.CoherenceSite) {
             $pyArgs += @("--coherence", $Scraper.CoherenceSite)
         }
+        # Huella de fuentes/busquedas efectivas en el manifest (RF-7).
+        $pyArgs += @("--fingerprint-source", $name)
         $pyOut = & python @pyArgs 2>&1
         foreach ($line in $pyOut) { Write-Log "[$name] compat: $line" }
         if ($LASTEXITCODE -ne 0) { $validatorOk = $false }
