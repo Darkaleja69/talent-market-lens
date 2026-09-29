@@ -13,14 +13,10 @@ plan, section 6.3) and the local run fixture is written under ``tmp_path``.
 
 One scenario is shared by several tests (a fake landing with a valid Indeed
 object, a rejected Multi-site manifest, an empty LinkedIn delta and a pending
-InfoJobs manifest) plus the five comparable Indeed runs. Reported to the
-orchestrator (to be fixed in another spec, not here): through ``run_diagnostic``
-an object that is not listed yet is currently degraded from ``pending`` to
-``not_checked`` because the published delta is loaded after the manifest check
-raises ``RemoteError``. The pending rule is proven at the manifest/publication
-boundary and the reachable ``run_diagnostic`` outcome is asserted as the safety
-property (never failed, never a false zero), never asserted as the correct
-pending state.
+InfoJobs manifest) plus the five comparable Indeed runs. An object that is not
+listed yet is reported as ``pending`` in the whole ``run_diagnostic`` path: the
+manifest state is resolved before the published delta, so an absent object is
+never degraded to ``not_checked`` and is never failed or counted as zero.
 """
 from __future__ import annotations
 
@@ -532,14 +528,12 @@ def test_pending_manifest_is_reported_as_pending_not_an_error(diagnostic):
     assert publication.is_zero_offers_captured(infojobs.publication_state) is False
 
 
-def test_missing_published_object_does_not_fail_the_source_or_claim_zero(tmp_path):
+def test_missing_published_object_is_pending_not_failed_or_zero(tmp_path):
     # An Indeed manifest references an object that is not listed yet. Through
-    # ``run_diagnostic`` the manifest check would be ``pending``, but today the
-    # wiring loads the published delta afterwards and a ``RemoteError``
-    # downgrades it to ``not_checked`` (reported; to be fixed in another spec,
-    # not asserted as the correct state here). Whatever the wiring does, the
-    # RF-8/RF-13 safety property must hold: the source is not failed and no
-    # false zero is declared because a remote object is absent.
+    # ``run_diagnostic`` the manifest check is ``pending`` and the publication
+    # must stay ``PUBLICATION_PENDING``: the absent object is never degraded to
+    # ``not_checked``, the source is not failed and no false zero is declared
+    # (RF-8, RF-13).
     key = "_manifests/indeed/20260926T010000.json"
     reader = FakeReader(
         {
@@ -553,9 +547,17 @@ def test_missing_published_object_does_not_fail_the_source_or_claim_zero(tmp_pat
     diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
     indeed = _source_report(diagnostic, "indeed")
 
+    assert indeed.publication_state == publication.PUBLICATION_PENDING
     assert indeed.state == status.SOURCE_CORRECT
-    assert indeed.publication_state != publication.PUBLICATION_OK
     assert publication.is_zero_offers_captured(indeed.publication_state) is False
+    indeed_block = next(
+        block
+        for block in report.render_report(diagnostic).split(
+            "----------------------------------------"
+        )
+        if block.strip().startswith("Indeed (")
+    )
+    assert "Publicación: pendiente de publicar" in indeed_block
 
 
 def test_unlisted_remote_object_is_pending_in_the_manifest_check(tmp_path):

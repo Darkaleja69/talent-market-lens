@@ -314,6 +314,23 @@ def _publication_for(
         )
     try:
         check = landing.verify_manifest(manifest, reader)
+    except landing.RemoteError:
+        return publication.build_source_publication(
+            source=source_id, obtained=measured, published=None, not_checked=True
+        )
+    # Only ``STATE_PENDING`` is short-circuited: the object does not exist yet,
+    # so measuring the published delta would download an absent object, raise
+    # ``RemoteError`` and degrade the known pending state to "not checked"
+    # (RF-8). Every other state (ok, rejected, mismatch, unverified) keeps
+    # measuring the delta as before.
+    if check.state == landing.STATE_PENDING:
+        return publication.build_source_publication(
+            source=source_id,
+            obtained=measured,
+            published=None,
+            manifest_state=landing.STATE_PENDING,
+        )
+    try:
         published = trends.load_published_completeness(manifest, reader, source_id)
     except landing.RemoteError:
         return publication.build_source_publication(
