@@ -332,13 +332,17 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     preparó datos, la publicación se informa como "sin datos que publicar" (no
     como pendiente) y no hay ancla de tendencia; tests cubren ambos casos.
 
-- [ ] **T-56 — Alinear la clave publicada con el manifest** (~20 min; requiere decisión del responsable)
+- [x] **T-56 — Alinear la clave publicada con el manifest** (~20 min)
   - **RF:** RF-6, RF-8.
   - **Hecho cuando:** la subida de `run_scrapers_and_upload.ps1` no añade la
     carpeta de staging (`azcopy copy ... --as-subdir=false`), la clave real
     queda `dia=YYYY-MM-DD/<fichero>` como declara `remote`, y una comprobación
     local con AzCopy demuestra que no se crea subcarpeta.
     `recover_and_upload.ps1` sube ficheros sueltos y no cambia.
+  - **Evidencia (2026-09-30):** AzCopy 10.32.4 real resuelve clave plana
+    `dia=.../<fichero>` con `--as-subdir=false` (y anidada con el modo por
+    defecto); confirmación end-to-end pendiente en la próxima subida real del
+    pipeline.
 
 - [x] **T-57 — Resolver la clave publicada real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8.
