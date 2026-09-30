@@ -304,7 +304,7 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
 
 - [ ] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8, RF-13.
-  - **Depende de:** T-55, T-57, T-58, T-59, T-60.
+  - **Depende de:** T-55, T-57, T-58, T-59, T-60, T-61.
   - **Hecho cuando:** `python -m verification.verify_run` sobre el último run
     finalizado carga el manifest publicado por el run, clasifica la publicación
     de cada fuente (sin degradarla a "no comprobada" ni a "pendiente" por
@@ -352,7 +352,7 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
 
 ## 9. Resultado legible por máquina (RF-16)
 
-- [ ] **T-59 — Serializar el informe a un diccionario legible por máquina** (~25 min)
+- [x] **T-59 — Serializar el informe a un diccionario legible por máquina** (~25 min)
   - **RF:** RF-16.
   - **Hecho cuando:** `report.py` expone una función pura que convierte
     `DiagnosticReport` en un diccionario con `schema_version`, `generated_at`,
@@ -362,7 +362,7 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     en inglés, sin credenciales; tests de estructura y de estados
     (correcto/parcial/fallido/inconcluso y `not_applicable`).
 
-- [ ] **T-60 — Escribir el fichero de resultado desde la CLI** (~25 min)
+- [x] **T-60 — Escribir el fichero de resultado desde la CLI** (~25 min)
   - **RF:** RF-16.
   - **Depende de:** T-59.
   - **Hecho cuando:** `python -m verification.verify_run` escribe por defecto
@@ -371,3 +371,14 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     `--output` para elegir ruta; el informe en pantalla no cambia y se anuncia
     la ruta; tests con `tmp_path` cubren escritura, sobrescritura, inconcluso y
     `--output`.
+
+- [ ] **T-61 — Medir solo las ejecuciones comparables de la tendencia** (~25 min)
+  - **RF:** RF-7.
+  - **Depende de:** T-57, T-58.
+  - **Hecho cuando:** la tendencia no descarga los objetos publicados de todo
+    el histórico: primero selecciona las ejecuciones por huella y solo mide la
+    actual y hasta cinco comparables; la ejecución real del diagnóstico sobre
+    la landing termina en un tiempo razonable; tests demuestran que los
+    manifiestos no seleccionados no disparan descargas de objetos publicados.
+    (Defecto real: la comprobación del run 2026-09-30 se quedó colgada más de
+    15 minutos midiendo 18–25 manifests por scraper.)
