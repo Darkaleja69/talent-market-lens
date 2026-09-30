@@ -7,7 +7,9 @@ existing tests of those modules.
 """
 from __future__ import annotations
 
+import json
 import re
+from datetime import datetime
 
 import pytest
 
@@ -931,3 +933,195 @@ def test_build_report_defaults_investigations_to_empty_tuple():
     )
 
     assert diagnostic.investigations == ()
+
+
+# --------------------------------------------------------------------------
+# 12. Machine-readable result (T-59; RF-16)
+# --------------------------------------------------------------------------
+
+
+def _machine_diagnostic() -> report.DiagnosticReport:
+    """Build a fully-populated diagnostic for the machine-result tests."""
+    indeed_obtained = _measured("indeed", 3)
+    indeed_published = _measured("indeed", 2)
+    indeed_publication = _publication(
+        "indeed", obtained=indeed_obtained, published=indeed_published
+    )
+    indeed_run = run_evidence.RunEvidence(
+        source="indeed",
+        outcome=run_evidence.OUTCOME_OK,
+        offers_current_run=3,
+        offers_snapshot=10,
+        snapshot_stale=False,
+        attempt=1,
+        attempts=2,
+        error=None,
+        detail="total=3",
+    )
+    glassdoor_publication = publication.build_source_publication(
+        source="glassdoor",
+        obtained=None,
+        published=None,
+        not_applicable=True,
+    )
+    mapped = {
+        "indeed": _correct_status("indeed"),
+        "glassdoor": _failed_status("glassdoor"),
+    }
+    return report.build_report(
+        sources=[
+            report.build_source_report(
+                "indeed",
+                status=mapped["indeed"],
+                run=indeed_run,
+                publication=indeed_publication,
+                evidence=("estado del pipeline: ok",),
+            ),
+            report.build_source_report(
+                "glassdoor",
+                status=mapped["glassdoor"],
+                publication=glassdoor_publication,
+            ),
+        ],
+        global_status=status.classify_global(mapped),
+        trend_note="1 ejecución anterior sin huella no se considera comparable",
+        runs_used=5,
+        investigations=(
+            investigation.record_web_check(
+                _investigation_context("indeed"), accessible=True
+            ),
+        ),
+        run=report.RunReport(
+            date="2026-09-26",
+            started_at="2026-09-26T00:00:05",
+            finished_at="2026-09-26T07:05:39",
+            log_path="scrapers-pipeline/logs/upload-2026-09-26.log",
+        ),
+    )
+
+
+def test_diagnostic_to_dict_has_the_machine_structure():
+    payload = report.diagnostic_to_dict(
+        _machine_diagnostic(), generated_at=datetime(2026, 9, 30, 12, 0, 0)
+    )
+
+    assert payload["schema_version"] == 1
+    assert payload["generated_at"] == "2026-09-30T12:00:00"
+    assert payload["run"] == {
+        "date": "2026-09-26",
+        "started_at": "2026-09-26T00:00:05",
+        "finished_at": "2026-09-26T07:05:39",
+        "log_path": "scrapers-pipeline/logs/upload-2026-09-26.log",
+    }
+    assert payload["global_status"] == {"status": "partial", "reason": None}
+    assert payload["trend"] == {
+        "runs_used": 5,
+        "note": "1 ejecución anterior sin huella no se considera comparable",
+    }
+
+    indeed, glassdoor = payload["sources"]
+    assert indeed["id"] == "indeed"
+    assert indeed["kind"] == "direct"
+    assert indeed["status"] == "ok"
+    assert indeed["outcome"] == run_evidence.OUTCOME_OK
+    assert indeed["offers_current_run"] == 3
+    assert indeed["offers_snapshot"] == 10
+    assert indeed["publication"]["state"] == publication.PUBLICATION_OK
+    assert indeed["publication"]["obtained_offers"] == 3
+    assert indeed["publication"]["delta_offers"] == 2
+    assert indeed["failures"] == []
+    assert indeed["evidence"]
+
+    fields = {item["field"]: item for item in indeed["completeness"]}
+    assert fields["title"]["valid"] == 3
+    assert fields["title"]["total"] == 3
+    assert fields["title"]["pct"] == 100.0
+    assert fields["title"]["required"] is True
+
+    assert glassdoor["id"] == "glassdoor"
+    assert glassdoor["kind"] == "multi_site"
+    assert glassdoor["status"] == "failed"
+    assert glassdoor["outcome"] is None
+    assert (
+        glassdoor["publication"]["state"]
+        == publication.PUBLICATION_NOT_APPLICABLE
+    )
+    assert glassdoor["failures"] == [
+        "sin evidencia suficiente para confirmar la fuente"
+    ]
+
+    (web_check,) = payload["investigations"]
+    assert web_check == {
+        "source": "indeed",
+        "trigger": investigation.TRIGGER_REQUIRED_FIELD,
+        "field": "company",
+        "state": investigation.INVESTIGATION_CONFIRMED,
+    }
+
+
+def test_diagnostic_to_dict_maps_every_global_state():
+    correct = {"indeed": _correct_status("indeed")}
+    payload = report.diagnostic_to_dict(
+        report.build_report(
+            sources=[
+                report.build_source_report("indeed", status=correct["indeed"])
+            ],
+            global_status=status.classify_global(correct),
+        )
+    )
+    assert payload["global_status"]["status"] == "ok"
+    assert payload["global_status"]["reason"] is None
+    assert payload["sources"][0]["status"] == "ok"
+
+    failed = {"indeed": _failed_status("indeed")}
+    payload = report.diagnostic_to_dict(
+        report.build_report(
+            sources=[
+                report.build_source_report("indeed", status=failed["indeed"])
+            ],
+            global_status=status.classify_global(failed),
+        )
+    )
+    assert payload["global_status"]["status"] == "failed"
+    assert payload["sources"][0]["status"] == "failed"
+
+    inconclusive = report.build_report(
+        sources=(),
+        global_status=status.classify_global(
+            {}, analyzable=False, inconclusive_reason="la ejecución no ha terminado"
+        ),
+    )
+    payload = report.diagnostic_to_dict(inconclusive)
+    assert payload["global_status"] == {
+        "status": "inconclusive",
+        "reason": "la ejecución no ha terminado",
+    }
+    assert payload["sources"] == []
+
+
+def test_diagnostic_to_dict_run_is_null_without_run_metadata():
+    # A report without run metadata (e.g. an inconclusive diagnosis) still
+    # carries the key, with null (T-59).
+    diagnostic = report.build_report(
+        sources=(),
+        global_status=status.classify_global(
+            {}, analyzable=False, inconclusive_reason="no hay ejecución"
+        ),
+    )
+
+    payload = report.diagnostic_to_dict(diagnostic)
+
+    assert "run" in payload
+    assert payload["run"] is None
+
+
+def test_diagnostic_to_dict_is_json_serializable_without_credentials():
+    payload = report.diagnostic_to_dict(_machine_diagnostic())
+
+    text = json.dumps(payload, ensure_ascii=False)
+
+    assert json.loads(text) == payload
+    assert "sig=" not in text
+    assert "SAS" not in text
+    # Default generated_at is a local ISO timestamp.
+    datetime.fromisoformat(payload["generated_at"])
