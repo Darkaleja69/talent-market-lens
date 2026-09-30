@@ -273,3 +273,53 @@ comprobación indicada antes de continuar.
   - **RF:** RF-9–RF-11.
   - **Depende de:** T-39, T-45.
   - **Hecho cuando:** ante un caso real disponible, se contrasta una oferta/campo con su web y el informe separa evidencia, hipótesis y resultado; si no es verificable, queda declarado como tal.
+
+## 8. Comprobación remota real (reapertura)
+
+La ejecución del diagnóstico contra la landing real del run 2026-09-29 reveló
+que la comprobación remota no funciona: AzCopy 10.32.4 lista nombres cortos (no
+claves del contenedor) y los manifests escritos por PowerShell 5.1 llevan BOM
+UTF-8. Los tests no lo detectaron porque sus dobles devuelven claves completas
+y JSON sin BOM. Se corrige dentro de esta misma spec.
+
+- [ ] **T-50 — Usar claves completas al listar objetos remotos** (~25 min)
+  - **RF:** RF-6, RF-7, RF-8.
+  - **Hecho cuando:** `AzCopyReader.list_objects` prefija los nombres cortos que
+    devuelve AzCopy 10.32.4 con el prefijo pedido; `list_manifest_keys`,
+    `verify_run._latest_manifest` y `trends.select_history` descargan con la
+    clave relativa al contenedor; tests reproducen la salida real y los que
+    asumían nombres cortos quedan actualizados.
+
+- [ ] **T-51 — Leer manifests tolerando el BOM UTF-8** (~20 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-50.
+  - **Hecho cuando:** `landing.load_manifest` parsea manifests con y sin BOM
+    (`utf-8-sig`) y sigue devolviendo `None` con JSON inválido.
+
+- [ ] **T-52 — Escribir los manifests sin BOM en los wrappers PS** (~20 min)
+  - **RF:** RF-8.
+  - **Hecho cuando:** `run_scrapers_and_upload.ps1` y `recover_and_upload.ps1`
+    escriben los manifests con UTF-8 sin BOM (PS 5.1) y el lector sigue
+    tolerando los manifests históricos con BOM.
+
+- [ ] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
+  - **RF:** RF-6, RF-7, RF-8, RF-13.
+  - **Depende de:** T-50, T-51, T-52.
+  - **Hecho cuando:** `python -m verification.verify_run` sobre el run
+    2026-09-29 carga los manifests, clasifica la publicación de cada fuente
+    (sin degradarla a "no comprobada" por errores de lectura) y calcula la
+    tendencia con las ejecuciones comparables disponibles; el resultado queda
+    registrado como evidencia.
+
+- [ ] **T-54 — Ejecutar la suite del diagnóstico** (~15 min)
+  - **RF:** RF-1–RF-15.
+  - **Depende de:** T-53.
+  - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa.
+
+- [ ] **T-55 — Acotar el manifest analizado al run (condicional)** (~25 min)
+  - **RF:** RF-1, RF-6, RF-8.
+  - **Depende de:** T-53.
+  - **Hecho cuando:** solo se activa si T-53 verifica un manifest de otra
+    ejecución como si fuera del run; en ese caso `_latest_manifest` y el ancla
+    de tendencia se acotan a la ventana del run con tests del caso. Si T-53 no
+    lo reproduce, se cierra como no necesaria anotando el motivo.

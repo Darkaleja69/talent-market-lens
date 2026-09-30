@@ -146,6 +146,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - La funcionalidad cuenta con tests unitarios y de integraci처n sobre datos de ejemplo.
 - Un scraper con progreso no es detenido; uno sin progreso durante su periodo establecido es detenido y registrado como fallido.
 - El diagn처stico no inicia ejecuciones ni modifica datos, configuraci처n o c처digo.
+- El diagn처stico, ejecutado contra la landing real de Azure (AzCopy 10.32.4) sobre manifests escritos por PowerShell 5.1, carga los manifests, clasifica la publicaci처n de cada fuente y calcula la tendencia con las ejecuciones comparables.
 
 ## Decisiones aclaradas
 
@@ -162,3 +163,13 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Verificaci처n mediante tests unitarios y de integraci처n sobre datos de ejemplo.
 - Multi-site incluye seis fuentes independientes: IrishJobs, StepStone NL, DevITjobs, NVB, Jobs.ch y Glassdoor.
 - Un proceso activo se considera en progreso mientras el contador de ofertas capturadas avance; si no avanza durante el periodo establecido para ese scraper, se detiene y se marca fallido.
+- La comprobaci처n remota tolera el comportamiento real de las herramientas del pipeline: `azcopy list` puede devolver nombres cortos relativos al prefijo pedido y los manifests pueden llevar BOM UTF-8; ninguna de esas dos cosas puede degradar la publicaci처n a "no comprobada".
+
+## Verificaci처n real (reapertura)
+
+Tras la primera fusi처n, la ejecuci처n del diagn처stico contra la landing real del
+run 2026-09-29 mostr처 que la comprobaci처n remota no funcionaba: `azcopy list`
+(AzCopy 10.32.4) devuelve nombres cortos y los manifests que escribe
+`run_scrapers_and_upload.ps1` con PowerShell 5.1 llevan BOM UTF-8. El grupo 8 de
+`tasks.md` corrige ese defecto dentro de esta misma spec; T-53 es el criterio de
+cierre real.
