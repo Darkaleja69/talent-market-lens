@@ -271,6 +271,34 @@ def test_load_manifest_returns_none_on_non_mapping_json():
     assert landing.load_manifest(reader, key) is None
 
 
+def test_load_manifest_tolerates_utf8_bom():
+    # PowerShell 5.1 ``Set-Content -Encoding UTF8`` writes a BOM into the
+    # uploaded manifests; it must not turn a valid manifest into "not
+    # checked" nor hide the comparable history (T-51; RF-7, RF-8).
+    payload = {
+        "schema_version": 1,
+        "total_files": 1,
+        "bad_files": 0,
+        "files": [_entry("jobs.parquet", "dia=2026-09-26/jobs.parquet", rows=2)],
+    }
+    key = "_manifests/indeed/20260926T010000.json"
+    reader = FakeRemote({key: ("\ufeff" + json.dumps(payload)).encode("utf-8")})
+
+    manifest = landing.load_manifest(reader, key)
+
+    assert manifest is not None
+    assert manifest.scraper == "indeed"
+    assert manifest.stamp == "20260926T010000"
+    assert manifest.files[0].remote == "dia=2026-09-26/jobs.parquet"
+
+
+def test_load_manifest_returns_none_on_invalid_json_with_bom():
+    key = "_manifests/indeed/x.json"
+    reader = FakeRemote({key: "\ufeff{not valid json".encode("utf-8")})
+
+    assert landing.load_manifest(reader, key) is None
+
+
 # --------------------------------------------------------------------------
 # verify_manifest
 # --------------------------------------------------------------------------

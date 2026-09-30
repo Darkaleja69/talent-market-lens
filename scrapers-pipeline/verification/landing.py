@@ -623,9 +623,13 @@ def load_manifest(
 
     The object is downloaded to a temporary location (the reader's own
     ``temp_path`` when available, otherwise a private temporary directory),
-    read as UTF-8 JSON and parsed. Missing/invalid content yields ``None``; a
-    connectivity/credential failure raises :class:`RemoteError` and is left to
-    the caller as "not checked" (RF-8, RF-13).
+    read as UTF-8 JSON and parsed. ``utf-8-sig`` tolerates the BOM that
+    PowerShell 5.1 ``Set-Content -Encoding UTF8`` writes into the manifests
+    (and reads plain UTF-8 unchanged), so a BOM never degrades the
+    publication to "not checked" or hides the comparable history (RF-7,
+    RF-8). Missing/invalid content yields ``None``; a connectivity/credential
+    failure raises :class:`RemoteError` and is left to the caller as "not
+    checked" (RF-8, RF-13).
 
     ``scraper``/``stamp`` default to the values inferred from the key.
     """
@@ -642,7 +646,8 @@ def load_manifest(
             own_dir = tempfile.TemporaryDirectory(prefix="landing-manifest-")
             local = Path(own_dir.name) / _safe_relative(remote_key)
         reader.download(remote_key, local)
-        payload = json.loads(local.read_text(encoding="utf-8"))
+        # utf-8-sig accepts an optional UTF-8 BOM and plain UTF-8 alike.
+        payload = json.loads(local.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     finally:

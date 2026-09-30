@@ -503,6 +503,36 @@ def _manifest_payload(fp: dict | None) -> bytes:
     return json.dumps(body).encode("utf-8")
 
 
+def test_select_history_includes_manifests_with_utf8_bom():
+    # PowerShell 5.1 writes a BOM into the manifests; a BOM must not drop the
+    # run from the comparable series (T-51; RF-7, RF-8).
+    fp = _fp_indeed()
+    bom = "\ufeff".encode("utf-8")
+    reader = FakeReader(
+        {
+            "_manifests/indeed/20260925T010000.json": (
+                bom + _manifest_payload(fp)
+            ),
+            "_manifests/indeed/20260926T010000.json": (
+                bom + _manifest_payload(fp)
+            ),
+        }
+    )
+
+    result = trends.select_history(
+        reader,
+        current_fingerprint=fp,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+
+    assert [run.label for run in result] == [
+        "20260925T010000",
+        "20260926T010000",
+    ]
+
+
 def test_select_history_returns_only_comparable_manifests():
     fp_a = _fp_indeed()
     fp_b = _fp_linkedin()
