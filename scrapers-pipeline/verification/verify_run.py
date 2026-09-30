@@ -24,8 +24,10 @@ report and messages to the person are in Spanish (constitution #6).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -648,12 +650,24 @@ def run_diagnostic(
         )
 
     global_status = status.classify_global(statuses, analyzable=True)
+    summary = diagnostic.summary
+    run_metadata = (
+        report.RunReport(
+            date=summary.date,
+            started_at=summary.started_at,
+            finished_at=summary.finished_at,
+            log_path=summary.log_path,
+        )
+        if summary is not None
+        else None
+    )
     return report.build_report(
         sources=source_reports,
         global_status=global_status,
         trend_note=trend_note,
         runs_used=runs_used,
         investigations=investigations,
+        run=run_metadata,
     )
 
 
@@ -672,12 +686,76 @@ def _build_reader() -> landing.AzCopyReader | None:
     return landing.AzCopyReader(base_url, sas)
 
 
+def _result_path(
+    *,
+    output: str | None,
+    projects_root: str | None,
+    logs_dir: str | None,
+) -> Path:
+    """Return the result file path of the diagnostic (T-60; RF-16).
+
+    ``--output`` wins; otherwise the file lives in the effective logs
+    directory (``--logs-dir``, or the diagnostic default
+    ``<projects-root>/scrapers-pipeline/logs``).
+    """
+    if output:
+        return Path(output)
+    if logs_dir:
+        base = Path(logs_dir)
+    else:
+        root = (
+            Path(projects_root)
+            if projects_root is not None
+            else run_evidence.DEFAULT_PROJECTS_ROOT
+        )
+        base = root / run_evidence.DEFAULT_LOGS_SUBDIR
+    return base / "diagnostic_last.json"
+
+
+def _write_result_file(
+    diagnostic_report: report.DiagnosticReport, path: Path
+) -> None:
+    """Write the machine-readable result as UTF-8 without BOM, atomically.
+
+    The parent directory is created when missing, the JSON is written to a
+    sibling temporary file and moved into place with ``os.replace``, so a
+    reader never sees a half-written file. The file is overwritten on every
+    diagnostic and is not a history store (T-60; RF-16, constitution #5).
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = report.diagnostic_to_dict(diagnostic_report)
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=target.parent,
+        prefix=target.name + ".",
+        suffix=".tmp",
+        delete=False,
+    )
+    temp_name = handle.name
+    try:
+        with handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+        os.replace(temp_name, target)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the diagnostic CLI, print the report and return 0 (RF-14).
 
     With ``--offline`` Azure is never contacted. Otherwise a landing reader is
     built from the environment; if that fails the run continues offline with a
-    warning. The only output is the Spanish report on stdout.
+    warning. The Spanish report goes to stdout; right after it, the result is
+    also written as a machine-readable JSON file (``--output``, or
+    ``diagnostic_last.json`` in the logs directory) and its path is announced
+    (T-60; RF-16). The file is written even when the diagnostic is
+    inconclusive.
     """
     parser = argparse.ArgumentParser(
         prog="verify_run",
@@ -685,6 +763,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--projects-root", default=None)
     parser.add_argument("--logs-dir", default=None)
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="ruta del fichero JSON de resultado (por defecto, "
+        "diagnostic_last.json en el directorio de logs)",
+    )
     parser.add_argument(
         "--offline",
         action="store_true",
@@ -709,6 +793,13 @@ def main(argv: list[str] | None = None) -> int:
             reader.close()
 
     print(report.render_report(diagnostic_report), end="")
+    output_path = _result_path(
+        output=args.output,
+        projects_root=args.projects_root,
+        logs_dir=args.logs_dir,
+    )
+    _write_result_file(diagnostic_report, output_path)
+    print(f"Resultado guardado en {output_path}")
     return 0
 
 

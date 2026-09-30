@@ -464,9 +464,14 @@ def test_diagnostic_does_not_modify_or_create_files(tmp_path, capsys, monkeypatc
     capsys.readouterr()
 
     assert exit_code == 0
-    # Nothing under the fixture changed and nothing was created anywhere (the
-    # tempfile guard above also blocks temporaries outside the fixture).
-    assert _fingerprint_tree(tmp_path) == before
+    # The only allowed new file is the machine-readable result of RF-16; every
+    # fixture file stays byte-identical (the tempfile guard above also blocks
+    # temporaries outside the fixture).
+    expected_result = "scrapers-pipeline\\logs\\diagnostic_last.json"
+    after = _fingerprint_tree(tmp_path)
+    assert set(after) - set(before) == {expected_result}
+    for key, value in before.items():
+        assert after[key] == value
 
     # The module neither imports nor uses subprocess nor the supervisor.
     assert not hasattr(verify_run, "subprocess")
@@ -1072,3 +1077,103 @@ def test_mixed_trends_keep_the_series_and_report_the_failure(tmp_path):
     assert trends.NO_HISTORY_NOTE not in note
     assert "Tendencia: " in text
     assert "no se pudo calcular la tendencia de linkedin" in text
+
+
+# --------------------------------------------------------------------------
+# 11. Machine-readable result file (T-60; RF-16)
+# --------------------------------------------------------------------------
+
+
+def _main_args(tmp_path: Path, logs_dir: Path, *extra: str) -> list[str]:
+    return [
+        "--projects-root",
+        str(tmp_path),
+        "--logs-dir",
+        str(logs_dir),
+        "--offline",
+        *extra,
+    ]
+
+
+def test_main_writes_the_result_file_with_output(tmp_path, capsys):
+    logs_dir = _build_run_fixture(tmp_path)
+    output = tmp_path / "resultados" / "diagnostic.json"
+
+    exit_code = verify_run.main(
+        _main_args(tmp_path, logs_dir, "--output", str(output))
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert output.is_file()
+    raw = output.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")  # UTF-8 without BOM
+    payload = json.loads(raw.decode("utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["global_status"]["status"] in {"ok", "partial", "failed"}
+    assert len(payload["sources"]) == 9
+    # The result states which run it belongs to (T-59).
+    assert payload["run"] == {
+        "date": "2026-09-26",
+        "started_at": "2026-09-26T00:00:05",
+        "finished_at": "2026-09-26T07:05:39",
+        "log_path": str(logs_dir / "upload-2026-09-26.log"),
+    }
+    # The screen report is unchanged and the path is announced in Spanish.
+    assert "Diagnóstico de la ejecución diaria" in captured.out
+    assert f"Resultado guardado en {output}" in captured.out
+
+
+def test_main_writes_the_default_result_file_in_the_logs_dir(tmp_path, capsys):
+    logs_dir = _build_run_fixture(tmp_path)
+
+    exit_code = verify_run.main(_main_args(tmp_path, logs_dir))
+    capsys.readouterr()
+
+    default = logs_dir / "diagnostic_last.json"
+    assert exit_code == 0
+    assert default.is_file()
+    payload = json.loads(default.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["sources"]
+
+
+def test_main_overwrites_the_result_file_on_each_run(tmp_path, capsys):
+    logs_dir = _build_run_fixture(tmp_path)
+    results_dir = tmp_path / "resultados"
+    results_dir.mkdir()
+    output = results_dir / "diagnostic.json"
+    output.write_text("contenido anterior que debe desaparecer", encoding="utf-8")
+    args = _main_args(tmp_path, logs_dir, "--output", str(output))
+
+    verify_run.main(args)
+    first = output.read_text(encoding="utf-8")
+    verify_run.main(args)
+    second = output.read_text(encoding="utf-8")
+    capsys.readouterr()
+
+    assert first == second
+    assert "contenido anterior" not in second
+    payload = json.loads(second)
+    assert payload["schema_version"] == 1
+    # The result is overwritten in place: no sibling temporaries remain.
+    assert [path.name for path in results_dir.iterdir()] == ["diagnostic.json"]
+
+
+def test_main_writes_the_result_file_when_inconclusive(tmp_path, capsys):
+    logs_dir = tmp_path / "logs"  # never created: no run can be found
+    output = tmp_path / "diagnostic.json"
+
+    exit_code = verify_run.main(
+        _main_args(tmp_path, logs_dir, "--output", str(output))
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["global_status"]["status"] == "inconclusive"
+    assert payload["global_status"]["reason"]
+    assert payload["sources"] == []
+    # Without an identifiable run there is no run metadata (T-59).
+    assert payload["run"] is None
+    assert f"Resultado guardado en {output}" in captured.out
