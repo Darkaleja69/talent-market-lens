@@ -282,7 +282,7 @@ claves del contenedor) y los manifests escritos por PowerShell 5.1 llevan BOM
 UTF-8. Los tests no lo detectaron porque sus dobles devuelven claves completas
 y JSON sin BOM. Se corrige dentro de esta misma spec.
 
-- [ ] **T-50 — Usar claves completas al listar objetos remotos** (~25 min)
+- [x] **T-50 — Usar claves completas al listar objetos remotos** (~25 min)
   - **RF:** RF-6, RF-7, RF-8.
   - **Hecho cuando:** `AzCopyReader.list_objects` prefija los nombres cortos que
     devuelve AzCopy 10.32.4 con el prefijo pedido; `list_manifest_keys`,
@@ -290,13 +290,13 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     clave relativa al contenedor; tests reproducen la salida real y los que
     asumían nombres cortos quedan actualizados.
 
-- [ ] **T-51 — Leer manifests tolerando el BOM UTF-8** (~20 min)
+- [x] **T-51 — Leer manifests tolerando el BOM UTF-8** (~20 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-50.
   - **Hecho cuando:** `landing.load_manifest` parsea manifests con y sin BOM
     (`utf-8-sig`) y sigue devolviendo `None` con JSON inválido.
 
-- [ ] **T-52 — Escribir los manifests sin BOM en los wrappers PS** (~20 min)
+- [x] **T-52 — Escribir los manifests sin BOM en los wrappers PS** (~20 min)
   - **RF:** RF-8.
   - **Hecho cuando:** `run_scrapers_and_upload.ps1` y `recover_and_upload.ps1`
     escriben los manifests con UTF-8 sin BOM (PS 5.1) y el lector sigue
@@ -304,22 +304,47 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
 
 - [ ] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8, RF-13.
-  - **Depende de:** T-50, T-51, T-52.
-  - **Hecho cuando:** `python -m verification.verify_run` sobre el run
-    2026-09-29 carga los manifests, clasifica la publicación de cada fuente
-    (sin degradarla a "no comprobada" por errores de lectura) y calcula la
-    tendencia con las ejecuciones comparables disponibles; el resultado queda
-    registrado como evidencia.
+  - **Depende de:** T-55, T-57, T-58.
+  - **Hecho cuando:** `python -m verification.verify_run` sobre el último run
+    finalizado carga el manifest publicado por el run, clasifica la publicación
+    de cada fuente (sin degradarla a "no comprobada" ni a "pendiente" por
+    errores de lectura) y calcula la tendencia con las ejecuciones comparables
+    disponibles; el resultado queda registrado como evidencia.
 
 - [ ] **T-54 — Ejecutar la suite del diagnóstico** (~15 min)
   - **RF:** RF-1–RF-15.
   - **Depende de:** T-53.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa.
 
-- [ ] **T-55 — Acotar el manifest analizado al run (condicional)** (~25 min)
+- [ ] **T-55 — Acotar el manifest analizado al run** (~25 min)
   - **RF:** RF-1, RF-6, RF-8.
-  - **Depende de:** T-53.
-  - **Hecho cuando:** solo se activa si T-53 verifica un manifest de otra
-    ejecución como si fuera del run; en ese caso `_latest_manifest` y el ancla
-    de tendencia se acotan a la ventana del run con tests del caso. Si T-53 no
-    lo reproduce, se cierra como no necesaria anotando el motivo.
+  - **Depende de:** T-50.
+  - **Hecho cuando:** solo se usa como ancla de publicación y tendencia un
+    manifest cuyo stamp cae dentro de la ventana del run analizado; un manifest
+    de otra ejecución no se presenta como si fuera del run (caso InfoJobs
+    2026-09-11 en el run 2026-09-30). Si el run no dejó manifest y la fuente no
+    preparó datos, la publicación se informa como "sin datos que publicar" (no
+    como pendiente) y no hay ancla de tendencia; tests cubren ambos casos.
+
+- [ ] **T-56 — Alinear la clave publicada con el manifest** (~20 min; requiere decisión del responsable)
+  - **RF:** RF-6, RF-8.
+  - **Hecho cuando:** la subida de `run_scrapers_and_upload.ps1` no añade la
+    carpeta de staging (`azcopy copy ... --as-subdir=false`), la clave real
+    queda `dia=YYYY-MM-DD/<fichero>` como declara `remote`, y una comprobación
+    local con AzCopy demuestra que no se crea subcarpeta.
+    `recover_and_upload.ps1` sube ficheros sueltos y no cambia.
+
+- [ ] **T-57 — Resolver la clave publicada real** (~25 min)
+  - **RF:** RF-6, RF-7, RF-8.
+  - **Hecho cuando:** `landing.verify_manifest` y
+    `trends.load_published_completeness` localizan el objeto por clave exacta y,
+    si no existe, por nombre de fichero único bajo el prefijo publicado
+    (manifests históricos con carpeta de staging intermedia); si hay ambigüedad
+    no se adivina; tests cubren clave exacta, anidada única, ambigua y ausente.
+
+- [ ] **T-58 — Informar la causa real si la tendencia no se puede calcular** (~20 min)
+  - **RF:** RF-7, RF-13.
+  - **Hecho cuando:** `_build_trends` no silencia `RemoteError`: el informe
+    indica qué fuente no pudo medirse y por qué, en vez de afirmar que no hay
+    ejecuciones comparables; tests cubren el fallo de lectura y la ausencia
+    real de histórico.

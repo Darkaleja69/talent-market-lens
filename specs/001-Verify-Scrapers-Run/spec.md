@@ -164,6 +164,8 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Multi-site incluye seis fuentes independientes: IrishJobs, StepStone NL, DevITjobs, NVB, Jobs.ch y Glassdoor.
 - Un proceso activo se considera en progreso mientras el contador de ofertas capturadas avance; si no avanza durante el periodo establecido para ese scraper, se detiene y se marca fallido.
 - La comprobación remota tolera el comportamiento real de las herramientas del pipeline: `azcopy list` puede devolver nombres cortos relativos al prefijo pedido y los manifests pueden llevar BOM UTF-8; ninguna de esas dos cosas puede degradar la publicación a "no comprobada".
+- La clave publicada real puede incluir una carpeta intermedia de staging; el diagnóstico resuelve el objeto por la clave exacta y, si no existe, por nombre de fichero único bajo el prefijo publicado, mientras la subida se alinea al contrato `dia=.../<fichero>`.
+- Si el run no dejó manifest de publicación para una fuente sin datos preparados, la publicación se informa como "sin datos que publicar", no como pendiente.
 
 ## Verificación real (reapertura)
 
@@ -173,3 +175,10 @@ run 2026-09-29 mostró que la comprobación remota no funcionaba: `azcopy list`
 `run_scrapers_and_upload.ps1` con PowerShell 5.1 llevan BOM UTF-8. El grupo 8 de
 `tasks.md` corrige ese defecto dentro de esta misma spec; T-53 es el criterio de
 cierre real.
+
+La comprobación real del run 2026-09-30 confirmó que las claves completas y el
+BOM ya se leen, y destapó dos defectos más: la subida con AzCopy coloca una
+carpeta de staging intermedia que no figura en `remote` (por eso la publicación
+quedaba "pendiente" y la tendencia no medía lo publicado) y el fallo de lectura
+de la tendencia se silenciaba con un motivo genérico. El grupo 8 se amplía con
+T-56–T-58 y se activa T-55.
