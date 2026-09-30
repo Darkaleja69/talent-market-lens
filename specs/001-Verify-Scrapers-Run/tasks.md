@@ -304,19 +304,20 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
 
 - [ ] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8, RF-13.
-  - **Depende de:** T-55, T-57, T-58.
+  - **Depende de:** T-55, T-57, T-58, T-59, T-60.
   - **Hecho cuando:** `python -m verification.verify_run` sobre el último run
     finalizado carga el manifest publicado por el run, clasifica la publicación
     de cada fuente (sin degradarla a "no comprobada" ni a "pendiente" por
-    errores de lectura) y calcula la tendencia con las ejecuciones comparables
-    disponibles; el resultado queda registrado como evidencia.
+    errores de lectura), calcula la tendencia con las ejecuciones comparables
+    disponibles y deja el fichero JSON de RF-16; el resultado queda registrado
+    como evidencia.
 
 - [ ] **T-54 — Ejecutar la suite del diagnóstico** (~15 min)
   - **RF:** RF-1–RF-15.
   - **Depende de:** T-53.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa.
 
-- [ ] **T-55 — Acotar el manifest analizado al run** (~25 min)
+- [x] **T-55 — Acotar el manifest analizado al run** (~25 min)
   - **RF:** RF-1, RF-6, RF-8.
   - **Depende de:** T-50.
   - **Hecho cuando:** solo se usa como ancla de publicación y tendencia un
@@ -334,7 +335,7 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     local con AzCopy demuestra que no se crea subcarpeta.
     `recover_and_upload.ps1` sube ficheros sueltos y no cambia.
 
-- [ ] **T-57 — Resolver la clave publicada real** (~25 min)
+- [x] **T-57 — Resolver la clave publicada real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8.
   - **Hecho cuando:** `landing.verify_manifest` y
     `trends.load_published_completeness` localizan el objeto por clave exacta y,
@@ -342,9 +343,31 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     (manifests históricos con carpeta de staging intermedia); si hay ambigüedad
     no se adivina; tests cubren clave exacta, anidada única, ambigua y ausente.
 
-- [ ] **T-58 — Informar la causa real si la tendencia no se puede calcular** (~20 min)
+- [x] **T-58 — Informar la causa real si la tendencia no se puede calcular** (~20 min)
   - **RF:** RF-7, RF-13.
   - **Hecho cuando:** `_build_trends` no silencia `RemoteError`: el informe
     indica qué fuente no pudo medirse y por qué, en vez de afirmar que no hay
     ejecuciones comparables; tests cubren el fallo de lectura y la ausencia
     real de histórico.
+
+## 9. Resultado legible por máquina (RF-16)
+
+- [ ] **T-59 — Serializar el informe a un diccionario legible por máquina** (~25 min)
+  - **RF:** RF-16.
+  - **Hecho cuando:** `report.py` expone una función pura que convierte
+    `DiagnosticReport` en un diccionario con `schema_version`, `generated_at`,
+    `run`, `global_status`, `sources` (id, tipo, estado, resultado, ofertas,
+    completitud por campo con válidos/total/porcentaje/obligatorio, publicación
+    y motivos, evidencias), `trend` e investigaciones; claves e identificadores
+    en inglés, sin credenciales; tests de estructura y de estados
+    (correcto/parcial/fallido/inconcluso y `not_applicable`).
+
+- [ ] **T-60 — Escribir el fichero de resultado desde la CLI** (~25 min)
+  - **RF:** RF-16.
+  - **Depende de:** T-59.
+  - **Hecho cuando:** `python -m verification.verify_run` escribe por defecto
+    `scrapers-pipeline/logs/diagnostic_last.json` (UTF-8 sin BOM, escritura
+    atómica, se sobrescribe) también cuando el diagnóstico es inconcluso, con
+    `--output` para elegir ruta; el informe en pantalla no cambia y se anuncia
+    la ruta; tests con `tmp_path` cubren escritura, sobrescritura, inconcluso y
+    `--output`.

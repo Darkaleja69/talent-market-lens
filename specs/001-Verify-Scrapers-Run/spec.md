@@ -96,6 +96,10 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 
 **Criterio de aceptación (EARS):** Mientras un scraper esté en ejecución, el supervisor deberá comprobar si avanza el contador de ofertas capturadas. Si el contador avanza, deberá mantener el scraper activo y no marcarlo como bloqueado. Si el contador no avanza durante el periodo de inactividad establecido para ese scraper, deberá detener ese proceso, registrar la causa como bloqueo por falta de progreso y marcar esa fuente como fallida. En Multi-site, esta comprobación y detención se realizará por portal, sin detener los demás.
 
+### RF-16 — Guardar el resultado legible por máquina
+
+**Criterio de aceptación (EARS):** Cuando el diagnóstico termine, también cuando quede inconcluso, el sistema deberá escribir en un fichero local un resultado legible por máquina con el estado global y, por cada fuente, su clasificación, el resultado de la ejecución, las ofertas capturadas, la completitud por campo, el estado de publicación y los motivos de fallo, además de mostrar el informe en pantalla. El fichero corresponderá a la última ejecución y se sobrescribirá en cada diagnóstico; no es un almacén histórico.
+
 ## Requisitos no funcionales
 
 - El informe deberá ser claro y accionable para una persona que mantiene el proyecto con conocimientos de ingeniería de datos de nivel junior.
@@ -104,6 +108,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Los porcentajes deberán acompañarse de sus recuentos para que su interpretación sea verificable.
 - Con la misma evidencia de una ejecución, el diagnóstico deberá informar los mismos hechos y distinguirlos de cualquier hipótesis.
 - La funcionalidad deberá cubrirse con tests unitarios y de integración sobre datos de ejemplo, sin depender de las webs reales ni de credenciales.
+- El fichero de resultado se escribirá en UTF-8 sin BOM, con claves e identificadores en inglés, y nunca contendrá credenciales ni la SAS.
 
 ## Casos límite
 
@@ -132,7 +137,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Ejecutar transformaciones analíticas posteriores a la landing.
 - Validar o modificar el dashboard de Power BI.
 - Enviar alertas o monitorizar ejecuciones continuamente.
-- Crear un almacén propio de histórico del diagnóstico.
+- Crear un almacén propio de histórico del diagnóstico (el fichero de resultado de la última ejecución se sobrescribe y no es histórico).
 
 ## Criterios de finalización
 
@@ -147,6 +152,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Un scraper con progreso no es detenido; uno sin progreso durante su periodo establecido es detenido y registrado como fallido.
 - El diagnóstico no inicia ejecuciones ni modifica datos, configuración o código.
 - El diagnóstico, ejecutado contra la landing real de Azure (AzCopy 10.32.4) sobre manifests escritos por PowerShell 5.1, carga los manifests, clasifica la publicación de cada fuente y calcula la tendencia con las ejecuciones comparables.
+- Además del informe en pantalla, el diagnóstico deja un fichero JSON local con el estado global y el de cada fuente, consumible por otro script.
 
 ## Decisiones aclaradas
 
