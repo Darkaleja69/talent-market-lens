@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 
 from verification import (
     fingerprint,
@@ -654,7 +655,270 @@ def test_publication_is_incorporated_with_an_in_memory_reader(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# 8. Injectable obtained reader
+# 8. Run-window manifest anchoring (T-55; RF-1, RF-6, RF-8)
+# --------------------------------------------------------------------------
+
+# The analysed run window, as parsed from the general log fixture
+# (00:00:05 -> 07:05:39 of 2026-09-26).
+_WINDOW = (
+    datetime(2026, 9, 26, 0, 0, 5),
+    datetime(2026, 9, 26, 7, 5, 39),
+)
+
+
+def _manifest_ok(
+    rows: int,
+    remote: str = "dia=2026-09-26/jobs.parquet",
+    *,
+    fp: dict | None = None,
+) -> bytes:
+    """Build one accepted manifest entry for the analysed day."""
+    payload: dict = {
+        "schema_version": 1,
+        "total_files": 1,
+        "bad_files": 0,
+        "files": [
+            {"file": "jobs.parquet", "status": "ok", "rows": rows, "remote": remote}
+        ],
+    }
+    if fp is not None:
+        payload["fingerprint"] = fp
+    return json.dumps(payload).encode("utf-8")
+
+
+def test_manifest_outside_the_run_window_is_not_used_as_anchor(tmp_path):
+    # The real run-2026-09-30 case: InfoJobs left no manifest that night and
+    # the newest one was 19 days old. It must not anchor this run's report.
+    logs_dir = _build_run_fixture(tmp_path)
+    reader = FakeReader(
+        {
+            "_manifests/infojobs/20260911_015946.json": _manifest_ok(2),
+            "infojobs/dia=2026-09-26/jobs.parquet": _parquet_bytes(
+                _INFOJOBS_COLUMNS, _infojobs_rows(2)
+            ),
+        }
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    infojobs = next(s for s in diagnostic.sources if s.source == "infojobs")
+
+    # InfoJobs did prepare offers locally, so the publication is pending: not
+    # "ok" from the old manifest and not "not applicable".
+    assert infojobs.publication_state == publication.PUBLICATION_PENDING
+    assert infojobs.delta_offers is None
+
+
+def test_latest_manifest_inside_the_run_window_wins(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    reader = FakeReader(
+        {
+            "_manifests/indeed/20260926T010000.json": _manifest_ok(
+                2, "dia=2026-09-26/early.parquet"
+            ),
+            "_manifests/indeed/20260926_030000.json": _manifest_ok(
+                3, "dia=2026-09-26/late.parquet"
+            ),
+            "indeed/dia=2026-09-26/early.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(2)
+            ),
+            "indeed/dia=2026-09-26/late.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(3)
+            ),
+        }
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    indeed = next(s for s in diagnostic.sources if s.source == "indeed")
+
+    # Both stamp layouts are admitted and the later one (03:00:00) anchors.
+    assert indeed.publication_state == publication.PUBLICATION_OK
+    assert indeed.delta_offers == 3
+
+
+def test_latest_manifest_ignores_unusable_stamps_and_unknown_windows():
+    reader = FakeReader(
+        {
+            "_manifests/infojobs/sin-fecha.json": _manifest_ok(2),
+            "_manifests/infojobs/20260926T010000.json": _manifest_ok(2),
+        }
+    )
+
+    in_window = verify_run._latest_manifest(reader, "infojobs", _WINDOW)
+
+    assert in_window is not None
+    assert in_window.stamp == "20260926T010000"
+
+    # A window that cannot be known leaves no anchor, and a listing with only
+    # unparseable stamps has no candidate either.
+    assert verify_run._latest_manifest(reader, "infojobs", None) is None
+    unparseable = FakeReader(
+        {"_manifests/infojobs/sin-fecha.json": _manifest_ok(2)}
+    )
+    assert verify_run._latest_manifest(unparseable, "infojobs", _WINDOW) is None
+
+
+def test_unknown_window_leaves_every_scraper_without_anchor():
+    reader = FakeReader(
+        {"_manifests/indeed/20260926T010000.json": _manifest_ok(2)}
+    )
+
+    remote = verify_run._collect_remote_state(reader, None)
+
+    assert all(manifest is None for manifest in remote.manifests.values())
+
+
+@pytest.mark.parametrize(
+    "bad_stamp",
+    ["20260930_0611", "20260930_061", "20260930_06112"],
+)
+def test_partial_numeric_stamps_have_no_anchor(bad_stamp):
+    # Regression: strptime alone back-fills partial numeric stamps as a wrong
+    # time (20260930_0611 -> 06:01:01). Only exact yyyyMMdd_HHmmss /
+    # yyyyMMddTHHmmss stamps may anchor (T-55).
+    assert verify_run._parse_manifest_stamp(bad_stamp) is None
+
+    window = (
+        datetime(2026, 9, 30, 0, 0, 5),
+        datetime(2026, 9, 30, 7, 5, 39),
+    )
+    reader = FakeReader(
+        {f"_manifests/infojobs/{bad_stamp}.json": _manifest_ok(2)}
+    )
+
+    assert verify_run._latest_manifest(reader, "infojobs", window) is None
+
+
+def test_exact_stamps_are_still_used_as_anchors():
+    reader = FakeReader(
+        {
+            "_manifests/infojobs/20260930_061155.json": _manifest_ok(2),
+            "_manifests/infojobs/20260930T071155.json": _manifest_ok(2),
+        }
+    )
+    window = (
+        datetime(2026, 9, 30, 0, 0, 5),
+        datetime(2026, 9, 30, 8, 0, 0),
+    )
+
+    manifest = verify_run._latest_manifest(reader, "infojobs", window)
+
+    assert manifest is not None
+    assert manifest.stamp == "20260930T071155"
+    assert verify_run._parse_manifest_stamp("20260930_061155") == datetime(
+        2026, 9, 30, 6, 11, 55
+    )
+    assert verify_run._parse_manifest_stamp("20260930T071155") == datetime(
+        2026, 9, 30, 7, 11, 55
+    )
+
+
+def test_source_without_run_manifest_and_without_data_is_not_applicable(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    # InfoJobs was blocked by CAPTCHA and prepared no offers that night.
+    for path in (tmp_path / "infojobs_jobs_scraper" / "data").glob(
+        "offers_*.parquet"
+    ):
+        path.unlink()
+    _write(
+        tmp_path,
+        "infojobs_jobs_scraper/data/run_nightly.log",
+        "2026-09-26 00:00:12 === INICIO RUN NOCTURNA INFOJOBS ===\n"
+        "2026-09-26 00:00:13 Intento 1/3 - lanzando python -m scraper.main "
+        "--unattended ...\n"
+        "2026-09-26 00:31:38 RESULT: total=0 incidencias=0 blocked=True\n"
+        "2026-09-26 00:31:38 === FIN RUN NOCTURNA INFOJOBS exit=0 ===\n",
+    )
+    reader = FakeReader(
+        {"_manifests/infojobs/20260911_015946.json": _manifest_ok(2)}
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    infojobs = next(s for s in diagnostic.sources if s.source == "infojobs")
+    text = report.render_report(diagnostic)
+
+    assert infojobs.publication_state == publication.PUBLICATION_NOT_APPLICABLE
+    assert publication.is_zero_offers_captured(infojobs.publication_state) is False
+    assert "sin datos que publicar" in text
+    # The absent publication never fails the source on its own: the failure
+    # comes from the blocked ingestion (no data), not from publishing.
+    assert infojobs.state == status.SOURCE_FAILED
+    assert infojobs.failures == ("missing evidence",)
+
+
+def test_source_without_run_manifest_but_with_prepared_data_is_pending(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    reader = FakeReader({})  # the landing has nothing for this run
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    infojobs = next(s for s in diagnostic.sources if s.source == "infojobs")
+
+    # InfoJobs prepared offers but left no manifest: the upload is not visible
+    # yet, so it is pending, never "not applicable".
+    assert infojobs.publication_state == publication.PUBLICATION_PENDING
+
+
+def test_trend_has_no_anchor_for_a_source_without_a_run_manifest(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    fp = fingerprint.build_fingerprint(["infojobs"], [])
+    reader = FakeReader(
+        {
+            "_manifests/infojobs/20260910_010000.json": _manifest_ok(
+                2, "dia=2026-09-10/jobs.parquet", fp=fp
+            ),
+            "_manifests/infojobs/20260911_015946.json": _manifest_ok(
+                2, "dia=2026-09-11/jobs.parquet", fp=fp
+            ),
+            "infojobs/dia=2026-09-10/jobs.parquet": _parquet_bytes(
+                _INFOJOBS_COLUMNS, _infojobs_rows(2)
+            ),
+            "infojobs/dia=2026-09-11/jobs.parquet": _parquet_bytes(
+                _INFOJOBS_COLUMNS, _infojobs_rows(2)
+            ),
+        }
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    infojobs = next(s for s in diagnostic.sources if s.source == "infojobs")
+
+    # Neither old manifest may anchor a trend for this run; without the window
+    # filter these two comparable manifests would produce a false series.
+    assert infojobs.trend is None
+
+
+def test_trend_is_built_from_the_in_window_anchor_and_comparable_history(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    fp = fingerprint.build_fingerprint(
+        ["indeed"],
+        [fingerprint.SearchDimension(source="indeed", search="data engineer")],
+    )
+    reader = FakeReader(
+        {
+            "_manifests/indeed/20260925T010000.json": _manifest_ok(
+                2, "dia=2026-09-25/jobs.parquet", fp=fp
+            ),
+            "_manifests/indeed/20260926T010000.json": _manifest_ok(
+                3, "dia=2026-09-26/jobs.parquet", fp=fp
+            ),
+            "indeed/dia=2026-09-25/jobs.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(2)
+            ),
+            "indeed/dia=2026-09-26/jobs.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(3)
+            ),
+        }
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    indeed = next(s for s in diagnostic.sources if s.source == "indeed")
+
+    # The in-window manifest is the anchor and the older comparable run is its
+    # history: the window filter does not break the valid trend (RF-7).
+    assert indeed.trend is not None
+    assert indeed.trend.runs_used == 2
+
+
+# --------------------------------------------------------------------------
+# 9. Injectable obtained reader
 # --------------------------------------------------------------------------
 
 

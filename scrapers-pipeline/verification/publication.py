@@ -20,6 +20,9 @@ no other layer has to re-derive it:
   offers captured" (RF-3).
 - ``PUBLICATION_PENDING``: the expected object is not visible yet. Per RF-8
   this is reported as pending, never as an error.
+- ``PUBLICATION_NOT_APPLICABLE``: the run prepared no data for the source, so
+  there is nothing to publish. The absence of a manifest/object is not a
+  pending upload; it is not an error and it never fails the source (RF-8).
 - ``PUBLICATION_NOT_CHECKED``: the publication could not be confirmed (an
   unverifiable object, a missing published delta metric, or a snapshot that was
   not measured). "Not confirmed" is not the same as "not there yet" and it is
@@ -52,6 +55,7 @@ PUBLICATION_PENDING = "pending"  # the expected object is not visible yet
 PUBLICATION_MISMATCH = "mismatch"  # visible but inconsistent (rows/checksum)
 PUBLICATION_REJECTED = "rejected"  # the manifest/object was rejected
 PUBLICATION_NOT_CHECKED = "not_checked"  # the publication could not be checked
+PUBLICATION_NOT_APPLICABLE = "not_applicable"  # no data to publish from the run
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,7 @@ def classify_publication(
     manifest_state: str | None = None,
     rejected: bool = False,
     not_checked: bool = False,
+    not_applicable: bool = False,
 ) -> str:
     """Classify the publication stage of a source (RF-3, RF-6, RF-8).
 
@@ -87,12 +92,19 @@ def classify_publication(
     declaring a publication correct without confirming it and forbids calling
     an unconfirmed object an error either.
 
+    ``not_applicable`` marks a source whose run prepared nothing to publish:
+    the absent manifest/object is neither pending nor an error and the source
+    is never failed because of it (T-55, RF-8). It only applies when the check
+    could actually run; ``not_checked`` takes precedence.
+
     A snapshot that was not measured (``obtained_offers is None``) is missing
     evidence, so it can never yield ``PUBLICATION_EMPTY``: only an explicit
     zero (``obtained_offers == 0``) proves zero captured offers (RF-3).
     """
     if not_checked:
         return PUBLICATION_NOT_CHECKED
+    if not_applicable:
+        return PUBLICATION_NOT_APPLICABLE
     if rejected or manifest_state == landing.STATE_REJECTED:
         return PUBLICATION_REJECTED
     if manifest_state == landing.STATE_MISMATCH:
@@ -132,8 +144,10 @@ def is_zero_offers_captured(state: str) -> bool:
     measured empty snapshot (``obtained_offers == 0``) alongside an empty
     delta. An empty published delta is *not* proof of zero captures when the
     obtained snapshot has offers (``PUBLICATION_NO_NEW_OFFERS``), was not
-    measured (``PUBLICATION_NOT_CHECKED``) or is not visible yet
-    (``PUBLICATION_PENDING``). This is the key rule of T-31 (RF-3, RF-8).
+    measured (``PUBLICATION_NOT_CHECKED``), is not visible yet
+    (``PUBLICATION_PENDING``) or there was nothing to publish
+    (``PUBLICATION_NOT_APPLICABLE``). This is the key rule of T-31 (RF-3,
+    RF-8).
     """
     return state == PUBLICATION_EMPTY
 
@@ -227,6 +241,7 @@ def build_source_publication(
     manifest_state: str | None = None,
     rejected: bool = False,
     not_checked: bool = False,
+    not_applicable: bool = False,
 ) -> SourcePublication:
     """Combine both completeness stages into one classification (T-38).
 
@@ -234,7 +249,8 @@ def build_source_publication(
     when a stage was not measured) and handed to
     :func:`classify_publication`. Passing ``published=None`` models an absent
     delta; it can never yield ``PUBLICATION_EMPTY`` unless the obtained
-    snapshot is also empty/absent.
+    snapshot is also empty/absent. ``not_applicable`` marks a source with
+    nothing prepared to publish (T-55).
     """
     obtained_offers = obtained.total_offers if obtained is not None else None
     delta_offers = published.total_offers if published is not None else None
@@ -244,6 +260,7 @@ def build_source_publication(
         manifest_state=manifest_state,
         rejected=rejected,
         not_checked=not_checked,
+        not_applicable=not_applicable,
     )
     stage = PublishedStage(
         source=source,

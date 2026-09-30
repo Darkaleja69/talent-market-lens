@@ -25,8 +25,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 import pyarrow as pa
@@ -257,22 +259,105 @@ def _manifest_stamp(key: str) -> str:
     return PurePosixPath(key).stem
 
 
-def _latest_manifest(
-    reader: landing.RemoteReader, scraper: str
-) -> landing.Manifest | None:
-    """Load the most recent manifest of ``scraper``, or ``None`` when none."""
-    keys = landing.list_manifest_keys(reader, scraper)
-    if not keys:
+# Only these two exact stamp layouts are accepted. ``strptime`` alone would
+# back-fill partial numeric stamps as a wrong time (``20260930_0611`` ->
+# 06:01:01), so the shape is validated before parsing (T-55).
+_MANIFEST_STAMP_FORMATS: tuple[tuple[str, str], ...] = (
+    (r"^\d{8}_\d{6}$", "%Y%m%d_%H%M%S"),
+    (r"^\d{8}T\d{6}$", "%Y%m%dT%H%M%S"),
+)
+
+
+def _parse_manifest_stamp(stamp: str) -> datetime | None:
+    """Parse a manifest stamp, or ``None`` when it does not carry a date.
+
+    Real stamps are ``yyyyMMdd_HHmmss`` (written by the upload wrapper); the
+    test fixtures and some historical manifests use the ISO-like
+    ``yyyyMMddTHHmmss`` form. Only those two exact shapes are accepted, so a
+    partial or over-long numeric stamp (``20260930_0611``, ``20260930_061``,
+    ``20260930_06112``) has no usable date and can never be an anchor (T-55).
+    """
+    for pattern, format_ in _MANIFEST_STAMP_FORMATS:
+        if re.fullmatch(pattern, stamp):
+            try:
+                return datetime.strptime(stamp, format_)
+            except ValueError:
+                return None
+    return None
+
+
+def _run_window(
+    summary: run_evidence.PipelineSummary | None,
+) -> tuple[datetime, datetime] | None:
+    """Return the local ``[start, end]`` window of the analysed run.
+
+    ``None`` when the summary or either timestamp is missing/unparseable: an
+    unknown window never selects a manifest as the run anchor (T-55, RF-1).
+    """
+    if summary is None or not summary.started_at or not summary.finished_at:
         return None
-    return landing.load_manifest(reader, max(keys, key=_manifest_stamp), scraper=scraper)
+    try:
+        start = datetime.fromisoformat(summary.started_at)
+        end = datetime.fromisoformat(summary.finished_at)
+    except ValueError:
+        return None
+    return (start, end)
 
 
-def _collect_remote_state(reader: landing.RemoteReader | None) -> _RemoteState:
-    """Load one manifest per scraper, tolerating connectivity failures.
+def _stamp_within_window(
+    stamp: str, window: tuple[datetime, datetime] | None
+) -> bool:
+    """Return True when ``stamp`` is parseable and falls in ``window``."""
+    if window is None:
+        return False
+    moment = _parse_manifest_stamp(stamp)
+    if moment is None:
+        return False
+    start, end = window
+    return start <= moment <= end
+
+
+def _stamp_moment(key: str) -> datetime:
+    """Return the parsed stamp of a manifest key already known to be valid."""
+    moment = _parse_manifest_stamp(_manifest_stamp(key))
+    if moment is None:  # pragma: no cover - candidates are filtered first
+        return datetime.min
+    return moment
+
+
+def _latest_manifest(
+    reader: landing.RemoteReader,
+    scraper: str,
+    window: tuple[datetime, datetime] | None,
+) -> landing.Manifest | None:
+    """Load the run's latest manifest of ``scraper``, or ``None``.
+
+    Only manifests whose stamp falls inside the analysed run's window are
+    candidates: a manifest from another execution must never be presented as
+    this run's publication nor anchor a trend (T-55, RF-1, RF-8). A stamp
+    without a usable date is not a candidate either.
+    """
+    keys = landing.list_manifest_keys(reader, scraper)
+    candidates = [
+        key for key in keys if _stamp_within_window(_manifest_stamp(key), window)
+    ]
+    if not candidates:
+        return None
+    latest = max(candidates, key=_stamp_moment)
+    return landing.load_manifest(reader, latest, scraper=scraper)
+
+
+def _collect_remote_state(
+    reader: landing.RemoteReader | None,
+    window: tuple[datetime, datetime] | None,
+) -> _RemoteState:
+    """Load one in-window manifest per scraper, tolerating connectivity failures.
 
     Without a reader nothing is loaded. A scraper whose listing fails is kept
     in ``unavailable`` so its publication is reported as not checked instead of
-    as pending or wrong (RF-8, RF-13).
+    as pending or wrong (RF-8, RF-13). A scraper with no manifest inside the
+    run window gets ``None``: there is no publication anchor for this run
+    (T-55).
     """
     if reader is None:
         return _RemoteState({}, frozenset())
@@ -280,11 +365,29 @@ def _collect_remote_state(reader: landing.RemoteReader | None) -> _RemoteState:
     unavailable: set[str] = set()
     for scraper in _SCRAPERS:
         try:
-            manifests[scraper] = _latest_manifest(reader, scraper)
+            manifests[scraper] = _latest_manifest(reader, scraper, window)
         except landing.RemoteError:
             manifests[scraper] = None
             unavailable.add(scraper)
     return _RemoteState(manifests, frozenset(unavailable))
+
+
+def _prepared_data(
+    evidence: run_evidence.RunEvidence, measured: _SourceMeasurement
+) -> bool:
+    """Return True when the run left data that should have been published.
+
+    Two signals count (T-55, RF-8): the run's own captured-offer counter above
+    zero, and a locally measured snapshot with offers. Everything else (a
+    null/zero counter and no measured offers) means the source prepared
+    nothing, so the absence of a manifest is "nothing to publish" and not a
+    pending upload.
+    """
+    if evidence.offers_current_run is not None and evidence.offers_current_run > 0:
+        return True
+    if measured.completeness is not None and measured.completeness.total_offers > 0:
+        return True
+    return False
 
 
 def _publication_for(
@@ -292,6 +395,8 @@ def _publication_for(
     remote: _RemoteState,
     source_id: str,
     measured: completeness.SourceCompleteness | None,
+    *,
+    had_prepared_data: bool,
 ) -> publication.SourcePublication:
     """Build the publication stage of one source (RF-6, RF-8).
 
@@ -300,6 +405,11 @@ def _publication_for(
     published delta measured; a connectivity/credential failure marks the
     publication as *not checked* instead of failing the source (RF-8, RF-13).
     Without a reader the publication is simply not checked.
+
+    When the run left no manifest for the scraper, ``had_prepared_data``
+    decides between *pending* (data was prepared but the object is not visible
+    yet) and *not applicable* (nothing was prepared to publish, so its absence
+    is no longer reported as a pending upload; T-55, RF-8).
     """
     scraper = _scraper_for(source_id)
     if reader is None or scraper in remote.unavailable:
@@ -308,7 +418,18 @@ def _publication_for(
         )
     manifest = remote.manifests.get(scraper)
     if manifest is None:
-        # No manifest is visible: the object is not there yet, never an error.
+        if not had_prepared_data:
+            # The run prepared nothing for this source: there is nothing to
+            # publish, so the absent manifest is not a pending upload.
+            return publication.build_source_publication(
+                source=source_id,
+                obtained=measured,
+                published=None,
+                manifest_state=None,
+                not_applicable=True,
+            )
+        # Data was prepared but no manifest of this run is visible: the object
+        # is not there yet, never an error.
         return publication.build_source_publication(
             source=source_id, obtained=measured, published=None, manifest_state=None
         )
@@ -449,7 +570,8 @@ def run_diagnostic(
         if projects_root is not None
         else run_evidence.DEFAULT_PROJECTS_ROOT
     )
-    remote = _collect_remote_state(reader)
+    window = _run_window(diagnostic.summary)
+    remote = _collect_remote_state(reader, window)
     trends_by_source, trend_note, runs_used = _build_trends(reader, remote)
 
     statuses: dict[str, status.SourceStatus] = {}
@@ -492,7 +614,11 @@ def run_diagnostic(
                 status=source_status,
                 run=evidence,
                 publication=_publication_for(
-                    reader, remote, source_id, measured.completeness
+                    reader,
+                    remote,
+                    source_id,
+                    measured.completeness,
+                    had_prepared_data=_prepared_data(evidence, measured),
                 ),
                 trend=trends_by_source.get(source_id),
                 progress=evidence.offers_current_run,

@@ -129,6 +129,7 @@ def test_state_label_dicts_translate_the_codes():
         "mismatch": "discrepancia",
         "rejected": "rechazada",
         "not_checked": "no comprobada",
+        "not_applicable": "sin datos que publicar",
     }
     assert report.TREND_DIRECTION_ES == {
         "improved": "mejora",
@@ -421,6 +422,26 @@ def test_publication_states_are_translated(
     text = report.render_source_report(source_report)
 
     assert expected_text in text
+
+
+def test_not_applicable_publication_is_rendered_in_spanish():
+    # A source that prepared nothing to publish is reported as "sin datos que
+    # publicar", never as a pending upload (T-55, RF-8).
+    pub = publication.build_source_publication(
+        source="infojobs",
+        obtained=None,
+        published=None,
+        not_applicable=True,
+    )
+
+    source_report = report.build_source_report(
+        "infojobs", status=_correct_status("infojobs"), publication=pub
+    )
+    text = report.render_source_report(source_report)
+
+    assert source_report.publication_state == publication.PUBLICATION_NOT_APPLICABLE
+    assert "sin datos que publicar" in text
+    assert "pendiente de publicar" not in text
 
 
 # --- 7. Trend note and direction ---------------------------------------------

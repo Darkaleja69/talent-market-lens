@@ -64,6 +64,7 @@ PUBLICATION_STATE_ES: dict[str, str] = {
     publication_module.PUBLICATION_MISMATCH: "discrepancia",
     publication_module.PUBLICATION_REJECTED: "rechazada",
     publication_module.PUBLICATION_NOT_CHECKED: "no comprobada",
+    publication_module.PUBLICATION_NOT_APPLICABLE: "sin datos que publicar",
 }
 
 # Spanish labels for the trend direction (RF-7).
