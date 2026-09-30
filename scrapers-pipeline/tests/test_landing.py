@@ -123,16 +123,22 @@ def test_list_objects_builds_command_and_parses_output():
     assert runner.commands == [
         ["azcopy", "list", BASE + "/linkedin/dia=2026-09-26" + SAS]
     ]
-    assert objects == [landing.RemoteObject(path="x.parquet", size=7)]
+    # AzCopy 10.32.4 lists names relative to the prefix: the adapter joins
+    # the requested prefix so the key is container-relative (T-50).
+    assert objects == [
+        landing.RemoteObject(path="linkedin/dia=2026-09-26/x.parquet", size=7)
+    ]
 
 
 def test_list_objects_with_empty_prefix_uses_container_url():
-    runner = RecordingRunner()
+    runner = RecordingRunner(stdout="INFO: a.parquet; Content Length: 3 B\n")
     reader = landing.AzCopyReader(BASE, SAS, runner=runner)
 
-    reader.list_objects("")
+    objects = reader.list_objects("")
 
     assert runner.commands[0][2] == BASE + SAS
+    # With no prefix there is nothing to join: paths stay exactly as listed.
+    assert objects == [landing.RemoteObject("a.parquet", 3)]
 
 
 def test_list_objects_uses_configured_azcopy_path():
@@ -147,11 +153,66 @@ def test_list_objects_uses_configured_azcopy_path():
 
 
 def test_list_objects_falls_back_to_stderr_listing():
-    # Some AzCopy builds emit the listing on stderr.
-    runner = RecordingRunner(stderr="INFO: a.parquet; Content Length: 3 B\n")
+    # Some AzCopy builds emit the listing on stderr; the relative names are
+    # completed with the requested prefix just like stdout listings (T-50).
+    runner = RecordingRunner(
+        stderr="INFO: 20260928_051557.json; Content Length: 3 B\n"
+    )
     reader = landing.AzCopyReader(BASE, SAS, runner=runner)
 
-    assert reader.list_objects("a") == [landing.RemoteObject("a.parquet", 3)]
+    assert reader.list_objects("_manifests/indeed/") == [
+        landing.RemoteObject("_manifests/indeed/20260928_051557.json", 3)
+    ]
+
+
+def test_list_objects_prefixes_short_names_from_azcopy_1032():
+    # Regression: AzCopy 10.32.4 lists bare names relative to the requested
+    # prefix; they must become container-relative keys so the manifest and
+    # trend downloads use them directly (RF-6, RF-7, RF-8).
+    runner = RecordingRunner(
+        stdout=(
+            "INFO: 20260928_051557.json; Content Length: 1.20 KiB\n"
+            "INFO: 20260928_061557.json; Content Length: 4096\n"
+        )
+    )
+    reader = landing.AzCopyReader(BASE, SAS, runner=runner)
+
+    assert reader.list_objects("_manifests/indeed/") == [
+        landing.RemoteObject(
+            path="_manifests/indeed/20260928_051557.json",
+            size=int(1.20 * 1024),
+        ),
+        landing.RemoteObject(
+            path="_manifests/indeed/20260928_061557.json", size=4096
+        ),
+    ]
+
+
+def test_list_objects_keeps_full_keys_without_duplicating_prefix():
+    runner = RecordingRunner(
+        stdout=(
+            "INFO: _manifests/indeed/20260928_051557.json; "
+            "Content Length: 3 B\n"
+            "INFO: _manifests/indeed; Content Length: 3 B\n"
+        )
+    )
+    reader = landing.AzCopyReader(BASE, SAS, runner=runner)
+
+    assert reader.list_objects("_manifests/indeed/") == [
+        landing.RemoteObject("_manifests/indeed/20260928_051557.json", 3),
+        landing.RemoteObject("_manifests/indeed", 3),
+    ]
+
+
+def test_list_manifest_keys_with_azcopy_reader_returns_full_keys():
+    runner = RecordingRunner(
+        stdout="INFO: 20260928_051557.json; Content Length: 3 B\n"
+    )
+    reader = landing.AzCopyReader(BASE, SAS, runner=runner)
+
+    keys = landing.list_manifest_keys(reader, "indeed")
+
+    assert keys == ["_manifests/indeed/20260928_051557.json"]
 
 
 def test_list_failure_raises_remote_error():

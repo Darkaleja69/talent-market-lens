@@ -251,6 +251,28 @@ def parse_azcopy_list(output: str) -> list[RemoteObject]:
     return objects
 
 
+def _normalize_listed_path(prefix: str, path: str) -> str:
+    """Return the container-relative key of a path listed under ``prefix``.
+
+    AzCopy 10.32.4 lists objects with names **relative to the requested
+    prefix** (for example ``20260928_051557.json`` for
+    ``_manifests/indeed/``), while other builds return the full
+    container-relative key. A relative name is joined to the requested
+    prefix; a path that already starts with the prefix (or equals it) is left
+    untouched, so the mapping is idempotent. With an empty prefix nothing is
+    changed. The pure parser keeps returning exactly what AzCopy printed;
+    this normalisation belongs to the adapter, so ``list_manifest_keys`` and
+    the manifest/trend downloads receive keys they can fetch (RF-6, RF-7,
+    RF-8).
+    """
+    normalized = prefix.strip().strip("/")
+    if not normalized:
+        return path
+    if path == normalized or path.startswith(normalized + "/"):
+        return path
+    return f"{normalized}/{path}"
+
+
 def base_url_from_env(
     account: str | None = None, container: str = DEFAULT_CONTAINER
 ) -> str:
@@ -403,7 +425,14 @@ class AzCopyReader:
     # -- RemoteReader --------------------------------------------------------
 
     def list_objects(self, prefix: str) -> list[RemoteObject]:
-        """List landing objects under ``prefix`` via ``azcopy list``."""
+        """List landing objects under ``prefix`` via ``azcopy list``.
+
+        Every listed path is normalised to its container-relative key with
+        :func:`_normalize_listed_path`: AzCopy 10.32.4 returns names relative
+        to the requested prefix, so without this step callers would download
+        (or infer a scraper/stamp from) the wrong key and the publication
+        would be reported as not checked (RF-6, RF-7, RF-8).
+        """
         result = self._run(
             [self._azcopy_path, "list", self._url_for(prefix)],
             action="listar los objetos",
@@ -413,7 +442,12 @@ class AzCopyReader:
         if not objects:
             # Some AzCopy builds/log levels emit the listing on stderr.
             objects = parse_azcopy_list(getattr(result, "stderr", "") or "")
-        return objects
+        return [
+            RemoteObject(
+                path=_normalize_listed_path(prefix, obj.path), size=obj.size
+            )
+            for obj in objects
+        ]
 
     def download(self, remote_path: str, local_path: Path) -> None:
         """Download ``remote_path`` to ``local_path`` via ``azcopy copy``."""
