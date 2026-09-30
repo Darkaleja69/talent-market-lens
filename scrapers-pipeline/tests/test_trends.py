@@ -19,12 +19,22 @@ from verification import completeness, field_contract, fingerprint, landing, tre
 
 
 class FakeReader:
-    """In-memory :class:`landing.RemoteReader` simulating the landing."""
+    """In-memory :class:`landing.RemoteReader` simulating the landing.
 
-    def __init__(self, objects: dict[str, bytes] | None = None) -> None:
+    ``fail_list`` makes every listing raise :class:`landing.RemoteError`, which
+    models a connectivity/credential failure without any network.
+    """
+
+    def __init__(
+        self, objects: dict[str, bytes] | None = None, *, fail_list: str | None = None
+    ) -> None:
         self.objects = dict(objects or {})
+        self.fail_list = fail_list
+        self.downloads: list[str] = []
 
     def list_objects(self, prefix: str) -> list[landing.RemoteObject]:
+        if self.fail_list is not None:
+            raise landing.RemoteError(self.fail_list)
         return [
             landing.RemoteObject(path=key, size=len(data))
             for key, data in self.objects.items()
@@ -32,6 +42,7 @@ class FakeReader:
         ]
 
     def download(self, remote_path: str, local_path: Path) -> None:
+        self.downloads.append(remote_path)
         data = self.objects.get(remote_path)
         if data is None:
             raise landing.RemoteError("objeto no encontrado")
@@ -429,6 +440,54 @@ def test_load_published_completeness_skips_bad_and_missing_remote(tmp_path):
     assert result.total_offers == 2
 
 
+def test_load_published_completeness_resolves_nested_staging_key(tmp_path):
+    # The manifest's ``remote`` is the flat key, but AzCopy uploaded the object
+    # under an intermediate staging folder: the real object is measured (T-57).
+    nested = (
+        "indeed/dia=2026-09-26/"
+        "scrapers-pipeline-indeed-2026-09-26-639263290983170592/jobs.parquet"
+    )
+    reader = FakeReader({nested: _parquet_bytes(_indeed_table())})
+    manifest = _manifest(
+        "indeed",
+        "20260926T010000",
+        entries=(
+            landing.ManifestFile(
+                file="jobs.parquet", remote="dia=2026-09-26/jobs.parquet"
+            ),
+        ),
+    )
+
+    result = trends.load_published_completeness(
+        manifest, reader, "indeed", workdir=tmp_path
+    )
+
+    assert result is not None
+    assert result.total_offers == 2
+
+
+def test_load_published_completeness_skips_unresolved_entry(tmp_path):
+    # Nothing visible for the entry: it is skipped and there is no measured
+    # population, instead of raising (the real cause is reported by T-58).
+    manifest = _manifest(
+        "indeed",
+        "20260926T010000",
+        entries=(
+            landing.ManifestFile(
+                file="jobs.parquet", remote="dia=2026-09-26/jobs.parquet"
+            ),
+        ),
+    )
+    reader = FakeReader({})
+
+    assert (
+        trends.load_published_completeness(
+            manifest, reader, "indeed", workdir=tmp_path
+        )
+        is None
+    )
+
+
 def test_load_published_completeness_returns_none_without_readable_objects(tmp_path):
     key = "indeed/dia=2026-09-26/broken.parquet"
     reader = FakeReader({key: b"not a parquet"})
@@ -455,7 +514,7 @@ def test_load_published_completeness_propagates_remote_error(tmp_path):
             ),
         ),
     )
-    reader = FakeReader({})  # the object is not present
+    reader = FakeReader({}, fail_list="sin credenciales")
 
     with pytest.raises(landing.RemoteError):
         trends.load_published_completeness(manifest, reader, "indeed")
@@ -501,6 +560,36 @@ def _manifest_payload(fp: dict | None) -> bytes:
     if fp is not None:
         body["fingerprint"] = fp
     return json.dumps(body).encode("utf-8")
+
+
+def test_select_history_includes_manifests_with_utf8_bom():
+    # PowerShell 5.1 writes a BOM into the manifests; a BOM must not drop the
+    # run from the comparable series (T-51; RF-7, RF-8).
+    fp = _fp_indeed()
+    bom = "\ufeff".encode("utf-8")
+    reader = FakeReader(
+        {
+            "_manifests/indeed/20260925T010000.json": (
+                bom + _manifest_payload(fp)
+            ),
+            "_manifests/indeed/20260926T010000.json": (
+                bom + _manifest_payload(fp)
+            ),
+        }
+    )
+
+    result = trends.select_history(
+        reader,
+        current_fingerprint=fp,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+
+    assert [run.label for run in result] == [
+        "20260925T010000",
+        "20260926T010000",
+    ]
 
 
 def test_select_history_returns_only_comparable_manifests():
@@ -567,6 +656,167 @@ def test_select_history_anchor_survives_when_current_manifest_is_absent():
     )
 
     assert [run.label for run in result] == ["20260925T010000", "20260926T010000"]
+
+
+# --------------------------------------------------------------------------
+# Only the comparable runs are measured (T-61; RF-7)
+# --------------------------------------------------------------------------
+
+
+def _manifest_with_object(fp: dict | None, remote: str, rows: int = 2) -> bytes:
+    """Build one manifest payload whose entry points at a published object."""
+    body: dict = {
+        "schema_version": 1,
+        "total_files": 1,
+        "bad_files": 0,
+        "files": [
+            {"file": "jobs.parquet", "status": "ok", "rows": rows, "remote": remote}
+        ],
+    }
+    if fp is not None:
+        body["fingerprint"] = fp
+    return json.dumps(body).encode("utf-8")
+
+
+def _object_downloads(reader: FakeReader) -> list[str]:
+    """Return only the published-object downloads, not the manifest JSONs."""
+    return [path for path in reader.downloads if not path.endswith(".json")]
+
+
+def test_history_measures_only_the_anchor_and_the_selected_candidates():
+    # Ten comparable candidates plus the anchor: the trend only uses five runs,
+    # so only those five manifests may download published objects (T-61).
+    fp = _fp_indeed()
+    objects: dict[str, bytes] = {}
+    for day in range(10, 20):
+        remote = f"dia=2026-09-{day}/jobs.parquet"
+        objects[f"_manifests/indeed/202609{day:02d}T010000.json"] = (
+            _manifest_with_object(fp, remote)
+        )
+        objects[f"indeed/{remote}"] = _parquet_bytes(_indeed_table())
+    anchor_remote = "dia=2026-09-26/jobs.parquet"
+    objects["_manifests/indeed/20260926T010000.json"] = _manifest_with_object(
+        fp, anchor_remote
+    )
+    objects[f"indeed/{anchor_remote}"] = _parquet_bytes(_indeed_table())
+    reader = FakeReader(objects)
+
+    runs = trends.select_history(
+        reader,
+        current_fingerprint=fp,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+
+    assert [run.label for run in runs] == [
+        "20260916T010000",
+        "20260917T010000",
+        "20260918T010000",
+        "20260919T010000",
+        "20260926T010000",
+    ]
+    # Every manifest was read once (its fingerprint is needed)...
+    manifest_downloads = [path for path in reader.downloads if path.endswith(".json")]
+    assert len(manifest_downloads) == 11
+    # ...but only the anchor and the four selected candidates were measured.
+    assert sorted(_object_downloads(reader)) == [
+        f"indeed/dia=2026-09-{day}/jobs.parquet" for day in (16, 17, 18, 19, 26)
+    ]
+    assert runs[-1].completeness_by_source["indeed"].total_offers == 2
+
+
+def test_history_does_not_measure_excluded_manifests():
+    fp_a = _fp_indeed()
+    fp_b = _fp_linkedin()
+    objects: dict[str, bytes] = {}
+    plan = (
+        ("20260920T010000", fp_a, "dia=2026-09-20/jobs.parquet"),
+        ("20260921T010000", fp_a, "dia=2026-09-21/jobs.parquet"),
+        ("20260922T010000", fp_b, "dia=2026-09-22/jobs.parquet"),
+        ("20260923T010000", None, "dia=2026-09-23/jobs.parquet"),
+        ("20260924T010000", fp_b, "dia=2026-09-24/jobs.parquet"),
+        ("20260925T010000", None, "dia=2026-09-25/jobs.parquet"),
+        ("20260926T010000", fp_a, "dia=2026-09-26/jobs.parquet"),
+    )
+    for stamp, fp, remote in plan:
+        objects[f"_manifests/indeed/{stamp}.json"] = _manifest_with_object(fp, remote)
+        objects[f"indeed/{remote}"] = _parquet_bytes(_indeed_table())
+    reader = FakeReader(objects)
+
+    runs, summary = trends.select_history_summary(
+        reader,
+        current_fingerprint=fp_a,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+
+    # The summary still counts the whole history...
+    assert [run.label for run in runs] == [
+        "20260920T010000",
+        "20260921T010000",
+        "20260926T010000",
+    ]
+    assert summary.considered == 7
+    assert summary.excluded_without_fingerprint == 2
+    assert summary.excluded_different_fingerprint == 2
+    assert summary.runs_used == 3
+    assert summary.comparable is True
+    # ...but the excluded manifests never download their published objects.
+    assert sorted(_object_downloads(reader)) == [
+        "indeed/dia=2026-09-20/jobs.parquet",
+        "indeed/dia=2026-09-21/jobs.parquet",
+        "indeed/dia=2026-09-26/jobs.parquet",
+    ]
+
+
+def test_history_series_is_unchanged_for_five_or_fewer_comparable_runs():
+    fp = _fp_indeed()
+    full_table = pa.table(
+        {
+            "job_key": ["1", "2"],
+            "title": ["Data Engineer", "Data Engineer"],
+            "company": ["Acme", "Beta"],
+            "description_text": ["d1", "d2"],
+            "salary_text": ["30k", None],
+            "workplace_type": ["Remote", "Hybrid"],
+            "location": ["Madrid", "Barcelona"],
+            "posted_date": ["2026-09-01", "2026-09-02"],
+        }
+    )
+    plan = (
+        ("20260924T010000", "dia=2026-09-24/jobs.parquet", full_table),
+        ("20260925T010000", "dia=2026-09-25/jobs.parquet", _indeed_table()),
+        ("20260926T010000", "dia=2026-09-26/jobs.parquet", full_table),
+    )
+    objects: dict[str, bytes] = {}
+    for stamp, remote, table in plan:
+        objects[f"_manifests/indeed/{stamp}.json"] = _manifest_with_object(
+            fp, remote, rows=table.num_rows
+        )
+        objects[f"indeed/{remote}"] = _parquet_bytes(table)
+    reader = FakeReader(objects)
+
+    runs = trends.select_history(
+        reader,
+        current_fingerprint=fp,
+        scraper="indeed",
+        label="20260926T010000",
+        sources_scope=["indeed"],
+    )
+    result = trends.build_trend(runs)
+
+    assert [run.label for run in runs] == [
+        "20260924T010000",
+        "20260925T010000",
+        "20260926T010000",
+    ]
+    assert result.comparable is True
+    assert result.runs_used == 3
+    title = result.sources["indeed"].fields["title"]
+    assert title.values == (100.0, 50.0, 100.0)
+    assert title.counts == ((2, 2), (1, 2), (2, 2))
 
 
 # --------------------------------------------------------------------------

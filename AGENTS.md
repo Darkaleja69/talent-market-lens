@@ -30,13 +30,13 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - Una rama por spec: `spec/<NNN>-<nombre-corto>` (p. ej. `spec/001-verify-scrapers-run`). Se crea desde `main` al iniciar la spec.
 - Antes de crear una spec, comprueba en `specs/` que su número no esté ya en uso: los números de spec no se reutilizan ni se crean duplicados (si existen 001 y 002, la siguiente es 003).
 - Todo el trabajo de una spec (código, tests y actualización de `specs/`) ocurre en su rama.
-- `main` solo recibe merges de specs terminadas; no se commitea directamente en `main`.
+- `main` solo recibe merges de ramas de spec; no se commitea directamente en `main`.
 - Se hace `git push` de la rama a `origin` con frecuencia para respaldar y dejar historial visible.
-- Una spec se fusiona a `main` cuando todas sus tareas están cerradas y sus tests en verde:
-  - `git switch main`, `git pull`, `git merge --no-ff spec/<...>` (el `--no-ff` deja un commit que marca el cierre de la spec).
-  - Etiquetar el hito: `git tag -a spec-001 -m "spec 001 completada"`.
-  - Borrar la rama: `git branch -d spec/<...>` y `git push origin --delete spec/<...>`.
+- Fusionar a `main` con las tareas cerradas y los tests en verde (`git switch main`, `git pull`, `git merge --no-ff spec/<...>`) es un **checkpoint**, no el cierre: la rama **no se borra y no se etiqueta** todavía.
+- Una spec se **cierra** (etiquetar `git tag -a spec-NNN -m "spec NNN completada"` y borrar la rama) solo cuando su **comprobación real** funciona, no solo los tests. Si la comprobación real falla, se corrige dentro de la misma spec y su rama, y se repite.
+- Los defectos de implementación o de tests detectados al verificar una spec se corrigen en esa misma spec; no se abre una spec nueva para parchear el objetivo incumplido de otra.
 - Recomendado aunque trabajes en solitario: abrir un Pull Request de la rama contra `main` y revisarlo contra la spec antes de fusionar, para practicar el flujo de equipo.
 
 ## Al terminar cualquier tarea
-- Verifica mediante los tests establecidos que no hay errores. 
+- Verifica mediante los tests establecidos que no hay errores.
+- Al cerrar una spec, ejecuta además su comprobación real (en la 001, la CLI contra la landing real) y registra el resultado; la spec no se cierra hasta que esa comprobación funcione.

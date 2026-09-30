@@ -36,7 +36,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol, runtime_checkable
@@ -251,6 +251,28 @@ def parse_azcopy_list(output: str) -> list[RemoteObject]:
     return objects
 
 
+def _normalize_listed_path(prefix: str, path: str) -> str:
+    """Return the container-relative key of a path listed under ``prefix``.
+
+    AzCopy 10.32.4 lists objects with names **relative to the requested
+    prefix** (for example ``20260928_051557.json`` for
+    ``_manifests/indeed/``), while other builds return the full
+    container-relative key. A relative name is joined to the requested
+    prefix; a path that already starts with the prefix (or equals it) is left
+    untouched, so the mapping is idempotent. With an empty prefix nothing is
+    changed. The pure parser keeps returning exactly what AzCopy printed;
+    this normalisation belongs to the adapter, so ``list_manifest_keys`` and
+    the manifest/trend downloads receive keys they can fetch (RF-6, RF-7,
+    RF-8).
+    """
+    normalized = prefix.strip().strip("/")
+    if not normalized:
+        return path
+    if path == normalized or path.startswith(normalized + "/"):
+        return path
+    return f"{normalized}/{path}"
+
+
 def base_url_from_env(
     account: str | None = None, container: str = DEFAULT_CONTAINER
 ) -> str:
@@ -403,7 +425,14 @@ class AzCopyReader:
     # -- RemoteReader --------------------------------------------------------
 
     def list_objects(self, prefix: str) -> list[RemoteObject]:
-        """List landing objects under ``prefix`` via ``azcopy list``."""
+        """List landing objects under ``prefix`` via ``azcopy list``.
+
+        Every listed path is normalised to its container-relative key with
+        :func:`_normalize_listed_path`: AzCopy 10.32.4 returns names relative
+        to the requested prefix, so without this step callers would download
+        (or infer a scraper/stamp from) the wrong key and the publication
+        would be reported as not checked (RF-6, RF-7, RF-8).
+        """
         result = self._run(
             [self._azcopy_path, "list", self._url_for(prefix)],
             action="listar los objetos",
@@ -413,7 +442,12 @@ class AzCopyReader:
         if not objects:
             # Some AzCopy builds/log levels emit the listing on stderr.
             objects = parse_azcopy_list(getattr(result, "stderr", "") or "")
-        return objects
+        return [
+            RemoteObject(
+                path=_normalize_listed_path(prefix, obj.path), size=obj.size
+            )
+            for obj in objects
+        ]
 
     def download(self, remote_path: str, local_path: Path) -> None:
         """Download ``remote_path`` to ``local_path`` via ``azcopy copy``."""
@@ -589,9 +623,13 @@ def load_manifest(
 
     The object is downloaded to a temporary location (the reader's own
     ``temp_path`` when available, otherwise a private temporary directory),
-    read as UTF-8 JSON and parsed. Missing/invalid content yields ``None``; a
-    connectivity/credential failure raises :class:`RemoteError` and is left to
-    the caller as "not checked" (RF-8, RF-13).
+    read as UTF-8 JSON and parsed. ``utf-8-sig`` tolerates the BOM that
+    PowerShell 5.1 ``Set-Content -Encoding UTF8`` writes into the manifests
+    (and reads plain UTF-8 unchanged), so a BOM never degrades the
+    publication to "not checked" or hides the comparable history (RF-7,
+    RF-8). Missing/invalid content yields ``None``; a connectivity/credential
+    failure raises :class:`RemoteError` and is left to the caller as "not
+    checked" (RF-8, RF-13).
 
     ``scraper``/``stamp`` default to the values inferred from the key.
     """
@@ -608,7 +646,8 @@ def load_manifest(
             own_dir = tempfile.TemporaryDirectory(prefix="landing-manifest-")
             local = Path(own_dir.name) / _safe_relative(remote_key)
         reader.download(remote_key, local)
-        payload = json.loads(local.read_text(encoding="utf-8"))
+        # utf-8-sig accepts an optional UTF-8 BOM and plain UTF-8 alike.
+        payload = json.loads(local.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     finally:
@@ -626,6 +665,10 @@ def _object_present(
     some builds returns bare filenames relative to the requested prefix, so a
     key with no separator matching the remote file name also counts as
     present.
+
+    Kept as a lightweight presence helper; :func:`resolve_published_key` is
+    the resolver ``_verify_entry`` uses, because the real published key may
+    include an intermediate AzCopy staging folder.
     """
     expected_name = PurePosixPath(remote).name
     for obj in objects:
@@ -635,6 +678,68 @@ def _object_present(
         if "/" not in key and key == expected_name:
             return True
     return False
+
+
+def _match_published_key(
+    expected_key: str, objects: Iterable[RemoteObject]
+) -> str | None:
+    """Return the listed key matching ``expected_key``, or ``None`` (T-57).
+
+    Rules, in order:
+
+    1. the exact container-relative key wins;
+    2. otherwise a single object whose file name matches the expected one is
+       accepted, which covers the intermediate AzCopy staging folder
+       (``--as-subdir``) of historical uploads;
+    3. several objects with the same file name are ambiguous: never guess,
+       return ``None``;
+    4. no match at all: ``None``.
+    """
+    expected = expected_key.strip().strip("/")
+    if not expected:
+        return None
+    expected_name = PurePosixPath(expected).name
+    candidates: set[str] = set()
+    for obj in objects:
+        key = obj.path.strip().strip("/")
+        if not key:
+            continue
+        if key == expected:
+            return key
+        if PurePosixPath(key).name == expected_name:
+            candidates.add(key)
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    return None
+
+
+def resolve_published_key(
+    reader: RemoteReader,
+    expected_key: str,
+    objects: list[RemoteObject] | None = None,
+) -> str | None:
+    """Resolve the real published key of ``expected_key`` on the landing.
+
+    ``expected_key`` is the container-relative key the manifest declares
+    (``scraper/dia=.../<file>``). AzCopy may have uploaded it under an
+    intermediate staging folder, so the object is looked up by exact key and,
+    failing that, by a unique matching file name under the directory prefix
+    (:func:`_match_published_key`). When ``objects`` is given it is used
+    as-is; otherwise the directory prefix is listed through the reader.
+
+    Returns the resolved container-relative key, or ``None`` when the object
+    is absent or ambiguous. A :class:`RemoteError` from the listing propagates
+    unchanged, so connectivity failures stay distinguishable from pending
+    publication (RF-6, RF-8).
+    """
+    expected = expected_key.strip().strip("/")
+    if not expected:
+        return None
+    if objects is None:
+        directory = posixpath.dirname(expected)
+        prefix = f"{directory}/" if directory else ""
+        objects = reader.list_objects(prefix)
+    return _match_published_key(expected, objects)
 
 
 def _sha256_file(path: Path) -> str:
@@ -672,7 +777,8 @@ def _verify_entry(
     prefix_parts = [part for part in (manifest.scraper, directory) if part]
     prefix = f"{'/'.join(prefix_parts)}/" if prefix_parts else ""
     objects = reader.list_objects(prefix)
-    if not _object_present(objects, full_key, remote):
+    resolved = resolve_published_key(reader, full_key, objects=objects)
+    if resolved is None:
         return FileCheck(
             file=entry.file,
             remote=remote,
@@ -681,7 +787,7 @@ def _verify_entry(
         )
 
     local = base_dir / _safe_relative(remote)
-    reader.download(full_key, local)
+    reader.download(resolved, local)
     result = completeness.read_obtained_parquet(str(local))
     if not result.readable:
         return FileCheck(
@@ -749,9 +855,12 @@ def verify_manifest(
 
     Every accepted entry is checked for existence, readability, declared row
     count and sha256; entries the manifest marked ``bad`` (or a ``bad_files``
-    count above zero) are reported as rejected. When the manifest carries no
-    rows/sha256 the corresponding comparison is skipped instead of inventing a
-    mismatch.
+    count above zero) are reported as rejected. The real published key is
+    resolved first (:func:`resolve_published_key`), so an AzCopy staging
+    folder that is not part of ``remote`` is tolerated; an absent or ambiguous
+    key is reported as ``FILE_MISSING`` without guessing. When the manifest
+    carries no rows/sha256 the corresponding comparison is skipped instead of
+    inventing a mismatch.
 
     Downloads go to ``workdir`` when given; otherwise a private temporary
     directory is created and removed when the check ends. A :class:`RemoteError`

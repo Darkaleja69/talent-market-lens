@@ -96,6 +96,10 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 
 **Criterio de aceptación (EARS):** Mientras un scraper esté en ejecución, el supervisor deberá comprobar si avanza el contador de ofertas capturadas. Si el contador avanza, deberá mantener el scraper activo y no marcarlo como bloqueado. Si el contador no avanza durante el periodo de inactividad establecido para ese scraper, deberá detener ese proceso, registrar la causa como bloqueo por falta de progreso y marcar esa fuente como fallida. En Multi-site, esta comprobación y detención se realizará por portal, sin detener los demás.
 
+### RF-16 — Guardar el resultado legible por máquina
+
+**Criterio de aceptación (EARS):** Cuando el diagnóstico termine, también cuando quede inconcluso, el sistema deberá escribir en un fichero local un resultado legible por máquina con el estado global y, por cada fuente, su clasificación, el resultado de la ejecución, las ofertas capturadas, la completitud por campo, el estado de publicación y los motivos de fallo, además de mostrar el informe en pantalla. El fichero corresponderá a la última ejecución y se sobrescribirá en cada diagnóstico; no es un almacén histórico.
+
 ## Requisitos no funcionales
 
 - El informe deberá ser claro y accionable para una persona que mantiene el proyecto con conocimientos de ingeniería de datos de nivel junior.
@@ -104,6 +108,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Los porcentajes deberán acompañarse de sus recuentos para que su interpretación sea verificable.
 - Con la misma evidencia de una ejecución, el diagnóstico deberá informar los mismos hechos y distinguirlos de cualquier hipótesis.
 - La funcionalidad deberá cubrirse con tests unitarios y de integración sobre datos de ejemplo, sin depender de las webs reales ni de credenciales.
+- El fichero de resultado se escribirá en UTF-8 sin BOM, con claves e identificadores en inglés, y nunca contendrá credenciales ni la SAS.
 
 ## Casos límite
 
@@ -132,7 +137,7 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Ejecutar transformaciones analíticas posteriores a la landing.
 - Validar o modificar el dashboard de Power BI.
 - Enviar alertas o monitorizar ejecuciones continuamente.
-- Crear un almacén propio de histórico del diagnóstico.
+- Crear un almacén propio de histórico del diagnóstico (el fichero de resultado de la última ejecución se sobrescribe y no es histórico).
 
 ## Criterios de finalización
 
@@ -146,6 +151,8 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - La funcionalidad cuenta con tests unitarios y de integración sobre datos de ejemplo.
 - Un scraper con progreso no es detenido; uno sin progreso durante su periodo establecido es detenido y registrado como fallido.
 - El diagnóstico no inicia ejecuciones ni modifica datos, configuración o código.
+- El diagnóstico, ejecutado contra la landing real de Azure (AzCopy 10.32.4) sobre manifests escritos por PowerShell 5.1, carga los manifests, clasifica la publicación de cada fuente y calcula la tendencia con las ejecuciones comparables.
+- Además del informe en pantalla, el diagnóstico deja un fichero JSON local con el estado global y el de cada fuente, consumible por otro script.
 
 ## Decisiones aclaradas
 
@@ -162,3 +169,22 @@ Dos ejecuciones son comparables cuando cubren las mismas fuentes y las mismas b�
 - Verificación mediante tests unitarios y de integración sobre datos de ejemplo.
 - Multi-site incluye seis fuentes independientes: IrishJobs, StepStone NL, DevITjobs, NVB, Jobs.ch y Glassdoor.
 - Un proceso activo se considera en progreso mientras el contador de ofertas capturadas avance; si no avanza durante el periodo establecido para ese scraper, se detiene y se marca fallido.
+- La comprobación remota tolera el comportamiento real de las herramientas del pipeline: `azcopy list` puede devolver nombres cortos relativos al prefijo pedido y los manifests pueden llevar BOM UTF-8; ninguna de esas dos cosas puede degradar la publicación a "no comprobada".
+- La clave publicada real puede incluir una carpeta intermedia de staging; el diagnóstico resuelve el objeto por la clave exacta y, si no existe, por nombre de fichero único bajo el prefijo publicado, mientras la subida se alinea al contrato `dia=.../<fichero>`.
+- Si el run no dejó manifest de publicación para una fuente sin datos preparados, la publicación se informa como "sin datos que publicar", no como pendiente.
+
+## Verificación real (reapertura)
+
+Tras la primera fusión, la ejecución del diagnóstico contra la landing real del
+run 2026-09-29 mostró que la comprobación remota no funcionaba: `azcopy list`
+(AzCopy 10.32.4) devuelve nombres cortos y los manifests que escribe
+`run_scrapers_and_upload.ps1` con PowerShell 5.1 llevan BOM UTF-8. El grupo 8 de
+`tasks.md` corrige ese defecto dentro de esta misma spec; T-53 es el criterio de
+cierre real.
+
+La comprobación real del run 2026-09-30 confirmó que las claves completas y el
+BOM ya se leen, y destapó dos defectos más: la subida con AzCopy coloca una
+carpeta de staging intermedia que no figura en `remote` (por eso la publicación
+quedaba "pendiente" y la tendencia no medía lo publicado) y el fallo de lectura
+de la tendencia se silenciaba con un motivo genérico. El grupo 8 se amplía con
+T-56–T-58 y se activa T-55.

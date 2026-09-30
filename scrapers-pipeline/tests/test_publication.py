@@ -62,6 +62,7 @@ def test_publication_state_constants_match_the_design():
     assert publication.PUBLICATION_MISMATCH == "mismatch"
     assert publication.PUBLICATION_REJECTED == "rejected"
     assert publication.PUBLICATION_NOT_CHECKED == "not_checked"
+    assert publication.PUBLICATION_NOT_APPLICABLE == "not_applicable"
 
 
 # --- Snapshot vs. delta: the key rule (RF-3, RF-8) ---------------------------
@@ -188,6 +189,45 @@ def test_rows_mismatch_is_mismatch():
     assert publication.is_zero_offers_captured(state) is False
 
 
+# --- Not applicable: nothing was prepared to publish (T-55) ------------------
+
+
+def test_not_applicable_when_nothing_was_prepared():
+    # The run prepared no data, so the absent manifest is not a pending upload
+    # and it never fails the source (T-55, RF-8).
+    state = publication.classify_publication(
+        obtained_offers=None, delta_offers=None, not_applicable=True
+    )
+
+    assert state == publication.PUBLICATION_NOT_APPLICABLE
+    assert publication.is_zero_offers_captured(state) is False
+
+
+def test_not_checked_wins_over_not_applicable():
+    state = publication.classify_publication(
+        obtained_offers=None,
+        delta_offers=None,
+        not_checked=True,
+        not_applicable=True,
+    )
+
+    assert state == publication.PUBLICATION_NOT_CHECKED
+
+
+def test_build_source_publication_not_applicable():
+    result = publication.build_source_publication(
+        source="infojobs",
+        obtained=None,
+        published=None,
+        not_applicable=True,
+    )
+
+    assert result.stage.state == publication.PUBLICATION_NOT_APPLICABLE
+    assert result.stage.obtained_offers is None
+    assert result.stage.delta_offers is None
+    assert publication.is_zero_offers_captured(result.stage.state) is False
+
+
 # --- Not checked (RemoteError) ----------------------------------------------
 
 
@@ -214,6 +254,7 @@ def test_only_empty_is_zero_offers_captured():
         publication.PUBLICATION_MISMATCH,
         publication.PUBLICATION_REJECTED,
         publication.PUBLICATION_NOT_CHECKED,
+        publication.PUBLICATION_NOT_APPLICABLE,
     ):
         assert publication.is_zero_offers_captured(state) is False, state
 

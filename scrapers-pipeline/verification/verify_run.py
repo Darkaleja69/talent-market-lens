@@ -24,9 +24,13 @@ report and messages to the person are in Spanish (constitution #6).
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 import pyarrow as pa
@@ -257,22 +261,105 @@ def _manifest_stamp(key: str) -> str:
     return PurePosixPath(key).stem
 
 
-def _latest_manifest(
-    reader: landing.RemoteReader, scraper: str
-) -> landing.Manifest | None:
-    """Load the most recent manifest of ``scraper``, or ``None`` when none."""
-    keys = landing.list_manifest_keys(reader, scraper)
-    if not keys:
+# Only these two exact stamp layouts are accepted. ``strptime`` alone would
+# back-fill partial numeric stamps as a wrong time (``20260930_0611`` ->
+# 06:01:01), so the shape is validated before parsing (T-55).
+_MANIFEST_STAMP_FORMATS: tuple[tuple[str, str], ...] = (
+    (r"^\d{8}_\d{6}$", "%Y%m%d_%H%M%S"),
+    (r"^\d{8}T\d{6}$", "%Y%m%dT%H%M%S"),
+)
+
+
+def _parse_manifest_stamp(stamp: str) -> datetime | None:
+    """Parse a manifest stamp, or ``None`` when it does not carry a date.
+
+    Real stamps are ``yyyyMMdd_HHmmss`` (written by the upload wrapper); the
+    test fixtures and some historical manifests use the ISO-like
+    ``yyyyMMddTHHmmss`` form. Only those two exact shapes are accepted, so a
+    partial or over-long numeric stamp (``20260930_0611``, ``20260930_061``,
+    ``20260930_06112``) has no usable date and can never be an anchor (T-55).
+    """
+    for pattern, format_ in _MANIFEST_STAMP_FORMATS:
+        if re.fullmatch(pattern, stamp):
+            try:
+                return datetime.strptime(stamp, format_)
+            except ValueError:
+                return None
+    return None
+
+
+def _run_window(
+    summary: run_evidence.PipelineSummary | None,
+) -> tuple[datetime, datetime] | None:
+    """Return the local ``[start, end]`` window of the analysed run.
+
+    ``None`` when the summary or either timestamp is missing/unparseable: an
+    unknown window never selects a manifest as the run anchor (T-55, RF-1).
+    """
+    if summary is None or not summary.started_at or not summary.finished_at:
         return None
-    return landing.load_manifest(reader, max(keys, key=_manifest_stamp), scraper=scraper)
+    try:
+        start = datetime.fromisoformat(summary.started_at)
+        end = datetime.fromisoformat(summary.finished_at)
+    except ValueError:
+        return None
+    return (start, end)
 
 
-def _collect_remote_state(reader: landing.RemoteReader | None) -> _RemoteState:
-    """Load one manifest per scraper, tolerating connectivity failures.
+def _stamp_within_window(
+    stamp: str, window: tuple[datetime, datetime] | None
+) -> bool:
+    """Return True when ``stamp`` is parseable and falls in ``window``."""
+    if window is None:
+        return False
+    moment = _parse_manifest_stamp(stamp)
+    if moment is None:
+        return False
+    start, end = window
+    return start <= moment <= end
+
+
+def _stamp_moment(key: str) -> datetime:
+    """Return the parsed stamp of a manifest key already known to be valid."""
+    moment = _parse_manifest_stamp(_manifest_stamp(key))
+    if moment is None:  # pragma: no cover - candidates are filtered first
+        return datetime.min
+    return moment
+
+
+def _latest_manifest(
+    reader: landing.RemoteReader,
+    scraper: str,
+    window: tuple[datetime, datetime] | None,
+) -> landing.Manifest | None:
+    """Load the run's latest manifest of ``scraper``, or ``None``.
+
+    Only manifests whose stamp falls inside the analysed run's window are
+    candidates: a manifest from another execution must never be presented as
+    this run's publication nor anchor a trend (T-55, RF-1, RF-8). A stamp
+    without a usable date is not a candidate either.
+    """
+    keys = landing.list_manifest_keys(reader, scraper)
+    candidates = [
+        key for key in keys if _stamp_within_window(_manifest_stamp(key), window)
+    ]
+    if not candidates:
+        return None
+    latest = max(candidates, key=_stamp_moment)
+    return landing.load_manifest(reader, latest, scraper=scraper)
+
+
+def _collect_remote_state(
+    reader: landing.RemoteReader | None,
+    window: tuple[datetime, datetime] | None,
+) -> _RemoteState:
+    """Load one in-window manifest per scraper, tolerating connectivity failures.
 
     Without a reader nothing is loaded. A scraper whose listing fails is kept
     in ``unavailable`` so its publication is reported as not checked instead of
-    as pending or wrong (RF-8, RF-13).
+    as pending or wrong (RF-8, RF-13). A scraper with no manifest inside the
+    run window gets ``None``: there is no publication anchor for this run
+    (T-55).
     """
     if reader is None:
         return _RemoteState({}, frozenset())
@@ -280,11 +367,29 @@ def _collect_remote_state(reader: landing.RemoteReader | None) -> _RemoteState:
     unavailable: set[str] = set()
     for scraper in _SCRAPERS:
         try:
-            manifests[scraper] = _latest_manifest(reader, scraper)
+            manifests[scraper] = _latest_manifest(reader, scraper, window)
         except landing.RemoteError:
             manifests[scraper] = None
             unavailable.add(scraper)
     return _RemoteState(manifests, frozenset(unavailable))
+
+
+def _prepared_data(
+    evidence: run_evidence.RunEvidence, measured: _SourceMeasurement
+) -> bool:
+    """Return True when the run left data that should have been published.
+
+    Two signals count (T-55, RF-8): the run's own captured-offer counter above
+    zero, and a locally measured snapshot with offers. Everything else (a
+    null/zero counter and no measured offers) means the source prepared
+    nothing, so the absence of a manifest is "nothing to publish" and not a
+    pending upload.
+    """
+    if evidence.offers_current_run is not None and evidence.offers_current_run > 0:
+        return True
+    if measured.completeness is not None and measured.completeness.total_offers > 0:
+        return True
+    return False
 
 
 def _publication_for(
@@ -292,6 +397,8 @@ def _publication_for(
     remote: _RemoteState,
     source_id: str,
     measured: completeness.SourceCompleteness | None,
+    *,
+    had_prepared_data: bool,
 ) -> publication.SourcePublication:
     """Build the publication stage of one source (RF-6, RF-8).
 
@@ -300,6 +407,11 @@ def _publication_for(
     published delta measured; a connectivity/credential failure marks the
     publication as *not checked* instead of failing the source (RF-8, RF-13).
     Without a reader the publication is simply not checked.
+
+    When the run left no manifest for the scraper, ``had_prepared_data``
+    decides between *pending* (data was prepared but the object is not visible
+    yet) and *not applicable* (nothing was prepared to publish, so its absence
+    is no longer reported as a pending upload; T-55, RF-8).
     """
     scraper = _scraper_for(source_id)
     if reader is None or scraper in remote.unavailable:
@@ -308,7 +420,18 @@ def _publication_for(
         )
     manifest = remote.manifests.get(scraper)
     if manifest is None:
-        # No manifest is visible: the object is not there yet, never an error.
+        if not had_prepared_data:
+            # The run prepared nothing for this source: there is nothing to
+            # publish, so the absent manifest is not a pending upload.
+            return publication.build_source_publication(
+                source=source_id,
+                obtained=measured,
+                published=None,
+                manifest_state=None,
+                not_applicable=True,
+            )
+        # Data was prepared but no manifest of this run is visible: the object
+        # is not there yet, never an error.
         return publication.build_source_publication(
             source=source_id, obtained=measured, published=None, manifest_state=None
         )
@@ -345,15 +468,34 @@ def _publication_for(
     )
 
 
+def _trend_read_failure_note(scraper: str, error: landing.RemoteError) -> str:
+    """Return the Spanish note of a trend that could not be read (T-58).
+
+    The ``RemoteError`` message is already sanitized (no SAS token), so it is
+    safe to include as the observed cause (RF-7, RF-13).
+    """
+    return (
+        f"no se pudo calcular la tendencia de {scraper}: no se pudieron leer "
+        f"los objetos publicados ({error})"
+    )
+
+
 def _build_trends(
     reader: landing.RemoteReader | None, remote: _RemoteState
 ) -> tuple[dict[str, trends.SourceTrend], str | None, int]:
     """Compute the per-source trends and the global note/runs used (RF-7).
 
     Without a reader there is no comparable history: no trend and the Spanish
-    "no history" note. Otherwise each scraper's manifest is used as the current
-    anchor and its up-to-five comparable runs are traced; a source without a
-    usable series simply has no ``SourceTrend``.
+    "no history" note. Otherwise each scraper's in-window manifest is used as
+    the current anchor and its up-to-five comparable runs are traced; a source
+    without a usable series simply has no ``SourceTrend``.
+
+    A scraper whose manifests/objects cannot be read (``RemoteError``) is
+    never silenced (T-58): it contributes a Spanish failure note with its
+    sanitized cause, so a read failure is not presented as "no comparable
+    history". The generic :data:`trends.NO_HISTORY_NOTE` is only used when
+    there is neither a history note nor a failure note. Successful series are
+    still returned alongside the failure notes (RF-7, RF-13).
     """
     if reader is None:
         return {}, trends.NO_HISTORY_NOTE, 0
@@ -372,7 +514,8 @@ def _build_trends(
                 label=manifest.stamp,
                 sources_scope=scope,
             )
-        except landing.RemoteError:
+        except landing.RemoteError as error:
+            notes.append(_trend_read_failure_note(scraper, error))
             continue
         result = trends.build_trend(runs)
         for source_id, source_trend in result.sources.items():
@@ -449,7 +592,8 @@ def run_diagnostic(
         if projects_root is not None
         else run_evidence.DEFAULT_PROJECTS_ROOT
     )
-    remote = _collect_remote_state(reader)
+    window = _run_window(diagnostic.summary)
+    remote = _collect_remote_state(reader, window)
     trends_by_source, trend_note, runs_used = _build_trends(reader, remote)
 
     statuses: dict[str, status.SourceStatus] = {}
@@ -492,7 +636,11 @@ def run_diagnostic(
                 status=source_status,
                 run=evidence,
                 publication=_publication_for(
-                    reader, remote, source_id, measured.completeness
+                    reader,
+                    remote,
+                    source_id,
+                    measured.completeness,
+                    had_prepared_data=_prepared_data(evidence, measured),
                 ),
                 trend=trends_by_source.get(source_id),
                 progress=evidence.offers_current_run,
@@ -502,12 +650,24 @@ def run_diagnostic(
         )
 
     global_status = status.classify_global(statuses, analyzable=True)
+    summary = diagnostic.summary
+    run_metadata = (
+        report.RunReport(
+            date=summary.date,
+            started_at=summary.started_at,
+            finished_at=summary.finished_at,
+            log_path=summary.log_path,
+        )
+        if summary is not None
+        else None
+    )
     return report.build_report(
         sources=source_reports,
         global_status=global_status,
         trend_note=trend_note,
         runs_used=runs_used,
         investigations=investigations,
+        run=run_metadata,
     )
 
 
@@ -526,12 +686,76 @@ def _build_reader() -> landing.AzCopyReader | None:
     return landing.AzCopyReader(base_url, sas)
 
 
+def _result_path(
+    *,
+    output: str | None,
+    projects_root: str | None,
+    logs_dir: str | None,
+) -> Path:
+    """Return the result file path of the diagnostic (T-60; RF-16).
+
+    ``--output`` wins; otherwise the file lives in the effective logs
+    directory (``--logs-dir``, or the diagnostic default
+    ``<projects-root>/scrapers-pipeline/logs``).
+    """
+    if output:
+        return Path(output)
+    if logs_dir:
+        base = Path(logs_dir)
+    else:
+        root = (
+            Path(projects_root)
+            if projects_root is not None
+            else run_evidence.DEFAULT_PROJECTS_ROOT
+        )
+        base = root / run_evidence.DEFAULT_LOGS_SUBDIR
+    return base / "diagnostic_last.json"
+
+
+def _write_result_file(
+    diagnostic_report: report.DiagnosticReport, path: Path
+) -> None:
+    """Write the machine-readable result as UTF-8 without BOM, atomically.
+
+    The parent directory is created when missing, the JSON is written to a
+    sibling temporary file and moved into place with ``os.replace``, so a
+    reader never sees a half-written file. The file is overwritten on every
+    diagnostic and is not a history store (T-60; RF-16, constitution #5).
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = report.diagnostic_to_dict(diagnostic_report)
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=target.parent,
+        prefix=target.name + ".",
+        suffix=".tmp",
+        delete=False,
+    )
+    temp_name = handle.name
+    try:
+        with handle:
+            json.dump(payload, handle, ensure_ascii=False, indent=2)
+        os.replace(temp_name, target)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the diagnostic CLI, print the report and return 0 (RF-14).
 
     With ``--offline`` Azure is never contacted. Otherwise a landing reader is
     built from the environment; if that fails the run continues offline with a
-    warning. The only output is the Spanish report on stdout.
+    warning. The Spanish report goes to stdout; right after it, the result is
+    also written as a machine-readable JSON file (``--output``, or
+    ``diagnostic_last.json`` in the logs directory) and its path is announced
+    (T-60; RF-16). The file is written even when the diagnostic is
+    inconclusive.
     """
     parser = argparse.ArgumentParser(
         prog="verify_run",
@@ -539,6 +763,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--projects-root", default=None)
     parser.add_argument("--logs-dir", default=None)
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="ruta del fichero JSON de resultado (por defecto, "
+        "diagnostic_last.json en el directorio de logs)",
+    )
     parser.add_argument(
         "--offline",
         action="store_true",
@@ -563,6 +793,13 @@ def main(argv: list[str] | None = None) -> int:
             reader.close()
 
     print(report.render_report(diagnostic_report), end="")
+    output_path = _result_path(
+        output=args.output,
+        projects_root=args.projects_root,
+        logs_dir=args.logs_dir,
+    )
+    _write_result_file(diagnostic_report, output_path)
+    print(f"Resultado guardado en {output_path}")
     return 0
 
 

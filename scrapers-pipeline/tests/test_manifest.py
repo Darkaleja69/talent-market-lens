@@ -38,6 +38,7 @@ class FakeRemote:
         self.fail_list = fail_list
         self.fail_download = fail_download
         self.closed = False
+        self.downloads: list[str] = []
 
     def list_objects(self, prefix: str) -> list[landing.RemoteObject]:
         if self.fail_list is not None:
@@ -51,6 +52,7 @@ class FakeRemote:
     def download(self, remote_path: str, local_path: Path) -> None:
         if self.fail_download is not None:
             raise landing.RemoteError(self.fail_download)
+        self.downloads.append(remote_path)
         data = self.objects.get(remote_path)
         if data is None:
             raise landing.RemoteError("objeto no encontrado")
@@ -271,6 +273,105 @@ def test_load_manifest_returns_none_on_non_mapping_json():
     assert landing.load_manifest(reader, key) is None
 
 
+def test_load_manifest_tolerates_utf8_bom():
+    # PowerShell 5.1 ``Set-Content -Encoding UTF8`` writes a BOM into the
+    # uploaded manifests; it must not turn a valid manifest into "not
+    # checked" nor hide the comparable history (T-51; RF-7, RF-8).
+    payload = {
+        "schema_version": 1,
+        "total_files": 1,
+        "bad_files": 0,
+        "files": [_entry("jobs.parquet", "dia=2026-09-26/jobs.parquet", rows=2)],
+    }
+    key = "_manifests/indeed/20260926T010000.json"
+    reader = FakeRemote({key: ("\ufeff" + json.dumps(payload)).encode("utf-8")})
+
+    manifest = landing.load_manifest(reader, key)
+
+    assert manifest is not None
+    assert manifest.scraper == "indeed"
+    assert manifest.stamp == "20260926T010000"
+    assert manifest.files[0].remote == "dia=2026-09-26/jobs.parquet"
+
+
+def test_load_manifest_returns_none_on_invalid_json_with_bom():
+    key = "_manifests/indeed/x.json"
+    reader = FakeRemote({key: "\ufeff{not valid json".encode("utf-8")})
+
+    assert landing.load_manifest(reader, key) is None
+
+
+# --------------------------------------------------------------------------
+# resolve_published_key (T-57; RF-6, RF-8)
+# --------------------------------------------------------------------------
+
+
+def test_resolve_published_key_prefers_exact_match():
+    objects = [
+        landing.RemoteObject("indeed/dia=2026-09-26/staging-a/offers.parquet"),
+        landing.RemoteObject("indeed/dia=2026-09-26/offers.parquet"),
+    ]
+
+    resolved = landing.resolve_published_key(
+        FakeRemote(), "indeed/dia=2026-09-26/offers.parquet", objects=objects
+    )
+
+    assert resolved == "indeed/dia=2026-09-26/offers.parquet"
+
+
+def test_resolve_published_key_finds_a_unique_nested_name():
+    nested = (
+        "linkedin/dia=2026-09-30/"
+        "scrapers-pipeline-linkedin-2026-09-30-639263290983170592/"
+        "jobs_new_20260930_013818.parquet"
+    )
+    objects = [landing.RemoteObject(nested)]
+
+    resolved = landing.resolve_published_key(
+        FakeRemote(),
+        "linkedin/dia=2026-09-30/jobs_new_20260930_013818.parquet",
+        objects=objects,
+    )
+
+    assert resolved == nested
+
+
+def test_resolve_published_key_does_not_guess_when_ambiguous():
+    objects = [
+        landing.RemoteObject("indeed/dia=2026-09-26/staging-a/offers.parquet"),
+        landing.RemoteObject("indeed/dia=2026-09-26/staging-b/offers.parquet"),
+    ]
+
+    assert (
+        landing.resolve_published_key(
+            FakeRemote(), "indeed/dia=2026-09-26/offers.parquet", objects=objects
+        )
+        is None
+    )
+
+
+def test_resolve_published_key_returns_none_when_absent():
+    objects = [landing.RemoteObject("indeed/dia=2026-09-26/other.parquet")]
+
+    assert (
+        landing.resolve_published_key(
+            FakeRemote(), "indeed/dia=2026-09-26/offers.parquet", objects=objects
+        )
+        is None
+    )
+
+
+def test_resolve_published_key_lists_the_directory_prefix_when_objects_omitted():
+    nested = "indeed/dia=2026-09-26/staging-a/offers.parquet"
+    reader = FakeRemote({nested: _parquet_bytes(1)})
+
+    resolved = landing.resolve_published_key(
+        reader, "indeed/dia=2026-09-26/offers.parquet"
+    )
+
+    assert resolved == nested
+
+
 # --------------------------------------------------------------------------
 # verify_manifest
 # --------------------------------------------------------------------------
@@ -298,6 +399,96 @@ def test_verify_manifest_ok_when_rows_and_checksum_match(tmp_path):
     assert check.rejected is False
     assert len(check.files) == 1
     assert check.files[0].state == landing.FILE_OK
+
+
+def test_verify_manifest_downloads_the_exact_key_when_present(tmp_path):
+    data = _parquet_bytes(3)
+    key = "indeed/dia=2026-09-26/offers.parquet"
+    reader = FakeRemote({key: data})
+    manifest = _build(
+        "indeed",
+        [
+            _entry(
+                "offers.parquet",
+                "dia=2026-09-26/offers.parquet",
+                rows=3,
+                sha256=_sha256(data),
+            )
+        ],
+    )
+
+    check = landing.verify_manifest(manifest, reader, workdir=tmp_path)
+
+    assert check.files[0].state == landing.FILE_OK
+    assert reader.downloads == [key]
+
+
+def test_verify_manifest_resolves_nested_staging_key(tmp_path):
+    # AzCopy uploaded the file under an intermediate staging folder that the
+    # manifest's ``remote`` does not carry: the object is still found by its
+    # unique file name and the real key is what gets downloaded (T-57).
+    data = _parquet_bytes(3)
+    nested = (
+        "linkedin/dia=2026-09-30/"
+        "scrapers-pipeline-linkedin-2026-09-30-639263290983170592/"
+        "jobs_new_20260930_013818.parquet"
+    )
+    reader = FakeRemote({nested: data})
+    manifest = _build(
+        "linkedin",
+        [
+            _entry(
+                "jobs_new_20260930_013818.parquet",
+                "dia=2026-09-30/jobs_new_20260930_013818.parquet",
+                rows=3,
+                sha256=_sha256(data),
+            )
+        ],
+    )
+
+    check = landing.verify_manifest(manifest, reader, workdir=tmp_path)
+
+    assert check.state == landing.STATE_OK
+    assert check.files[0].state == landing.FILE_OK
+    assert reader.downloads == [nested]
+
+
+def test_verify_manifest_prefers_exact_key_over_nested_same_name(tmp_path):
+    data = _parquet_bytes(3)
+    exact = "indeed/dia=2026-09-26/offers.parquet"
+    nested = "indeed/dia=2026-09-26/staging-a/offers.parquet"
+    reader = FakeRemote({exact: data, nested: _parquet_bytes(9)})
+    manifest = _build(
+        "indeed",
+        [
+            _entry(
+                "offers.parquet",
+                "dia=2026-09-26/offers.parquet",
+                rows=3,
+                sha256=_sha256(data),
+            )
+        ],
+    )
+
+    check = landing.verify_manifest(manifest, reader, workdir=tmp_path)
+
+    assert check.files[0].state == landing.FILE_OK
+    assert reader.downloads == [exact]
+
+
+def test_verify_manifest_ambiguous_same_name_is_missing_without_download(tmp_path):
+    first = "indeed/dia=2026-09-26/staging-a/offers.parquet"
+    second = "indeed/dia=2026-09-26/staging-b/offers.parquet"
+    reader = FakeRemote({first: _parquet_bytes(1), second: _parquet_bytes(1)})
+    manifest = _build(
+        "indeed", [_entry("offers.parquet", "dia=2026-09-26/offers.parquet")]
+    )
+
+    check = landing.verify_manifest(manifest, reader, workdir=tmp_path)
+
+    assert check.files[0].state == landing.FILE_MISSING
+    assert check.state == landing.STATE_PENDING
+    assert reader.downloads == []
 
 
 def test_verify_manifest_missing_object_is_pending(tmp_path):

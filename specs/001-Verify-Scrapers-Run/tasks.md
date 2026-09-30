@@ -273,3 +273,121 @@ comprobación indicada antes de continuar.
   - **RF:** RF-9–RF-11.
   - **Depende de:** T-39, T-45.
   - **Hecho cuando:** ante un caso real disponible, se contrasta una oferta/campo con su web y el informe separa evidencia, hipótesis y resultado; si no es verificable, queda declarado como tal.
+
+## 8. Comprobación remota real (reapertura)
+
+La ejecución del diagnóstico contra la landing real del run 2026-09-29 reveló
+que la comprobación remota no funciona: AzCopy 10.32.4 lista nombres cortos (no
+claves del contenedor) y los manifests escritos por PowerShell 5.1 llevan BOM
+UTF-8. Los tests no lo detectaron porque sus dobles devuelven claves completas
+y JSON sin BOM. Se corrige dentro de esta misma spec.
+
+- [x] **T-50 — Usar claves completas al listar objetos remotos** (~25 min)
+  - **RF:** RF-6, RF-7, RF-8.
+  - **Hecho cuando:** `AzCopyReader.list_objects` prefija los nombres cortos que
+    devuelve AzCopy 10.32.4 con el prefijo pedido; `list_manifest_keys`,
+    `verify_run._latest_manifest` y `trends.select_history` descargan con la
+    clave relativa al contenedor; tests reproducen la salida real y los que
+    asumían nombres cortos quedan actualizados.
+
+- [x] **T-51 — Leer manifests tolerando el BOM UTF-8** (~20 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-50.
+  - **Hecho cuando:** `landing.load_manifest` parsea manifests con y sin BOM
+    (`utf-8-sig`) y sigue devolviendo `None` con JSON inválido.
+
+- [x] **T-52 — Escribir los manifests sin BOM en los wrappers PS** (~20 min)
+  - **RF:** RF-8.
+  - **Hecho cuando:** `run_scrapers_and_upload.ps1` y `recover_and_upload.ps1`
+    escriben los manifests con UTF-8 sin BOM (PS 5.1) y el lector sigue
+    tolerando los manifests históricos con BOM.
+
+- [x] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
+  - **RF:** RF-6, RF-7, RF-8, RF-13.
+  - **Depende de:** T-55, T-57, T-58, T-59, T-60, T-61.
+  - **Hecho cuando:** `python -m verification.verify_run` sobre el último run
+    finalizado carga el manifest publicado por el run, clasifica la publicación
+    de cada fuente (sin degradarla a "no comprobada" ni a "pendiente" por
+    errores de lectura), calcula la tendencia con las ejecuciones comparables
+    disponibles y deja el fichero JSON de RF-16; el resultado queda registrado
+    como evidencia.
+  - **Evidencia (2026-09-30, run 2026-09-30):** publicación `correcta` en
+    Indeed (delta 200), LinkedIn (delta 186) e IrishJobs (delta 5); InfoJobs
+    `sin datos que publicar`; tendencia con 2 ejecuciones comparables (Indeed);
+    fichero en `scrapers-pipeline/logs/diagnostic_last.json` (UTF-8 sin BOM).
+
+- [x] **T-54 — Ejecutar la suite del diagnóstico** (~15 min)
+  - **RF:** RF-1–RF-15.
+  - **Depende de:** T-53.
+  - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa.
+  - **Evidencia (2026-09-30):** 634 passed.
+
+- [x] **T-55 — Acotar el manifest analizado al run** (~25 min)
+  - **RF:** RF-1, RF-6, RF-8.
+  - **Depende de:** T-50.
+  - **Hecho cuando:** solo se usa como ancla de publicación y tendencia un
+    manifest cuyo stamp cae dentro de la ventana del run analizado; un manifest
+    de otra ejecución no se presenta como si fuera del run (caso InfoJobs
+    2026-09-11 en el run 2026-09-30). Si el run no dejó manifest y la fuente no
+    preparó datos, la publicación se informa como "sin datos que publicar" (no
+    como pendiente) y no hay ancla de tendencia; tests cubren ambos casos.
+
+- [x] **T-56 — Alinear la clave publicada con el manifest** (~20 min)
+  - **RF:** RF-6, RF-8.
+  - **Hecho cuando:** la subida de `run_scrapers_and_upload.ps1` no añade la
+    carpeta de staging (`azcopy copy ... --as-subdir=false`), la clave real
+    queda `dia=YYYY-MM-DD/<fichero>` como declara `remote`, y una comprobación
+    local con AzCopy demuestra que no se crea subcarpeta.
+    `recover_and_upload.ps1` sube ficheros sueltos y no cambia.
+  - **Evidencia (2026-09-30):** AzCopy 10.32.4 real resuelve clave plana
+    `dia=.../<fichero>` con `--as-subdir=false` (y anidada con el modo por
+    defecto); confirmación end-to-end pendiente en la próxima subida real del
+    pipeline.
+
+- [x] **T-57 — Resolver la clave publicada real** (~25 min)
+  - **RF:** RF-6, RF-7, RF-8.
+  - **Hecho cuando:** `landing.verify_manifest` y
+    `trends.load_published_completeness` localizan el objeto por clave exacta y,
+    si no existe, por nombre de fichero único bajo el prefijo publicado
+    (manifests históricos con carpeta de staging intermedia); si hay ambigüedad
+    no se adivina; tests cubren clave exacta, anidada única, ambigua y ausente.
+
+- [x] **T-58 — Informar la causa real si la tendencia no se puede calcular** (~20 min)
+  - **RF:** RF-7, RF-13.
+  - **Hecho cuando:** `_build_trends` no silencia `RemoteError`: el informe
+    indica qué fuente no pudo medirse y por qué, en vez de afirmar que no hay
+    ejecuciones comparables; tests cubren el fallo de lectura y la ausencia
+    real de histórico.
+
+## 9. Resultado legible por máquina (RF-16)
+
+- [x] **T-59 — Serializar el informe a un diccionario legible por máquina** (~25 min)
+  - **RF:** RF-16.
+  - **Hecho cuando:** `report.py` expone una función pura que convierte
+    `DiagnosticReport` en un diccionario con `schema_version`, `generated_at`,
+    `run`, `global_status`, `sources` (id, tipo, estado, resultado, ofertas,
+    completitud por campo con válidos/total/porcentaje/obligatorio, publicación
+    y motivos, evidencias), `trend` e investigaciones; claves e identificadores
+    en inglés, sin credenciales; tests de estructura y de estados
+    (correcto/parcial/fallido/inconcluso y `not_applicable`).
+
+- [x] **T-60 — Escribir el fichero de resultado desde la CLI** (~25 min)
+  - **RF:** RF-16.
+  - **Depende de:** T-59.
+  - **Hecho cuando:** `python -m verification.verify_run` escribe por defecto
+    `scrapers-pipeline/logs/diagnostic_last.json` (UTF-8 sin BOM, escritura
+    atómica, se sobrescribe) también cuando el diagnóstico es inconcluso, con
+    `--output` para elegir ruta; el informe en pantalla no cambia y se anuncia
+    la ruta; tests con `tmp_path` cubren escritura, sobrescritura, inconcluso y
+    `--output`.
+
+- [x] **T-61 — Medir solo las ejecuciones comparables de la tendencia** (~25 min)
+  - **RF:** RF-7.
+  - **Depende de:** T-57, T-58.
+  - **Hecho cuando:** la tendencia no descarga los objetos publicados de todo
+    el histórico: primero selecciona las ejecuciones por huella y solo mide la
+    actual y hasta cinco comparables; la ejecución real del diagnóstico sobre
+    la landing termina en un tiempo razonable; tests demuestran que los
+    manifiestos no seleccionados no disparan descargas de objetos publicados.
+    (Defecto real: la comprobación del run 2026-09-30 se quedó colgada más de
+    15 minutos midiendo 18–25 manifests por scraper.)

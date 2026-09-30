@@ -12,7 +12,9 @@ RF-6, RF-7, RF-9, RF-10, RF-11, RF-14, RF-15):
 - the run evidence and the watchdog progress/stop (:mod:`verification.run_evidence`,
   :mod:`verification.progress`);
 - the bounded web-check investigations (:mod:`verification.investigation`),
-  keeping the observed facts apart from the probable cause (T-39).
+  keeping the observed facts apart from the probable cause (T-39);
+- the same pieces as a JSON-ready dictionary (:func:`diagnostic_to_dict`,
+  RF-16), so another script can consume the result of the last diagnostic.
 
 Design rules:
 
@@ -30,6 +32,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from verification import (
     investigation,
@@ -64,6 +67,7 @@ PUBLICATION_STATE_ES: dict[str, str] = {
     publication_module.PUBLICATION_MISMATCH: "discrepancia",
     publication_module.PUBLICATION_REJECTED: "rechazada",
     publication_module.PUBLICATION_NOT_CHECKED: "no comprobada",
+    publication_module.PUBLICATION_NOT_APPLICABLE: "sin datos que publicar",
 }
 
 # Spanish labels for the trend direction (RF-7).
@@ -164,6 +168,10 @@ class SourceReport:
     ``incidents`` come from :class:`verification.status.SourceStatus` and stay
     in their code-facing English form so the renderer translates them.
     ``trend`` is the full per-field trend of the source, if any.
+
+    ``outcome`` and ``offers_snapshot`` mirror the run evidence
+    (:class:`verification.run_evidence.RunEvidence`) for the machine-readable
+    result (T-59); they stay ``None`` when no run evidence was given.
     """
 
     source: str
@@ -182,6 +190,24 @@ class SourceReport:
     progress: int | None
     stop_reason: str | None
     evidence: tuple[str, ...]
+    outcome: str | None = None
+    offers_snapshot: int | None = None
+
+
+@dataclass(frozen=True)
+class RunReport:
+    """Light run metadata of the analysed execution (T-59; RF-16).
+
+    Mirrors the identifying fields of
+    :class:`verification.run_evidence.PipelineSummary` so the
+    machine-readable result states which execution it belongs to. All fields
+    are optional: a run that could not be identified leaves them ``None``.
+    """
+
+    date: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    log_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -195,6 +221,9 @@ class DiagnosticReport:
     ``investigations`` holds the bounded web checks (T-35/T-36). It defaults to
     ``()`` so older constructions keep working; the renderer never mixes the
     observed facts with the probable cause (RF-9, RF-10, RF-11).
+
+    ``run`` carries the light run metadata for the machine-readable result
+    (T-59); it is ``None`` when the run could not be identified.
     """
 
     global_state: str
@@ -203,6 +232,7 @@ class DiagnosticReport:
     trend_note: str | None
     runs_used: int
     investigations: tuple[investigation.InvestigationOutcome, ...] = ()
+    run: RunReport | None = None
 
 
 def _dedupe(items: Iterable[str]) -> tuple[str, ...]:
@@ -364,6 +394,8 @@ def build_source_report(
         progress=progress,
         stop_reason=stop_reason,
         evidence=evidence_items,
+        outcome=run.outcome if run is not None else None,
+        offers_snapshot=run.offers_snapshot if run is not None else None,
     )
 
 
@@ -374,13 +406,16 @@ def build_report(
     trend_note: str | None = None,
     runs_used: int = 0,
     investigations: Sequence[investigation.InvestigationOutcome] = (),
+    run: RunReport | None = None,
 ) -> DiagnosticReport:
     """Wrap the source reports and the global outcome into one report (RF-14).
 
     The received source order is preserved. ``global_detail`` is the
     inconclusive reason when the run could not be analysed (RF-13).
     ``investigations`` are the bounded web checks, in the given order; they
-    default to an empty tuple so existing callers stay valid.
+    default to an empty tuple so existing callers stay valid. ``run`` is the
+    light run metadata for the machine-readable result (T-59) and may be
+    ``None`` when the run could not be identified.
     """
     return DiagnosticReport(
         global_state=global_status.state,
@@ -389,6 +424,7 @@ def build_report(
         trend_note=trend_note,
         runs_used=runs_used,
         investigations=tuple(investigations),
+        run=run,
     )
 
 
@@ -750,3 +786,137 @@ def render_report(report: DiagnosticReport) -> str:
     lines.extend(_investigations_section(report))
 
     return "\n".join(lines) + "\n"
+
+
+# --------------------------------------------------------------------------
+# Machine-readable result (T-59; RF-16)
+# --------------------------------------------------------------------------
+#
+# ``diagnostic_to_dict`` is the machine counterpart of ``render_report``: the
+# same pieces, JSON-ready (plain lists/dicts, no dataclasses), with English
+# keys and stable status codes. User-facing texts stay in Spanish. The result
+# never carries credentials: it only reuses pieces that never included the SAS.
+
+# Stable machine codes of the per-source state (RF-16): the internal
+# "correct" is exported as "ok".
+_MACHINE_SOURCE_STATUS: dict[str, str] = {
+    status_module.SOURCE_CORRECT: "ok",
+    status_module.SOURCE_FAILED: "failed",
+}
+
+# Stable machine codes of the global outcome (RF-16).
+_MACHINE_GLOBAL_STATUS: dict[str, str] = {
+    status_module.GLOBAL_CORRECT: "ok",
+    status_module.GLOBAL_PARTIAL: "partial",
+    status_module.GLOBAL_FAILED: "failed",
+    status_module.GLOBAL_INCONCLUSIVE: "inconclusive",
+}
+
+
+def _machine_status(state: str, mapping: dict[str, str]) -> str:
+    """Map an internal state to its stable machine code (unchanged if unknown)."""
+    return mapping.get(state, state)
+
+
+def _field_to_dict(field_report: FieldReport) -> dict:
+    """Convert one measured field into a JSON-ready mapping (RF-16)."""
+    return {
+        "field": field_report.field,
+        "required": bool(field_report.required),
+        "valid": field_report.valid,
+        "total": field_report.total,
+        "pct": field_report.completeness_pct,
+        "absent": field_report.absent,
+        "invalid": field_report.invalid,
+        "published_valid": field_report.published_valid,
+        "published_total": field_report.published_total,
+        "published_pct": field_report.published_pct,
+        "difference": field_report.difference,
+    }
+
+
+def _source_to_dict(source_report: SourceReport) -> dict:
+    """Convert one source report into a JSON-ready mapping (RF-16)."""
+    return {
+        "id": source_report.source,
+        "kind": source_report.group,
+        "status": _machine_status(source_report.state, _MACHINE_SOURCE_STATUS),
+        "outcome": source_report.outcome,
+        "offers_current_run": source_report.offers_current_run,
+        "offers_snapshot": source_report.offers_snapshot,
+        "completeness": [
+            _field_to_dict(field_report) for field_report in source_report.fields
+        ],
+        "publication": {
+            "state": source_report.publication_state,
+            "obtained_offers": source_report.obtained_offers,
+            "delta_offers": source_report.delta_offers,
+        },
+        "failures": [
+            _failure_reason_es(reason) for reason in source_report.failures
+        ],
+        "evidence": [str(item) for item in source_report.evidence],
+    }
+
+
+def _investigation_to_dict(outcome: investigation.InvestigationOutcome) -> dict:
+    """Convert one web-check outcome into its useful JSON summary (RF-16)."""
+    context = outcome.context
+    return {
+        "source": context.source,
+        "trigger": context.trigger,
+        "field": context.field,
+        "state": outcome.state,
+    }
+
+
+def diagnostic_to_dict(
+    diagnostic: DiagnosticReport, *, generated_at: datetime | None = None
+) -> dict:
+    """Convert a diagnostic into a JSON-ready dictionary (T-59; RF-16).
+
+    Pure and side-effect free: it only reads ``diagnostic`` and returns plain
+    values (dicts/lists, no dataclasses nor tuples), so :func:`json.dumps` can
+    serialize the result directly. Keys and identifiers are in English; the
+    user-facing texts (``failures``, ``evidence``, ``global_status.reason``,
+    ``trend.note``) stay in Spanish.
+
+    ``generated_at`` defaults to the current local time and is injectable so
+    tests are deterministic. ``run`` is emitted when the report carries the
+    analysed run's metadata and ``null`` otherwise. No credentials are
+    included: the pieces reused here never carry the SAS token.
+    """
+    moment = generated_at if generated_at is not None else datetime.now()
+    run = diagnostic.run
+    return {
+        "schema_version": 1,
+        "generated_at": moment.isoformat(timespec="seconds"),
+        "run": (
+            {
+                "date": run.date,
+                "started_at": run.started_at,
+                "finished_at": run.finished_at,
+                "log_path": run.log_path,
+            }
+            if run is not None
+            else None
+        ),
+        "global_status": {
+            "status": _machine_status(
+                diagnostic.global_state, _MACHINE_GLOBAL_STATUS
+            ),
+            "reason": diagnostic.global_detail,
+        },
+        "sources": [
+            _source_to_dict(source_report)
+            for source_report in diagnostic.sources
+        ],
+        "trend": {
+            "runs_used": diagnostic.runs_used,
+            "note": diagnostic.trend_note,
+        },
+        "investigations": [
+            _investigation_to_dict(outcome)
+            for outcome in diagnostic.investigations
+        ],
+    }
