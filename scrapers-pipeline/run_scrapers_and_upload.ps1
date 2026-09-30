@@ -412,9 +412,12 @@ function Invoke-ScraperUpload {
     Write-Log "[$name] Subiendo $($remaining.Count) archivo(s) .$($Scraper.Ext) validados"
 
     # --- Subir a landing/scraper_X/dia=YYYY-MM-DD/ ---
+    # --as-subdir=false: upload the staging *contents* directly under the day
+    # folder, so the real key matches the manifest's `remote`
+    # (dia=YYYY-MM-DD/<file>) instead of an intermediate staging folder.
     $dest = "https://$StorageAccount.blob.core.windows.net/$Container/$name/dia=$Today/$SasToken"
     Write-Log "[$name] Destino: $Container/$name/dia=$Today/"
-    & $AzCopyPath copy $stageDir $dest --overwrite=true --recursive --log-level=ERROR 2>&1 |
+    & $AzCopyPath copy $stageDir $dest --overwrite=true --recursive --as-subdir=false --log-level=ERROR 2>&1 |
         ForEach-Object { Write-Log "[$name] azcopy: $_" }
     $azExit = $LASTEXITCODE
 
