@@ -302,7 +302,7 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     escriben los manifests con UTF-8 sin BOM (PS 5.1) y el lector sigue
     tolerando los manifests históricos con BOM.
 
-- [ ] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
+- [x] **T-53 — Comprobar el diagnóstico contra la landing real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8, RF-13.
   - **Depende de:** T-55, T-57, T-58, T-59, T-60, T-61.
   - **Hecho cuando:** `python -m verification.verify_run` sobre el último run
@@ -311,11 +311,16 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     errores de lectura), calcula la tendencia con las ejecuciones comparables
     disponibles y deja el fichero JSON de RF-16; el resultado queda registrado
     como evidencia.
+  - **Evidencia (2026-09-30, run 2026-09-30):** publicación `correcta` en
+    Indeed (delta 200), LinkedIn (delta 186) e IrishJobs (delta 5); InfoJobs
+    `sin datos que publicar`; tendencia con 2 ejecuciones comparables (Indeed);
+    fichero en `scrapers-pipeline/logs/diagnostic_last.json` (UTF-8 sin BOM).
 
-- [ ] **T-54 — Ejecutar la suite del diagnóstico** (~15 min)
+- [x] **T-54 — Ejecutar la suite del diagnóstico** (~15 min)
   - **RF:** RF-1–RF-15.
   - **Depende de:** T-53.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa.
+  - **Evidencia (2026-09-30):** 634 passed.
 
 - [x] **T-55 — Acotar el manifest analizado al run** (~25 min)
   - **RF:** RF-1, RF-6, RF-8.
@@ -372,7 +377,7 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     la ruta; tests con `tmp_path` cubren escritura, sobrescritura, inconcluso y
     `--output`.
 
-- [ ] **T-61 — Medir solo las ejecuciones comparables de la tendencia** (~25 min)
+- [x] **T-61 — Medir solo las ejecuciones comparables de la tendencia** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-57, T-58.
   - **Hecho cuando:** la tendencia no descarga los objetos publicados de todo
