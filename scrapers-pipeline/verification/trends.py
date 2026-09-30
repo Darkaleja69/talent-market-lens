@@ -20,6 +20,10 @@ from the Azure boundary (:func:`load_published_completeness`,
 :func:`select_history_summary`), so the tests use an in-memory reader plus
 temporary Parquet files and never touch the network (plan section 8).
 
+The history is selected by fingerprint *before* any published object is
+downloaded: only the anchor and the comparable runs actually used are
+measured, never the whole history (T-61).
+
 T-34 makes the drops explicit: :func:`summarize_history` counts the candidates
 rejected for having no fingerprint or a different one and explains it in
 Spanish, so an insufficient or mismatched history is never presented as a
@@ -554,45 +558,76 @@ def _collect_history(
     scraper: str,
     label: str,
     sources_scope: Sequence[str],
-) -> tuple[RunSnapshot, list[RunSnapshot]]:
-    """Return the analysed anchor and the other published runs of ``scraper``.
+    limit: int = DEFAULT_HISTORY_LIMIT,
+) -> tuple[tuple[RunSnapshot, ...], RunSnapshot, list[RunSnapshot]]:
+    """Return the comparable runs of ``scraper``, hydrated on demand (T-61).
 
-    Shared by :func:`select_history` and :func:`select_history_summary`: it
-    lists the scraper's manifests (``landing.list_manifest_keys``), loads each
-    one (``landing.load_manifest``) and builds a :class:`RunSnapshot` for it.
-    The manifest whose stamp is ``label`` becomes the ``current`` anchor (with
-    ``current_fingerprint``); when it is absent, a fingerprint-only anchor is
-    used.
+    Shared by :func:`select_history` and :func:`select_history_summary`. The
+    first pass lists the scraper's manifests (``landing.list_manifest_keys``),
+    loads each one once (``landing.load_manifest``, needed for its
+    fingerprint) and builds **lightweight** snapshots without measuring any
+    published object. The pure :func:`select_comparable_runs` then keeps the
+    anchor plus up to ``limit`` comparable candidates, and only those
+    manifests are hydrated with :func:`snapshot_from_manifest`. Candidates
+    that are not selected never download published objects, so the remote work
+    stays bounded by the trend size instead of the whole history (RF-7).
+
+    Returns the hydrated comparable runs (chronological), the lightweight
+    anchor and the lightweight candidates, so the caller can summarise the
+    whole history without measuring it. The manifest whose stamp is ``label``
+    becomes the anchor; without one, a fingerprint-only anchor is used.
     """
-    keys = landing.list_manifest_keys(reader, scraper)
-    current: RunSnapshot | None = None
-    candidates: list[RunSnapshot] = []
-    for key in keys:
+    manifests_by_label: dict[str, landing.Manifest] = {}
+    current_light: RunSnapshot | None = None
+    candidates_light: list[RunSnapshot] = []
+    for key in landing.list_manifest_keys(reader, scraper):
         manifest = landing.load_manifest(reader, key, scraper=scraper)
         if manifest is None:
             continue
-        snapshot = snapshot_from_manifest(
-            manifest,
-            reader,
-            sources_scope=sources_scope,
-            label=manifest.stamp,
-        )
-        if manifest.stamp == label:
-            current = RunSnapshot(
+        stamp = manifest.stamp
+        manifests_by_label[stamp] = manifest
+        if stamp == label:
+            current_light = RunSnapshot(
                 label=label,
                 fingerprint=current_fingerprint,
-                completeness_by_source=snapshot.completeness_by_source,
+                completeness_by_source={},
             )
         else:
-            candidates.append(snapshot)
+            candidates_light.append(
+                RunSnapshot(
+                    label=stamp,
+                    fingerprint=manifest.fingerprint,
+                    completeness_by_source={},
+                )
+            )
 
-    if current is None:
-        current = RunSnapshot(
+    if current_light is None:
+        current_light = RunSnapshot(
             label=label,
             fingerprint=current_fingerprint,
             completeness_by_source={},
         )
-    return current, candidates
+
+    selected = select_comparable_runs(current_light, candidates_light, limit=limit)
+    hydrated: list[RunSnapshot] = []
+    for snapshot in selected:
+        manifest = manifests_by_label.get(snapshot.label)
+        if manifest is None:
+            # The anchor may have no manifest of its own (fingerprint-only).
+            hydrated.append(snapshot)
+            continue
+        measured = snapshot_from_manifest(
+            manifest,
+            reader,
+            sources_scope=sources_scope,
+            label=snapshot.label,
+        )
+        if snapshot.label == label:
+            # The anchor keeps the caller's fingerprint (unchanged contract);
+            # its completeness comes from its own manifest's objects.
+            measured = replace(measured, fingerprint=current_fingerprint)
+        hydrated.append(measured)
+    return tuple(hydrated), current_light, candidates_light
 
 
 def select_history(
@@ -606,20 +641,22 @@ def select_history(
 ) -> tuple[RunSnapshot, ...]:
     """Return the comparable published runs of ``scraper``, oldest -> newest.
 
-    Thin helper over the pure core: it collects the scraper's manifests and
-    then :func:`select_comparable_runs` keeps only the runs whose fingerprint
+    Thin helper over the pure core: it collects the scraper's manifests (only
+    their fingerprints, without measuring the unselected ones; T-61) and then
+    :func:`select_comparable_runs` keeps only the runs whose fingerprint
     matches and caps the series at ``limit``. Manifests without a fingerprint
     are excluded (RF-7). Use :func:`select_history_summary` when the caller
     also needs the exclusions explained.
     """
-    current, candidates = _collect_history(
+    runs, _, _ = _collect_history(
         reader,
         current_fingerprint=current_fingerprint,
         scraper=scraper,
         label=label,
         sources_scope=sources_scope,
+        limit=limit,
     )
-    return select_comparable_runs(current, candidates, limit=limit)
+    return runs
 
 
 def select_history_summary(
@@ -635,19 +672,22 @@ def select_history_summary(
 
     Same selection as :func:`select_history`; additionally reports, in Spanish,
     how many runs were considered and how many were dropped for having no
-    fingerprint or a different one. This is the entry point the report layer
-    should use to avoid presenting an insufficient or mismatched history as a
-    real comparable series (RF-7, RF-13).
+    fingerprint or a different one. The summary is computed from the
+    lightweight candidates (fingerprints only), so ``considered`` and the
+    exclusion counters still cover the whole history, while the returned runs
+    are the hydrated, measured series (T-61). This is the entry point the
+    report layer should use to avoid presenting an insufficient or mismatched
+    history as a real comparable series (RF-7, RF-13).
     """
-    current, candidates = _collect_history(
+    runs, current_light, candidates_light = _collect_history(
         reader,
         current_fingerprint=current_fingerprint,
         scraper=scraper,
         label=label,
         sources_scope=sources_scope,
+        limit=limit,
     )
-    runs = select_comparable_runs(current, candidates, limit=limit)
-    summary = summarize_history(current, candidates)
+    summary = summarize_history(current_light, candidates_light)
     if summary.runs_used != len(runs) or summary.comparable != (len(runs) >= 2):
         # A non-default ``limit`` changes how many runs are actually used.
         comparable = len(runs) >= 2
