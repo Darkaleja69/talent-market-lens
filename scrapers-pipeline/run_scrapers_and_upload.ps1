@@ -443,7 +443,9 @@ function Invoke-ScraperUpload {
                             -NotePropertyValue "dia=$Today/$($fe.file)" -Force
                     }
                 }
-                $m | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestFile -Encoding UTF8
+                # Write JSON without BOM: PS 5.1 Set-Content -Encoding UTF8 adds one.
+                $json = $m | ConvertTo-Json -Depth 6
+                [System.IO.File]::WriteAllText($manifestFile, $json, [System.Text.UTF8Encoding]::new($false))
             } catch {
                 Write-Log "[$name] No se pudo anotar 'remote' en el manifest: $($_.Exception.Message)" -Level WARN
             }
