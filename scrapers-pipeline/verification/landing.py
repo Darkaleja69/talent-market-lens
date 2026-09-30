@@ -36,7 +36,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol, runtime_checkable
@@ -665,6 +665,10 @@ def _object_present(
     some builds returns bare filenames relative to the requested prefix, so a
     key with no separator matching the remote file name also counts as
     present.
+
+    Kept as a lightweight presence helper; :func:`resolve_published_key` is
+    the resolver ``_verify_entry`` uses, because the real published key may
+    include an intermediate AzCopy staging folder.
     """
     expected_name = PurePosixPath(remote).name
     for obj in objects:
@@ -674,6 +678,68 @@ def _object_present(
         if "/" not in key and key == expected_name:
             return True
     return False
+
+
+def _match_published_key(
+    expected_key: str, objects: Iterable[RemoteObject]
+) -> str | None:
+    """Return the listed key matching ``expected_key``, or ``None`` (T-57).
+
+    Rules, in order:
+
+    1. the exact container-relative key wins;
+    2. otherwise a single object whose file name matches the expected one is
+       accepted, which covers the intermediate AzCopy staging folder
+       (``--as-subdir``) of historical uploads;
+    3. several objects with the same file name are ambiguous: never guess,
+       return ``None``;
+    4. no match at all: ``None``.
+    """
+    expected = expected_key.strip().strip("/")
+    if not expected:
+        return None
+    expected_name = PurePosixPath(expected).name
+    candidates: set[str] = set()
+    for obj in objects:
+        key = obj.path.strip().strip("/")
+        if not key:
+            continue
+        if key == expected:
+            return key
+        if PurePosixPath(key).name == expected_name:
+            candidates.add(key)
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    return None
+
+
+def resolve_published_key(
+    reader: RemoteReader,
+    expected_key: str,
+    objects: list[RemoteObject] | None = None,
+) -> str | None:
+    """Resolve the real published key of ``expected_key`` on the landing.
+
+    ``expected_key`` is the container-relative key the manifest declares
+    (``scraper/dia=.../<file>``). AzCopy may have uploaded it under an
+    intermediate staging folder, so the object is looked up by exact key and,
+    failing that, by a unique matching file name under the directory prefix
+    (:func:`_match_published_key`). When ``objects`` is given it is used
+    as-is; otherwise the directory prefix is listed through the reader.
+
+    Returns the resolved container-relative key, or ``None`` when the object
+    is absent or ambiguous. A :class:`RemoteError` from the listing propagates
+    unchanged, so connectivity failures stay distinguishable from pending
+    publication (RF-6, RF-8).
+    """
+    expected = expected_key.strip().strip("/")
+    if not expected:
+        return None
+    if objects is None:
+        directory = posixpath.dirname(expected)
+        prefix = f"{directory}/" if directory else ""
+        objects = reader.list_objects(prefix)
+    return _match_published_key(expected, objects)
 
 
 def _sha256_file(path: Path) -> str:
@@ -711,7 +777,8 @@ def _verify_entry(
     prefix_parts = [part for part in (manifest.scraper, directory) if part]
     prefix = f"{'/'.join(prefix_parts)}/" if prefix_parts else ""
     objects = reader.list_objects(prefix)
-    if not _object_present(objects, full_key, remote):
+    resolved = resolve_published_key(reader, full_key, objects=objects)
+    if resolved is None:
         return FileCheck(
             file=entry.file,
             remote=remote,
@@ -720,7 +787,7 @@ def _verify_entry(
         )
 
     local = base_dir / _safe_relative(remote)
-    reader.download(full_key, local)
+    reader.download(resolved, local)
     result = completeness.read_obtained_parquet(str(local))
     if not result.readable:
         return FileCheck(
@@ -788,9 +855,12 @@ def verify_manifest(
 
     Every accepted entry is checked for existence, readability, declared row
     count and sha256; entries the manifest marked ``bad`` (or a ``bad_files``
-    count above zero) are reported as rejected. When the manifest carries no
-    rows/sha256 the corresponding comparison is skipped instead of inventing a
-    mismatch.
+    count above zero) are reported as rejected. The real published key is
+    resolved first (:func:`resolve_published_key`), so an AzCopy staging
+    folder that is not part of ``remote`` is tolerated; an absent or ambiguous
+    key is reported as ``FILE_MISSING`` without guessing. When the manifest
+    carries no rows/sha256 the corresponding comparison is skipped instead of
+    inventing a mismatch.
 
     Downloads go to ``workdir`` when given; otherwise a private temporary
     directory is created and removed when the check ends. A :class:`RemoteError`

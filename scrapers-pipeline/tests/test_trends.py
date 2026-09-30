@@ -19,12 +19,21 @@ from verification import completeness, field_contract, fingerprint, landing, tre
 
 
 class FakeReader:
-    """In-memory :class:`landing.RemoteReader` simulating the landing."""
+    """In-memory :class:`landing.RemoteReader` simulating the landing.
 
-    def __init__(self, objects: dict[str, bytes] | None = None) -> None:
+    ``fail_list`` makes every listing raise :class:`landing.RemoteError`, which
+    models a connectivity/credential failure without any network.
+    """
+
+    def __init__(
+        self, objects: dict[str, bytes] | None = None, *, fail_list: str | None = None
+    ) -> None:
         self.objects = dict(objects or {})
+        self.fail_list = fail_list
 
     def list_objects(self, prefix: str) -> list[landing.RemoteObject]:
+        if self.fail_list is not None:
+            raise landing.RemoteError(self.fail_list)
         return [
             landing.RemoteObject(path=key, size=len(data))
             for key, data in self.objects.items()
@@ -429,6 +438,54 @@ def test_load_published_completeness_skips_bad_and_missing_remote(tmp_path):
     assert result.total_offers == 2
 
 
+def test_load_published_completeness_resolves_nested_staging_key(tmp_path):
+    # The manifest's ``remote`` is the flat key, but AzCopy uploaded the object
+    # under an intermediate staging folder: the real object is measured (T-57).
+    nested = (
+        "indeed/dia=2026-09-26/"
+        "scrapers-pipeline-indeed-2026-09-26-639263290983170592/jobs.parquet"
+    )
+    reader = FakeReader({nested: _parquet_bytes(_indeed_table())})
+    manifest = _manifest(
+        "indeed",
+        "20260926T010000",
+        entries=(
+            landing.ManifestFile(
+                file="jobs.parquet", remote="dia=2026-09-26/jobs.parquet"
+            ),
+        ),
+    )
+
+    result = trends.load_published_completeness(
+        manifest, reader, "indeed", workdir=tmp_path
+    )
+
+    assert result is not None
+    assert result.total_offers == 2
+
+
+def test_load_published_completeness_skips_unresolved_entry(tmp_path):
+    # Nothing visible for the entry: it is skipped and there is no measured
+    # population, instead of raising (the real cause is reported by T-58).
+    manifest = _manifest(
+        "indeed",
+        "20260926T010000",
+        entries=(
+            landing.ManifestFile(
+                file="jobs.parquet", remote="dia=2026-09-26/jobs.parquet"
+            ),
+        ),
+    )
+    reader = FakeReader({})
+
+    assert (
+        trends.load_published_completeness(
+            manifest, reader, "indeed", workdir=tmp_path
+        )
+        is None
+    )
+
+
 def test_load_published_completeness_returns_none_without_readable_objects(tmp_path):
     key = "indeed/dia=2026-09-26/broken.parquet"
     reader = FakeReader({key: b"not a parquet"})
@@ -455,7 +512,7 @@ def test_load_published_completeness_propagates_remote_error(tmp_path):
             ),
         ),
     )
-    reader = FakeReader({})  # the object is not present
+    reader = FakeReader({}, fail_list="sin credenciales")
 
     with pytest.raises(landing.RemoteError):
         trends.load_published_completeness(manifest, reader, "indeed")

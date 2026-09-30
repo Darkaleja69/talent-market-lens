@@ -453,15 +453,19 @@ def load_published_completeness(
     """Measure the published completeness of one source from its manifest.
 
     Every manifest entry that is not ``bad`` and carries a ``remote`` key is
-    downloaded to a temporary location and read as Parquet; unreadable objects
-    are skipped. For a Multi-site portal the rows are filtered first by its
-    ``site`` column (``sources.get_source(source_id).site``). The readable
-    objects are concatenated, deduplicated and measured (RF-6, RF-7).
+    resolved against the landing (exact key, or a unique file name under the
+    published directory when AzCopy added a staging folder), downloaded to a
+    temporary location and read as Parquet; unresolvable and unreadable
+    objects are skipped. For a Multi-site portal the rows are filtered first
+    by its ``site`` column (``sources.get_source(source_id).site``). The
+    readable objects are concatenated, deduplicated and measured (RF-6,
+    RF-7).
 
-    Returns ``None`` when no object yielded usable offers for the source (all
-    objects unreadable, no ``site`` column, or no matching rows): there is no
-    published population to measure. A :class:`landing.RemoteError` propagates
-    unchanged so the caller reports the trend as not checked (RF-8, RF-13).
+    Returns ``None`` when no object yielded usable offers for the source (none
+    resolvable, all unreadable, no ``site`` column, or no matching rows):
+    there is no published population to measure. A :class:`landing.RemoteError`
+    propagates unchanged so the caller reports the trend as not checked
+    (RF-8, RF-13).
 
     Temporary downloads under a private directory are removed before returning;
     a caller-provided ``workdir`` is used as-is and left untouched.
@@ -482,9 +486,17 @@ def load_published_completeness(
         for entry in manifest.files:
             if entry.status == "bad" or not entry.remote:
                 continue
+            resolved = landing.resolve_published_key(
+                reader, _full_remote_key(manifest, entry.remote)
+            )
+            if resolved is None:
+                # Not visible (or ambiguous): skip it, exactly like an
+                # unreadable object. The real cause is reported by the caller
+                # (RF-8, RF-13; T-58).
+                continue
             local = _local_path(base_dir, index, entry.remote)
             index += 1
-            reader.download(_full_remote_key(manifest, entry.remote), local)
+            reader.download(resolved, local)
             try:
                 table = pq.read_table(str(local))
             except Exception:  # noqa: BLE001 - an unreadable object is skipped
