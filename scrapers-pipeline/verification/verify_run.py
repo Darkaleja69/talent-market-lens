@@ -466,15 +466,34 @@ def _publication_for(
     )
 
 
+def _trend_read_failure_note(scraper: str, error: landing.RemoteError) -> str:
+    """Return the Spanish note of a trend that could not be read (T-58).
+
+    The ``RemoteError`` message is already sanitized (no SAS token), so it is
+    safe to include as the observed cause (RF-7, RF-13).
+    """
+    return (
+        f"no se pudo calcular la tendencia de {scraper}: no se pudieron leer "
+        f"los objetos publicados ({error})"
+    )
+
+
 def _build_trends(
     reader: landing.RemoteReader | None, remote: _RemoteState
 ) -> tuple[dict[str, trends.SourceTrend], str | None, int]:
     """Compute the per-source trends and the global note/runs used (RF-7).
 
     Without a reader there is no comparable history: no trend and the Spanish
-    "no history" note. Otherwise each scraper's manifest is used as the current
-    anchor and its up-to-five comparable runs are traced; a source without a
-    usable series simply has no ``SourceTrend``.
+    "no history" note. Otherwise each scraper's in-window manifest is used as
+    the current anchor and its up-to-five comparable runs are traced; a source
+    without a usable series simply has no ``SourceTrend``.
+
+    A scraper whose manifests/objects cannot be read (``RemoteError``) is
+    never silenced (T-58): it contributes a Spanish failure note with its
+    sanitized cause, so a read failure is not presented as "no comparable
+    history". The generic :data:`trends.NO_HISTORY_NOTE` is only used when
+    there is neither a history note nor a failure note. Successful series are
+    still returned alongside the failure notes (RF-7, RF-13).
     """
     if reader is None:
         return {}, trends.NO_HISTORY_NOTE, 0
@@ -493,7 +512,8 @@ def _build_trends(
                 label=manifest.stamp,
                 sources_scope=scope,
             )
-        except landing.RemoteError:
+        except landing.RemoteError as error:
+            notes.append(_trend_read_failure_note(scraper, error))
             continue
         result = trends.build_trend(runs)
         for source_id, source_trend in result.sources.items():

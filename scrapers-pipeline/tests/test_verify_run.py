@@ -24,6 +24,7 @@ from verification import (
     report,
     sources,
     status,
+    trends,
     verify_run,
 )
 
@@ -937,3 +938,137 @@ def test_obtained_reader_is_used_for_measurement(tmp_path):
 
     assert calls, "se esperaba que el lector inyectado fuese usado"
     assert indeed.obtained_offers == 2
+
+
+# --------------------------------------------------------------------------
+# 10. Trend read failures are reported (T-58; RF-7, RF-13)
+# --------------------------------------------------------------------------
+
+
+class ObjectReadFailingReader(FakeReader):
+    """FakeReader that lists objects but cannot download published files.
+
+    Manifest JSON downloads keep working, so the run anchor is resolved; any
+    published object download raises, modelling credentials/connectivity
+    failing between the listing and the reading (T-58). ``fail_prefix`` limits
+    the failure to one scraper's objects; empty means every object.
+    """
+
+    def __init__(
+        self, objects: dict[str, bytes] | None = None, *, fail_prefix: str = ""
+    ) -> None:
+        super().__init__(objects)
+        self.fail_prefix = fail_prefix
+
+    def download(self, remote_path: str, local_path: Path) -> None:
+        if not remote_path.startswith("_manifests/") and remote_path.startswith(
+            self.fail_prefix
+        ):
+            raise landing.RemoteError("no se pudieron leer los objetos publicados")
+        super().download(remote_path, local_path)
+
+
+def test_trend_read_failure_is_reported_with_its_cause(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    reader = ObjectReadFailingReader(
+        {
+            "_manifests/indeed/20260926T010000.json": _manifest_ok(2),
+            "indeed/dia=2026-09-26/jobs.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(2)
+            ),
+        }
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    indeed = next(s for s in diagnostic.sources if s.source == "indeed")
+    note = diagnostic.trend_note or ""
+
+    # The read failure is named and its cause shown; it is never presented as
+    # "no comparable history" (T-58).
+    assert indeed.trend is None
+    assert "no se pudo calcular la tendencia de indeed" in note
+    assert "no se pudieron leer los objetos publicados" in note
+    assert trends.NO_HISTORY_NOTE not in note
+
+
+def test_total_trend_read_failure_reports_every_cause(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    objects: dict[str, bytes] = {}
+    for scraper in ("indeed", "linkedin", "infojobs", "multi_site"):
+        objects[f"_manifests/{scraper}/20260926T010000.json"] = _manifest_ok(2)
+        objects[f"{scraper}/dia=2026-09-26/jobs.parquet"] = _parquet_bytes(
+            _INDEED_COLUMNS, _indeed_rows(2)
+        )
+    reader = ObjectReadFailingReader(objects)
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    note = diagnostic.trend_note or ""
+
+    assert diagnostic.sources, "la ejecución sigue siendo analizable"
+    for scraper in ("indeed", "linkedin", "infojobs", "multi_site"):
+        assert f"no se pudo calcular la tendencia de {scraper}" in note
+    assert trends.NO_HISTORY_NOTE not in note
+
+
+def test_trend_without_history_and_without_failures_keeps_the_generic_note(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    reader = FakeReader(
+        {
+            "_manifests/indeed/20260926T010000.json": _manifest_ok(2),
+            "indeed/dia=2026-09-26/jobs.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(2)
+            ),
+        }
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    note = diagnostic.trend_note or ""
+
+    # No read failure: the generic "no history" note is still correct (RF-7).
+    assert trends.NO_HISTORY_NOTE in note
+    assert "no se pudo calcular la tendencia" not in note
+
+
+def test_mixed_trends_keep_the_series_and_report_the_failure(tmp_path):
+    logs_dir = _build_run_fixture(tmp_path)
+    fp = fingerprint.build_fingerprint(
+        ["indeed"],
+        [fingerprint.SearchDimension(source="indeed", search="data engineer")],
+    )
+    reader = ObjectReadFailingReader(
+        {
+            "_manifests/indeed/20260925T010000.json": _manifest_ok(
+                2, "dia=2026-09-25/jobs.parquet", fp=fp
+            ),
+            "_manifests/indeed/20260926T010000.json": _manifest_ok(
+                3, "dia=2026-09-26/jobs.parquet", fp=fp
+            ),
+            "indeed/dia=2026-09-25/jobs.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(2)
+            ),
+            "indeed/dia=2026-09-26/jobs.parquet": _parquet_bytes(
+                _INDEED_COLUMNS, _indeed_rows(3)
+            ),
+            "_manifests/linkedin/20260926T010000.json": _manifest_ok(2),
+            "linkedin/dia=2026-09-26/jobs.parquet": _parquet_bytes(
+                _LINKEDIN_COLUMNS, _linkedin_rows(2)
+            ),
+        },
+        fail_prefix="linkedin/",
+    )
+
+    diagnostic = verify_run.run_diagnostic(tmp_path, logs_dir, reader=reader)
+    indeed = next(s for s in diagnostic.sources if s.source == "indeed")
+    linkedin = next(s for s in diagnostic.sources if s.source == "linkedin")
+    note = diagnostic.trend_note or ""
+    text = report.render_report(diagnostic)
+
+    # Indeed's series is shown and LinkedIn's failure is mentioned, never
+    # hidden behind the "no history" note (RF-7, RF-13).
+    assert indeed.trend is not None
+    assert indeed.trend.runs_used == 2
+    assert linkedin.trend is None
+    assert "no se pudo calcular la tendencia de linkedin" in note
+    assert trends.NO_HISTORY_NOTE not in note
+    assert "Tendencia: " in text
+    assert "no se pudo calcular la tendencia de linkedin" in text
