@@ -27,7 +27,7 @@ comprobación indicada antes de continuar.
     en `%TEMP%\opencode\pending-recovery-2026-10-01` con sus tamaños y hashes
     registrados; la copia es la referencia de la comprobación real.
 
-- [ ] **T-02 — Investigar la evidencia disponible del aborto** (~25 min)
+- [x] **T-02 — Investigar la evidencia disponible del aborto** (~25 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-01.
   - **Hecho cuando:** `specs/005-Pipeline-Run-Recovery/evidence-2026-10-01.md`
