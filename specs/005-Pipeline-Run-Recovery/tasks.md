@@ -19,7 +19,7 @@ comprobación indicada antes de continuar.
 
 ## 1. Evidencia del incidente y estado del run
 
-- [ ] **T-01 — Preservar e inventariar los restos del run 2026-10-01** (~20 min)
+- [x] **T-01 — Preservar e inventariar los restos del run 2026-10-01** (~20 min)
   - **RF:** RF-2, RF-7.
   - **Hecho cuando:** existe una copia íntegra de los artefactos del run
     truncado (Indeed `indeed_jobs_20261001_0001.parquet`, Multi-site
