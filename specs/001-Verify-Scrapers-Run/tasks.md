@@ -341,8 +341,14 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     `recover_and_upload.ps1` sube ficheros sueltos y no cambia.
   - **Evidencia (2026-09-30):** AzCopy 10.32.4 real resuelve clave plana
     `dia=.../<fichero>` con `--as-subdir=false` (y anidada con el modo por
-    defecto); confirmación end-to-end pendiente en la próxima subida real del
-    pipeline.
+    defecto).
+  - **Evidencia (2026-10-01, end-to-end):** el run nocturno subió LinkedIn a
+    `linkedin/dia=2026-10-01/jobs_new_20261001_015854.parquet` (clave plana, sin
+    carpeta de staging) y el manifest `_manifests/linkedin/20261001_015915.json`
+    declara ese mismo `remote`; comprobación independiente: 221 filas y sha256
+    del objeto real coinciden con el manifest. El proceso principal del pipeline
+    se abortó después de esa subida (incidencia ajena a la 001), por lo que el
+    diagnóstico de ese run queda inconcluso conforme a RF-1/RF-13.
 
 - [x] **T-57 — Resolver la clave publicada real** (~25 min)
   - **RF:** RF-6, RF-7, RF-8.
