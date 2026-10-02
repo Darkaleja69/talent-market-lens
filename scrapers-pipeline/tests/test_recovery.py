@@ -1121,3 +1121,146 @@ def test_T10_pending_cli_rejects_invalid_before(tmp_path, capsys):
     assert exit_code == 2
     assert "--before" in captured.err
     assert captured.out == ""
+
+
+# --------------------------------------------------------------------------
+# T-11: plan CLI and state-based idempotence
+# --------------------------------------------------------------------------
+
+
+def test_T11_plan_cli_writes_json_plan(tmp_path):
+    projects = tmp_path / "projects"
+    _write_parquet(
+        projects
+        / "indeed_jobs_scraper"
+        / "output"
+        / f"indeed_jobs_{DATE_NEW.replace('-', '')}_0001.parquet",
+        "job_key",
+        ["a"],
+    )
+    out = tmp_path / "plan.json"
+
+    exit_code = recovery.main(
+        [
+            "plan",
+            "--run-date",
+            DATE_NEW,
+            "--projects-root",
+            str(projects),
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert exit_code == 0
+    assert out.is_file()
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    payload = json.loads(raw.decode("utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["run_date"] == DATE_NEW
+    indeed = next(item for item in payload["items"] if item["source"] == "indeed")
+    assert indeed["recoverable"] is True
+    assert indeed["mode"] == "file"
+    assert indeed["day"] == DATE_NEW
+    assert indeed["path"].endswith("indeed_jobs_20261001_0001.parquet")
+
+
+def test_T11_plan_cli_applies_state_idempotence(tmp_path):
+    projects = tmp_path / "projects"
+    _write_parquet(
+        projects / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet",
+        "job_id",
+        ["a", "b"],
+    )
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / f"{DATE_NEW}.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_date": DATE_NEW,
+                "status": "pending",
+                "sources": {
+                    "linkedin": {"status": "ok", "uploaded": 2, "rejected": 0}
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    without_state = tmp_path / "without.json"
+    assert (
+        recovery.main(
+            [
+                "plan",
+                "--run-date",
+                DATE_NEW,
+                "--projects-root",
+                str(projects),
+                "--out",
+                str(without_state),
+            ]
+        )
+        == 0
+    )
+    plan1 = json.loads(without_state.read_text(encoding="utf-8"))
+    linkedin1 = next(item for item in plan1["items"] if item["source"] == "linkedin")
+    assert linkedin1["recoverable"] is True
+
+    with_state = tmp_path / "with.json"
+    assert (
+        recovery.main(
+            [
+                "plan",
+                "--run-date",
+                DATE_NEW,
+                "--projects-root",
+                str(projects),
+                "--state-dir",
+                str(state_dir),
+                "--out",
+                str(with_state),
+            ]
+        )
+        == 0
+    )
+    plan2 = json.loads(with_state.read_text(encoding="utf-8"))
+    linkedin2 = next(item for item in plan2["items"] if item["source"] == "linkedin")
+    assert linkedin2["recoverable"] is False
+    assert "ya publicado" in linkedin2["reason"]
+    assert "uploaded=2" in linkedin2["reason"]
+
+
+def test_T11_state_idempotence_tolerates_missing_or_unreadable_state(tmp_path):
+    projects = tmp_path / "projects"
+    _write_parquet(
+        projects / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet",
+        "job_id",
+        ["a"],
+    )
+    plan = recovery.build_plan(DATE_NEW, projects)
+    assert _plan_item(plan, "linkedin").recoverable is True
+
+    missing = recovery.apply_state_idempotence(
+        plan, recovery.read_run_state(tmp_path / "no-existe.json")
+    )
+    assert _plan_item(missing, "linkedin").recoverable is True
+
+    unreadable_path = tmp_path / "roto.json"
+    unreadable_path.write_text("{no json", encoding="utf-8")
+    unreadable = recovery.apply_state_idempotence(
+        plan, recovery.read_run_state(unreadable_path)
+    )
+    assert _plan_item(unreadable, "linkedin").recoverable is True
+    assert _plan_item(plan, "linkedin").recoverable is True  # original untouched
+
+
+def test_T11_plan_cli_rejects_invalid_run_date(tmp_path, capsys):
+    exit_code = recovery.main(
+        ["plan", "--run-date", "banana", "--projects-root", str(tmp_path)]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "--run-date" in captured.err
