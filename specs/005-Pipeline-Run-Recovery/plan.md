@@ -124,7 +124,7 @@ temporales.
    horario y límite; validación de la persona al cambiarla).
 2. El supervisor arranca el pipeline con transcripción y espera su fin.
 3. Si el log tiene `Fin pipeline`, termina propagando el código de salida.
-4. Si no, espera de forma acotada (config por defecto 4 h, siempre antes del
+4. Si no, espera de forma acotada (config por defecto 6 h, siempre antes del
    arranque siguiente) a que desaparezcan los locks de los wrappers de esa
    fecha; después ejecuta el cierre/recuperación y termina con código 0/1.
 5. Si agota la espera, publica lo disponible, deja el run como `pending` (sin

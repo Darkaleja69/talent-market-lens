@@ -181,4 +181,5 @@ perceptibles.
 - No se matan procesos huérfanos por política: se espera de forma acotada a que
   terminen y se recuperan sus datos; el arranque siguiente reconcilia lo que
   quede pendiente.
-- El supervisor acota su espera para no bloquear el run de la noche siguiente.
+- El supervisor acota su espera (6 h por defecto, configurable) para no
+  bloquear el run de la noche siguiente.

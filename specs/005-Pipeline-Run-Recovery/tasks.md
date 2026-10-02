@@ -102,7 +102,7 @@ comprobación indicada antes de continuar.
 - [ ] **T-10 — Esperar de forma acotada y reconciliar al arrancar** (~25 min)
   - **RF:** RF-2, RF-4.
   - **Depende de:** T-09.
-  - **Hecho cuando:** el supervisor espera (config por defecto 4 h) a que
+  - **Hecho cuando:** el supervisor espera (config por defecto 6 h) a que
     desaparezcan los locks de los wrappers de la fecha y, si no lo consigue,
     deja el run `pending`; el arranque del pipeline reconcilia pendientes
     anteriores antes de lanzar los scrapers; tests de decisión cubren ambos
