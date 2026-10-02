@@ -7,9 +7,15 @@ files are written as plain JSON in the same schema the pipeline persists.
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 
-from verification import recovery
+import pyarrow as pa
+import pyarrow.parquet as pq
+import pytest
+
+from verification import recovery, sources
 
 DATE_OLD = "2026-09-30"
 DATE_NEW = "2026-10-01"
@@ -398,3 +404,281 @@ def test_T05_explicit_state_dir_is_used(tmp_path):
     assert len(runs) == 1
     assert runs[0].state.path == str(states / f"{DATE_NEW}.json")
     assert runs[0].state.status == recovery.STATE_PENDING
+
+
+# --------------------------------------------------------------------------
+# T-06: recovery plan per source
+# --------------------------------------------------------------------------
+
+
+def _write_parquet(path: Path, column: str, values: list) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.table({column: values}), path)
+    return path
+
+
+def _set_mtime(path: Path, when: datetime) -> None:
+    stamp = when.timestamp()
+    os.utime(path, (stamp, stamp))
+
+
+def _write_uploaded_keys(projects_root: Path, source_id: str, keys: list[str]) -> Path:
+    path = projects_root / "scrapers-pipeline" / "uploaded_keys" / f"{source_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"updated_at": "2026-10-01T05:00:00", "count": len(keys), "keys": keys}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _plan_item(plan: recovery.RecoveryPlan, source_id: str) -> recovery.RecoveryItem:
+    return next(item for item in plan.items if item.source == source_id)
+
+
+def test_T06_indeed_picks_latest_dated_parquet(tmp_path):
+    output = tmp_path / "indeed_jobs_scraper" / "output"
+    _write_parquet(output / "indeed_jobs_20261001_0001.parquet", "job_key", ["a"])
+    _write_parquet(output / "indeed_jobs_20261001_2312.parquet", "job_key", ["b"])
+    _write_parquet(output / "indeed_jobs_20260930_0001.parquet", "job_key", ["c"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "indeed")
+
+    assert item.recoverable is True
+    assert item.mode == recovery.PLAN_MODE_FILE
+    assert item.reconstruct is False
+    assert Path(item.path).name == "indeed_jobs_20261001_2312.parquet"
+    assert item.day == DATE_NEW
+    assert item.only_new is False
+    assert item.new_keys is None
+    assert item.reason == ""
+    assert item.required_cols == sources.required_columns("indeed")
+    assert item.coherence == "indeed"
+    assert item.fingerprint_source == "indeed"
+    assert item.key_column == sources.dedup_key("indeed")
+
+
+def test_T06_indeed_without_rests_is_not_recoverable(tmp_path):
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "indeed")
+
+    assert item.recoverable is False
+    assert item.mode == recovery.PLAN_MODE_NONE
+    assert item.path is None
+    assert "Indeed" in item.reason
+
+
+def test_T06_infojobs_picks_latest_dated_parquet(tmp_path):
+    data = tmp_path / "infojobs_jobs_scraper" / "data"
+    _write_parquet(data / "offers_20261001_001500.parquet", "id_oferta", ["1"])
+    _write_parquet(data / "offers_20261001_231500.parquet", "id_oferta", ["2"])
+    _write_parquet(data / "offers_20260930_120000.parquet", "id_oferta", ["3"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "infojobs")
+
+    assert item.recoverable is True
+    assert item.mode == recovery.PLAN_MODE_FILE
+    assert Path(item.path).name == "offers_20261001_231500.parquet"
+    assert item.day == DATE_NEW
+    assert item.key_column == "id_oferta"
+    assert item.only_new is False
+
+
+def test_T06_infojobs_without_rests_is_not_recoverable(tmp_path):
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "infojobs")
+
+    assert item.recoverable is False
+    assert item.mode == recovery.PLAN_MODE_NONE
+    assert "InfoJobs" in item.reason
+
+
+def test_T06_linkedin_delta_counts_only_new_keys(tmp_path):
+    snapshot = tmp_path / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    _write_parquet(snapshot, "job_id", ["a", "b", "c"])
+    _write_uploaded_keys(tmp_path, "linkedin", ["a"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "linkedin")
+
+    assert item.recoverable is True
+    assert item.mode == recovery.PLAN_MODE_DELTA
+    assert Path(item.path) == snapshot
+    assert item.day == DATE_NEW
+    assert item.new_keys == 2
+    assert item.only_new is True
+    assert item.key_column == "job_id"
+    assert item.required_cols == sources.required_columns("linkedin")
+
+
+def test_T06_linkedin_without_new_keys_is_omitted(tmp_path):
+    snapshot = tmp_path / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    _write_parquet(snapshot, "job_id", ["a", "b"])
+    _write_uploaded_keys(tmp_path, "linkedin", ["a", "b"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "linkedin")
+
+    assert item.recoverable is False
+    assert item.mode == recovery.PLAN_MODE_NONE
+    assert item.day == DATE_NEW
+    assert "sin ofertas nuevas" in item.reason
+
+
+def test_T06_linkedin_without_state_file_counts_all_as_new(tmp_path):
+    snapshot = tmp_path / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    _write_parquet(snapshot, "job_id", ["a", "b"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "linkedin")
+
+    assert item.recoverable is True
+    assert item.new_keys == 2
+
+
+def test_T06_multi_site_dated_parquet_is_preferred(tmp_path):
+    merged = tmp_path / "multi_site_job_scraper" / "data" / "merged"
+    _write_parquet(merged / "jobs_unified_20261001_030000.parquet", "job_id", ["a", "b"])
+    canonical = _write_parquet(merged / "jobs_unified.parquet", "job_id", ["z"])
+    _set_mtime(canonical, datetime(2026, 10, 2, 1, 29, 0))
+    _write_uploaded_keys(tmp_path, "multi_site", ["a"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "multi_site")
+
+    assert item.recoverable is True
+    assert item.mode == recovery.PLAN_MODE_DELTA
+    assert Path(item.path).name == "jobs_unified_20261001_030000.parquet"
+    assert item.day == DATE_NEW
+    assert item.new_keys == 1
+    assert item.only_new is True
+
+
+def test_T06_multi_site_canonical_on_run_day_is_recoverable(tmp_path):
+    merged = tmp_path / "multi_site_job_scraper" / "data" / "merged"
+    canonical = _write_parquet(merged / "jobs_unified.parquet", "job_id", ["a", "b"])
+    _set_mtime(canonical, datetime(2026, 10, 1, 4, 50, 0))
+    _write_uploaded_keys(tmp_path, "multi_site", ["a"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "multi_site")
+
+    assert item.recoverable is True
+    assert item.mode == recovery.PLAN_MODE_DELTA
+    assert Path(item.path).name == "jobs_unified.parquet"
+    assert item.new_keys == 1
+
+
+def test_T06_multi_site_overwritten_snapshot_is_not_recoverable(tmp_path):
+    # The canonical was overwritten by the next run and the portal outputs are
+    # newer than the run end: nothing of this run is recoverable, no data is
+    # invented.
+    merged = tmp_path / "multi_site_job_scraper" / "data" / "merged"
+    canonical = _write_parquet(merged / "jobs_unified.parquet", "job_id", ["z"])
+    _set_mtime(canonical, datetime(2026, 10, 2, 1, 29, 0))
+    csv = tmp_path / "multi_site_job_scraper" / "data" / "irishjobs" / "output" / "jobs.csv"
+    csv.parent.mkdir(parents=True)
+    csv.write_text("job_id\nz\n", encoding="utf-8")
+    _set_mtime(csv, datetime(2026, 10, 2, 0, 5, 0))
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "multi_site")
+
+    assert item.recoverable is False
+    assert item.mode == recovery.PLAN_MODE_NONE
+    assert item.reconstruct is False
+    assert "otro run" in item.reason
+
+
+def test_T06_multi_site_reconstructs_from_portal_outputs_of_the_run(tmp_path):
+    merged = tmp_path / "multi_site_job_scraper" / "data" / "merged"
+    canonical = _write_parquet(merged / "jobs_unified.parquet", "job_id", ["z"])
+    _set_mtime(canonical, datetime(2026, 10, 2, 1, 29, 0))
+    data = tmp_path / "multi_site_job_scraper" / "data"
+    for portal, when in (
+        ("irishjobs", datetime(2026, 10, 1, 4, 47, 0)),
+        ("nvb", datetime(2026, 10, 1, 4, 50, 0)),
+        ("stepstone_nl", datetime(2026, 9, 25, 0, 17, 0)),  # stale, not this run
+    ):
+        csv = data / portal / "output" / "jobs.csv"
+        csv.parent.mkdir(parents=True, exist_ok=True)
+        csv.write_text("job_id\nx\n", encoding="utf-8")
+        _set_mtime(csv, when)
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "multi_site")
+
+    assert item.recoverable is True
+    assert item.reconstruct is True
+    assert item.mode == recovery.PLAN_MODE_MERGE
+    assert item.path is None
+    assert item.day == DATE_NEW
+    assert item.merge_since == f"{DATE_NEW}T00:00:00"
+    assert {Path(p).parent.parent.name for p in item.inputs} == {"irishjobs", "nvb"}
+    assert item.only_new is True
+    assert item.new_keys is None
+
+
+def test_T06_multi_site_reconstruction_respects_a_cross_midnight_window(tmp_path):
+    csv = (
+        tmp_path
+        / "multi_site_job_scraper"
+        / "data"
+        / "irishjobs"
+        / "output"
+        / "jobs.csv"
+    )
+    csv.parent.mkdir(parents=True)
+    csv.write_text("job_id\nx\n", encoding="utf-8")
+    _set_mtime(csv, datetime(2026, 10, 2, 1, 0, 0))
+
+    plan = recovery.build_plan(
+        DATE_NEW,
+        tmp_path,
+        run_start=f"{DATE_NEW}T23:00:00",
+        run_end="2026-10-02T05:00:00",
+    )
+
+    item = _plan_item(plan, "multi_site")
+    assert item.recoverable is True
+    assert item.reconstruct is True
+    assert item.merge_since == f"{DATE_NEW}T23:00:00"
+
+
+def test_T06_plan_is_json_serializable_with_config_metadata(tmp_path):
+    plan = recovery.build_plan(DATE_NEW, tmp_path)
+    payload = plan.to_dict()
+    assert json.loads(json.dumps(payload, ensure_ascii=False))["run_date"] == DATE_NEW
+    assert payload["schema_version"] == 1
+    assert [item["source"] for item in payload["items"]] == [
+        "indeed",
+        "linkedin",
+        "multi_site",
+        "infojobs",
+    ]
+    for item in payload["items"]:
+        assert isinstance(item["required_cols"], list)
+        assert item["required_cols"]
+        assert item["coherence"] == item["source"]
+        assert item["fingerprint_source"] == item["source"]
+        assert item["key_column"] in item["required_cols"]
+
+
+def test_T06_config_overrides_defaults_per_source(tmp_path):
+    config = {
+        "indeed": {
+            "required_cols": ["job_key", "title"],
+            "coherence": "custom_site",
+            "fingerprint_source": "custom_fingerprint",
+            "key_column": "job_key",
+            "only_new": True,
+        }
+    }
+
+    plan = recovery.build_plan(DATE_NEW, tmp_path, config)
+    indeed = _plan_item(plan, "indeed")
+    linkedin = _plan_item(plan, "linkedin")
+
+    assert indeed.required_cols == ("job_key", "title")
+    assert indeed.coherence == "custom_site"
+    assert indeed.fingerprint_source == "custom_fingerprint"
+    assert indeed.only_new is True
+    # Unspecified sources keep the operational defaults.
+    assert linkedin.coherence == "linkedin"
+    assert linkedin.required_cols == sources.required_columns("linkedin")
+
+
+def test_T06_invalid_run_date_is_rejected(tmp_path):
+    with pytest.raises(ValueError):
+        recovery.build_plan("banana", tmp_path)
