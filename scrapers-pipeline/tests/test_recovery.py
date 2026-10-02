@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -15,7 +16,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from verification import recovery, sources
+from verification import landing, recovery, sources
 
 DATE_OLD = "2026-09-30"
 DATE_NEW = "2026-10-01"
@@ -682,3 +683,190 @@ def test_T06_config_overrides_defaults_per_source(tmp_path):
 def test_T06_invalid_run_date_is_rejected(tmp_path):
     with pytest.raises(ValueError):
         recovery.build_plan("banana", tmp_path)
+
+
+# --------------------------------------------------------------------------
+# T-07: plan idempotence against the landing
+# --------------------------------------------------------------------------
+
+
+class _FakeReader:
+    """Minimal offline ``landing.RemoteReader`` for idempotence tests."""
+
+    def __init__(self, objects=(), error=None):
+        self._objects = list(objects)
+        self._error = error
+        self.list_calls: list[str] = []
+
+    def list_objects(self, prefix: str):
+        self.list_calls.append(prefix)
+        if self._error is not None:
+            raise self._error
+        return [obj for obj in self._objects if obj.path.startswith(prefix)]
+
+    def download(self, remote_path: str, local_path: Path) -> None:  # pragma: no cover
+        raise AssertionError("la idempotencia no debe descargar objetos")
+
+    def close(self) -> None:  # pragma: no cover
+        pass
+
+
+def _indeed_file_plan(tmp_path: Path) -> recovery.RecoveryPlan:
+    _write_parquet(
+        tmp_path
+        / "indeed_jobs_scraper"
+        / "output"
+        / "indeed_jobs_20261001_0001.parquet",
+        "job_key",
+        ["a"],
+    )
+    return recovery.build_plan(DATE_NEW, tmp_path)
+
+
+def test_T07_published_file_item_is_omitted(tmp_path):
+    plan = _indeed_file_plan(tmp_path)
+    key = f"indeed/dia={DATE_NEW}/indeed_jobs_20261001_0001.parquet"
+    reader = _FakeReader([landing.RemoteObject(path=key)])
+
+    updated = recovery.apply_idempotence(plan, reader)
+
+    item = _plan_item(updated, "indeed")
+    assert item.recoverable is False
+    assert item.published_key == key
+    assert "ya publicado" in item.reason
+    assert item.path is not None  # the local evidence is still reported
+    assert _plan_item(plan, "indeed").recoverable is True  # original untouched
+    payload = updated.to_dict()
+    assert payload["items"][0]["published_key"] == key
+    json.dumps(payload, ensure_ascii=False)  # still serializable
+
+
+def test_T07_absent_file_item_stays_recoverable(tmp_path):
+    plan = _indeed_file_plan(tmp_path)
+    reader = _FakeReader()
+
+    updated = recovery.apply_idempotence(plan, reader)
+
+    item = _plan_item(updated, "indeed")
+    assert item.recoverable is True
+    assert item.published_key is None
+    assert reader.list_calls  # the landing was consulted
+
+
+def test_T07_ambiguous_listing_does_not_omit(tmp_path):
+    plan = _indeed_file_plan(tmp_path)
+    name = "indeed_jobs_20261001_0001.parquet"
+    reader = _FakeReader(
+        [
+            landing.RemoteObject(path=f"indeed/dia={DATE_NEW}/staging-a/{name}"),
+            landing.RemoteObject(path=f"indeed/dia={DATE_NEW}/staging-b/{name}"),
+        ]
+    )
+
+    updated = recovery.apply_idempotence(plan, reader)
+
+    assert _plan_item(updated, "indeed").recoverable is True
+
+
+def test_T07_remote_error_propagates(tmp_path):
+    plan = _indeed_file_plan(tmp_path)
+    reader = _FakeReader(error=landing.RemoteError("sin conexion"))
+
+    with pytest.raises(landing.RemoteError):
+        recovery.apply_idempotence(plan, reader)
+
+    # Nothing was half-updated: the original plan is untouched.
+    assert _plan_item(plan, "indeed").recoverable is True
+    assert _plan_item(plan, "indeed").published_key is None
+
+
+def test_T07_apply_is_idempotent_and_does_not_mutate(tmp_path):
+    plan = _indeed_file_plan(tmp_path)
+    key = f"indeed/dia={DATE_NEW}/indeed_jobs_20261001_0001.parquet"
+    reader = _FakeReader([landing.RemoteObject(path=key)])
+
+    first = recovery.apply_idempotence(plan, reader)
+    calls_after_first = len(reader.list_calls)
+    second = recovery.apply_idempotence(first, reader)
+
+    assert first.to_dict() == second.to_dict()
+    assert len(reader.list_calls) == calls_after_first  # omitted items are skipped
+    assert plan.to_dict()["items"][0]["recoverable"] is True
+
+
+def test_T07_delta_with_zero_new_keys_is_omitted(tmp_path):
+    snapshot = tmp_path / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    _write_parquet(snapshot, "job_id", ["a", "b"])
+    plan = recovery.build_plan(DATE_NEW, tmp_path)
+    delta = _plan_item(plan, "linkedin")
+    assert delta.recoverable is True
+    assert delta.new_keys == 2
+    forced = recovery.RecoveryPlan(
+        run_date=plan.run_date, items=(replace(delta, new_keys=0),)
+    )
+    reader = _FakeReader()
+
+    updated = recovery.apply_idempotence(forced, reader)
+
+    item = updated.items[0]
+    assert item.recoverable is False
+    assert "sin ofertas nuevas" in item.reason
+    assert reader.list_calls == []  # deltas are never checked by remote key
+
+
+def test_T07_delta_with_keys_is_kept_without_landing_check(tmp_path):
+    snapshot = tmp_path / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    _write_parquet(snapshot, "job_id", ["a", "b"])
+    plan = recovery.build_plan(DATE_NEW, tmp_path)
+    reader = _FakeReader()
+
+    updated = recovery.apply_idempotence(plan, reader)
+
+    item = _plan_item(updated, "linkedin")
+    assert item.recoverable is True
+    assert item.new_keys == 2
+    assert item.published_key is None
+    assert reader.list_calls == []
+
+
+def test_T07_merge_item_idempotence_uses_new_keys_when_known(tmp_path):
+    csv = (
+        tmp_path
+        / "multi_site_job_scraper"
+        / "data"
+        / "irishjobs"
+        / "output"
+        / "jobs.csv"
+    )
+    csv.parent.mkdir(parents=True)
+    csv.write_text("job_id\nx\n", encoding="utf-8")
+    _set_mtime(csv, datetime(2026, 10, 1, 4, 47, 0))
+    plan = recovery.build_plan(DATE_NEW, tmp_path)
+    merge = _plan_item(plan, "multi_site")
+    assert merge.mode == recovery.PLAN_MODE_MERGE
+    assert merge.new_keys is None
+    reader = _FakeReader()
+
+    # An unknown delta stays: T-11 filters after the merge.
+    kept = recovery.apply_idempotence(plan, reader)
+    assert _plan_item(kept, "multi_site").recoverable is True
+    assert reader.list_calls == []
+
+    # If a merge item ever carries a measured 0, it is omitted.
+    forced = recovery.RecoveryPlan(
+        run_date=plan.run_date, items=(replace(merge, new_keys=0),)
+    )
+    omitted = recovery.apply_idempotence(forced, reader)
+    assert omitted.items[0].recoverable is False
+    assert "sin ofertas nuevas" in omitted.items[0].reason
+
+
+def test_T07_repeated_uploaded_keys_do_not_change_the_delta(tmp_path):
+    snapshot = tmp_path / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    _write_parquet(snapshot, "job_id", ["a", "b", "c"])
+    _write_uploaded_keys(tmp_path, "linkedin", ["a", "a", "a"])
+
+    item = _plan_item(recovery.build_plan(DATE_NEW, tmp_path), "linkedin")
+
+    assert item.recoverable is True
+    assert item.new_keys == 2  # 'a' is counted once

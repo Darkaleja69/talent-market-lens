@@ -104,21 +104,40 @@ real data ``day``, ``required_cols``, ``coherence``, ``fingerprint_source``,
 when they are not recoverable. ``RecoveryPlan.to_dict()`` is JSON-ready for
 the executor's ``-PlanJson``.
 
-The module is pure: standard library plus the project's pyarrow (already a
-dependency), no network and no Azure.
+Idempotence (T-07; RF-3)
+------------------------
+``apply_idempotence(plan, reader)`` returns a **new** plan (the input is never
+modified) where:
+
+- a ``file`` item whose expected landing key ``<source>/dia=<day>/<file>`` is
+  already published (resolved with
+  ``verification.landing.resolve_published_key``, which tolerates a unique
+  staging-folder match) is omitted with ``recoverable=False``,
+  ``published_key`` set and a Spanish reason; an absent or ambiguous key is
+  **not** omitted;
+- a ``delta``/``merge`` item whose ``new_keys`` is 0 is omitted; when the
+  delta is unknown (``None``, as in reconstructions) the item stays, because
+  the definitive filter runs at execution time (T-11) against
+  ``uploaded_keys`` after the merge;
+- a ``RemoteError`` from the reader propagates unchanged: a connectivity
+  failure is never treated as "absent", and no half-updated plan is returned.
+
+Non-recoverable items are passed through untouched, so calling the function
+twice with the same reader yields the same plan. The module itself performs no
+network: remote access happens only through the injected ``RemoteReader``.
 """
 from __future__ import annotations
 
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import pyarrow.parquet as pq
 
-from verification import run_evidence, sources
+from verification import landing, run_evidence, sources
 
 # Run-level state classification (T-03 schema plus file-level outcomes).
 STATE_PENDING = "pending"
@@ -467,8 +486,9 @@ class RecoveryItem:
     ``ensure_compatible.py`` and uses ``key_column``/``only_new`` for the
     delta filter. ``new_keys`` is the measured delta for file/delta items
     (``None`` for reconstructions, where it is only known after merging).
-    ``reason`` is the Spanish operator-facing explanation (empty when
-    recoverable).
+    ``published_key`` is the resolved landing key when ``apply_idempotence``
+    found the file already published (``None`` otherwise). ``reason`` is the
+    Spanish operator-facing explanation (empty when recoverable).
     """
 
     source: str
@@ -485,6 +505,7 @@ class RecoveryItem:
     merge_since: str | None
     inputs: tuple[str, ...]
     new_keys: int | None
+    published_key: str | None
     reason: str
 
     def to_dict(self) -> dict[str, object]:
@@ -504,6 +525,7 @@ class RecoveryItem:
             "merge_since": self.merge_since,
             "inputs": list(self.inputs),
             "new_keys": self.new_keys,
+            "published_key": self.published_key,
             "reason": self.reason,
         }
 
@@ -564,6 +586,7 @@ def _item(
     merge_since: str | None = None,
     inputs: list[Path] | None = None,
     new_keys: int | None = None,
+    published_key: str | None = None,
 ) -> RecoveryItem:
     """Build a plan item from the resolved per-source config."""
     return RecoveryItem(
@@ -581,6 +604,7 @@ def _item(
         merge_since=merge_since,
         inputs=tuple(str(item) for item in (inputs or [])),
         new_keys=new_keys,
+        published_key=published_key,
         reason=reason,
     )
 
@@ -880,3 +904,74 @@ def build_plan(
             _plan_infojobs(root, run_date, resolved["infojobs"]),
         ),
     )
+
+
+# --------------------------------------------------------------------------
+# Idempotence (T-07; RF-3)
+# --------------------------------------------------------------------------
+
+
+def _expected_published_key(item: RecoveryItem) -> str | None:
+    """Landing key a ``file`` item would publish (``None`` for other modes).
+
+    The pipeline uploads to ``<source>/dia=<day>/<file>`` with
+    ``--as-subdir=false``, so the local file name is the remote one.
+    """
+    if item.mode != PLAN_MODE_FILE or not item.path or not item.day:
+        return None
+    name = PurePosixPath(item.path.replace("\\", "/")).name
+    if not name:
+        return None
+    return f"{item.source}/dia={item.day}/{name}"
+
+
+def apply_idempotence(
+    plan: RecoveryPlan, reader: landing.RemoteReader
+) -> RecoveryPlan:
+    """Return a new plan with the already-published work omitted (RF-3).
+
+    ``file`` items are checked against the landing with
+    :func:`verification.landing.resolve_published_key` on their expected key
+    ``<source>/dia=<day>/<file>``: when the key resolves (exact or unique
+    staging-folder match) the item is returned as non-recoverable with
+    ``published_key`` and a Spanish reason; an absent or ambiguous key leaves
+    the item recoverable (never guess). ``delta``/``merge`` items cannot be
+    checked by key: when ``new_keys`` is 0 they are omitted, otherwise they
+    stay and the execution-time filter against ``uploaded_keys`` (T-11) keeps
+    the upload idempotent.
+
+    The input plan is never modified; non-recoverable items pass through
+    untouched, so calling the function twice with the same reader yields the
+    same plan. A :class:`verification.landing.RemoteError` propagates
+    unchanged: a connectivity failure is never treated as "absent" and no
+    partially updated plan is returned.
+    """
+    updated: list[RecoveryItem] = []
+    for item in plan.items:
+        if not item.recoverable:
+            updated.append(item)
+            continue
+        expected = _expected_published_key(item)
+        if expected is not None:
+            published = landing.resolve_published_key(reader, expected)
+            if published is not None:
+                updated.append(
+                    replace(
+                        item,
+                        recoverable=False,
+                        published_key=published,
+                        reason=f"ya publicado en la landing: {published}",
+                    )
+                )
+                continue
+        if item.mode in (PLAN_MODE_DELTA, PLAN_MODE_MERGE) and item.new_keys == 0:
+            updated.append(
+                replace(
+                    item,
+                    recoverable=False,
+                    reason="sin ofertas nuevas (nada que publicar en la recuperacion)",
+                )
+            )
+            continue
+        updated.append(item)
+    return RecoveryPlan(run_date=plan.run_date, items=tuple(updated))
