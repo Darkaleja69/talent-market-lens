@@ -224,3 +224,87 @@ function Write-RunState {
     $path = Join-Path $StateDir "$runDate.json"
     return Write-JsonAtomic -Path $path -InputObject $State
 }
+
+# -----------------------------------------------------------------------------
+#  Read-RunState
+#  Reads a persisted state file back into the in-memory hashtable schema
+#  (ConvertFrom-Json yields PSCustomObject, which Write-RunState cannot bind).
+#  Returns $null when the file does not exist or cannot be read; the caller
+#  decides whether that is fatal (T-12 never invents a missing state).
+# -----------------------------------------------------------------------------
+function Get-RunStateField {
+    param($Object, [string]$Name)
+    if ($null -eq $Object) { return $null }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
+function Read-RunState {
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    try {
+        $payload = [System.IO.File]::ReadAllText($Path) | ConvertFrom-Json
+    } catch {
+        return $null
+    }
+    if ($null -eq $payload) { return $null }
+    $sources = @{}
+    $rawSources = Get-RunStateField $payload "sources"
+    if ($null -ne $rawSources) {
+        foreach ($property in $rawSources.PSObject.Properties) {
+            $entry = @{}
+            foreach ($field in $property.Value.PSObject.Properties) {
+                $entry[$field.Name] = $field.Value
+            }
+            $sources[$property.Name] = $entry
+        }
+    }
+    return @{
+        schema_version = 1
+        run_date       = [string](Get-RunStateField $payload "run_date")
+        started_at     = (Get-RunStateField $payload "started_at")
+        finished_at    = (Get-RunStateField $payload "finished_at")
+        status         = [string](Get-RunStateField $payload "status")
+        sources        = $sources
+    }
+}
+
+# -----------------------------------------------------------------------------
+#  Close-RunStateFile
+#  Closes an EXISTING state file: merges the per-source results of the recovery
+#  (hashtable source -> @{status; uploaded; rejected}) into `sources`, marks the
+#  run `closed` with finished_at and persists it atomically. A missing or
+#  unreadable state throws (T-12 must not invent one). Returns the file path.
+# -----------------------------------------------------------------------------
+function Close-RunStateFile {
+    param(
+        [Parameter(Mandatory)][string]$StateDir,
+        [Parameter(Mandatory)][string]$RunDate,
+        [string]$FinishedAt,
+        [hashtable]$Sources = $null
+    )
+    $path = Join-Path $StateDir "$RunDate.json"
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "No existe el estado del run '$RunDate' en '$StateDir'; no se inventa."
+    }
+    $state = Read-RunState -Path $path
+    if ($null -eq $state) {
+        throw "El estado del run '$RunDate' es ilegible ('$path')."
+    }
+    if ($null -ne $Sources) {
+        foreach ($source in $Sources.Keys) {
+            $entry = $Sources[$source]
+            $state["sources"][[string]$source] = @{
+                status           = [string]$entry["status"]
+                uploaded         = [int]$entry["uploaded"]
+                rejected         = [int]$entry["rejected"]
+                last_activity_at = (Get-Date).ToString("o")
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($FinishedAt)) { $FinishedAt = (Get-Date).ToString("o") }
+    $state["status"]      = "closed"
+    $state["finished_at"] = $FinishedAt
+    return Write-RunState -State $state -StateDir $StateDir
+}

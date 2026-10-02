@@ -19,11 +19,17 @@
 #  filtrado OnlyNewOffers, validacion completa (--coherence/--fingerprint-source),
 #  subida con --as-subdir=false, manifest con `remote` sin BOM y actualizacion
 #  de uploaded_keys SOLO tras exito. Los rechazados se cuentan y nunca se
-#  suben. No escribe _READY ni el cierre del log (T-12).
+#  suben.
+#
+#  Al terminar (T-12; RF-5, RF-6), y solo en modo plan, el ejecutor cierra el
+#  run: append del bloque de cierre al log general, _READY/dia=<fecha>.txt
+#  segun la politica con datos publicados reales (sin reescribirlo si ya
+#  existe) y cierre del estado (status=closed + fuentes). -DryRun no cierra
+#  nada.
 #
 #  Overrides de testabilidad (vacio = valor de config.ps1): -AzCopyPath,
 #  -PythonExe, -MergeScript, -ProjectsRoot, -LogDir, -StateDir,
-#  -UploadedKeysDir, -QuarantineDir.
+#  -UploadedKeysDir, -QuarantineDir, -ReadyPolicy.
 # =============================================================================
 
 param(
@@ -37,7 +43,8 @@ param(
     [string]$LogDir = "",
     [string]$StateDir = "",
     [string]$UploadedKeysDir = "",
-    [string]$QuarantineDir = ""
+    [string]$QuarantineDir = "",
+    [string]$ReadyPolicy = ""
 )
 
 # config.ps1 defines the same variables, so keep the caller's overrides.
@@ -49,11 +56,15 @@ $OverrideLogDir          = $LogDir
 $OverrideStateDir        = $StateDir
 $OverrideUploadedKeysDir = $UploadedKeysDir
 $OverrideQuarantineDir   = $QuarantineDir
+$OverrideReadyPolicy     = $ReadyPolicy
 
 $ErrorActionPreference = "Continue"
 Set-StrictMode -Version Latest
 
+$script:RecoveryStartTime = Get-Date
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+# Shared state helpers (T-12: Close-RunStateFile closes the recovered run).
+. (Join-Path $ScriptDir "run_state.ps1")
 $Today     = Get-Date -Format "yyyy-MM-dd"
 $LogDate   = $Today
 if (-not [string]::IsNullOrWhiteSpace($Date)) { $LogDate = $Date }
@@ -94,6 +105,7 @@ if (-not [string]::IsNullOrWhiteSpace($OverrideUploadedKeysDir)) {
     $script:UploadedKeysDir = Join-Path $ScriptDir "uploaded_keys"
 }
 if (-not [string]::IsNullOrWhiteSpace($OverrideQuarantineDir)) { $QuarantineRoot = $OverrideQuarantineDir }
+if (-not [string]::IsNullOrWhiteSpace($OverrideReadyPolicy)) { $ReadyPolicy = $OverrideReadyPolicy }
 if (-not [string]::IsNullOrWhiteSpace($OverrideMergeScript)) {
     $MergeScript = $OverrideMergeScript
 } else {
@@ -426,7 +438,168 @@ function Invoke-PlanItem {
     }
 }
 
-# Recorre el plan, registra por fuente y devuelve el codigo de salida.
+# Mapea el motivo de un item no recuperable al estado del pipeline:
+# un dato que no existe/no es nuevo es "no_data"; un estado ilegible o un
+# fallo al leerlo es "failed". Documentado en T-12.
+function Get-SourceStatusFromPlanReason {
+    param([string]$Reason)
+    if ($Reason -match 'no se pudo leer|ilegible|no se pudo') { return "failed" }
+    return "no_data"
+}
+
+# Comprueba (solo listado) si _READY/dia=<fecha>.txt ya existe en la landing.
+function Test-ReadyPublished {
+    param([string]$RunDate)
+    $readyPrefix = "https://$StorageAccount.blob.core.windows.net/$Container/_READY/$SasToken"
+    try {
+        $listed = & $AzCopyPath list $readyPrefix 2>$null
+        $code = $LASTEXITCODE
+    } catch {
+        return @{ checked = $false; exists = $false; error = $_.Exception.Message }
+    }
+    if ($code -ne 0) {
+        return @{ checked = $false; exists = $false; error = "azcopy list fallo (exit $code)" }
+    }
+    $needle = "dia=$RunDate.txt"
+    $exists = @($listed | Where-Object { "$_" -like "*$needle*" }).Count -gt 0
+    return @{ checked = $true; exists = $exists; error = $null }
+}
+
+# Ejecuta un subcomando del modulo local desde $ScriptDir y captura su salida.
+function Invoke-RecoveryCli {
+    param([string[]]$CliArgs)
+    $previousEap = $ErrorActionPreference
+    Push-Location $ScriptDir
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $PythonExe -m verification.recovery @CliArgs 2>&1
+        return @{ exit_code = $LASTEXITCODE; output = @($output) }
+    } finally {
+        $ErrorActionPreference = $previousEap
+        Pop-Location
+    }
+}
+
+# Cierre del run recuperado (RF-5, RF-6): bloque de cierre en el log general,
+# _READY fiel a lo publicado y cierre del estado. Devuelve los fallos del cierre.
+function Invoke-RecoveryClosure {
+    param(
+        [string]$RunDate,
+        [hashtable]$Results,
+        [int]$Failures,
+        [datetime]$StartedAt
+    )
+    $closureFailures = 0
+    $duration = [int]((Get-Date) - $StartedAt).TotalSeconds
+    $finishedAt = (Get-Date).ToString("o")
+
+    $resultsList = @()
+    foreach ($source in $Results.Keys) {
+        $resultsList += @{
+            source   = [string]$source
+            status   = [string]$Results[$source].status
+            uploaded = [int]$Results[$source].uploaded
+            rejected = [int]$Results[$source].rejected
+        }
+    }
+    $resultsFile = Join-Path $env:TEMP ("recovery-results-$RunDate-" + (Get-Date).Ticks + ".json")
+    [System.IO.File]::WriteAllText($resultsFile,
+        (@{ results = $resultsList } | ConvertTo-Json -Depth 4),
+        [System.Text.UTF8Encoding]::new($false))
+
+    # 1) Bloque de cierre en el log general (mismo formato que el pipeline).
+    $closingFile = Join-Path $env:TEMP ("recovery-closing-$RunDate-" + (Get-Date).Ticks + ".txt")
+    $closing = Invoke-RecoveryCli -CliArgs @(
+        "closing", "--results-file", $resultsFile, "--failures", "$Failures",
+        "--duration", "$duration", "--finished-at", $finishedAt, "--out", $closingFile
+    )
+    $closingExit = $closing.exit_code
+    foreach ($line in $closing.output) { Write-Log "closing: $line" }
+    if ($closingExit -ne 0 -or -not (Test-Path -LiteralPath $closingFile)) {
+        Write-Log "No se pudo generar el bloque de cierre (exit $closingExit)." -Level ERROR
+        $closureFailures++
+    } else {
+        $generalLog = Join-Path $LogDir "upload-$RunDate.log"
+        if (-not (Test-Path -LiteralPath $generalLog)) {
+            Write-Log "El log general $generalLog no existe; se crea con el cierre." -Level WARN
+        }
+        try {
+            $closingText = [System.IO.File]::ReadAllText($closingFile)
+            [System.IO.File]::AppendAllText($generalLog, $closingText, [System.Text.UTF8Encoding]::new($false))
+            Write-Log "Log general cerrado: $generalLog"
+        } catch {
+            Write-Log "No se pudo cerrar el log general: $($_.Exception.Message)" -Level ERROR
+            $closureFailures++
+        }
+    }
+
+    # 2) _READY fiel a los datos realmente publicados.
+    $decisionFile = Join-Path $env:TEMP ("recovery-ready-$RunDate-" + (Get-Date).Ticks + ".json")
+    $ready = Invoke-RecoveryCli -CliArgs @(
+        "ready", "--policy", ([string]$ReadyPolicy),
+        "--results-file", $resultsFile, "--out", $decisionFile
+    )
+    $readyExit = $ready.exit_code
+    foreach ($line in $ready.output) { Write-Log "ready: $line" }
+    if ($readyExit -ne 0 -or -not (Test-Path -LiteralPath $decisionFile)) {
+        Write-Log "No se pudo decidir _READY (exit $readyExit); no se escribe." -Level ERROR
+        $closureFailures++
+    } else {
+        $decision = $null
+        try { $decision = [System.IO.File]::ReadAllText($decisionFile) | ConvertFrom-Json } catch {}
+        if ($null -eq $decision) {
+            Write-Log "Decision _READY ilegible; no se escribe." -Level ERROR
+            $closureFailures++
+        } elseif (-not [bool]$decision.write) {
+            Write-Log "No se escribe _READY: $($decision.reason)" -Level WARN
+        } else {
+            $published = Test-ReadyPublished -RunDate $RunDate
+            if (-not [bool]$published.checked) {
+                Write-Log "No se pudo comprobar si _READY ya existe ($($published.error)); no se escribe para no reescribirlo." -Level ERROR
+                $closureFailures++
+            } elseif ([bool]$published.exists) {
+                Write-Log "_READY/dia=$RunDate.txt ya existe; no se reescribe." -Level WARN
+            } else {
+                $tmpReady = Join-Path $env:TEMP "ready_$RunDate.txt"
+                [System.IO.File]::WriteAllText($tmpReady,
+                    "RECOVERED $RunDate $finishedAt" + [Environment]::NewLine,
+                    [System.Text.UTF8Encoding]::new($false))
+                $readyDest = "https://$StorageAccount.blob.core.windows.net/$Container/_READY/dia=$RunDate.txt$SasToken"
+                $upOut = & $AzCopyPath copy $tmpReady $readyDest --overwrite=true --log-level=ERROR 2>&1
+                foreach ($line in @($upOut)) { Write-Log "azcopy: $line" }
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Log "Fallo subiendo _READY (exit $LASTEXITCODE)." -Level ERROR
+                    $closureFailures++
+                } else {
+                    Write-Log "_READY/dia=$RunDate.txt escrito."
+                }
+                Remove-Item -LiteralPath $tmpReady -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # 3) Cerrar el estado del run (solo si existe; nunca se inventa).
+    $statePath = Join-Path $script:RecoveryStateDir "$RunDate.json"
+    if (-not (Test-Path -LiteralPath $statePath)) {
+        Write-Log "No existe el estado del run ($statePath); no se inventa." -Level WARN
+    } else {
+        try {
+            Close-RunStateFile -StateDir $script:RecoveryStateDir -RunDate $RunDate `
+                -FinishedAt $finishedAt -Sources $Results | Out-Null
+            Write-Log "Estado del run cerrado: $statePath"
+        } catch {
+            Write-Log "No se pudo cerrar el estado del run: $($_.Exception.Message)" -Level ERROR
+            $closureFailures++
+        }
+    }
+
+    Remove-Item -LiteralPath $resultsFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $decisionFile -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $closingFile -Force -ErrorAction SilentlyContinue
+    return $closureFailures
+}
+
+# Recorre el plan, registra por fuente, cierra el run y devuelve el exit code.
 function Invoke-RecoveryPlanMode {
     param([string]$RunDate, [string]$PlanFile, [switch]$DryRun)
     $label = if (-not [string]::IsNullOrWhiteSpace($RunDate)) { $RunDate } else { "plan" }
@@ -443,24 +616,66 @@ function Invoke-RecoveryPlanMode {
         Write-Log "El plan no contiene items." -Level WARN
         return 0
     }
+    $effectiveRunDate = $RunDate
+    if ([string]::IsNullOrWhiteSpace($effectiveRunDate) -and $null -ne $plan) {
+        $effectiveRunDate = [string](Get-RunStateField $plan "run_date")
+    }
+
     $failures = 0
     $summary = @()
+    $sourceResults = @{}
     foreach ($item in $items) {
         $source = [string]$item.source
         if (-not [bool]$item.recoverable) {
+            $sourceResults[$source] = @{
+                status   = (Get-SourceStatusFromPlanReason -Reason ([string]$item.reason))
+                uploaded = 0
+                rejected = 0
+            }
             Write-Log "[$source] omitido: $($item.reason)"
             $summary += "$source=omitido"
             continue
         }
         $result = Invoke-PlanItem -Item $item -DryRun:$DryRun
         switch ([string]$result.Status) {
-            "published" { Write-Log "[$source] publicado: $($result.Message)"; $summary += "$source=publicado" }
-            "omitted"   { Write-Log "[$source] omitido: $($result.Message)"; $summary += "$source=omitido" }
-            "dry_run"   { Write-Log "[$source] dry run: $($result.Message)"; $summary += "$source=dry_run" }
-            default     { Write-Log "[$source] fallo: $($result.Message)" -Level ERROR; $failures++; $summary += "$source=fallo" }
+            "published" {
+                $sourceResults[$source] = @{ status = "ok"; uploaded = [int]$result.Uploaded; rejected = [int]$result.Rejected }
+                Write-Log "[$source] publicado: $($result.Message)"; $summary += "$source=publicado"
+            }
+            "omitted" {
+                $sourceResults[$source] = @{ status = "no_data"; uploaded = 0; rejected = 0 }
+                Write-Log "[$source] omitido: $($result.Message)"; $summary += "$source=omitido"
+            }
+            "dry_run" {
+                $sourceResults[$source] = @{ status = "no_data"; uploaded = 0; rejected = 0 }
+                Write-Log "[$source] dry run: $($result.Message)"; $summary += "$source=dry_run"
+            }
+            "partial" {
+                $sourceResults[$source] = @{ status = "partial"; uploaded = [int]$result.Uploaded; rejected = [int]$result.Rejected }
+                Write-Log "[$source] parcial: $($result.Message)" -Level WARN; $failures++; $summary += "$source=parcial"
+            }
+            default {
+                $sourceResults[$source] = @{ status = "failed"; uploaded = [int]$result.Uploaded; rejected = [int]$result.Rejected }
+                Write-Log "[$source] fallo: $($result.Message)" -Level ERROR; $failures++; $summary += "$source=fallo"
+            }
         }
     }
     Write-Log "Resumen recuperacion: $($summary -join ', ')"
+
+    if ($DryRun) {
+        Write-Log "Dry run: no se cierra el log, ni _READY, ni el estado." -Level WARN
+    } elseif ([string]::IsNullOrWhiteSpace($effectiveRunDate)) {
+        Write-Log "No se puede cerrar el run: el plan no trae run_date." -Level ERROR
+        $failures++
+    } else {
+        $closureFailures = Invoke-RecoveryClosure -RunDate $effectiveRunDate -Results $sourceResults `
+            -Failures $failures -StartedAt $script:RecoveryStartTime
+        if ($closureFailures -gt 0) {
+            Write-Log "Cierre con $closureFailures fallo(s)." -Level ERROR
+            $failures += $closureFailures
+        }
+    }
+
     if ($failures -gt 0) {
         Write-Log "Recuperacion con $failures fallo(s)." -Level ERROR
         return 1

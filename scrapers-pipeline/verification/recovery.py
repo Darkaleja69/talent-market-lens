@@ -161,8 +161,16 @@ older than ``--before`` (the pipeline's startup reconciliation consumes it):
 [--projects-root DIR] [--state-dir DIR] [--out FILE]`` builds the
 ``RecoveryPlan`` of that run (``build_plan`` plus ``apply_state_idempotence``
 when ``--state-dir`` is given) and writes it as JSON (no BOM with ``--out``,
-stdout otherwise); the recovery executor consumes it (T-11). Both commands are
-local and offline; an invalid argument exits 2 with a Spanish message.
+stdout otherwise); the recovery executor consumes it (T-11).
+
+``python -m verification.recovery closing --results-file FILE --failures N
+--duration D [--finished-at ISO] [--out FILE]`` emits the exact closing lines
+of ``closing_block``, and ``... ready --policy P --results-file FILE
+[--out FILE]`` emits the ``decide_ready`` decision as JSON
+(``{"write", "policy", "valid_sources", "reason"}``); the recovery executor
+appends the former to the run's general log and uses the latter for ``_READY``
+(T-12). All commands are local and offline; an invalid argument exits 2 with a
+Spanish message.
 """
 from __future__ import annotations
 
@@ -1236,6 +1244,44 @@ def pending_runs(
     return [run for run in runs if (run.run_date or "") < before]
 
 
+def _read_results_file(path: Path) -> list[PublishedSource]:
+    """Read the executor's per-source results JSON.
+
+    Accepts a bare list or ``{"results": [...]}``; each entry needs at least
+    ``source``/``status`` (``uploaded``/``rejected`` default to 0). Raises
+    ``ValueError`` (Spanish) for an unreadable or ill-shaped file.
+    """
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"resultados ilegibles ({path}): {exc}") from exc
+    items = payload.get("results") if isinstance(payload, dict) else payload
+    if not isinstance(items, list):
+        raise ValueError("los resultados deben ser una lista o {'results': [...]}")
+    results: list[PublishedSource] = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        results.append(
+            PublishedSource(
+                source=str(entry.get("source") or ""),
+                status=str(entry.get("status") or ""),
+                uploaded=int(entry.get("uploaded") or 0),
+                rejected=int(entry.get("rejected") or 0),
+            )
+        )
+    return results
+
+
+def _write_cli_output(text: str, out: str | None) -> None:
+    """Write ``text`` to ``out`` (no BOM) or stdout."""
+    if out:
+        Path(out).write_text(text, encoding="utf-8")
+        print(out)
+    else:
+        print(text, end="")
+
+
 def _build_cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="verification.recovery",
@@ -1261,6 +1307,22 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     plan.add_argument("--projects-root", default=None)
     plan.add_argument("--state-dir", default=None)
     plan.add_argument("--out", default=None, help="fichero JSON de salida")
+    closing = subparsers.add_parser(
+        "closing",
+        help="genera el bloque de cierre del pipeline para el log general",
+    )
+    closing.add_argument("--results-file", required=True)
+    closing.add_argument("--failures", type=int, required=True)
+    closing.add_argument("--duration", type=int, required=True)
+    closing.add_argument("--finished-at", default=None)
+    closing.add_argument("--out", default=None)
+    ready = subparsers.add_parser(
+        "ready",
+        help="decide si procede escribir _READY",
+    )
+    ready.add_argument("--policy", required=True)
+    ready.add_argument("--results-file", required=True)
+    ready.add_argument("--out", default=None)
     return parser
 
 
@@ -1310,12 +1372,47 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.state_dir) / f"{args.run_date}.json"
             )
             plan = apply_state_idempotence(plan, state)
-        text = json.dumps(plan.to_dict(), ensure_ascii=False, indent=2) + "\n"
-        if args.out:
-            Path(args.out).write_text(text, encoding="utf-8")
-            print(args.out)
-        else:
-            print(text, end="")
+        _write_cli_output(
+            json.dumps(plan.to_dict(), ensure_ascii=False, indent=2) + "\n",
+            args.out,
+        )
+        return 0
+
+    if args.command == "closing":
+        try:
+            results = _read_results_file(args.results_file)
+            lines = closing_block(
+                results,
+                failures=args.failures,
+                duration_seconds=args.duration,
+                finished_at=args.finished_at,
+            )
+        except ValueError as exc:
+            print(f"recovery: {exc}", file=sys.stderr)
+            return 2
+        _write_cli_output("\n".join(lines) + "\n", args.out)
+        return 0
+
+    if args.command == "ready":
+        try:
+            results = _read_results_file(args.results_file)
+        except ValueError as exc:
+            print(f"recovery: {exc}", file=sys.stderr)
+            return 2
+        decision = decide_ready(args.policy, results)
+        _write_cli_output(
+            json.dumps(
+                {
+                    "write": decision.write,
+                    "policy": decision.policy,
+                    "valid_sources": decision.valid_sources,
+                    "reason": decision.reason,
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            args.out,
+        )
         return 0
 
     return 2
