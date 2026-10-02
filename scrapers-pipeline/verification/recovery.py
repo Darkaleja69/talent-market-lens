@@ -142,11 +142,21 @@ returns the closing lines with the pipeline's exact format
 ``  [source] status=... subidos=N rechazados=N`` per source), so appending
 them to a truncated general log makes ``run_evidence.parse_pipeline_log``
 return ``completed=True`` and the diagnostic select the run (RF-5).
+
+CLI (T-10; RF-4)
+----------------
+``python -m verification.recovery pending [--logs-dir DIR] [--state-dir DIR]
+[--before YYYY-MM-DD]`` prints a stable JSON document with the truncated runs
+older than ``--before`` (the pipeline's startup reconciliation consumes it):
+``{"schema_version": 1, "before": ..., "count": N, "runs": [...]}``. It is
+local and offline; an invalid ``--before`` exits 2 with a Spanish message.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
@@ -1133,3 +1143,91 @@ def closing_block(
             f"subidos={int(result.uploaded)} rechazados={int(result.rejected)}"
         )
     return tuple(lines)
+
+
+# --------------------------------------------------------------------------
+# CLI: previous pending runs for the startup reconciliation (T-10; RF-4)
+# --------------------------------------------------------------------------
+
+
+def _truncated_to_dict(run: TruncatedRun) -> dict[str, object]:
+    """Stable JSON shape of one truncated run for the PowerShell consumer."""
+    return {
+        "run_date": run.run_date,
+        "log_path": run.log_path,
+        "started_at": run.started_at,
+        "superseded": run.superseded,
+        "state_attributed": run.state_attributed,
+        "state_path": run.state.path,
+        "state_status": run.state.status,
+        "state_run_date": run.state.run_date,
+        "reason": run.reason,
+    }
+
+
+def pending_runs(
+    logs_dir: Path,
+    state_dir: Path | None = None,
+    before: str | None = None,
+) -> list[TruncatedRun]:
+    """Truncated runs strictly before ``before`` (``YYYY-MM-DD``), if given.
+
+    ``before`` excludes the run that is starting; ``None`` returns every
+    discovered truncated run. Pure and local: no network and no Azure.
+    """
+    runs = discover_truncated_runs(logs_dir, state_dir)
+    if before is None:
+        return runs
+    return [run for run in runs if (run.run_date or "") < before]
+
+
+def _build_cli_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="verification.recovery",
+        description="Recuperacion de runs truncados del pipeline (RF-2, RF-4).",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    pending = subparsers.add_parser(
+        "pending",
+        help="lista en JSON los runs truncados/pendientes anteriores",
+    )
+    pending.add_argument("--logs-dir", default=None)
+    pending.add_argument("--state-dir", default=None)
+    pending.add_argument(
+        "--before",
+        default=None,
+        help="solo runs con run_date estrictamente anterior (YYYY-MM-DD)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. ``pending`` prints stable JSON and returns 0 or 2."""
+    args = _build_cli_parser().parse_args(argv)
+    if args.command != "pending":
+        return 2
+    if args.before is not None and not _is_valid_date(args.before):
+        print(
+            f"recovery: --before invalido: {args.before!r}; se espera YYYY-MM-DD",
+            file=sys.stderr,
+        )
+        return 2
+    logs_dir = (
+        Path(args.logs_dir)
+        if args.logs_dir
+        else run_evidence.DEFAULT_PROJECTS_ROOT / run_evidence.DEFAULT_LOGS_SUBDIR
+    )
+    state_dir = Path(args.state_dir) if args.state_dir else None
+    runs = pending_runs(logs_dir, state_dir, args.before)
+    payload = {
+        "schema_version": 1,
+        "before": args.before,
+        "count": len(runs),
+        "runs": [_truncated_to_dict(run) for run in runs],
+    }
+    print(json.dumps(payload, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - manual entry point
+    raise SystemExit(main())

@@ -10,7 +10,18 @@
 #
 #  Uso (Task Scheduler, diariamente a las 00:00):
 #    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "...\run_scrapers_and_upload.ps1"
+#
+#  -Supervised (T-10; RF-4): solo lo pasa run_pipeline_supervised.ps1. Antes
+#  de lanzar los scrapers reconcilia, con recover_and_upload.ps1 -Date, los
+#  runs truncados/pendientes anteriores a hoy que ya no tengan wrappers vivos;
+#  un fallo ahi nunca aborta el run que empieza. La tarea programada actual NO
+#  pasa -Supervised, de modo que la recuperacion automatica no cambia el flujo
+#  normal hasta T-14.
 # =============================================================================
+
+param(
+    [switch]$Supervised
+)
 
 $ErrorActionPreference = "Continue"
 Set-StrictMode -Version Latest
@@ -139,6 +150,29 @@ if ($null -ne $script:RunState) {
     Save-RunState
     if (Test-Path -LiteralPath (Join-Path $script:RunStateDir "$Today.json")) {
         Write-Log "Estado del run persistido en $($script:RunStateDir)\$Today.json"
+    }
+}
+
+# --- Reconciliacion de runs anteriores (RF-4; solo con -Supervised) ----------
+#  Descubre (CLI local de verification.recovery) los runs truncados/pendientes
+#  ANTERIORES a hoy y recupera los que ya no tengan wrappers vivos. Un fallo
+#  aqui nunca aborta el run que empieza: se registra y se continua (RF-4).
+#  Sin -Supervised no se ejecuta nada de esto (RF-9).
+if ($Supervised) {
+    . (Join-Path $ScriptDir "reconcile_pending_runs.ps1")
+    try {
+        $reconciliation = Invoke-PendingReconciliation `
+            -ProjectsRoot $ProjectsRoot `
+            -LogsDir $LogDir `
+            -StateDir $script:RunStateDir `
+            -Before $Today `
+            -RecoveryScript (Join-Path $ScriptDir "recover_and_upload.ps1") `
+            -Logger { param($Message, $Level) Write-Log $Message -Level $Level }
+        Write-Log ("Reconciliacion: {0} pendiente(s), {1} recuperado(s), {2} con wrappers vivos, {3} fallo(s)" -f `
+            $reconciliation.discovered, $reconciliation.invoked.Count, `
+            $reconciliation.skipped_live.Count, $reconciliation.failures.Count)
+    } catch {
+        Write-Log "La reconciliacion de pendientes fallo (se continua con el run): $($_.Exception.Message)" -Level WARN
     }
 }
 

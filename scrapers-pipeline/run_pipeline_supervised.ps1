@@ -9,34 +9,54 @@
 #  It does NOT load config.ps1 and needs no SAS/Azure/azcopy: only local
 #  processes and files, so it can be tested offline.
 #
+#  Anomalous closure (T-10; RF-2, RF-4): after writing abort.json the
+#  supervisor waits up to -WaitHours (default 6, poll every -PollSeconds) for
+#  the date's live wrappers to disappear. If they disappear it invokes the
+#  recovery executor (-RecoveryScript -Date <run_date>); if the cap is reached
+#  the run is left pending and the abort evidence records the timeout and the
+#  wrappers still alive. It never kills a process. The real activation in the
+#  scheduled task arrives with T-14; until then the supervisor is opt-in.
+#
 #  Usage:
 #    powershell.exe -NoProfile -ExecutionPolicy Bypass -File run_pipeline_supervised.ps1
 #    ... -RunDate 2026-10-01 -PipelineScript <path> -LogDir <dir> -StateDir <dir>
+#    ... -ProjectsRoot <dir> -RecoveryScript <path> -WaitHours 6 -PollSeconds 60
 #
 #  Exit codes:
-#    0   the child closed with "Fin pipeline" and exited 0
-#    N   the child closed with "Fin pipeline" and exited N (propagated)
-#    1   anomalous closure (no "Fin pipeline"): abort.json was written
+#    0   normal closure with exit 0, or anomalous closure recovered by the
+#        executor (recovery exit 0)
+#    N   normal closure with exit N (propagated)
+#    1   anomalous closure and the wrapper wait timed out (run left pending)
 #    2   pre-flight/evidence failure: the pipeline script does not exist, the
 #        child could not be launched, or abort.json could not be written.
 #        No abort.json is written when the pipeline never ran.
+#    3   anomalous closure, wrappers gone, but the recovery executor was
+#        missing, failed, or does not declare -Date yet (T-11); the error is
+#        recorded and success is never invented
 # =============================================================================
 
 param(
     [string]$RunDate = (Get-Date -Format "yyyy-MM-dd"),
     [string]$PipelineScript = (Join-Path $PSScriptRoot "run_scrapers_and_upload.ps1"),
     [string]$LogDir = (Join-Path $PSScriptRoot "logs"),
-    [string]$StateDir = ""
+    [string]$StateDir = "",
+    [string]$ProjectsRoot = "",
+    [string]$RecoveryScript = (Join-Path $PSScriptRoot "recover_and_upload.ps1"),
+    [double]$WaitHours = 6,
+    [int]$PollSeconds = 60
 )
 
 $ErrorActionPreference = "Continue"
 Set-StrictMode -Version Latest
 
 if ([string]::IsNullOrWhiteSpace($StateDir)) { $StateDir = Join-Path $LogDir "run_state" }
-$ProjectsRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($ProjectsRoot)) { $ProjectsRoot = Split-Path -Parent $PSScriptRoot }
 
-# Shared atomic JSON writer (T-03); the supervisor never writes run state.
+# Shared atomic JSON writer (T-03), wrapper liveness (T-10) and the recovery
+# executor guard (T-10); the supervisor never writes run state itself.
 . (Join-Path $PSScriptRoot "run_state.ps1")
+. (Join-Path $PSScriptRoot "wrapper_locks.ps1")
+. (Join-Path $PSScriptRoot "recovery_support.ps1")
 
 $transcript    = Join-Path $LogDir "transcript-$RunDate.log"
 $transcriptErr = Join-Path $LogDir "transcript-$RunDate.err.log"
@@ -139,60 +159,6 @@ function Get-RunStateSnapshot {
     return $snapshot
 }
 
-# One entry per wrapper with both liveness signals: the .nightly.lock PID and
-# the powershell.exe processes whose command line mentions the wrapper (the
-# only signal for Multi-site, which has no lock). Every access is guarded so a
-# missing lock or an unavailable CIM query never breaks the evidence.
-function Get-LiveWrappers {
-    $defs = @(
-        @{ Name = "indeed";     Wrapper = (Join-Path $ProjectsRoot "indeed_jobs_scraper\run_nightly_indeed.ps1");      Lock = (Join-Path $ProjectsRoot "indeed_jobs_scraper\output\.nightly.lock") },
-        @{ Name = "linkedin";   Wrapper = (Join-Path $ProjectsRoot "linkedin_jobs_scraper\run_nightly.ps1");           Lock = (Join-Path $ProjectsRoot "linkedin_jobs_scraper\data\.nightly.lock") },
-        @{ Name = "multi_site"; Wrapper = (Join-Path $ProjectsRoot "multi_site_job_scraper\run_all.ps1");              Lock = $null },
-        @{ Name = "infojobs";   Wrapper = (Join-Path $ProjectsRoot "infojobs_jobs_scraper\run_infojobs_nightly.ps1");  Lock = (Join-Path $ProjectsRoot "infojobs_jobs_scraper\data\.nightly.lock") }
-    )
-
-    $powerShellProcs = @()
-    try {
-        $powerShellProcs = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction Stop |
-            Select-Object ProcessId, CommandLine)
-    } catch { $powerShellProcs = @() }
-
-    $result = @()
-    foreach ($def in $defs) {
-        $lockExists = $false
-        $lockPid = $null
-        $lockAlive = $false
-        if ($def.Lock -and (Test-Path -LiteralPath $def.Lock)) {
-            $lockExists = $true
-            try {
-                $raw = ([System.IO.File]::ReadAllText($def.Lock) -replace '^\uFEFF', '').Trim()
-                if ($raw -match '^\d+$') {
-                    $lockPid = [int]$raw
-                    $lockAlive = $null -ne (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)
-                }
-            } catch {}
-        }
-        $cmdPids = @()
-        foreach ($proc in $powerShellProcs) {
-            $cmd = [string]$proc.CommandLine
-            if ($cmd -and $cmd -like "*$($def.Wrapper)*") {
-                $cmdPids += [int]$proc.ProcessId
-            }
-        }
-        $result += @{
-            name              = $def.Name
-            wrapper           = $def.Wrapper
-            lock_path         = $def.Lock
-            lock_exists       = $lockExists
-            lock_pid          = $lockPid
-            lock_alive        = $lockAlive
-            command_line_pids = $cmdPids
-            alive             = ($lockAlive -or $cmdPids.Count -gt 0)
-        }
-    }
-    return $result
-}
-
 # Query one event filter; a missing channel/permission or an empty result
 # yields a Spanish note instead of an exception.
 function Get-EventsForFilter {
@@ -274,6 +240,10 @@ if (-not (Test-Path -LiteralPath $PipelineScript)) {
     Write-SupervisorLog "El script del pipeline no existe: $PipelineScript" -Level ERROR
     exit 2
 }
+if ($PollSeconds -le 0) {
+    Write-SupervisorLog "El intervalo de sondeo (-PollSeconds) debe ser mayor que 0 segundos (recibido $PollSeconds)." -Level ERROR
+    exit 2
+}
 if (-not (Test-Path -LiteralPath $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
@@ -288,8 +258,10 @@ try {
     # processes), delaying the abort evidence when the main process dies first.
     # In PS 5.1 a -PassThru process with redirected output loses its ExitCode
     # unless EnableRaisingEvents keeps the handle, so it is set right away.
+    # -Supervised enables the startup reconciliation of previous pending runs
+    # (T-10/RF-4) inside the pipeline; the scheduled task does not pass it yet.
     $proc = Start-Process -FilePath "powershell.exe" `
-        -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File","`"$PipelineScript`"") `
+        -ArgumentList @("-NoProfile","-ExecutionPolicy","Bypass","-File","`"$PipelineScript`"","-Supervised") `
         -PassThru `
         -RedirectStandardOutput $transcript -RedirectStandardError $transcriptErr
     try { $proc.EnableRaisingEvents = $true } catch {}
@@ -369,7 +341,7 @@ $payload = @{
     state_finished_at = $stateSnapshot.state_finished_at
     state_sources     = $stateSnapshot.state_sources
     state_error       = $stateSnapshot.state_error
-    live_wrappers     = @(Get-LiveWrappers)
+    live_wrappers     = @(Get-LiveWrappers -ProjectsRoot $ProjectsRoot)
     system_events     = (Get-SystemEvents -WindowStart $windowStart -WindowEnd $now)
 }
 
@@ -380,4 +352,95 @@ try {
     exit 2
 }
 Write-SupervisorLog "Evidencia escrita en $abortPath" -Level WARN
-exit 1
+
+# --- Bounded wait for the run's live wrappers (T-10; RF-2) -------------------
+#  The abort evidence is written first, so it survives a supervisor kill during
+#  the wait. The wrappers are never stopped, only observed.
+$waitStart = Get-Date
+$waitResult = @{
+    timed_out      = $false
+    waited_seconds = 0
+    live_wrappers  = @()
+}
+$liveNow = @(Get-LiveWrappers -ProjectsRoot $ProjectsRoot | Where-Object { $_.alive })
+if ($liveNow.Count -eq 0) {
+    Write-SupervisorLog "No hay wrappers vivos para $RunDate."
+} elseif ($WaitHours -le 0) {
+    $waitResult.timed_out = $true
+    $waitResult.live_wrappers = $liveNow
+    Write-SupervisorLog "Espera desactivada (-WaitHours $WaitHours) con $($liveNow.Count) wrapper(s) vivo(s)." -Level WARN
+} else {
+    $deadline = $waitStart.AddHours($WaitHours)
+    Write-SupervisorLog "Esperando hasta $WaitHours h a que terminen $($liveNow.Count) wrapper(s) vivo(s)..."
+    while ($true) {
+        if ((Get-Date) -ge $deadline) {
+            $waitResult.timed_out = $true
+            $waitResult.live_wrappers = @(
+                Get-LiveWrappers -ProjectsRoot $ProjectsRoot | Where-Object { $_.alive }
+            )
+            Write-SupervisorLog "Tope de espera alcanzado; el run queda pending." -Level WARN
+            break
+        }
+        Start-Sleep -Seconds $PollSeconds
+        $liveNow = @(Get-LiveWrappers -ProjectsRoot $ProjectsRoot | Where-Object { $_.alive })
+        if ($liveNow.Count -eq 0) {
+            Write-SupervisorLog "Los wrappers terminaron; se puede recuperar."
+            break
+        }
+    }
+}
+$waitResult.waited_seconds = [int]((Get-Date) - $waitStart).TotalSeconds
+
+if ($waitResult.timed_out) {
+    $payload["wait"] = $waitResult
+    try {
+        Write-JsonAtomic -Path $abortPath -InputObject $payload | Out-Null
+    } catch {
+        Write-SupervisorLog "No se pudo actualizar $abortPath : $($_.Exception.Message)" -Level ERROR
+        exit 2
+    }
+    exit 1
+}
+
+# --- Recovery executor (T-11 completes -Date/-PlanJson and the closure) ------
+$recoveryLog = Join-Path $LogDir "recovery-$RunDate.log"
+$recovery = @{
+    script    = $RecoveryScript
+    invoked   = $false
+    exit_code = $null
+    log       = $recoveryLog
+    error     = $null
+}
+if (-not (Test-Path -LiteralPath $RecoveryScript)) {
+    $recovery.error = "el ejecutor de recuperacion no existe"
+    Write-SupervisorLog "No existe el ejecutor de recuperacion: $RecoveryScript" -Level ERROR
+} elseif (-not (Test-RecoveryScriptSupportsDate -Path $RecoveryScript)) {
+    # A legacy executor without -Date would receive the argument in $args and
+    # silently sweep the whole history: never invoke it for a single run.
+    $recovery.error = "el ejecutor aun no soporta -Date; recuperacion pendiente (T-11)"
+    Write-SupervisorLog "El ejecutor $RecoveryScript aun no soporta -Date; recuperacion pendiente (T-11)." -Level WARN
+} else {
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $RecoveryScript -Date $RunDate *> $recoveryLog
+        $recovery.invoked = $true
+        $recovery.exit_code = [int]$LASTEXITCODE
+    } catch {
+        $recovery.error = $_.Exception.Message
+        Write-SupervisorLog "Fallo lanzando la recuperacion: $($_.Exception.Message)" -Level ERROR
+    }
+}
+$payload["wait"] = $waitResult
+$payload["recovery"] = $recovery
+try {
+    Write-JsonAtomic -Path $abortPath -InputObject $payload | Out-Null
+} catch {
+    Write-SupervisorLog "No se pudo actualizar $abortPath : $($_.Exception.Message)" -Level ERROR
+    exit 2
+}
+
+if ($recovery.invoked -and $recovery.exit_code -eq 0) {
+    Write-SupervisorLog "Recuperacion completada (exit 0)."
+    exit 0
+}
+Write-SupervisorLog "La recuperacion no termino correctamente; el run sigue pendiente." -Level ERROR
+exit 3
