@@ -376,3 +376,57 @@ def test_T04_truncated_log_associates_with_pending_state(tmp_path):
     assert closed["status"] == "closed"
     assert closed["finished_at"] == "2026-10-01T02:10:00.0000000+02:00"
     assert run_evidence.parse_pipeline_log(log_path).completed is False
+
+
+# --------------------------------------------------------------------------
+# T-12: Close-RunStateFile (close a recovered run from disk)
+# --------------------------------------------------------------------------
+
+
+def test_T12_close_run_state_file_updates_sources_and_status(tmp_path):
+    state_dir = tmp_path / "run_state"
+    driver = _write_driver(
+        tmp_path,
+        state_dir,
+        f"$state = New-RunState -RunDate '{RUN_DATE}' -StartedAt '2026-10-01T00:00:04.0000000+02:00'\n"
+        "Set-RunSourceState -State $state -Source 'linkedin' -Status 'pending'\n"
+        "Write-RunState -State $state -StateDir $StateDir | Out-Null\n"
+        f"Close-RunStateFile -StateDir $StateDir -RunDate '{RUN_DATE}' "
+        "-FinishedAt '2026-10-01T05:00:00.0000000+02:00' "
+        "-Sources @{ indeed = @{ status='ok'; uploaded=2; rejected=0 }; "
+        "linkedin = @{ status='no_data'; uploaded=0; rejected=0 } } | Out-Null",
+    )
+    _run_driver(driver)
+
+    state = _read_state(state_dir)
+    assert state["status"] == "closed"
+    assert state["finished_at"] == "2026-10-01T05:00:00.0000000+02:00"
+    assert state["sources"]["indeed"]["status"] == "ok"
+    assert state["sources"]["indeed"]["uploaded"] == 2
+    assert state["sources"]["indeed"]["rejected"] == 0
+    assert ISO_8601.match(state["sources"]["indeed"]["last_activity_at"])
+    assert state["sources"]["linkedin"]["status"] == "no_data"
+
+
+def test_T12_close_run_state_file_does_not_invent_missing_state(tmp_path):
+    state_dir = tmp_path / "run_state"
+    state_dir.mkdir()
+    driver = _write_driver(
+        tmp_path,
+        state_dir,
+        f"Close-RunStateFile -StateDir $StateDir -RunDate '{RUN_DATE}'",
+    )
+
+    ps = _require_powershell()
+    completed = subprocess.run(
+        [ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(driver)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
+
+    assert completed.returncode != 0
+    assert "no se inventa" in (completed.stdout + completed.stderr)
+    assert not (state_dir / f"{RUN_DATE}.json").exists()

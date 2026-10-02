@@ -20,6 +20,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from verification import run_evidence
+
 PIPELINE_DIR = Path(__file__).resolve().parents[1]
 RECOVER = PIPELINE_DIR / "recover_and_upload.ps1"
 POWERSHELL = shutil.which("powershell.exe")
@@ -74,17 +76,33 @@ def _write_plan(tmp_path: Path, items: list[dict]) -> Path:
 
 
 def _write_fake_azcopy(tmp_path: Path, *, exit_code: int = 0) -> Path:
-    """Fake AzCopy: records every call and keeps a copy of the manifest."""
+    """Fake AzCopy: records every call, answers ``list`` and keeps copies.
+
+    ``list`` prints the lines of ``<tmp>/ready_list.txt`` when it exists (used
+    to simulate an existing ``_READY``). Every ``copy`` of a leaf file keeps a
+    copy under ``<tmp>/uploaded_files/<name>`` (manifests also go to the legacy
+    ``manifest_uploaded.json``).
+    """
     calls = tmp_path / "azcopy_calls.log"
     uploaded = tmp_path / "manifest_uploaded.json"
+    ready_list = tmp_path / "ready_list.txt"
+    uploaded_dir = tmp_path / "uploaded_files"
     script = tmp_path / "fake_azcopy.ps1"
     script.write_text(
         "\n".join(
             [
                 "param([Parameter(ValueFromRemainingArguments = $true)][string[]]$AzArgs)",
                 f"Add-Content -LiteralPath '{calls}' -Value ($AzArgs -join '|')",
+                "if ($AzArgs.Count -ge 1 -and $AzArgs[0] -eq 'list') {",
+                f"    if (Test-Path -LiteralPath '{ready_list}') {{ Get-Content -LiteralPath '{ready_list}' }}",
+                "    exit 0",
+                "}",
                 "if ($AzArgs.Count -ge 3 -and $AzArgs[0] -eq 'copy') {",
                 "    $src = $AzArgs[1]",
+                "    if (Test-Path -LiteralPath $src -PathType Leaf) {",
+                f"        New-Item -ItemType Directory -Force -Path '{uploaded_dir}' | Out-Null",
+                f"        Copy-Item -LiteralPath $src -Destination (Join-Path '{uploaded_dir}' (Split-Path -Leaf $src)) -Force",
+                "    }",
                 f"    if ($src -like '*.json' -and (Test-Path -LiteralPath $src -PathType Leaf)) {{",
                 f"        Copy-Item -LiteralPath $src -Destination '{uploaded}' -Force",
                 "    }",
@@ -129,6 +147,7 @@ def _run_recover(
     azcopy: Path | None = None,
     projects_root: Path | None = None,
     extra: list[str] | None = None,
+    ready_policy: str | None = None,
 ):
     log_dir = tmp_path / "logs"
     args = [
@@ -162,6 +181,8 @@ def _run_recover(
         args += ["-Date", date]
     if dry_run:
         args += ["-DryRun"]
+    if ready_policy is not None:
+        args += ["-ReadyPolicy", ready_policy]
     if extra:
         args += extra
     env = {
@@ -527,3 +548,163 @@ def test_T11_dry_run_merge_does_not_touch_the_canonical(tmp_path):
         encoding="utf-8", errors="replace"
     )
     assert "reconstruiria y subiria" in log_text
+
+
+# --------------------------------------------------------------------------
+# T-12: closing block, faithful _READY and run-state closure
+# --------------------------------------------------------------------------
+
+
+def _successful_indeed_plan(tmp_path: Path, projects: Path) -> Path:
+    parquet = _indeed_fixture(projects)
+    return _write_plan(
+        tmp_path,
+        [
+            _item(
+                path=str(parquet),
+                required_cols=INDEED_REQUIRED,
+                coherence="indeed",
+                fingerprint_source="indeed",
+            )
+        ],
+    )
+
+
+def _log_text(log_dir: Path, run_date: str = DATE) -> str:
+    return (log_dir / f"recover-{run_date}.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+
+
+def test_T12_recovery_appends_closing_block_and_log_is_completed(tmp_path):
+    projects = tmp_path / "projects"
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    general_log = log_dir / f"upload-{DATE}.log"
+    general_log.write_text(
+        f"00:00:00  [INFO]  ====  Inicio pipeline scrapers  ({DATE}) ====\n"
+        "00:00:05  [INFO]  Lanzando 4 scrapers en paralelo...\n",
+        encoding="utf-8",
+    )
+    plan = _successful_indeed_plan(tmp_path, projects)
+
+    completed, log_dir = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    summary = run_evidence.parse_pipeline_log(general_log)
+    assert summary.completed is True
+    assert summary.date == DATE
+    assert summary.statuses["indeed"].status == "ok"
+    assert summary.statuses["indeed"].uploaded == 1
+    assert run_evidence.select_last_run(log_dir) is not None
+
+
+def test_T12_ready_written_when_policy_met(tmp_path):
+    projects = tmp_path / "projects"
+    plan = _successful_indeed_plan(tmp_path, projects)
+
+    completed, _ = _run_recover(
+        tmp_path, plan=plan, projects_root=projects, ready_policy="any_valid"
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    assert f"_READY/dia={DATE}.txt" in calls
+    ready = tmp_path / "uploaded_files" / f"ready_{DATE}.txt"
+    assert ready.is_file()
+    assert ready.read_text(encoding="utf-8").startswith(f"RECOVERED {DATE} ")
+
+
+def test_T12_ready_not_written_when_policy_fails(tmp_path):
+    plan = _write_plan(
+        tmp_path,
+        [_item(recoverable=False, reason="no hay parquet de Indeed con la fecha del run")],
+    )
+
+    completed, log_dir = _run_recover(
+        tmp_path, plan=plan, ready_policy="any_valid"
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls_log = tmp_path / "azcopy_calls.log"
+    calls = calls_log.read_text(encoding="utf-8", errors="replace") if calls_log.is_file() else ""
+    assert f"_READY/dia={DATE}.txt" not in calls
+    log_text = _log_text(log_dir)
+    assert "No se escribe _READY" in log_text
+    assert "ningun dato valido publicado" in log_text
+
+
+def test_T12_existing_ready_is_not_rewritten(tmp_path):
+    projects = tmp_path / "projects"
+    (tmp_path / "ready_list.txt").write_text(
+        f"INFO: _READY/dia={DATE}.txt; Content Length: 10\n", encoding="utf-8"
+    )
+    plan = _successful_indeed_plan(tmp_path, projects)
+
+    completed, log_dir = _run_recover(
+        tmp_path, plan=plan, projects_root=projects, ready_policy="any_valid"
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    ready_copies = [
+        line
+        for line in calls.splitlines()
+        if line.startswith("copy|") and "_READY" in line
+    ]
+    assert ready_copies == []
+    assert "ya existe; no se reescribe" in _log_text(log_dir)
+
+
+def test_T12_run_state_is_closed_with_sources(tmp_path):
+    projects = tmp_path / "projects"
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / f"{DATE}.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "run_date": DATE,
+                "started_at": f"{DATE}T00:00:00.0000000+02:00",
+                "finished_at": None,
+                "status": "pending",
+                "sources": {
+                    "linkedin": {
+                        "status": "pending",
+                        "uploaded": 0,
+                        "rejected": 0,
+                        "last_activity_at": None,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    plan = _successful_indeed_plan(tmp_path, projects)
+
+    completed, _ = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    state = json.loads((state_dir / f"{DATE}.json").read_text(encoding="utf-8-sig"))
+    assert state["status"] == "closed"
+    assert state["finished_at"]
+    assert state["sources"]["indeed"]["status"] == "ok"
+    assert state["sources"]["indeed"]["uploaded"] == 1
+    assert state["sources"]["linkedin"]["status"] == "pending"  # untouched
+
+
+def test_T12_missing_run_state_is_recorded(tmp_path):
+    projects = tmp_path / "projects"
+    plan = _successful_indeed_plan(tmp_path, projects)
+
+    completed, log_dir = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert not (tmp_path / "state" / f"{DATE}.json").exists()
+    log_text = _log_text(log_dir)
+    assert "No existe el estado del run" in log_text
+    assert "no se inventa" in log_text

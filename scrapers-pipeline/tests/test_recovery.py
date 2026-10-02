@@ -1264,3 +1264,114 @@ def test_T11_plan_cli_rejects_invalid_run_date(tmp_path, capsys):
 
     assert exit_code == 2
     assert "--run-date" in captured.err
+
+
+# --------------------------------------------------------------------------
+# T-12: closing block and _READY CLIs
+# --------------------------------------------------------------------------
+
+
+def _write_results(path: Path, results: list[dict]) -> Path:
+    path.write_text(json.dumps({"results": results}), encoding="utf-8")
+    return path
+
+
+def test_T12_closing_cli_emits_the_pipeline_block(tmp_path):
+    results = _write_results(
+        tmp_path / "results.json",
+        [
+            {"source": "indeed", "status": "ok", "uploaded": 1, "rejected": 0},
+            {"source": "infojobs", "status": "no_data", "uploaded": 0, "rejected": 0},
+        ],
+    )
+    out = tmp_path / "closing.txt"
+
+    exit_code = recovery.main(
+        [
+            "closing",
+            "--results-file",
+            str(results),
+            "--failures",
+            "1",
+            "--duration",
+            "100",
+            "--finished-at",
+            f"{DATE_NEW}T04:50:00",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert exit_code == 0
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    lines = raw.decode("utf-8").splitlines()
+    assert lines[0] == (
+        "04:50:00  [INFO]  ====  Fin pipeline. Fallos: 1  Duracion: 100s ===="
+    )
+    assert lines[1] == "04:50:00  [INFO]    [indeed] status=ok subidos=1 rechazados=0"
+    assert lines[2] == "04:50:00  [INFO]    [infojobs] status=no_data subidos=0 rechazados=0"
+
+    # The block makes a truncated run selectable by the diagnostic.
+    logs = tmp_path / "logs"
+    log_path = _write_log(logs, DATE_NEW, _inicio(DATE_NEW, "00:00:00"))
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(raw.decode("utf-8"))
+    summary = run_evidence.parse_pipeline_log(log_path)
+    assert summary.completed is True
+    assert summary.statuses["indeed"].status == "ok"
+    assert run_evidence.select_last_run(logs) is not None
+
+
+def test_T12_ready_cli_decides(tmp_path):
+    results = _write_results(
+        tmp_path / "results.json",
+        [
+            {"source": "indeed", "status": "ok", "uploaded": 1},
+            {"source": "linkedin", "status": "failed"},
+        ],
+    )
+    out = tmp_path / "decision.json"
+
+    assert (
+        recovery.main(
+            ["ready", "--policy", "any_valid", "--results-file", str(results), "--out", str(out)]
+        )
+        == 0
+    )
+    decision = json.loads(out.read_text(encoding="utf-8"))
+    assert decision["write"] is True
+    assert decision["valid_sources"] == 1
+    assert "se publico 1 fuente" in decision["reason"]
+
+    assert (
+        recovery.main(
+            ["ready", "--policy", "all", "--results-file", str(results), "--out", str(out)]
+        )
+        == 0
+    )
+    decision = json.loads(out.read_text(encoding="utf-8"))
+    assert decision["write"] is False
+    assert "la politica all exige" in decision["reason"]
+
+
+def test_T12_closing_cli_rejects_invalid_status(tmp_path, capsys):
+    results = _write_results(
+        tmp_path / "results.json", [{"source": "indeed", "status": "raro"}]
+    )
+
+    exit_code = recovery.main(
+        [
+            "closing",
+            "--results-file",
+            str(results),
+            "--failures",
+            "0",
+            "--duration",
+            "1",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "status invalido" in captured.err
