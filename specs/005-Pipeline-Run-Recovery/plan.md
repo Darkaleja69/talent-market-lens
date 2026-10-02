@@ -140,6 +140,8 @@ temporales.
   siguen saliendo de los logs/manifests reales.
 - `_READY` se escribe una sola vez por fecha de run, solo si la política se
   cumple con datos publicados; el contenido indica si fue normal o recuperado.
+  En la recuperación, `all` exige que todas las fuentes previstas hayan
+  publicado datos válidos (no replica el `GlobalFailures == 0` del pipeline).
 - Si el run original ya escribió `_READY`, la recuperación no lo cambia.
 
 ## 9. Retención y limpieza

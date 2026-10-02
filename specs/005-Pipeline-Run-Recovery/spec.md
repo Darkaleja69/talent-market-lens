@@ -175,7 +175,8 @@ perceptibles.
 - El cierre del run recuperado se escribe en el log del propio run para que el
   diagnóstico lo trate como finalizado.
 - `_READY` se decide con datos publicados reales y la política existente
-  (`any_valid`/`all`).
+  (`any_valid`/`all`). En la recuperación, `all` exige que todas las fuentes
+  previstas hayan publicado datos válidos (un `no_data` sin fallos no basta).
 - La instrumentación (transcripción y estado) se añade al ciclo del pipeline,
   no al diagnóstico.
 - No se matan procesos huérfanos por política: se espera de forma acotada a que
