@@ -126,6 +126,13 @@ Non-recoverable items are passed through untouched, so calling the function
 twice with the same reader yields the same plan. The module itself performs no
 network: remote access happens only through the injected ``RemoteReader``.
 
+``apply_state_idempotence(plan, state)`` complements that remote check with
+local evidence: a recoverable item whose run-state entry
+(``sources[<source>]``) shows a valid status (``ok``/``partial``) with
+``uploaded > 0`` was already published by the run, so it is omitted with a
+Spanish reason even if ``uploaded_keys`` was left stale. It is pure and is
+applied by the ``plan`` CLI when ``--state-dir`` is given.
+
 ``_READY`` decision and closing block (T-08; RF-5, RF-6)
 -------------------------------------------------------
 ``decide_ready(policy, published)`` is pure: with ``any_valid`` it writes only
@@ -143,13 +150,19 @@ returns the closing lines with the pipeline's exact format
 them to a truncated general log makes ``run_evidence.parse_pipeline_log``
 return ``completed=True`` and the diagnostic select the run (RF-5).
 
-CLI (T-10; RF-4)
-----------------
+CLI (T-10/T-11; RF-2, RF-4)
+---------------------------
 ``python -m verification.recovery pending [--logs-dir DIR] [--state-dir DIR]
 [--before YYYY-MM-DD]`` prints a stable JSON document with the truncated runs
 older than ``--before`` (the pipeline's startup reconciliation consumes it):
-``{"schema_version": 1, "before": ..., "count": N, "runs": [...]}``. It is
-local and offline; an invalid ``--before`` exits 2 with a Spanish message.
+``{"schema_version": 1, "before": ..., "count": N, "runs": [...]}``.
+
+``python -m verification.recovery plan --run-date YYYY-MM-DD
+[--projects-root DIR] [--state-dir DIR] [--out FILE]`` builds the
+``RecoveryPlan`` of that run (``build_plan`` plus ``apply_state_idempotence``
+when ``--state-dir`` is given) and writes it as JSON (no BOM with ``--out``,
+stdout otherwise); the recovery executor consumes it (T-11). Both commands are
+local and offline; an invalid argument exits 2 with a Spanish message.
 """
 from __future__ import annotations
 
@@ -1004,6 +1017,48 @@ def apply_idempotence(
     return RecoveryPlan(run_date=plan.run_date, items=tuple(updated))
 
 
+def apply_state_idempotence(
+    plan: RecoveryPlan, state: RunStateInfo
+) -> RecoveryPlan:
+    """Omit items the run state already confirms as published (RF-3; T-11).
+
+    Complements the remote check of :func:`apply_idempotence` with local
+    evidence: when ``state.sources[<source>]`` carries a valid status
+    (``ok``/``partial``) and ``uploaded > 0``, the run already published that
+    source's data, so the item is omitted even if ``uploaded_keys`` was left
+    stale by the abort. Missing, unreadable or unrecognized states never omit
+    anything, and the input plan is not modified.
+    """
+    updated: list[RecoveryItem] = []
+    for item in plan.items:
+        if not item.recoverable:
+            updated.append(item)
+            continue
+        source_state = state.sources.get(item.source)
+        if isinstance(source_state, dict):
+            status = str(source_state.get("status") or "")
+            uploaded = source_state.get("uploaded")
+            if (
+                status in VALID_PUBLISHED_STATUSES
+                and isinstance(uploaded, (int, float))
+                and not isinstance(uploaded, bool)
+                and int(uploaded) > 0
+            ):
+                updated.append(
+                    replace(
+                        item,
+                        recoverable=False,
+                        reason=(
+                            "ya publicado en el run "
+                            f"(estado: status={status}, uploaded={int(uploaded)})"
+                        ),
+                    )
+                )
+                continue
+        updated.append(item)
+    return RecoveryPlan(run_date=plan.run_date, items=tuple(updated))
+
+
 # --------------------------------------------------------------------------
 # _READY decision and closing block (T-08; RF-5, RF-6)
 # --------------------------------------------------------------------------
@@ -1198,35 +1253,72 @@ def _build_cli_parser() -> argparse.ArgumentParser:
         default=None,
         help="solo runs con run_date estrictamente anterior (YYYY-MM-DD)",
     )
+    plan = subparsers.add_parser(
+        "plan",
+        help="genera el plan de recuperacion de un run en JSON",
+    )
+    plan.add_argument("--run-date", required=True)
+    plan.add_argument("--projects-root", default=None)
+    plan.add_argument("--state-dir", default=None)
+    plan.add_argument("--out", default=None, help="fichero JSON de salida")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point. ``pending`` prints stable JSON and returns 0 or 2."""
+    """CLI entry point. ``pending``/``plan`` print stable JSON, return 0 or 2."""
     args = _build_cli_parser().parse_args(argv)
-    if args.command != "pending":
-        return 2
-    if args.before is not None and not _is_valid_date(args.before):
-        print(
-            f"recovery: --before invalido: {args.before!r}; se espera YYYY-MM-DD",
-            file=sys.stderr,
+
+    if args.command == "pending":
+        if args.before is not None and not _is_valid_date(args.before):
+            print(
+                f"recovery: --before invalido: {args.before!r}; se espera YYYY-MM-DD",
+                file=sys.stderr,
+            )
+            return 2
+        logs_dir = (
+            Path(args.logs_dir)
+            if args.logs_dir
+            else run_evidence.DEFAULT_PROJECTS_ROOT / run_evidence.DEFAULT_LOGS_SUBDIR
         )
-        return 2
-    logs_dir = (
-        Path(args.logs_dir)
-        if args.logs_dir
-        else run_evidence.DEFAULT_PROJECTS_ROOT / run_evidence.DEFAULT_LOGS_SUBDIR
-    )
-    state_dir = Path(args.state_dir) if args.state_dir else None
-    runs = pending_runs(logs_dir, state_dir, args.before)
-    payload = {
-        "schema_version": 1,
-        "before": args.before,
-        "count": len(runs),
-        "runs": [_truncated_to_dict(run) for run in runs],
-    }
-    print(json.dumps(payload, ensure_ascii=False))
-    return 0
+        state_dir = Path(args.state_dir) if args.state_dir else None
+        runs = pending_runs(logs_dir, state_dir, args.before)
+        payload = {
+            "schema_version": 1,
+            "before": args.before,
+            "count": len(runs),
+            "runs": [_truncated_to_dict(run) for run in runs],
+        }
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+
+    if args.command == "plan":
+        if not _is_valid_date(args.run_date):
+            print(
+                f"recovery: --run-date invalido: {args.run_date!r}; "
+                "se espera YYYY-MM-DD",
+                file=sys.stderr,
+            )
+            return 2
+        projects_root = (
+            Path(args.projects_root)
+            if args.projects_root
+            else run_evidence.DEFAULT_PROJECTS_ROOT
+        )
+        plan = build_plan(args.run_date, projects_root)
+        if args.state_dir:
+            state = read_run_state(
+                Path(args.state_dir) / f"{args.run_date}.json"
+            )
+            plan = apply_state_idempotence(plan, state)
+        text = json.dumps(plan.to_dict(), ensure_ascii=False, indent=2) + "\n"
+        if args.out:
+            Path(args.out).write_text(text, encoding="utf-8")
+            print(args.out)
+        else:
+            print(text, end="")
+        return 0
+
+    return 2
 
 
 if __name__ == "__main__":  # pragma: no cover - manual entry point
