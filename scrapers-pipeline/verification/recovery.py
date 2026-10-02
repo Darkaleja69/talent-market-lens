@@ -63,18 +63,62 @@ that the date's state belongs to another run.
 
 Results are sorted ascending by ``(run_date, started_at)`` and carry the
 parsed log summary (``run_evidence.PipelineSummary``), the state info and a
-Spanish operator-facing ``reason``. The module is pure: standard library only,
-no network and no Azure.
+Spanish operator-facing ``reason``.
+
+Recovery plan (T-06; RF-2, RF-3)
+--------------------------------
+``build_plan(run_date, projects_root, config=None, *, run_start=None,
+run_end=None)`` returns a serializable ``RecoveryPlan`` for the four logical
+scrapers of ``config.ps1`` (``indeed``, ``linkedin``, ``multi_site``,
+``infojobs``), each with a ``RecoveryItem``. The config defaults mirror
+``verification.sources`` plus the operational values of ``config.ps1``
+(``coherence`` and ``fingerprint_source`` are the scraper name, ``key_column``
+is the source dedup key, ``only_new`` is true for LinkedIn and Multi-site);
+the recovery executor may override any field per source.
+
+Per-source selection:
+
+- Indeed: the newest ``indeed_jobs_YYYYMMDD_*.parquet`` of the run date in
+  ``indeed_jobs_scraper/output`` (by the timestamp in the name, never mtime).
+- InfoJobs: the newest ``offers_YYYYMMDD_HHMMSS.parquet`` of the run date in
+  ``infojobs_jobs_scraper/data``.
+- LinkedIn: the cumulative ``data/output/jobs.parquet`` snapshot; the plan
+  counts its ``key_column`` values missing from
+  ``uploaded_keys/linkedin.json`` (a missing state file means all are new) and
+  omits the source when there are no new offers.
+- Multi-site: first a dated ``jobs_unified_YYYYMMDD_*.parquet`` of the run
+  date; otherwise the canonical ``jobs_unified.parquet`` only when its mtime
+  falls on the run date (a snapshot from a later run is never attributed to
+  this one); otherwise a **reconstruction** item (``mode="merge"``,
+  ``reconstruct=True``) feeding ``merge.py`` with the portal ``jobs.csv``
+  outputs modified inside the run window, and only when no portal output is
+  newer than ``run_end`` (a newer output belongs to another run: no data is
+  invented). Multi-site candidates are also filtered by delta against
+  ``uploaded_keys/multi_site.json``.
+
+``run_start``/``run_end`` default to the full run date; the executor can pass
+the real window (for example the supervisor's abort/last-activity time) so a
+run crossing midnight is still recoverable. Items carry the local paths, the
+real data ``day``, ``required_cols``, ``coherence``, ``fingerprint_source``,
+``key_column`` and ``only_new`` for the executor, plus a Spanish ``reason``
+when they are not recoverable. ``RecoveryPlan.to_dict()`` is JSON-ready for
+the executor's ``-PlanJson``.
+
+The module is pure: standard library plus the project's pyarrow (already a
+dependency), no network and no Azure.
 """
 from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-from verification import run_evidence
+import pyarrow.parquet as pq
+
+from verification import run_evidence, sources
 
 # Run-level state classification (T-03 schema plus file-level outcomes).
 STATE_PENDING = "pending"
@@ -366,3 +410,473 @@ def discover_truncated_runs(
 
     truncated.sort(key=lambda run: (run.run_date or "", run.started_at or ""))
     return truncated
+
+
+# --------------------------------------------------------------------------
+# Recovery plan (T-06; RF-2, RF-3)
+# --------------------------------------------------------------------------
+
+# Plan item modes.
+PLAN_MODE_FILE = "file"  # publish a dated/canonical parquet as-is
+PLAN_MODE_DELTA = "delta"  # publish a cumulative snapshot minus uploaded keys
+PLAN_MODE_MERGE = "merge"  # rebuild jobs_unified.parquet with merge.py
+PLAN_MODE_NONE = "none"  # not recoverable
+
+# The four logical scrapers of config.ps1, in its order.
+PLAN_SOURCE_IDS: tuple[str, ...] = ("indeed", "linkedin", "multi_site", "infojobs")
+
+_INDEED_RE = re.compile(r"^indeed_jobs_(\d{8})_(\d{4,6})\.parquet$")
+_INFOJOBS_RE = re.compile(r"^offers_(\d{8})_(\d{4,6})\.parquet$")
+_MULTI_DATED_RE = re.compile(r"^jobs_unified_(\d{8})_(\d{4,6})\.parquet$")
+
+def _default_plan_fields(source_id: str) -> dict[str, object]:
+    """Operational defaults for one plan source.
+
+    The catalog has no ``multi_site`` id (it is represented by its six
+    portals), so Multi-site mirrors the shared contract of its portals; the
+    rest mirror ``config.ps1``: ``CoherenceSite``/``FingerprintSource`` are the
+    scraper name, ``KeyColumn`` is the dedup key and ``OnlyNewOffers`` is true
+    for LinkedIn and Multi-site.
+    """
+    reference = sources.MULTI_SITE_SITES[0] if source_id == "multi_site" else source_id
+    return {
+        "required_cols": sources.required_columns(reference),
+        "coherence": source_id,
+        "fingerprint_source": source_id,
+        "key_column": sources.dedup_key(reference),
+        "only_new": source_id in ("linkedin", "multi_site"),
+    }
+
+
+_DEFAULT_PLAN_CONFIG: dict[str, dict[str, object]] = {
+    source_id: _default_plan_fields(source_id) for source_id in PLAN_SOURCE_IDS
+}
+
+
+@dataclass(frozen=True)
+class RecoveryItem:
+    """One source's recovery item inside a plan (T-06; RF-2, RF-3).
+
+    ``recoverable`` is the decision; ``mode`` is one of ``PLAN_MODE_FILE``
+    (publish ``path``), ``PLAN_MODE_DELTA`` (publish ``path`` minus the keys
+    already in ``uploaded_keys``), ``PLAN_MODE_MERGE`` (reconstruction: run
+    ``merge.py --since merge_since`` over ``inputs`` and then publish the
+    result) or ``PLAN_MODE_NONE``. ``day`` is the real data day
+    (``YYYY-MM-DD``), never the recovery day. The executor passes
+    ``required_cols``/``coherence``/``fingerprint_source`` to
+    ``ensure_compatible.py`` and uses ``key_column``/``only_new`` for the
+    delta filter. ``new_keys`` is the measured delta for file/delta items
+    (``None`` for reconstructions, where it is only known after merging).
+    ``reason`` is the Spanish operator-facing explanation (empty when
+    recoverable).
+    """
+
+    source: str
+    recoverable: bool
+    mode: str
+    path: str | None
+    day: str | None
+    required_cols: tuple[str, ...]
+    coherence: str
+    fingerprint_source: str
+    key_column: str
+    only_new: bool
+    reconstruct: bool
+    merge_since: str | None
+    inputs: tuple[str, ...]
+    new_keys: int | None
+    reason: str
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-ready dictionary (T-11 ``-PlanJson``)."""
+        return {
+            "source": self.source,
+            "recoverable": self.recoverable,
+            "mode": self.mode,
+            "path": self.path,
+            "day": self.day,
+            "required_cols": list(self.required_cols),
+            "coherence": self.coherence,
+            "fingerprint_source": self.fingerprint_source,
+            "key_column": self.key_column,
+            "only_new": self.only_new,
+            "reconstruct": self.reconstruct,
+            "merge_since": self.merge_since,
+            "inputs": list(self.inputs),
+            "new_keys": self.new_keys,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class RecoveryPlan:
+    """The recovery plan of one run date (T-06; RF-2, RF-3)."""
+
+    run_date: str
+    items: tuple[RecoveryItem, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-ready dictionary (T-11 ``-PlanJson``)."""
+        return {
+            "schema_version": 1,
+            "run_date": self.run_date,
+            "items": [item.to_dict() for item in self.items],
+        }
+
+
+def _resolve_plan_config(
+    config: Mapping[str, Mapping[str, object]] | None,
+) -> dict[str, dict[str, object]]:
+    """Merge the caller's per-source overrides over the operational defaults."""
+    resolved: dict[str, dict[str, object]] = {}
+    for source_id in PLAN_SOURCE_IDS:
+        base = dict(_DEFAULT_PLAN_CONFIG[source_id])
+        override = (config or {}).get(source_id)
+        if override:
+            base.update(override)
+        resolved[source_id] = base
+    return resolved
+
+
+def _coerce_dt(value: str | datetime) -> datetime:
+    """Parse an ISO string or normalize a datetime to naive local time."""
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        parsed = _parse_local(value)
+        if parsed is None:
+            raise ValueError(f"timestamp invalido: {value!r}")
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone().replace(tzinfo=None)
+    return parsed
+
+
+def _item(
+    source: str,
+    cfg: Mapping[str, object],
+    *,
+    recoverable: bool,
+    mode: str,
+    path: Path | None = None,
+    day: str | None = None,
+    reason: str = "",
+    reconstruct: bool = False,
+    merge_since: str | None = None,
+    inputs: list[Path] | None = None,
+    new_keys: int | None = None,
+) -> RecoveryItem:
+    """Build a plan item from the resolved per-source config."""
+    return RecoveryItem(
+        source=source,
+        recoverable=recoverable,
+        mode=mode,
+        path=str(path) if path is not None else None,
+        day=day,
+        required_cols=tuple(cfg["required_cols"]),  # type: ignore[arg-type]
+        coherence=str(cfg["coherence"]),
+        fingerprint_source=str(cfg["fingerprint_source"]),
+        key_column=str(cfg["key_column"]),
+        only_new=bool(cfg["only_new"]),
+        reconstruct=reconstruct,
+        merge_since=merge_since,
+        inputs=tuple(str(item) for item in (inputs or [])),
+        new_keys=new_keys,
+        reason=reason,
+    )
+
+
+def _select_latest_for_day(
+    directory: Path, pattern: re.Pattern[str], run_date: str
+) -> Path | None:
+    """Newest dated parquet of ``run_date`` by the timestamp in its name."""
+    if not directory.is_dir():
+        return None
+    compact = run_date.replace("-", "")
+    best: Path | None = None
+    best_stamp = ""
+    for path in directory.iterdir():
+        match = pattern.match(path.name)
+        if not match or match.group(1) != compact:
+            continue
+        stamp = match.group(2).ljust(6, "0")
+        if best is None or stamp > best_stamp:
+            best, best_stamp = path, stamp
+    return best
+
+
+def _mtime(path: Path) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime)
+    except OSError:
+        return None
+
+
+def _mtime_day(path: Path) -> str | None:
+    modified = _mtime(path)
+    return modified.date().isoformat() if modified is not None else None
+
+
+def _uploaded_keys_path(projects_root: Path, source_id: str) -> Path:
+    return projects_root / "scrapers-pipeline" / "uploaded_keys" / f"{source_id}.json"
+
+
+def _load_uploaded_keys(path: Path) -> set[str]:
+    """Read the ``{"keys": [...]}`` state file; missing/unreadable means empty."""
+    if not path.is_file():
+        return set()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return set()
+    keys = payload.get("keys") if isinstance(payload, dict) else None
+    if not isinstance(keys, list):
+        return set()
+    return {str(key).strip() for key in keys if str(key).strip()}
+
+
+def _count_new_keys(path: Path, key_column: str, known: set[str]) -> int | None:
+    """Count non-empty keys of ``key_column`` missing from ``known``.
+
+    Returns ``None`` when the parquet cannot be read or lacks the key column,
+    so the caller reports the source as not recoverable instead of proposing
+    a file that cannot be filtered.
+    """
+    try:
+        table = pq.read_table(str(path), columns=[key_column])
+    except Exception:  # noqa: BLE001 - pyarrow raises several exception types
+        return None
+    if key_column not in table.schema.names:
+        return None
+    count = 0
+    for value in table.column(key_column).to_pylist():
+        text = str(value).strip() if value is not None else ""
+        if text and text not in known:
+            count += 1
+    return count
+
+
+def _plan_indeed(projects_root: Path, run_date: str, cfg: Mapping[str, object]) -> RecoveryItem:
+    selected = _select_latest_for_day(
+        projects_root / "indeed_jobs_scraper" / "output", _INDEED_RE, run_date
+    )
+    if selected is None:
+        return _item(
+            "indeed",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason="no hay parquet de Indeed con la fecha del run",
+        )
+    return _item(
+        "indeed", cfg, recoverable=True, mode=PLAN_MODE_FILE, path=selected, day=run_date
+    )
+
+
+def _plan_infojobs(projects_root: Path, run_date: str, cfg: Mapping[str, object]) -> RecoveryItem:
+    selected = _select_latest_for_day(
+        projects_root / "infojobs_jobs_scraper" / "data", _INFOJOBS_RE, run_date
+    )
+    if selected is None:
+        return _item(
+            "infojobs",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason=(
+                "no hay parquet de InfoJobs con la fecha del run "
+                "(el scraper no llego a generar datos)"
+            ),
+        )
+    return _item(
+        "infojobs", cfg, recoverable=True, mode=PLAN_MODE_FILE, path=selected, day=run_date
+    )
+
+
+def _plan_linkedin(projects_root: Path, run_date: str, cfg: Mapping[str, object]) -> RecoveryItem:
+    snapshot = projects_root / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet"
+    if not snapshot.is_file():
+        return _item(
+            "linkedin",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason="no existe el snapshot de LinkedIn",
+        )
+    known = _load_uploaded_keys(_uploaded_keys_path(projects_root, "linkedin"))
+    new_keys = _count_new_keys(snapshot, str(cfg["key_column"]), known)
+    if new_keys is None:
+        return _item(
+            "linkedin",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason="no se pudo leer el snapshot de LinkedIn o falta su columna clave",
+        )
+    if new_keys == 0:
+        return _item(
+            "linkedin",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            day=run_date,
+            reason="sin ofertas nuevas (todas ya estan en uploaded_keys)",
+        )
+    return _item(
+        "linkedin",
+        cfg,
+        recoverable=True,
+        mode=PLAN_MODE_DELTA,
+        path=snapshot,
+        day=run_date,
+        new_keys=new_keys,
+    )
+
+
+def _multi_site_file_item(
+    cfg: Mapping[str, object],
+    path: Path,
+    run_date: str,
+    known: set[str],
+) -> RecoveryItem:
+    new_keys = _count_new_keys(path, str(cfg["key_column"]), known)
+    if new_keys is None:
+        return _item(
+            "multi_site",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason="no se pudo leer el snapshot de Multi-site o falta su columna clave",
+        )
+    if new_keys == 0:
+        return _item(
+            "multi_site",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            day=run_date,
+            reason="sin ofertas nuevas (todas ya estan en uploaded_keys)",
+        )
+    return _item(
+        "multi_site",
+        cfg,
+        recoverable=True,
+        mode=PLAN_MODE_DELTA,
+        path=path,
+        day=run_date,
+        new_keys=new_keys,
+    )
+
+
+def _plan_multi_site(
+    projects_root: Path,
+    run_date: str,
+    cfg: Mapping[str, object],
+    run_start: datetime,
+    run_end: datetime,
+) -> RecoveryItem:
+    merged_dir = projects_root / "multi_site_job_scraper" / "data" / "merged"
+    known = _load_uploaded_keys(_uploaded_keys_path(projects_root, "multi_site"))
+
+    # 1) Dated merged parquet of the run date (name timestamp, not mtime).
+    dated = _select_latest_for_day(merged_dir, _MULTI_DATED_RE, run_date)
+    if dated is not None:
+        return _multi_site_file_item(cfg, dated, run_date, known)
+
+    # 2) Canonical only when its mtime falls on the run day: a snapshot from a
+    # later run must never be attributed to this one.
+    canonical = merged_dir / "jobs_unified.parquet"
+    if canonical.is_file() and _mtime_day(canonical) == run_date:
+        return _multi_site_file_item(cfg, canonical, run_date, known)
+
+    # 3) Reconstruction from the portal outputs of the run.
+    inputs: list[Path] = []
+    newest: datetime | None = None
+    for portal in sources.MULTI_SITE_SITES:
+        csv_path = (
+            projects_root / "multi_site_job_scraper" / "data" / portal / "output" / "jobs.csv"
+        )
+        if not csv_path.is_file():
+            continue
+        modified = _mtime(csv_path)
+        if modified is None:
+            continue
+        if newest is None or modified > newest:
+            newest = modified
+        if run_start <= modified <= run_end:
+            inputs.append(csv_path)
+    if not inputs and newest is None:
+        return _item(
+            "multi_site",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason="no hay salidas por portal para reconstruir Multi-site",
+        )
+    if newest is not None and newest > run_end:
+        return _item(
+            "multi_site",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason=(
+                "salidas por portal posteriores al final del run "
+                "(son de otro run): no se reconstruye ni se inventan datos"
+            ),
+        )
+    if not inputs:
+        return _item(
+            "multi_site",
+            cfg,
+            recoverable=False,
+            mode=PLAN_MODE_NONE,
+            reason="las salidas por portal no pertenecen al run: no se reconstruye",
+        )
+    return _item(
+        "multi_site",
+        cfg,
+        recoverable=True,
+        mode=PLAN_MODE_MERGE,
+        day=run_date,
+        reconstruct=True,
+        merge_since=run_start.isoformat(timespec="seconds"),
+        inputs=inputs,
+    )
+
+
+def build_plan(
+    run_date: str,
+    projects_root: Path,
+    config: Mapping[str, Mapping[str, object]] | None = None,
+    *,
+    run_start: str | datetime | None = None,
+    run_end: str | datetime | None = None,
+) -> RecoveryPlan:
+    """Build the recovery plan of ``run_date`` for the four logical scrapers.
+
+    ``projects_root`` is the workspace root (the parent of
+    ``scrapers-pipeline``), the same reference ``run_evidence`` uses. ``config``
+    optionally overrides per-source fields (``required_cols``, ``coherence``,
+    ``fingerprint_source``, ``key_column``, ``only_new``); unspecified fields
+    keep the operational defaults. ``run_start``/``run_end`` bound the run
+    window used to accept Multi-site portal outputs; they default to the whole
+    ``run_date``. Raises ``ValueError`` for an invalid ``run_date``.
+    """
+    if not _is_valid_date(run_date):
+        raise ValueError(f"run_date invalido: {run_date!r}; se espera YYYY-MM-DD")
+    root = Path(projects_root)
+    resolved = _resolve_plan_config(config)
+    start = _coerce_dt(run_start) if run_start is not None else datetime.combine(
+        date.fromisoformat(run_date), time.min
+    )
+    end = _coerce_dt(run_end) if run_end is not None else datetime.combine(
+        date.fromisoformat(run_date), time.max
+    )
+    return RecoveryPlan(
+        run_date=run_date,
+        items=(
+            _plan_indeed(root, run_date, resolved["indeed"]),
+            _plan_linkedin(root, run_date, resolved["linkedin"]),
+            _plan_multi_site(root, run_date, resolved["multi_site"], start, end),
+            _plan_infojobs(root, run_date, resolved["infojobs"]),
+        ),
+    )
