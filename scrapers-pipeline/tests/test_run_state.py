@@ -1,11 +1,13 @@
-"""Tests for the shared run-state helper ``run_state.ps1`` (T-03; RF-1).
+"""Tests for the shared run-state helper ``run_state.ps1`` (T-03/T-04; RF-1).
 
 Offline: each test drives Windows PowerShell 5.1 (``-NoProfile
 -ExecutionPolicy Bypass``) against a temporary state directory, then parses the
 resulting JSON and checks the documented schema, the ``pending`` -> ``closed``
 levels, the atomic write (no BOM, no leftover temp files) and the per-source
-update. Nothing touches Azure or needs credentials. If PowerShell or the helper
-is missing, the test fails with a clear message instead of being skipped.
+update. ``test_T04_*`` also associates a truncated pipeline log with its state
+through the real ``verification.run_evidence`` parser. Nothing touches Azure or
+needs credentials. If PowerShell or the helper is missing, the test fails with
+a clear message instead of being skipped.
 """
 from __future__ import annotations
 
@@ -17,6 +19,8 @@ import time
 from pathlib import Path
 
 import pytest
+
+from verification import run_evidence
 
 PIPELINE_DIR = Path(__file__).resolve().parents[1]
 HELPER = PIPELINE_DIR / "run_state.ps1"
@@ -297,3 +301,78 @@ def test_T03_write_succeeds_while_a_reader_holds_the_destination(tmp_path):
     assert state["finished_at"] == "2026-10-01T03:00:00.0000000+02:00"
     assert state["sources"]["indeed"]["status"] == "ok"
     assert state["sources"]["indeed"]["uploaded"] == 2
+
+
+def test_T04_truncated_log_associates_with_pending_state(tmp_path):
+    """A truncated pipeline log is matched to its `pending` state (RF-1).
+
+    The state milestones are the exact helper calls the pipeline makes
+    (``New-RunState``/``Set-RunSourceState``/``Close-RunState``/``Write-RunState``
+    via PowerShell), and the log is parsed with the real
+    ``verification.run_evidence.parse_pipeline_log``. The association is the
+    log's run date naming ``run_state/<run_date>.json``; while the log has no
+    ``Fin pipeline`` and the close milestone did not run, that state must be
+    ``pending``.
+    """
+    logs_dir = tmp_path / "logs"
+    state_dir = logs_dir / "run_state"
+    logs_dir.mkdir()
+    log_path = logs_dir / f"upload-{RUN_DATE}.log"
+    # Truncated run: "Inicio pipeline" + some per-source progress, no "Fin".
+    log_path.write_text(
+        "00:00:04  [INFO]  ====  Inicio pipeline scrapers  (2026-10-01) ====\n"
+        "00:00:04  [INFO]  Lanzando 4 scrapers en paralelo...\n"
+        "00:12:45  [INFO]  [indeed] Proceso terminado exit=0 (PID 111, 12min)\n"
+        "00:12:45  [INFO]  [indeed] Resultado: ok (1 subidos)\n"
+        "01:59:29  [INFO]  [linkedin] Subida completada OK\n",
+        encoding="utf-8",
+    )
+
+    # Milestones 1 and 2: start + two source results, as the pipeline writes them.
+    start_driver = _write_driver(
+        tmp_path,
+        state_dir,
+        f"$state = New-RunState -RunDate '{RUN_DATE}' -StartedAt '2026-10-01T00:00:04.0000000+02:00'\n"
+        "Write-RunState -State $state -StateDir $StateDir | Out-Null\n"
+        "Set-RunSourceState -State $state -Source 'indeed' -Status 'ok' -Uploaded 1\n"
+        "Set-RunSourceState -State $state -Source 'linkedin' -Status 'pending'\n"
+        "Write-RunState -State $state -StateDir $StateDir | Out-Null",
+    )
+    _run_driver(start_driver)
+
+    summary = run_evidence.parse_pipeline_log(log_path)
+    assert summary.completed is False
+    assert summary.date == RUN_DATE
+
+    # Association: the truncated log's date names the state file to inspect.
+    state = _read_state(state_dir)
+    _assert_only_state_files(state_dir)
+    assert state["run_date"] == summary.date
+    assert state["status"] == "pending"
+
+    # The diagnostic's real discovery also sees the truncated run, never a
+    # finished one, and its date points at the pending state above.
+    latest = run_evidence.latest_run(logs_dir)
+    assert latest is not None
+    assert latest.completed is False
+    assert latest.date == state["run_date"]
+    assert state["finished_at"] is None
+    assert state["sources"]["indeed"]["status"] == "ok"
+    assert state["sources"]["linkedin"]["status"] == "pending"
+
+    # Milestone 3: once the close runs, the same file is `closed` with a finish
+    # time, while the log on disk is still the truncated one.
+    close_driver = _write_driver(
+        tmp_path,
+        state_dir,
+        f"$state = New-RunState -RunDate '{RUN_DATE}' -StartedAt '2026-10-01T00:00:04.0000000+02:00'\n"
+        "Set-RunSourceState -State $state -Source 'indeed' -Status 'ok' -Uploaded 1\n"
+        "Close-RunState -State $state -FinishedAt '2026-10-01T02:10:00.0000000+02:00'\n"
+        "Write-RunState -State $state -StateDir $StateDir | Out-Null",
+    )
+    _run_driver(close_driver)
+
+    closed = _read_state(state_dir)
+    assert closed["status"] == "closed"
+    assert closed["finished_at"] == "2026-10-01T02:10:00.0000000+02:00"
+    assert run_evidence.parse_pipeline_log(log_path).completed is False
