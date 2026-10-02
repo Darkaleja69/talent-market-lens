@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -44,25 +45,58 @@ def _write_child(tmp_path: Path, body: str) -> Path:
     return child
 
 
-def _run_supervisor(tmp_path: Path, child: Path, log_dir: Path):
+def _run_supervisor(
+    tmp_path: Path,
+    child: Path,
+    log_dir: Path,
+    *,
+    projects_root: Path | None = None,
+    recovery_script: Path | None = None,
+    wait_hours: float | None = None,
+    poll_seconds: int | None = None,
+):
+    """Run the supervisor deterministically.
+
+    Unless a test overrides them, the projects root is an empty temporary
+    directory (never the real wrappers), the recovery executor is a fake that
+    exits 0 and ``-WaitHours`` is 0: no test depends on machine state or waits
+    for the 6 h default.
+    """
     state_dir = tmp_path / "state"
+    if projects_root is None:
+        projects_root = tmp_path / "projects"
+    if recovery_script is None:
+        recovery_script = _write_fake_recovery(
+            tmp_path, tmp_path / "auto_recovery_called.txt"
+        )
+    if wait_hours is None:
+        wait_hours = 0
+    args = [
+        _require_powershell(),
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(SUPERVISOR),
+        "-RunDate",
+        RUN_DATE,
+        "-PipelineScript",
+        str(child),
+        "-LogDir",
+        str(log_dir),
+        "-StateDir",
+        str(state_dir),
+        "-ProjectsRoot",
+        str(projects_root),
+        "-RecoveryScript",
+        str(recovery_script),
+        "-WaitHours",
+        str(wait_hours),
+    ]
+    if poll_seconds is not None:
+        args += ["-PollSeconds", str(poll_seconds)]
     completed = subprocess.run(
-        [
-            _require_powershell(),
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(SUPERVISOR),
-            "-RunDate",
-            RUN_DATE,
-            "-PipelineScript",
-            str(child),
-            "-LogDir",
-            str(log_dir),
-            "-StateDir",
-            str(state_dir),
-        ],
+        args,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -70,6 +104,30 @@ def _run_supervisor(tmp_path: Path, child: Path, log_dir: Path):
         timeout=600,
     )
     return completed, state_dir
+
+
+def _write_fake_recovery(tmp_path: Path, marker: Path) -> Path:
+    """Fake executor: records the -Date it received and exits 0."""
+    path = tmp_path / "fake_recovery.ps1"
+    path.write_text(
+        "param([string]$Date)\n"
+        f"[System.IO.File]::WriteAllText('{marker}', $Date)\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_legacy_recovery(tmp_path: Path, marker: Path) -> Path:
+    """Legacy executor without -Date: would silently sweep the whole history."""
+    path = tmp_path / "legacy_recovery.ps1"
+    path.write_text(
+        "param([switch]$DryRun)\n"
+        f"[System.IO.File]::WriteAllText('{marker}', 'legacy')\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def _write_log_child(
@@ -103,8 +161,13 @@ def test_T09_truncated_child_writes_abort_evidence(tmp_path):
 
     completed, state_dir = _run_supervisor(tmp_path, child, log_dir)
 
-    assert completed.returncode == 1, completed.stdout + completed.stderr
+    # The fake executor succeeds: the anomaly is recovered and the supervisor
+    # exits 0 (T-10 contract).
+    assert completed.returncode == 0, completed.stdout + completed.stderr
     payload = _read_abort(state_dir)
+    assert payload["wait"]["timed_out"] is False
+    assert payload["recovery"]["invoked"] is True
+    assert payload["recovery"]["exit_code"] == 0
     assert payload["run_date"] == RUN_DATE
     assert payload["exit_code"] == 7
     assert payload["log_exists"] is True
@@ -179,7 +242,7 @@ def test_T09_abort_includes_run_state_snapshot(tmp_path):
 
     completed, state_dir = _run_supervisor(tmp_path, child, log_dir)
 
-    assert completed.returncode == 1, completed.stdout + completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
     payload = _read_abort(state_dir)
     assert payload["state_path"] == str(state_dir / f"{RUN_DATE}.json")
     assert payload["state_exists"] is True
@@ -200,7 +263,7 @@ def test_T09_abort_tolerates_unreadable_state(tmp_path):
 
     completed, state_dir = _run_supervisor(tmp_path, child, log_dir)
 
-    assert completed.returncode == 1, completed.stdout + completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
     payload = _read_abort(state_dir)
     assert payload["state_exists"] is True
     assert payload["state_status"] is None
@@ -219,7 +282,7 @@ def test_T09_system_events_window_starts_at_the_last_inicio(tmp_path):
 
     completed, state_dir = _run_supervisor(tmp_path, child, log_dir)
 
-    assert completed.returncode == 1, completed.stdout + completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
     payload = _read_abort(state_dir)
     assert payload["system_events"]["window_start"].startswith(
         f"{RUN_DATE}T05:00:00"
@@ -235,6 +298,132 @@ def test_T09_missing_pipeline_script_exits_2(tmp_path):
     assert completed.returncode == 2, completed.stdout + completed.stderr
     assert "no existe" in completed.stdout
     assert not (state_dir / f"{RUN_DATE}.abort.json").exists()
+
+
+# --------------------------------------------------------------------------
+# T-10: bounded wait and recovery invocation
+# --------------------------------------------------------------------------
+
+
+def test_T10_supervisor_recovers_when_no_wrappers_are_alive(tmp_path):
+    log_dir = tmp_path / "logs"
+    projects = tmp_path / "projects"  # no locks and no wrappers running
+    marker = tmp_path / "recovery_called.txt"
+    recovery = _write_fake_recovery(tmp_path, marker)
+    child = _write_log_child(tmp_path, log_dir, TRUNCATED_LOG, exit_code=7)
+
+    completed, state_dir = _run_supervisor(
+        tmp_path,
+        child,
+        log_dir,
+        projects_root=projects,
+        recovery_script=recovery,
+        wait_hours=1,
+        poll_seconds=1,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    payload = _read_abort(state_dir)
+    assert payload["wait"]["timed_out"] is False
+    assert payload["wait"]["live_wrappers"] == []
+    assert payload["recovery"]["invoked"] is True
+    assert payload["recovery"]["exit_code"] == 0
+    assert marker.read_text(encoding="utf-8") == RUN_DATE
+
+
+def test_T10_supervisor_times_out_with_live_wrappers(tmp_path):
+    log_dir = tmp_path / "logs"
+    projects = tmp_path / "projects"
+    lock_dir = projects / "indeed_jobs_scraper" / "output"
+    lock_dir.mkdir(parents=True)
+    marker = tmp_path / "recovery_called.txt"
+    recovery = _write_fake_recovery(tmp_path, marker)
+    child = _write_log_child(tmp_path, log_dir, TRUNCATED_LOG, exit_code=7)
+
+    ps = _require_powershell()
+    sleeper = subprocess.Popen([ps, "-NoProfile", "-Command", "Start-Sleep -Seconds 120"])
+    try:
+        (lock_dir / ".nightly.lock").write_text(str(sleeper.pid), encoding="utf-8")
+        completed, state_dir = _run_supervisor(
+            tmp_path,
+            child,
+            log_dir,
+            projects_root=projects,
+            recovery_script=recovery,
+            wait_hours=0.0005,  # ~1.8 s
+            poll_seconds=1,
+        )
+    finally:
+        sleeper.terminate()
+
+    assert completed.returncode == 1, completed.stdout + completed.stderr
+    payload = _read_abort(state_dir)
+    assert payload["wait"]["timed_out"] is True
+    assert any(
+        entry["name"] == "indeed" and entry["alive"]
+        for entry in payload["wait"]["live_wrappers"]
+    )
+    assert not marker.exists()  # the executor is not invoked on timeout
+    # The run is left pending: the supervisor never touches the state file.
+    assert payload["state_exists"] is False
+
+
+def test_T10_normal_run_does_not_wait_or_recover(tmp_path):
+    log_dir = tmp_path / "logs"
+    projects = tmp_path / "projects"
+    marker = tmp_path / "recovery_called.txt"
+    recovery = _write_fake_recovery(tmp_path, marker)
+    child = _write_log_child(tmp_path, log_dir, NORMAL_LOG, exit_code=0)
+
+    started = time.monotonic()
+    completed, state_dir = _run_supervisor(
+        tmp_path,
+        child,
+        log_dir,
+        projects_root=projects,
+        recovery_script=recovery,
+        wait_hours=6,
+        poll_seconds=1,
+    )
+    elapsed = time.monotonic() - started
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert elapsed < 30  # it did not wait for the default cap
+    assert not marker.exists()
+    assert not (state_dir / f"{RUN_DATE}.abort.json").exists()
+
+
+def test_T10_supervisor_does_not_invoke_executor_without_date_support(tmp_path):
+    log_dir = tmp_path / "logs"
+    projects = tmp_path / "projects"
+    marker = tmp_path / "legacy_called.txt"
+    legacy = _write_legacy_recovery(tmp_path, marker)
+    child = _write_log_child(tmp_path, log_dir, TRUNCATED_LOG, exit_code=7)
+
+    completed, state_dir = _run_supervisor(
+        tmp_path,
+        child,
+        log_dir,
+        projects_root=projects,
+        recovery_script=legacy,
+        wait_hours=1,
+    )
+
+    assert completed.returncode == 3, completed.stdout + completed.stderr
+    payload = _read_abort(state_dir)
+    assert payload["recovery"]["invoked"] is False
+    assert "T-11" in payload["recovery"]["error"]
+    assert not marker.exists()  # the legacy executor was never run
+
+
+def test_T10_supervisor_rejects_invalid_poll_seconds(tmp_path):
+    log_dir = tmp_path / "logs"
+    child = _write_log_child(tmp_path, log_dir, TRUNCATED_LOG, exit_code=7)
+
+    completed, _ = _run_supervisor(tmp_path, child, log_dir, poll_seconds=0)
+
+    assert completed.returncode == 2
+    assert "PollSeconds" in completed.stdout
 
 
 def test_T09_normal_closure_writes_no_abort(tmp_path):
@@ -266,7 +455,7 @@ def test_T09_child_without_log_is_anomalous_evidence(tmp_path):
 
     completed, state_dir = _run_supervisor(tmp_path, child, log_dir)
 
-    assert completed.returncode == 1, completed.stdout + completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
     payload = _read_abort(state_dir)
     assert payload["exit_code"] == 2
     assert payload["log_exists"] is False

@@ -1059,3 +1059,65 @@ def test_T08_diagnostic_sees_the_run_after_closing_block(tmp_path):
     assert after.run.date == DATE_NEW
     assert after.run.finished_at == f"{DATE_NEW}T04:50:00"
     assert after.global_state != status.GLOBAL_INCONCLUSIVE
+
+
+# --------------------------------------------------------------------------
+# T-10: pending CLI for the startup reconciliation
+# --------------------------------------------------------------------------
+
+
+def test_T10_pending_cli_lists_only_previous_truncated_runs(tmp_path, capsys):
+    logs = tmp_path / "logs"
+    _write_log(logs, DATE_OLD, _truncated_text(DATE_OLD))
+    _write_log(logs, DATE_NEW, _truncated_text(DATE_NEW))
+    _write_state(logs, DATE_NEW, "pending")
+    closed_date = "2026-09-29"
+    _write_log(logs, closed_date, _truncated_text(closed_date))
+    _write_state(logs, closed_date, "closed")
+
+    exit_code = recovery.main(
+        ["pending", "--logs-dir", str(logs), "--before", DATE_NEW]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["schema_version"] == 1
+    assert payload["before"] == DATE_NEW
+    assert payload["count"] == 1
+    run = payload["runs"][0]
+    assert run["run_date"] == DATE_OLD
+    assert run["state_status"] == recovery.STATE_MISSING
+    assert run["state_path"] == str(logs / "run_state" / f"{DATE_OLD}.json")
+    assert run["reason"]
+
+
+def test_T10_pending_cli_tolerates_unreadable_state_and_empty_logs(tmp_path, capsys):
+    logs = tmp_path / "logs"
+    _write_log(logs, DATE_OLD, _truncated_text(DATE_OLD))
+    state_dir = logs / "run_state"
+    state_dir.mkdir()
+    (state_dir / f"{DATE_OLD}.json").write_text("{no json", encoding="utf-8")
+
+    assert recovery.main(["pending", "--logs-dir", str(logs)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["count"] == 1
+    assert payload["runs"][0]["state_status"] == recovery.STATE_UNREADABLE
+    assert payload["runs"][0]["state_attributed"] is True
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert recovery.main(["pending", "--logs-dir", str(empty)]) == 0
+    empty_payload = json.loads(capsys.readouterr().out)
+    assert empty_payload["count"] == 0
+    assert empty_payload["runs"] == []
+
+
+def test_T10_pending_cli_rejects_invalid_before(tmp_path, capsys):
+    exit_code = recovery.main(
+        ["pending", "--logs-dir", str(tmp_path), "--before", "banana"]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "--before" in captured.err
+    assert captured.out == ""
