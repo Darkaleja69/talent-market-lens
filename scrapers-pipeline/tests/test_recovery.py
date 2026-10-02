@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +20,7 @@ import pytest
 
 from verification import landing, recovery, run_evidence, sources, status, verify_run
 
+PIPELINE_DIR = Path(__file__).resolve().parents[1]
 DATE_OLD = "2026-09-30"
 DATE_NEW = "2026-10-01"
 
@@ -1375,3 +1378,219 @@ def test_T12_closing_cli_rejects_invalid_status(tmp_path, capsys):
 
     assert exit_code == 2
     assert "status invalido" in captured.err
+
+
+# --------------------------------------------------------------------------
+# T-13: retention and cleanup decisions
+# --------------------------------------------------------------------------
+
+
+def test_T13_pending_file_within_retention_is_kept():
+    candidate = recovery.ExpireCandidate(
+        path=r"C:\x\linkedin_jobs_scraper\data\output\jobs_20261001_010000.parquet",
+        mtime="2026-10-01T01:00:00",
+    )
+    pending = [
+        recovery.PendingRun(run_date=DATE_NEW, started_at=f"{DATE_NEW}T00:00:00")
+    ]
+
+    decisions = recovery.expire_candidates(
+        [candidate], pending, retention_days=7, now=datetime(2026, 10, 3, 0, 0, 0)
+    )
+
+    assert len(decisions) == 1
+    decision = decisions[0]
+    assert decision.action == recovery.EXPIRE_KEEP
+    assert decision.pending is True
+    assert decision.file_date == DATE_NEW
+    assert "pendiente" in decision.reason
+
+
+def test_T13_pending_file_beyond_retention_expires():
+    candidate = recovery.ExpireCandidate(
+        path=r"C:\x\linkedin_jobs_scraper\data\output\jobs_20261001_010000.parquet"
+    )
+    pending = [
+        recovery.PendingRun(run_date=DATE_NEW, started_at=f"{DATE_NEW}T00:00:00")
+    ]
+
+    decisions = recovery.expire_candidates(
+        [candidate], pending, retention_days=7, now=datetime(2026, 10, 20, 0, 0, 0)
+    )
+
+    assert decisions[0].action == recovery.EXPIRE_DELETE
+    assert decisions[0].pending is True
+    assert "retencion" in decisions[0].reason
+    assert "pendiente" in decisions[0].reason
+
+
+def test_T13_non_pending_file_respects_the_retention():
+    candidate = recovery.ExpireCandidate(
+        path=r"C:\x\indeed_jobs_scraper\output\indeed_jobs_20261010_0000.parquet"
+    )
+
+    within = recovery.expire_candidates(
+        [candidate], [], retention_days=7, now=datetime(2026, 10, 12, 0, 0, 0)
+    )
+    assert within[0].action == recovery.EXPIRE_KEEP
+    assert within[0].pending is False
+
+    beyond = recovery.expire_candidates(
+        [candidate], [], retention_days=7, now=datetime(2026, 10, 25, 0, 0, 0)
+    )
+    assert beyond[0].action == recovery.EXPIRE_DELETE
+    assert beyond[0].pending is False
+
+
+def test_T13_unreadable_date_is_kept():
+    candidate = recovery.ExpireCandidate(path=r"C:\x\sindatos.parquet")
+
+    decisions = recovery.expire_candidates(
+        [candidate], [], retention_days=7, now=datetime(2026, 10, 25, 0, 0, 0)
+    )
+
+    assert decisions[0].action == recovery.EXPIRE_KEEP
+    assert "ilegible" in decisions[0].reason
+
+
+def test_T13_mtime_fallback_and_cross_midnight_window():
+    # No dated name: the mtime decides. The pending run started before midnight.
+    candidate = recovery.ExpireCandidate(
+        path=r"C:\x\multi_site_job_scraper\data\merged\snapshot.parquet",
+        mtime="2026-10-01T00:30:00",
+    )
+    pending = [
+        recovery.PendingRun(
+            run_date="2026-09-30",
+            started_at="2026-09-30T23:50:00",
+            finished_at=None,
+        )
+    ]
+
+    decisions = recovery.expire_candidates(
+        [candidate], pending, retention_days=7, now=datetime(2026, 10, 2, 0, 0, 0)
+    )
+
+    assert decisions[0].action == recovery.EXPIRE_KEEP
+    assert decisions[0].pending is True
+    assert decisions[0].file_date == DATE_NEW
+
+
+def test_T13_expire_cli_contract(tmp_path):
+    candidates = tmp_path / "candidates.json"
+    candidates.write_text(
+        json.dumps(
+            {
+                "candidates": [
+                    {
+                        "path": r"C:\x\jobs_20261001_010000.parquet",
+                        "mtime": "2026-10-01T01:00:00",
+                    },
+                    {
+                        "path": r"C:\x\jobs_20260901_010000.parquet",
+                        "mtime": "2026-09-01T01:00:00",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        json.dumps(
+            {"runs": [{"run_date": DATE_NEW, "started_at": f"{DATE_NEW}T00:00:00"}]}
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "decisions.json"
+
+    exit_code = recovery.main(
+        [
+            "expire",
+            "--candidates",
+            str(candidates),
+            "--pending",
+            str(pending),
+            "--retention-days",
+            "7",
+            "--now",
+            "2026-10-05T00:00:00",
+            "--out",
+            str(out),
+        ]
+    )
+
+    assert exit_code == 0
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    payload = json.loads(raw.decode("utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["retention_days"] == 7
+    assert payload["now"] == "2026-10-05T00:00:00"
+    assert payload["expire"] == [r"C:\x\jobs_20260901_010000.parquet"]
+    assert r"C:\x\jobs_20261001_010000.parquet" in payload["keep"]
+    assert all(
+        set(decision) == {"path", "action", "reason", "file_date", "pending"}
+        for decision in payload["decisions"]
+    )
+
+
+def test_T13_expire_cli_rejects_invalid_retention(tmp_path, capsys):
+    candidates = tmp_path / "candidates.json"
+    candidates.write_text("[]", encoding="utf-8")
+    pending = tmp_path / "pending.json"
+    pending.write_text("[]", encoding="utf-8")
+
+    exit_code = recovery.main(
+        [
+            "expire",
+            "--candidates",
+            str(candidates),
+            "--pending",
+            str(pending),
+            "--retention-days",
+            "-1",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "retencion invalida" in capsys.readouterr().err
+
+
+def test_T13_pending_cli_out_contract_with_the_real_cli(tmp_path):
+    """The cleanup calls `pending --out`; run the real CLI as a subprocess so
+    a missing flag (the T-13 blocker) fails here instead of silently
+    disabling every deletion."""
+    logs = tmp_path / "logs"
+    _write_log(logs, DATE_OLD, _truncated_text(DATE_OLD))
+    out = tmp_path / "pending.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "verification.recovery",
+            "pending",
+            "--logs-dir",
+            str(logs),
+            "--before",
+            DATE_NEW,
+            "--out",
+            str(out),
+        ],
+        cwd=str(PIPELINE_DIR),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    payload = json.loads(raw.decode("utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["before"] == DATE_NEW
+    assert payload["count"] == 1
+    assert payload["runs"][0]["run_date"] == DATE_OLD
