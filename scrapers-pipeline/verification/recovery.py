@@ -125,12 +125,29 @@ modified) where:
 Non-recoverable items are passed through untouched, so calling the function
 twice with the same reader yields the same plan. The module itself performs no
 network: remote access happens only through the injected ``RemoteReader``.
+
+``_READY`` decision and closing block (T-08; RF-5, RF-6)
+-------------------------------------------------------
+``decide_ready(policy, published)`` is pure: with ``any_valid`` it writes only
+when at least one source published valid data (``ok``/``partial``); with
+``all`` every expected source must have done so; an unknown policy behaves
+like ``all`` (as the pipeline does) and the Spanish reason says so. It
+returns a ``ReadyDecision`` (``write``, effective ``policy``,
+``valid_sources`` and the reason) and never touches the landing: T-12 writes
+``_READY``.
+
+``closing_block(published, failures=..., duration_seconds=..., finished_at=...)``
+returns the closing lines with the pipeline's exact format
+(``====  Fin pipeline. Fallos: N  Duracion: Ds ====`` plus one
+``  [source] status=... subidos=N rechazados=N`` per source), so appending
+them to a truncated general log makes ``run_evidence.parse_pipeline_log``
+return ``completed=True`` and the diagnostic select the run (RF-5).
 """
 from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path, PurePosixPath
@@ -975,3 +992,144 @@ def apply_idempotence(
             continue
         updated.append(item)
     return RecoveryPlan(run_date=plan.run_date, items=tuple(updated))
+
+
+# --------------------------------------------------------------------------
+# _READY decision and closing block (T-08; RF-5, RF-6)
+# --------------------------------------------------------------------------
+
+# Machine statuses the pipeline writes per source (run_evidence parses them).
+PUBLISHED_STATUSES: tuple[str, ...] = ("ok", "partial", "failed", "no_data", "killed")
+# Statuses that mean the source really published valid data.
+VALID_PUBLISHED_STATUSES: tuple[str, ...] = ("ok", "partial")
+
+READY_POLICIES: tuple[str, ...] = ("any_valid", "all")
+
+_SOURCE_RE = re.compile(r"^\w+$")
+
+
+@dataclass(frozen=True)
+class PublishedSource:
+    """Publication outcome of one source, as the pipeline records it (T-08).
+
+    ``status`` is the pipeline's machine value: ``ok``/``partial`` mean valid
+    data was published; ``failed``/``no_data``/``killed`` mean it was not.
+    ``uploaded``/``rejected`` are the counters of the pipeline's summary line.
+    """
+
+    source: str
+    status: str
+    uploaded: int = 0
+    rejected: int = 0
+
+
+@dataclass(frozen=True)
+class ReadyDecision:
+    """Whether ``_READY`` must be written, with the operator reason (T-08).
+
+    ``policy`` is the policy actually applied (an unknown request falls back
+    to ``all``, as the pipeline does) and ``valid_sources`` is how many
+    entries of ``published`` carried valid data.
+    """
+
+    write: bool
+    policy: str
+    valid_sources: int
+    reason: str
+
+
+def decide_ready(
+    policy: str, published: Sequence[PublishedSource]
+) -> ReadyDecision:
+    """Decide whether ``_READY`` may be written (RF-6; T-08).
+
+    ``published`` must list every source the run was supposed to process,
+    including the ones that failed (the pipeline's ``PublishResults``); a
+    valid source is one whose status is ``ok`` or ``partial``. ``any_valid``
+    writes when at least one source is valid; ``all`` writes only when every
+    listed source is valid and there is at least one (a recovery with nothing
+    published must never signal ``_READY``). An unknown policy behaves like
+    ``all``, matching the pipeline, and the Spanish reason records that
+    fallback. Pure: no network and no file is written (T-12 does that).
+    """
+    results = list(published)
+    valid = sum(1 for result in results if result.status in VALID_PUBLISHED_STATUSES)
+    requested = policy if policy in READY_POLICIES else "all"
+    fallback = (
+        f"politica desconocida ('{policy}'): se aplica '{requested}'. "
+        if requested != policy
+        else ""
+    )
+
+    if requested == "any_valid":
+        write = valid > 0
+        if valid == 1:
+            detail = "se publico 1 fuente con datos validos"
+        elif valid > 1:
+            detail = f"se publicaron {valid} fuentes con datos validos"
+        else:
+            detail = "ningun dato valido publicado"
+    elif not results:
+        write = False
+        detail = "no hay fuentes publicadas: la politica all no puede cumplirse"
+    else:
+        write = valid == len(results)
+        if write:
+            detail = (
+                "todas las fuentes previstas publicaron datos validos "
+                f"({valid}/{len(results)})"
+            )
+        else:
+            detail = (
+                "la politica all exige que todas las fuentes publiquen; "
+                f"validas {valid} de {len(results)}"
+            )
+    return ReadyDecision(
+        write=write, policy=requested, valid_sources=valid, reason=fallback + detail
+    )
+
+
+def closing_block(
+    published: Sequence[PublishedSource],
+    *,
+    failures: int,
+    duration_seconds: int,
+    finished_at: datetime | str | None = None,
+) -> tuple[str, ...]:
+    """Return the pipeline's closing lines for a recovered run (RF-5; T-08).
+
+    The first line is exactly ``====  Fin pipeline. Fallos: N  Duracion: Ds
+    ====`` and each source adds ``  [source] status=... subidos=N
+    rechazados=N``, prefixed with the ``HH:mm:ss  [INFO]  `` stamp the
+    pipeline writes, so appending these lines to a truncated general log makes
+    ``run_evidence`` parse the block as completed and the diagnostic select
+    the run. ``finished_at`` is the closing instant (defaults to now); it must
+    be inside the run window so ``finished_at`` is parsed without a day shift.
+    Statuses are the pipeline's machine values; an unknown status or a source
+    name the parser cannot match raises ``ValueError``. The lines carry no
+    newline; the caller writes them.
+    """
+    moment = (
+        _coerce_dt(finished_at) if finished_at is not None else datetime.now()
+    )
+    for result in published:
+        if not _SOURCE_RE.match(result.source):
+            raise ValueError(
+                f"nombre de fuente invalido para el cierre: {result.source!r}"
+            )
+        if result.status not in PUBLISHED_STATUSES:
+            raise ValueError(
+                f"status invalido para el cierre de {result.source!r}: {result.status!r}"
+            )
+
+    stamp = moment.strftime("%H:%M:%S")
+    lines = [
+        f"{stamp}  [INFO]  ====  Fin pipeline. Fallos: {int(failures)}  "
+        f"Duracion: {int(duration_seconds)}s ===="
+    ]
+    for result in published:
+        lines.append(
+            f"{stamp}  [INFO]    [{result.source}] status={result.status} "
+            f"subidos={int(result.uploaded)} rechazados={int(result.rejected)}"
+        )
+    return tuple(lines)

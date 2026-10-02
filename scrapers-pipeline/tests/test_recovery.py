@@ -16,7 +16,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from verification import landing, recovery, sources
+from verification import landing, recovery, run_evidence, sources, status, verify_run
 
 DATE_OLD = "2026-09-30"
 DATE_NEW = "2026-10-01"
@@ -870,3 +870,192 @@ def test_T07_repeated_uploaded_keys_do_not_change_the_delta(tmp_path):
 
     assert item.recoverable is True
     assert item.new_keys == 2  # 'a' is counted once
+
+
+# --------------------------------------------------------------------------
+# T-08: _READY decision and analysable closing block
+# --------------------------------------------------------------------------
+
+
+def test_T08_decide_ready_any_valid():
+    empty = recovery.decide_ready("any_valid", [])
+    assert empty.write is False
+    assert empty.policy == "any_valid"
+    assert empty.valid_sources == 0
+    assert empty.reason == "ningun dato valido publicado"
+
+    one = recovery.decide_ready(
+        "any_valid", [recovery.PublishedSource("indeed", "ok", 3)]
+    )
+    assert one.write is True
+    assert one.valid_sources == 1
+    assert one.reason == "se publico 1 fuente con datos validos"
+
+    mixed = recovery.decide_ready(
+        "any_valid",
+        [
+            recovery.PublishedSource("indeed", "ok", 3),
+            recovery.PublishedSource("linkedin", "partial", 2, 1),
+            recovery.PublishedSource("infojobs", "no_data"),
+        ],
+    )
+    assert mixed.write is True
+    assert mixed.valid_sources == 2
+    assert mixed.reason == "se publicaron 2 fuentes con datos validos"
+
+
+def test_T08_decide_ready_all():
+    all_valid = recovery.decide_ready(
+        "all",
+        [
+            recovery.PublishedSource("indeed", "ok"),
+            recovery.PublishedSource("linkedin", "partial"),
+        ],
+    )
+    assert all_valid.write is True
+    assert all_valid.valid_sources == 2
+    assert (
+        all_valid.reason
+        == "todas las fuentes previstas publicaron datos validos (2/2)"
+    )
+
+    some_invalid = recovery.decide_ready(
+        "all",
+        [
+            recovery.PublishedSource("indeed", "ok"),
+            recovery.PublishedSource("linkedin", "no_data"),
+        ],
+    )
+    assert some_invalid.write is False
+    assert "la politica all exige que todas las fuentes publiquen" in some_invalid.reason
+    assert "validas 1 de 2" in some_invalid.reason
+
+    empty = recovery.decide_ready("all", [])
+    assert empty.write is False
+    assert "no hay fuentes publicadas" in empty.reason
+
+
+def test_T08_decide_ready_unknown_policy_falls_back_to_all():
+    decision = recovery.decide_ready(
+        "raro", [recovery.PublishedSource("indeed", "ok")]
+    )
+    assert decision.policy == "all"
+    assert decision.write is True
+    assert "politica desconocida ('raro')" in decision.reason
+    assert "se aplica 'all'" in decision.reason
+
+    fails = recovery.decide_ready(
+        "raro", [recovery.PublishedSource("indeed", "failed")]
+    )
+    assert fails.write is False
+
+
+def test_T08_closing_block_makes_a_truncated_run_completed(tmp_path):
+    logs = tmp_path / "logs"
+    log_path = _write_log(
+        logs,
+        DATE_NEW,
+        _inicio(DATE_NEW) + "00:12:45  [INFO]  [indeed] Resultado: ok (1 subidos)\n",
+    )
+    before = run_evidence.parse_pipeline_log(log_path)
+    assert before.completed is False
+    assert run_evidence.select_last_run(logs) is None
+
+    lines = recovery.closing_block(
+        [
+            recovery.PublishedSource("indeed", "ok", 1, 0),
+            recovery.PublishedSource("multi_site", "partial", 2, 1),
+            recovery.PublishedSource("infojobs", "no_data", 0, 0),
+        ],
+        failures=1,
+        duration_seconds=7200,
+        finished_at=datetime(2026, 10, 1, 4, 50, 0),
+    )
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+    after = run_evidence.parse_pipeline_log(log_path)
+    assert after.completed is True
+    assert after.finished_at == f"{DATE_NEW}T04:50:00"
+    assert after.global_failures == 1
+    assert after.duration_seconds == 7200
+    assert after.statuses["indeed"].status == "ok"
+    assert after.statuses["indeed"].uploaded == 1
+    assert after.statuses["multi_site"].status == "partial"
+    assert after.statuses["multi_site"].uploaded == 2
+    assert after.statuses["multi_site"].rejected == 1
+    assert after.statuses["infojobs"].status == "no_data"
+
+    selected = run_evidence.select_last_run(logs)
+    assert selected is not None
+    assert selected.completed is True
+    assert selected.started_at == f"{DATE_NEW}T00:00:04"
+
+
+def test_T08_closing_block_with_no_published_sources(tmp_path):
+    lines = recovery.closing_block(
+        [],
+        failures=0,
+        duration_seconds=60,
+        finished_at=datetime(2026, 10, 1, 4, 50, 0),
+    )
+    assert lines == (
+        "04:50:00  [INFO]  ====  Fin pipeline. Fallos: 0  Duracion: 60s ====",
+    )
+
+    logs = tmp_path / "logs"
+    log_path = _write_log(logs, DATE_NEW, _inicio(DATE_NEW))
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+    after = run_evidence.parse_pipeline_log(log_path)
+    assert after.completed is True
+    assert after.statuses == {}
+    assert run_evidence.select_last_run(logs) is not None
+
+
+def test_T08_closing_block_rejects_unknown_machine_values():
+    with pytest.raises(ValueError):
+        recovery.closing_block(
+            [recovery.PublishedSource("indeed", "raro")],
+            failures=0,
+            duration_seconds=1,
+        )
+    with pytest.raises(ValueError):
+        recovery.closing_block(
+            [recovery.PublishedSource("multi-site", "ok")],
+            failures=0,
+            duration_seconds=1,
+        )
+
+
+def test_T08_diagnostic_sees_the_run_after_closing_block(tmp_path):
+    logs = tmp_path / "logs"
+    log_path = _write_log(
+        logs,
+        DATE_NEW,
+        _inicio(DATE_NEW) + "00:12:45  [INFO]  [indeed] Resultado: ok (1 subidos)\n",
+    )
+
+    before = verify_run.run_diagnostic(tmp_path, logs)
+    assert before.run is None
+    assert before.global_state == status.GLOBAL_INCONCLUSIVE
+
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(
+            "\n".join(
+                recovery.closing_block(
+                    [recovery.PublishedSource("indeed", "ok", 1, 0)],
+                    failures=0,
+                    duration_seconds=7200,
+                    finished_at=datetime(2026, 10, 1, 4, 50, 0),
+                )
+            )
+            + "\n"
+        )
+
+    after = verify_run.run_diagnostic(tmp_path, logs)
+    assert after.run is not None
+    assert after.run.date == DATE_NEW
+    assert after.run.finished_at == f"{DATE_NEW}T04:50:00"
+    assert after.global_state != status.GLOBAL_INCONCLUSIVE
