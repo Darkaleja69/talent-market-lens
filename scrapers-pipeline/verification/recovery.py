@@ -153,8 +153,9 @@ return ``completed=True`` and the diagnostic select the run (RF-5).
 CLI (T-10/T-11; RF-2, RF-4)
 ---------------------------
 ``python -m verification.recovery pending [--logs-dir DIR] [--state-dir DIR]
-[--before YYYY-MM-DD]`` prints a stable JSON document with the truncated runs
-older than ``--before`` (the pipeline's startup reconciliation consumes it):
+[--before YYYY-MM-DD] [--out FILE]`` prints (or writes, without BOM) a stable
+JSON document with the truncated runs older than ``--before`` (the pipeline's
+startup reconciliation and the cleanup consume it):
 ``{"schema_version": 1, "before": ..., "count": N, "runs": [...]}``.
 
 ``python -m verification.recovery plan --run-date YYYY-MM-DD
@@ -169,8 +170,15 @@ of ``closing_block``, and ``... ready --policy P --results-file FILE
 [--out FILE]`` emits the ``decide_ready`` decision as JSON
 (``{"write", "policy", "valid_sources", "reason"}``); the recovery executor
 appends the former to the run's general log and uses the latter for ``_READY``
-(T-12). All commands are local and offline; an invalid argument exits 2 with a
-Spanish message.
+(T-12).
+
+``python -m verification.recovery expire --candidates FILE --pending FILE
+[--retention-days 7] [--now ISO] [--out FILE]`` decides which cleanup
+candidates are kept or expire (``expire_candidates``): files of a pending run
+are kept within the retention and expire beyond it, other files expire only
+when older than the retention, and a file without a readable date is always
+kept. ``cleanup_old_data.ps1`` consumes it (T-13). All commands are local and
+offline; an invalid argument exits 2 with a Spanish message.
 """
 from __future__ import annotations
 
@@ -1068,6 +1076,221 @@ def apply_state_idempotence(
 
 
 # --------------------------------------------------------------------------
+# Retention and cleanup decisions (T-13; RF-2)
+# --------------------------------------------------------------------------
+
+# Expire actions.
+EXPIRE_KEEP = "keep"
+EXPIRE_DELETE = "expire"
+
+
+@dataclass(frozen=True)
+class ExpireCandidate:
+    """One cleanup candidate: a local file with an optional date/mtime.
+
+    ``date`` is an explicit ``YYYY-MM-DD`` when the caller knows it; ``mtime``
+    is an ISO timestamp (the file's modification time). The file's date is
+    resolved from, in order: a dated file name, ``date``, ``mtime``.
+    """
+
+    path: str
+    date: str | None = None
+    mtime: str | None = None
+
+
+@dataclass(frozen=True)
+class PendingRun:
+    """Minimal view of a pending run for the retention decision (T-13)."""
+
+    run_date: str | None
+    started_at: str | None = None
+    finished_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ExpireDecision:
+    """Whether one cleanup candidate is kept or expires (T-13; RF-2)."""
+
+    path: str
+    action: str  # keep | expire
+    reason: str
+    file_date: str | None
+    pending: bool
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a JSON-ready dictionary (cleanup CLI contract)."""
+        return {
+            "path": self.path,
+            "action": self.action,
+            "reason": self.reason,
+            "file_date": self.file_date,
+            "pending": self.pending,
+        }
+
+
+_COMPACT_DATE_RE = re.compile(r"(\d{4})(\d{2})(\d{2})(?:_(\d{2})(\d{2})(\d{2}))?")
+_ISO_DATE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+
+
+def _moment_from_name(name: str) -> tuple[str | None, datetime | None]:
+    """Resolve ``(date, moment)`` from a dated file name.
+
+    ``YYYY-MM-DD`` and ``YYYYMMDD[_HHMMSS]`` names are accepted; a name without
+    a time resolves to the end of that day (conservative: the file looks
+    younger). An undated or invalid name yields ``(None, None)``.
+    """
+    iso = _ISO_DATE_RE.search(name)
+    if iso:
+        day = f"{iso.group(1)}-{iso.group(2)}-{iso.group(3)}"
+        if _is_valid_date(day):
+            return day, datetime.combine(date.fromisoformat(day), time.max)
+    compact = _COMPACT_DATE_RE.search(name)
+    if compact:
+        day = f"{compact.group(1)}-{compact.group(2)}-{compact.group(3)}"
+        if not _is_valid_date(day):
+            return None, None
+        if compact.group(4) is not None:
+            try:
+                moment = datetime.combine(
+                    date.fromisoformat(day),
+                    time(
+                        int(compact.group(4)),
+                        int(compact.group(5)),
+                        int(compact.group(6)),
+                    ),
+                )
+                return day, moment
+            except ValueError:
+                pass
+        return day, datetime.combine(date.fromisoformat(day), time.max)
+    return None, None
+
+
+def _candidate_moment(candidate: ExpireCandidate) -> tuple[str | None, datetime | None]:
+    """Resolve ``(date, moment)`` of a candidate: name, then date, then mtime."""
+    name = PurePosixPath(candidate.path.replace("\\", "/")).name
+    file_date, moment = _moment_from_name(name)
+    if moment is not None:
+        return file_date, moment
+    if candidate.date and _is_valid_date(candidate.date):
+        day = date.fromisoformat(candidate.date)
+        return candidate.date, datetime.combine(day, time.max)
+    parsed = _parse_local(candidate.mtime)
+    if parsed is not None:
+        return parsed.date().isoformat(), parsed
+    return None, None
+
+
+def _pending_for(
+    file_date: str | None,
+    moment: datetime | None,
+    pending_runs: Sequence[PendingRun],
+) -> PendingRun | None:
+    """Return the pending run a file belongs to (same date or run window)."""
+    for run in pending_runs:
+        if run.run_date and file_date and run.run_date == file_date:
+            return run
+        start = _parse_local(run.started_at)
+        if start is None or moment is None:
+            continue
+        end = _parse_local(run.finished_at) or (start + timedelta(days=1))
+        if start <= moment <= end:
+            return run
+    return None
+
+
+def expire_candidates(
+    candidates: Sequence[ExpireCandidate],
+    pending_runs: Sequence[PendingRun],
+    *,
+    retention_days: int = 7,
+    now: datetime | None = None,
+) -> list[ExpireDecision]:
+    """Decide keep/expire for each cleanup candidate (RF-2; T-13).
+
+    A file belongs to a pending run when its date matches the run's
+    ``run_date`` or its moment falls inside the run window
+    (``started_at``..``finished_at`` or one day). A pending file is kept while
+    it is within ``retention_days``; beyond that it expires like any other
+    file (the retention bounds how long a non-recoverable pending run is
+    preserved). Files without a pending run are kept within the retention and
+    expire beyond it. A file whose date cannot be resolved is always kept
+    (conservative). Pure: no filesystem access and no network.
+    """
+    if retention_days < 0:
+        raise ValueError(f"retencion invalida: {retention_days}; se espera >= 0")
+    moment_now = now if now is not None else datetime.now()
+    if moment_now.tzinfo is not None:
+        moment_now = moment_now.astimezone().replace(tzinfo=None)
+
+    decisions: list[ExpireDecision] = []
+    for candidate in candidates:
+        file_date, moment = _candidate_moment(candidate)
+        if moment is None:
+            decisions.append(
+                ExpireDecision(
+                    path=candidate.path,
+                    action=EXPIRE_KEEP,
+                    reason="fecha ilegible; se conserva por seguridad",
+                    file_date=None,
+                    pending=False,
+                )
+            )
+            continue
+        run = _pending_for(file_date, moment, pending_runs)
+        age_days = max(0, (moment_now - moment).days)
+        expired = (moment_now - moment) > timedelta(days=retention_days)
+        if run is not None:
+            if expired:
+                decisions.append(
+                    ExpireDecision(
+                        path=candidate.path,
+                        action=EXPIRE_DELETE,
+                        reason=(
+                            f"retencion de {retention_days} dias superada ({age_days} dias) "
+                            f"aunque el run {run.run_date or '?'} siga pendiente"
+                        ),
+                        file_date=file_date,
+                        pending=True,
+                    )
+                )
+            else:
+                decisions.append(
+                    ExpireDecision(
+                        path=candidate.path,
+                        action=EXPIRE_KEEP,
+                        reason=(
+                            f"run pendiente ({run.run_date or '?'}); dentro de la "
+                            f"retencion de {retention_days} dias"
+                        ),
+                        file_date=file_date,
+                        pending=True,
+                    )
+                )
+        elif expired:
+            decisions.append(
+                ExpireDecision(
+                    path=candidate.path,
+                    action=EXPIRE_DELETE,
+                    reason=f"fuera de la retencion de {retention_days} dias ({age_days} dias)",
+                    file_date=file_date,
+                    pending=False,
+                )
+            )
+        else:
+            decisions.append(
+                ExpireDecision(
+                    path=candidate.path,
+                    action=EXPIRE_KEEP,
+                    reason=f"dentro de la retencion de {retention_days} dias ({age_days} dias)",
+                    file_date=file_date,
+                    pending=False,
+                )
+            )
+    return decisions
+
+
+# --------------------------------------------------------------------------
 # _READY decision and closing block (T-08; RF-5, RF-6)
 # --------------------------------------------------------------------------
 
@@ -1273,6 +1496,60 @@ def _read_results_file(path: Path) -> list[PublishedSource]:
     return results
 
 
+def _read_candidates_file(path: Path) -> list[ExpireCandidate]:
+    """Read the cleanup candidates JSON (list or ``{"candidates": [...]}``)."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"candidatos ilegibles ({path}): {exc}") from exc
+    items = payload.get("candidates") if isinstance(payload, dict) else payload
+    if not isinstance(items, list):
+        raise ValueError("los candidatos deben ser una lista o {'candidates': [...]}")
+    candidates: list[ExpireCandidate] = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        path_value = entry.get("path")
+        if not path_value:
+            continue
+        date_value = entry.get("date")
+        mtime_value = entry.get("mtime")
+        candidates.append(
+            ExpireCandidate(
+                path=str(path_value),
+                date=str(date_value) if date_value else None,
+                mtime=str(mtime_value) if mtime_value else None,
+            )
+        )
+    return candidates
+
+
+def _read_pending_runs_file(path: Path) -> list[PendingRun]:
+    """Read the ``pending`` CLI output (list or ``{"runs": [...]}``)."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"pendientes ilegibles ({path}): {exc}") from exc
+    items = payload.get("runs") if isinstance(payload, dict) else payload
+    if not isinstance(items, list):
+        raise ValueError("los pendientes deben ser una lista o {'runs': [...]}")
+    runs: list[PendingRun] = []
+    for entry in items:
+        if not isinstance(entry, dict):
+            continue
+        run_date = entry.get("run_date")
+        started = entry.get("started_at")
+        finished = entry.get("finished_at")
+        runs.append(
+            PendingRun(
+                run_date=str(run_date) if run_date else None,
+                started_at=str(started) if started else None,
+                finished_at=str(finished) if finished else None,
+            )
+        )
+    return runs
+
+
 def _write_cli_output(text: str, out: str | None) -> None:
     """Write ``text`` to ``out`` (no BOM) or stdout."""
     if out:
@@ -1299,6 +1576,11 @@ def _build_cli_parser() -> argparse.ArgumentParser:
         default=None,
         help="solo runs con run_date estrictamente anterior (YYYY-MM-DD)",
     )
+    pending.add_argument(
+        "--out",
+        default=None,
+        help="fichero JSON de salida (por defecto, stdout)",
+    )
     plan = subparsers.add_parser(
         "plan",
         help="genera el plan de recuperacion de un run en JSON",
@@ -1323,6 +1605,15 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     ready.add_argument("--policy", required=True)
     ready.add_argument("--results-file", required=True)
     ready.add_argument("--out", default=None)
+    expire = subparsers.add_parser(
+        "expire",
+        help="decide que candidatos de limpieza caducan y cuales se conservan",
+    )
+    expire.add_argument("--candidates", required=True)
+    expire.add_argument("--pending", required=True)
+    expire.add_argument("--retention-days", type=int, default=7)
+    expire.add_argument("--now", default=None)
+    expire.add_argument("--out", default=None)
     return parser
 
 
@@ -1350,7 +1641,7 @@ def main(argv: list[str] | None = None) -> int:
             "count": len(runs),
             "runs": [_truncated_to_dict(run) for run in runs],
         }
-        print(json.dumps(payload, ensure_ascii=False))
+        _write_cli_output(json.dumps(payload, ensure_ascii=False) + "\n", args.out)
         return 0
 
     if args.command == "plan":
@@ -1412,6 +1703,41 @@ def main(argv: list[str] | None = None) -> int:
             )
             + "\n",
             args.out,
+        )
+        return 0
+
+    if args.command == "expire":
+        try:
+            candidates = _read_candidates_file(args.candidates)
+            pending = _read_pending_runs_file(args.pending)
+            moment = _coerce_dt(args.now) if args.now is not None else None
+            decisions = expire_candidates(
+                candidates,
+                pending,
+                retention_days=args.retention_days,
+                now=moment,
+            )
+        except ValueError as exc:
+            print(f"recovery: {exc}", file=sys.stderr)
+            return 2
+        payload = {
+            "schema_version": 1,
+            "retention_days": args.retention_days,
+            "now": (moment or datetime.now()).isoformat(timespec="seconds"),
+            "decisions": [decision.to_dict() for decision in decisions],
+            "expire": [
+                decision.path
+                for decision in decisions
+                if decision.action == EXPIRE_DELETE
+            ],
+            "keep": [
+                decision.path
+                for decision in decisions
+                if decision.action == EXPIRE_KEEP
+            ],
+        }
+        _write_cli_output(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", args.out
         )
         return 0
 
