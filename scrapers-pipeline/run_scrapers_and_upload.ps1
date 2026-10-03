@@ -155,9 +155,11 @@ if ($null -ne $script:RunState) {
 
 # --- Reconciliacion de runs anteriores (RF-4; solo con -Supervised) ----------
 #  Descubre (CLI local de verification.recovery) los runs truncados/pendientes
-#  ANTERIORES a hoy y recupera los que ya no tengan wrappers vivos. Un fallo
-#  aqui nunca aborta el run que empieza: se registra y se continua (RF-4).
-#  Sin -Supervised no se ejecuta nada de esto (RF-9).
+#  ANTERIORES a hoy y EN ALCANCE AUTOMATICO (desde 2026-10-01, no superados;
+#  los historicos y superados se registran con su motivo, T-21) y recupera los
+#  que ya no tengan wrappers vivos. Un fallo aqui nunca aborta el run que
+#  empieza: se registra y se continua (RF-4). Sin -Supervised no se ejecuta
+#  nada de esto (RF-9).
 if ($Supervised) {
     . (Join-Path $ScriptDir "reconcile_pending_runs.ps1")
     try {
@@ -168,9 +170,10 @@ if ($Supervised) {
             -Before $Today `
             -RecoveryScript (Join-Path $ScriptDir "recover_and_upload.ps1") `
             -Logger { param($Message, $Level) Write-Log $Message -Level $Level }
-        Write-Log ("Reconciliacion: {0} pendiente(s), {1} recuperado(s), {2} con wrappers vivos, {3} fallo(s)" -f `
+        Write-Log ("Reconciliacion: {0} pendiente(s), {1} recuperado(s), {2} con wrappers vivos, {3} fuera de alcance, {4} fallo(s)" -f `
             $reconciliation.discovered, $reconciliation.invoked.Count, `
-            $reconciliation.skipped_live.Count, $reconciliation.failures.Count)
+            $reconciliation.skipped_live.Count, $reconciliation.skipped_scope.Count, `
+            $reconciliation.failures.Count)
     } catch {
         Write-Log "La reconciliacion de pendientes fallo (se continua con el run): $($_.Exception.Message)" -Level WARN
     }

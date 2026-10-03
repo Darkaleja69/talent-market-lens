@@ -21,8 +21,9 @@ import pytest
 from verification import landing, recovery, run_evidence, sources, status, verify_run
 
 PIPELINE_DIR = Path(__file__).resolve().parents[1]
-DATE_OLD = "2026-09-30"
-DATE_NEW = "2026-10-01"
+DATE_OLD = "2026-09-30"  # before the automatic scope (T-21)
+DATE_NEW = "2026-10-01"  # incident date: inside the automatic scope
+DATE_AFTER = "2026-10-02"  # later than the incident date
 
 
 # --------------------------------------------------------------------------
@@ -1076,35 +1077,38 @@ def test_T08_diagnostic_sees_the_run_after_closing_block(tmp_path):
 
 def test_T10_pending_cli_lists_only_previous_truncated_runs(tmp_path, capsys):
     logs = tmp_path / "logs"
-    _write_log(logs, DATE_OLD, _truncated_text(DATE_OLD))
-    _write_log(logs, DATE_NEW, _truncated_text(DATE_NEW))
-    _write_state(logs, DATE_NEW, "pending")
-    closed_date = "2026-09-29"
+    previous = DATE_NEW  # inside the automatic scope (T-21)
+    _write_log(logs, previous, _truncated_text(previous))
+    _write_log(logs, DATE_AFTER, _truncated_text(DATE_AFTER))
+    _write_state(logs, DATE_AFTER, "pending")
+    closed_date = DATE_OLD
     _write_log(logs, closed_date, _truncated_text(closed_date))
     _write_state(logs, closed_date, "closed")
 
     exit_code = recovery.main(
-        ["pending", "--logs-dir", str(logs), "--before", DATE_NEW]
+        ["pending", "--logs-dir", str(logs), "--before", DATE_AFTER]
     )
     payload = json.loads(capsys.readouterr().out)
 
     assert exit_code == 0
     assert payload["schema_version"] == 1
-    assert payload["before"] == DATE_NEW
+    assert payload["before"] == DATE_AFTER
+    assert payload["min_date"] == recovery.AUTO_RECOVERY_MIN_DATE
     assert payload["count"] == 1
+    assert payload["skipped"] == []
     run = payload["runs"][0]
-    assert run["run_date"] == DATE_OLD
+    assert run["run_date"] == previous
     assert run["state_status"] == recovery.STATE_MISSING
-    assert run["state_path"] == str(logs / "run_state" / f"{DATE_OLD}.json")
+    assert run["state_path"] == str(logs / "run_state" / f"{previous}.json")
     assert run["reason"]
 
 
 def test_T10_pending_cli_tolerates_unreadable_state_and_empty_logs(tmp_path, capsys):
     logs = tmp_path / "logs"
-    _write_log(logs, DATE_OLD, _truncated_text(DATE_OLD))
+    _write_log(logs, DATE_NEW, _truncated_text(DATE_NEW))
     state_dir = logs / "run_state"
     state_dir.mkdir()
-    (state_dir / f"{DATE_OLD}.json").write_text("{no json", encoding="utf-8")
+    (state_dir / f"{DATE_NEW}.json").write_text("{no json", encoding="utf-8")
 
     assert recovery.main(["pending", "--logs-dir", str(logs)]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -1129,6 +1133,75 @@ def test_T10_pending_cli_rejects_invalid_before(tmp_path, capsys):
     assert exit_code == 2
     assert "--before" in captured.err
     assert captured.out == ""
+
+
+# --------------------------------------------------------------------------
+# T-21: automatic recovery scope (lower bound and superseded filter)
+# --------------------------------------------------------------------------
+
+
+def test_T21_pending_runs_exclude_historical_and_superseded(tmp_path):
+    logs = tmp_path / "logs"
+    historical = "2026-07-22"
+    _write_log(logs, historical, _truncated_text(historical))
+    _write_state(logs, historical, "pending")
+    _write_log(logs, DATE_NEW, _truncated_text(DATE_NEW))
+    _write_state(logs, DATE_NEW, "pending")
+    # Superseded: an earlier truncated block plus a later finished one.
+    _write_log(
+        logs,
+        DATE_AFTER,
+        _inicio(DATE_AFTER, "02:00:00")
+        + "02:30:00  [INFO]  [indeed] Aun corriendo...\n"
+        + _inicio(DATE_AFTER, "10:00:00")
+        + _fin("12:00:00"),
+    )
+
+    runs = recovery.pending_runs(logs, before="2026-10-03")
+
+    assert [run.run_date for run in runs] == [DATE_NEW]
+    assert runs[0].superseded is False
+    excluded = {
+        run.run_date: recovery.recovery_exclusion_reason(run)
+        for run in recovery.discover_truncated_runs(logs)
+    }
+    assert recovery.AUTO_RECOVERY_MIN_DATE in excluded[historical]
+    assert "posterior" in excluded[DATE_AFTER]
+    assert excluded[DATE_NEW] is None
+
+
+def test_T21_pending_cli_reports_scope_skips_with_reason(tmp_path, capsys):
+    logs = tmp_path / "logs"
+    historical = "2026-07-22"
+    _write_log(logs, historical, _truncated_text(historical))
+    _write_state(logs, historical, "pending")
+    _write_log(logs, DATE_NEW, _truncated_text(DATE_NEW))
+    _write_state(logs, DATE_NEW, "pending")
+    _write_log(
+        logs,
+        DATE_AFTER,
+        _inicio(DATE_AFTER, "02:00:00")
+        + "02:30:00  [INFO]  [indeed] Aun corriendo...\n"
+        + _inicio(DATE_AFTER, "10:00:00")
+        + _fin("12:00:00"),
+    )
+    current = "2026-10-03"
+    _write_log(logs, current, _truncated_text(current))
+
+    exit_code = recovery.main(
+        ["pending", "--logs-dir", str(logs), "--before", current]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["min_date"] == recovery.AUTO_RECOVERY_MIN_DATE
+    assert [run["run_date"] for run in payload["runs"]] == [DATE_NEW]
+    skipped = {run["run_date"]: run["reason"] for run in payload["skipped"]}
+    assert set(skipped) == {historical, DATE_AFTER}
+    assert recovery.AUTO_RECOVERY_MIN_DATE in skipped[historical]
+    assert "posterior" in skipped[DATE_AFTER]
+    # The starting run is outside the query window, never a scope skip.
+    assert current not in skipped
 
 
 # --------------------------------------------------------------------------
@@ -1567,7 +1640,7 @@ def test_T13_pending_cli_out_contract_with_the_real_cli(tmp_path):
     a missing flag (the T-13 blocker) fails here instead of silently
     disabling every deletion."""
     logs = tmp_path / "logs"
-    _write_log(logs, DATE_OLD, _truncated_text(DATE_OLD))
+    _write_log(logs, DATE_NEW, _truncated_text(DATE_NEW))
     out = tmp_path / "pending.json"
 
     completed = subprocess.run(
@@ -1579,7 +1652,7 @@ def test_T13_pending_cli_out_contract_with_the_real_cli(tmp_path):
             "--logs-dir",
             str(logs),
             "--before",
-            DATE_NEW,
+            DATE_AFTER,
             "--out",
             str(out),
         ],
@@ -1596,9 +1669,9 @@ def test_T13_pending_cli_out_contract_with_the_real_cli(tmp_path):
     assert not raw.startswith(b"\xef\xbb\xbf")
     payload = json.loads(raw.decode("utf-8"))
     assert payload["schema_version"] == 1
-    assert payload["before"] == DATE_NEW
+    assert payload["before"] == DATE_AFTER
     assert payload["count"] == 1
-    assert payload["runs"][0]["run_date"] == DATE_OLD
+    assert payload["runs"][0]["run_date"] == DATE_NEW
 
 
 # --------------------------------------------------------------------------

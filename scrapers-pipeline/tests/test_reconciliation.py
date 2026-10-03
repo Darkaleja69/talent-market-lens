@@ -4,7 +4,8 @@ Offline: a driver dot-sources ``reconcile_pending_runs.ps1`` and runs it
 against temporary logs/state/projects directories. Discovery uses the real
 local Python CLI (``verification.recovery pending``); the recovery executor is
 a fake script that records the date it received. No Azure, SAS or azcopy is
-involved.
+involved. Runs outside the automatic scope (T-21: historical before
+2026-10-01 or superseded) are never invoked and are logged with their reason.
 """
 from __future__ import annotations
 
@@ -17,8 +18,8 @@ import pytest
 PIPELINE_DIR = Path(__file__).resolve().parents[1]
 RECONCILE = PIPELINE_DIR / "reconcile_pending_runs.ps1"
 POWERSHELL = shutil.which("powershell.exe")
-OLD_DATE = "2026-09-30"
-TODAY = "2026-10-01"
+OLD_DATE = "2026-10-01"  # inside the automatic scope (incident date)
+TODAY = "2026-10-02"
 
 
 def _require_powershell() -> str:
@@ -110,10 +111,12 @@ def _run_reconciliation(
                 "-Logger $logger",
                 "$invoked = $result.invoked -join ','",
                 "$skipped = $result.skipped_live -join ','",
+                "$skippedScope = $result.skipped_scope -join ','",
                 "$failures = $result.failures -join '|'",
                 'Write-Output "discovered=$($result.discovered)"',
                 'Write-Output "invoked=$invoked"',
                 'Write-Output "skipped_live=$skipped"',
+                'Write-Output "skipped_scope=$skippedScope"',
                 'Write-Output "failures=$failures"',
                 "",
             ]
@@ -142,7 +145,7 @@ def _run_reconciliation(
         )
     parsed: dict[str, str] = {}
     for line in completed.stdout.splitlines():
-        for key in ("discovered", "invoked", "skipped_live", "failures"):
+        for key in ("discovered", "invoked", "skipped_live", "skipped_scope", "failures"):
             if line.startswith(f"{key}="):
                 parsed[key] = line[len(key) + 1 :]
     return parsed
@@ -242,3 +245,57 @@ def test_T10_reconciliation_separates_cli_stderr(tmp_path):
     log_text = (tmp_path / "reconcile.log").read_text(encoding="utf-8", errors="replace")
     assert "aviso del descubrimiento" in log_text
     assert "warning de pyarrow" in log_text
+
+
+# --------------------------------------------------------------------------
+# T-21: automatic recovery scope
+# --------------------------------------------------------------------------
+
+
+def test_T21_reconciliation_skips_historical_run_with_reason(tmp_path):
+    logs = tmp_path / "logs"
+    state = logs / "run_state"
+    projects = tmp_path / "projects"
+    marker = tmp_path / "called.txt"
+    historical = "2026-07-22"
+    _write_log(logs, historical)
+    _write_state(state, historical, "pending")
+    recovery = _write_fake_recovery(tmp_path, marker)
+
+    result = _run_reconciliation(tmp_path, logs, state, projects, recovery)
+
+    assert result["discovered"] == "0"
+    assert result["invoked"] == ""
+    assert result["skipped_scope"] == historical
+    assert result["failures"] == ""
+    assert not marker.exists()  # never invoked
+    log_text = (tmp_path / "reconcile.log").read_text(encoding="utf-8", errors="replace")
+    assert "no se recupera automaticamente" in log_text
+    assert "2026-10-01" in log_text  # reason names the automatic lower bound
+
+
+def test_T21_reconciliation_skips_superseded_run_with_reason(tmp_path):
+    logs = tmp_path / "logs"
+    state = logs / "run_state"
+    projects = tmp_path / "projects"
+    marker = tmp_path / "called.txt"
+    logs.mkdir(parents=True, exist_ok=True)
+    # Same date: an earlier truncated block plus a later finished one.
+    (logs / f"upload-{OLD_DATE}.log").write_text(
+        f"02:00:00  [INFO]  ====  Inicio pipeline scrapers  ({OLD_DATE}) ====\n"
+        "02:30:00  [INFO]  [indeed] Aun corriendo...\n"
+        f"10:00:00  [INFO]  ====  Inicio pipeline scrapers  ({OLD_DATE}) ====\n"
+        "12:00:00  [INFO]  ====  Fin pipeline. Fallos: 0  Duracion: 100s ====\n",
+        encoding="utf-8",
+    )
+    recovery = _write_fake_recovery(tmp_path, marker)
+
+    result = _run_reconciliation(tmp_path, logs, state, projects, recovery)
+
+    assert result["discovered"] == "0"
+    assert result["invoked"] == ""
+    assert result["skipped_scope"] == OLD_DATE
+    assert result["failures"] == ""
+    assert not marker.exists()  # never invoked
+    log_text = (tmp_path / "reconcile.log").read_text(encoding="utf-8", errors="replace")
+    assert "posterior" in log_text

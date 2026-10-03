@@ -7,8 +7,11 @@
 #
 #  Invoke-PendingReconciliation discovers, through the local Python CLI
 #  (`python -m verification.recovery pending --before <date>`), the truncated
-#  or pending runs older than the run that is starting, and invokes the
-#  recovery executor once per date when no wrapper is alive. The executor is
+#  or pending runs older than the run that is starting and eligible for
+#  automatic recovery (T-21: on/after 2026-10-01 and not superseded), and
+#  invokes the recovery executor once per date when no wrapper is alive. Runs
+#  excluded by the automatic scope are only recorded with their reason; the
+#  historical ones stay covered by the manual recovery. The executor is
 #  only invoked when its param(...) declares -Date (AST guard): a legacy
 #  executor would otherwise receive the argument in $args and silently sweep
 #  the whole history. It never throws and never touches the current run's
@@ -32,10 +35,11 @@ function Invoke-PendingReconciliation {
     )
 
     $result = @{
-        discovered   = 0
-        invoked      = @()
-        skipped_live = @()
-        failures     = @()
+        discovered    = 0
+        skipped_scope = @()
+        invoked       = @()
+        skipped_live  = @()
+        failures      = @()
     }
 
     # The injected logger must never leak into this function's success stream,
@@ -101,6 +105,22 @@ function Invoke-PendingReconciliation {
         $runs = @($payload.runs)
     }
     $result.discovered = $runs.Count
+
+    # --- Record the runs excluded by the automatic scope (T-21) --------------
+    #  The CLI already filters them (historical before 2026-10-01 or already
+    #  superseded) and reports each one with its reason; the general log keeps
+    #  the motive even though they are never invoked.
+    $skipped = @()
+    if ($null -ne $payload -and $payload.PSObject.Properties.Name -contains "skipped") {
+        $skipped = @($payload.skipped)
+    }
+    foreach ($skippedRun in $skipped) {
+        $skippedDate = [string]$skippedRun.run_date
+        $skippedReason = [string]$skippedRun.reason
+        $result.skipped_scope += $skippedDate
+        & $log "[$skippedDate] no se recupera automaticamente: $skippedReason" "INFO"
+    }
+
     if ($runs.Count -eq 0) { return $result }
 
     # --- Skip while any wrapper is still alive -------------------------------

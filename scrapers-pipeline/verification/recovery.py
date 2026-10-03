@@ -45,7 +45,9 @@ finished block does not erase the earlier truncated one, because the later run
 starts after ``$RunStart`` and does not pick up the earlier run's files. The
 record marks such a block with ``superseded=True`` so T-06/T-10 decide with
 context; de-duplication and avoiding re-uploads belong to T-07's idempotency,
-not to hiding the truncated run.
+not to hiding the truncated run. The automatic recovery excludes them anyway
+(T-21): ``pending_runs`` and the ``pending`` CLI never list a superseded run,
+and the startup reconciliation only records its reason.
 
 The state file is per date and the later run overwrites it, so a ``closed``
 state only suppresses a truncated block when it can be attributed to that
@@ -153,13 +155,19 @@ returns the closing lines with the pipeline's exact format
 them to a truncated general log makes ``run_evidence.parse_pipeline_log``
 return ``completed=True`` and the diagnostic select the run (RF-5).
 
-CLI (T-10/T-11/T-20; RF-2, RF-3, RF-4)
---------------------------------------
+CLI (T-10/T-11/T-20/T-21; RF-2, RF-3, RF-4)
+-------------------------------------------
 ``python -m verification.recovery pending [--logs-dir DIR] [--state-dir DIR]
 [--before YYYY-MM-DD] [--out FILE]`` prints (or writes, without BOM) a stable
-JSON document with the truncated runs older than ``--before`` (the pipeline's
-startup reconciliation and the cleanup consume it):
-``{"schema_version": 1, "before": ..., "count": N, "runs": [...]}``.
+JSON document with the truncated runs older than ``--before`` and eligible for
+automatic recovery (the pipeline's startup reconciliation and the cleanup
+consume it):
+``{"schema_version": 1, "before": ..., "min_date": ..., "count": N,
+"runs": [...], "skipped": [...]}``. ``min_date`` is the lower bound of the
+automatic scope (``AUTO_RECOVERY_MIN_DATE``: the 2026-10-01 incident; earlier
+historical runs stay covered by the manual recovery) and ``skipped`` lists the
+previous pending runs excluded by that bound or already superseded, each with
+its Spanish reason, so the reconciliation can record them.
 
 ``python -m verification.recovery plan --run-date YYYY-MM-DD
 [--projects-root DIR] [--state-dir DIR] [--check-landing]
@@ -223,6 +231,13 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # well below the gap between real same-day runs.
 _STATE_START_TOLERANCE = timedelta(seconds=5)
 
+# Lower bound of the automatic recovery (T-21; RF-2, RF-4). Spec 005 leaves
+# the runs before the 2026-10-01 incident out of scope: they are historical and
+# stay covered by the manual recovery. Single source of truth for the
+# ``pending`` CLI and the startup reconciliation (the cleanup consumes the
+# same CLI).
+AUTO_RECOVERY_MIN_DATE = "2026-10-01"
+
 
 def _is_valid_date(value: str | None) -> bool:
     """Whether ``value`` is a real ``YYYY-MM-DD`` calendar date."""
@@ -285,7 +300,8 @@ class TruncatedRun:
     ``Fin pipeline`` is never returned (see the module docstring).
     ``superseded`` is ``True`` when a later block of the same date finished:
     the run is still truncated, but its data may or may not have been covered
-    by that later run (T-06/T-10 decide). ``state_attributed`` is whether the
+    by that later run (T-06 decides; the automatic recovery excludes it, T-21).
+    ``state_attributed`` is whether the
     per-date state file describes this block; when it is ``False`` the state
     belongs to another run and never suppresses the truncated block.
     ``reason`` is the Spanish operator-facing explanation.
@@ -300,6 +316,38 @@ class TruncatedRun:
     summary: run_evidence.PipelineSummary | None
     state: RunStateInfo
     reason: str
+
+
+def recovery_exclusion_reason(
+    run: TruncatedRun,
+    *,
+    min_date: str | None = AUTO_RECOVERY_MIN_DATE,
+) -> str | None:
+    """Why ``run`` must not be recovered automatically, or ``None`` if eligible.
+
+    Two policies of the automatic cycle (T-21; RF-2, RF-4):
+
+    - a run superseded by a later finished block the same date is treated as
+      already handled: the later block of that date closed on its own, so
+      recovering the earlier one again only repeats work and noise;
+    - a run before ``min_date`` (``AUTO_RECOVERY_MIN_DATE``, the 2026-10-01
+      incident) is historical and out of the spec's automatic scope; it stays
+      covered by the manual recovery. ``min_date=None`` disables the bound.
+
+    The returned reason is the Spanish operator-facing explanation the
+    reconciliation records. Pure: no filesystem and no network access.
+    """
+    if run.superseded:
+        return (
+            "hay un bloque posterior terminado el mismo dia; "
+            "ya superado, no se recupera automaticamente"
+        )
+    if min_date is not None and (run.run_date or "") < min_date:
+        return (
+            f"anterior al limite de la recuperacion automatica ({min_date}); "
+            "los historicos se recuperan a mano"
+        )
+    return None
 
 
 def read_run_state(path: Path) -> RunStateInfo:
@@ -432,7 +480,9 @@ def discover_truncated_runs(
     finished block the same date (``superseded=True``). A ``Fin pipeline``
     block is never returned, and a ``closed`` state only excludes the block it
     can be attributed to. A ``pending`` state without any log block for its
-    date is returned with ``summary=None``.
+    date is returned with ``summary=None``. This is the evidence layer: the
+    automatic scope (lower bound and superseded runs) is applied on top by
+    ``recovery_exclusion_reason`` / ``pending_runs`` (T-21).
     """
     logs = Path(logs_dir)
     states = Path(state_dir) if state_dir is not None else logs / "run_state"
@@ -1464,20 +1514,62 @@ def _truncated_to_dict(run: TruncatedRun) -> dict[str, object]:
     }
 
 
+def _skipped_to_dict(run: TruncatedRun, reason: str) -> dict[str, object]:
+    """Stable JSON shape of a pending run excluded by the automatic scope."""
+    return {
+        "run_date": run.run_date,
+        "started_at": run.started_at,
+        "superseded": run.superseded,
+        "state_status": run.state.status,
+        "reason": reason,
+    }
+
+
+def _pending_selection(
+    runs: Sequence[TruncatedRun],
+    before: str | None,
+    min_date: str | None,
+) -> tuple[list[TruncatedRun], list[tuple[TruncatedRun, str]]]:
+    """Split discovered runs into auto-recoverable and skipped (with reason).
+
+    ``before`` keeps only strictly older dates (the run that is starting is
+    never a candidate); it is the query window, so a run on/after it is not
+    reported as skipped. Runs inside the window but excluded by
+    ``recovery_exclusion_reason`` are returned with their Spanish reason so
+    the caller can record them.
+    """
+    eligible: list[TruncatedRun] = []
+    skipped: list[tuple[TruncatedRun, str]] = []
+    for run in runs:
+        if before is not None and not ((run.run_date or "") < before):
+            continue
+        reason = recovery_exclusion_reason(run, min_date=min_date)
+        if reason is None:
+            eligible.append(run)
+        else:
+            skipped.append((run, reason))
+    return eligible, skipped
+
+
 def pending_runs(
     logs_dir: Path,
     state_dir: Path | None = None,
     before: str | None = None,
+    *,
+    min_date: str | None = AUTO_RECOVERY_MIN_DATE,
 ) -> list[TruncatedRun]:
-    """Truncated runs strictly before ``before`` (``YYYY-MM-DD``), if given.
+    """Truncated runs eligible for automatic recovery, sorted ascending.
 
-    ``before`` excludes the run that is starting; ``None`` returns every
-    discovered truncated run. Pure and local: no network and no Azure.
+    ``before`` excludes the run that is starting (strictly older dates only)
+    and ``None`` keeps every date. ``min_date`` is the lower bound of the
+    automatic scope (``AUTO_RECOVERY_MIN_DATE``; ``None`` disables it) and
+    superseded runs are never eligible (T-21; RF-2, RF-4). Pure and local: no
+    network and no Azure. The ``pending`` CLI also reports the excluded runs
+    with their reason.
     """
-    runs = discover_truncated_runs(logs_dir, state_dir)
-    if before is None:
-        return runs
-    return [run for run in runs if (run.run_date or "") < before]
+    return _pending_selection(
+        discover_truncated_runs(logs_dir, state_dir), before, min_date
+    )[0]
 
 
 def _read_results_file(path: Path) -> list[PublishedSource]:
@@ -1723,12 +1815,18 @@ def main(argv: list[str] | None = None) -> int:
             else run_evidence.DEFAULT_PROJECTS_ROOT / run_evidence.DEFAULT_LOGS_SUBDIR
         )
         state_dir = Path(args.state_dir) if args.state_dir else None
-        runs = pending_runs(logs_dir, state_dir, args.before)
+        runs, skipped = _pending_selection(
+            discover_truncated_runs(logs_dir, state_dir),
+            args.before,
+            AUTO_RECOVERY_MIN_DATE,
+        )
         payload = {
             "schema_version": 1,
             "before": args.before,
+            "min_date": AUTO_RECOVERY_MIN_DATE,
             "count": len(runs),
             "runs": [_truncated_to_dict(run) for run in runs],
+            "skipped": [_skipped_to_dict(run, reason) for run, reason in skipped],
         }
         _write_cli_output(json.dumps(payload, ensure_ascii=False) + "\n", args.out)
         return 0
