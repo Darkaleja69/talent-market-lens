@@ -14,8 +14,9 @@
 #    .\recover_and_upload.ps1 -Date 2026-10-01
 #    .\recover_and_upload.ps1 -PlanJson C:\...\plan.json
 #  Con -Date se genera el plan con `python -m verification.recovery plan`
-#  (--state-dir aplica la idempotencia del estado del run); con -PlanJson se
-#  consume un plan ya generado. Cada item recuperable pasa por staging,
+#  (--state-dir aplica la idempotencia del estado del run y --check-landing la
+#  de la landing: lo ya publicado se omite con su published_key; T-20); con
+#  -PlanJson se consume un plan ya generado. Cada item recuperable pasa por staging,
 #  filtrado OnlyNewOffers, validacion completa (--coherence/--fingerprint-source),
 #  subida con --as-subdir=false, manifest con `remote` sin BOM y actualizacion
 #  de uploaded_keys SOLO tras exito. Los rechazados se cuentan y nunca se
@@ -153,9 +154,27 @@ function Get-RecoveryPlan {
         try {
             # Capture stdout so the CLI's "path" line never leaks into this
             # function's return value (it must be the plan object only).
-            $cliOut = & $PythonExe -m verification.recovery plan --run-date $RunDate `
-                --projects-root $ProjectsRoot --state-dir $script:RecoveryStateDir `
-                --out $planFile 2> $stderrFile
+            # T-20: --check-landing makes the CLI omit what is already published
+            # (published_key set) through the same AzCopy; the SAS is inherited
+            # from the environment and never passed as an argument. If the
+            # landing cannot be checked the CLI exits non-zero, the plan fails
+            # and the run stays pending instead of re-uploading duplicates.
+            $planArgs = @(
+                "-m", "verification.recovery", "plan",
+                "--run-date", [string]$RunDate,
+                "--projects-root", [string]$ProjectsRoot,
+                "--state-dir", [string]$script:RecoveryStateDir,
+                "--check-landing",
+                "--azcopy-path", [string]$AzCopyPath,
+                "--out", [string]$planFile
+            )
+            if (-not [string]::IsNullOrWhiteSpace($StorageAccount)) {
+                $planArgs += @("--storage-account", [string]$StorageAccount)
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Container)) {
+                $planArgs += @("--container", [string]$Container)
+            }
+            $cliOut = & $PythonExe @planArgs 2> $stderrFile
             $cliExit = $LASTEXITCODE
             foreach ($line in @($cliOut)) { Write-Log "plan: $line" }
         } finally { Pop-Location }

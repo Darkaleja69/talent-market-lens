@@ -125,6 +125,9 @@ modified) where:
 Non-recoverable items are passed through untouched, so calling the function
 twice with the same reader yields the same plan. The module itself performs no
 network: remote access happens only through the injected ``RemoteReader``.
+Since T-20 the ``plan`` CLI builds that reader when ``--check-landing`` is
+given, which is how the production recovery (executor, startup reconciliation
+and supervisor) makes the check.
 
 ``apply_state_idempotence(plan, state)`` complements that remote check with
 local evidence: a recoverable item whose run-state entry
@@ -150,8 +153,8 @@ returns the closing lines with the pipeline's exact format
 them to a truncated general log makes ``run_evidence.parse_pipeline_log``
 return ``completed=True`` and the diagnostic select the run (RF-5).
 
-CLI (T-10/T-11; RF-2, RF-4)
----------------------------
+CLI (T-10/T-11/T-20; RF-2, RF-3, RF-4)
+--------------------------------------
 ``python -m verification.recovery pending [--logs-dir DIR] [--state-dir DIR]
 [--before YYYY-MM-DD] [--out FILE]`` prints (or writes, without BOM) a stable
 JSON document with the truncated runs older than ``--before`` (the pipeline's
@@ -159,10 +162,19 @@ startup reconciliation and the cleanup consume it):
 ``{"schema_version": 1, "before": ..., "count": N, "runs": [...]}``.
 
 ``python -m verification.recovery plan --run-date YYYY-MM-DD
-[--projects-root DIR] [--state-dir DIR] [--out FILE]`` builds the
-``RecoveryPlan`` of that run (``build_plan`` plus ``apply_state_idempotence``
-when ``--state-dir`` is given) and writes it as JSON (no BOM with ``--out``,
-stdout otherwise); the recovery executor consumes it (T-11).
+[--projects-root DIR] [--state-dir DIR] [--check-landing]
+[--storage-account NAME] [--container NAME] [--azcopy-path EXE] [--out FILE]``
+builds the ``RecoveryPlan`` of that run (``build_plan`` plus
+``apply_state_idempotence`` when ``--state-dir`` is given) and writes it as
+JSON (no BOM with ``--out``, stdout otherwise); the recovery executor consumes
+it (T-11). With ``--check-landing`` (T-20) the plan is also passed through
+``apply_idempotence`` with a read-only ``landing.AzCopyReader``, so files
+already in the landing are omitted and ``published_key`` records the confirmed
+key. The SAS is read from ``LANDING_SAS_TOKEN`` (never an argument, never
+logged); when it is missing or the landing cannot be reached, the command exits
+2 with a Spanish reason and writes no plan, so the recovery is omitted and the
+run stays pending for the next attempt instead of re-uploading an unverified
+duplicate (RF-3).
 
 ``python -m verification.recovery closing --results-file FILE --failures N
 --duration D [--finished-at ISO] [--out FILE]`` emits the exact closing lines
@@ -184,6 +196,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections.abc import Mapping, Sequence
@@ -1559,6 +1572,59 @@ def _write_cli_output(text: str, out: str | None) -> None:
         print(text, end="")
 
 
+def _open_landing_reader(
+    *,
+    storage_account: str = "",
+    container: str = "",
+    azcopy_path: str = "azcopy",
+) -> landing.AzCopyReader:
+    """Build the read-only reader used by ``plan --check-landing`` (T-20).
+
+    ``storage_account``/``container`` override the environment defaults
+    (``LANDING_STORAGE_ACCOUNT`` and the ``landing`` container); the SAS is
+    always read from ``LANDING_SAS_TOKEN`` and never passed on the command
+    line, so it cannot leak through the process arguments nor the logs. Raises
+    :class:`verification.landing.RemoteError` (Spanish, SAS-free) when the SAS
+    is missing: without a landing check the plan could re-upload what is
+    already published, so the caller fails the plan and the run stays pending
+    (better to omit the recovery with a recorded reason than to publish twice).
+    """
+    sas = os.environ.get(landing.SAS_TOKEN_ENV, "").strip()
+    if not sas:
+        raise landing.RemoteError(
+            "Falta LANDING_SAS_TOKEN: no se puede comprobar la landing; "
+            "se omite la recuperacion para no duplicar."
+        )
+    base_url = landing.base_url_from_env(
+        storage_account or None, container or landing.DEFAULT_CONTAINER
+    )
+    return landing.AzCopyReader(base_url, sas, azcopy_path=azcopy_path)
+
+
+def _apply_landing_check(
+    plan: RecoveryPlan,
+    *,
+    storage_account: str = "",
+    container: str = "",
+    azcopy_path: str = "azcopy",
+) -> RecoveryPlan:
+    """Apply the remote idempotence of ``apply_idempotence`` to ``plan`` (T-20).
+
+    The reader is closed even when the listing fails; a ``RemoteError``
+    propagates so the CLI can fail the plan with a recorded Spanish reason (a
+    connectivity failure is never treated as "not published").
+    """
+    reader = _open_landing_reader(
+        storage_account=storage_account,
+        container=container,
+        azcopy_path=azcopy_path,
+    )
+    try:
+        return apply_idempotence(plan, reader)
+    finally:
+        reader.close()
+
+
 def _build_cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="verification.recovery",
@@ -1588,6 +1654,29 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     plan.add_argument("--run-date", required=True)
     plan.add_argument("--projects-root", default=None)
     plan.add_argument("--state-dir", default=None)
+    plan.add_argument(
+        "--check-landing",
+        action="store_true",
+        help=(
+            "consulta la landing y omite lo ya publicado (requiere "
+            "LANDING_SAS_TOKEN)"
+        ),
+    )
+    plan.add_argument(
+        "--storage-account",
+        default="",
+        help="storage account de la landing (por defecto, del entorno)",
+    )
+    plan.add_argument(
+        "--container",
+        default="",
+        help="contenedor de la landing (por defecto, landing)",
+    )
+    plan.add_argument(
+        "--azcopy-path",
+        default="azcopy",
+        help="binario de AzCopy para la comprobacion remota",
+    )
     plan.add_argument("--out", default=None, help="fichero JSON de salida")
     closing = subparsers.add_parser(
         "closing",
@@ -1663,6 +1752,24 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.state_dir) / f"{args.run_date}.json"
             )
             plan = apply_state_idempotence(plan, state)
+        if args.check_landing:
+            try:
+                plan = _apply_landing_check(
+                    plan,
+                    storage_account=args.storage_account,
+                    container=args.container,
+                    azcopy_path=args.azcopy_path,
+                )
+            except landing.RemoteError as exc:
+                # No unverified plan: the executor treats the failure as a
+                # recovery failure, so the run stays pending and is retried
+                # instead of re-uploading what the landing already holds.
+                print(
+                    "recovery: no se pudo comprobar la landing; se omite la "
+                    f"recuperacion para no duplicar: {exc}",
+                    file=sys.stderr,
+                )
+                return 2
         _write_cli_output(
             json.dumps(plan.to_dict(), ensure_ascii=False, indent=2) + "\n",
             args.out,
