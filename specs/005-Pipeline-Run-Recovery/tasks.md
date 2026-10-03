@@ -150,7 +150,7 @@ comprobación indicada antes de continuar.
 
 ## 4. Verificación y cierre
 
-- [ ] **T-16 — Ejecutar la suite y la regresión del diagnóstico** (~25 min)
+- [x] **T-16 — Ejecutar la suite y la regresión del diagnóstico** (~25 min)
   - **RF:** RF-1–RF-9.
   - **Depende de:** T-15.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa (sin
