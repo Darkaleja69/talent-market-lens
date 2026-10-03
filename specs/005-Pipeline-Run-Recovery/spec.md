@@ -184,3 +184,7 @@ perceptibles.
   quede pendiente.
 - El supervisor acota su espera (6 h por defecto, configurable) para no
   bloquear el run de la noche siguiente.
+- Los manifests de una recuperación se sellan con la fecha del run y un
+  instante dentro de su ventana (no con la fecha de recuperación), para que el
+  diagnóstico los ancle como publicación del run recuperado aunque la
+  recuperación llegue días después.

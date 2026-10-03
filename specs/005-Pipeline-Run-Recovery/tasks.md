@@ -156,10 +156,23 @@ comprobación indicada antes de continuar.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa (sin
     regresiones en `run_evidence`, `verify_run` y watchdog) y las suites de los
     scrapers no cambian.
+  - **Evidencia (2026-10-03):** 747 passed; flake de `test_verify_run.py` no
+    reproducido en 10/10 pasadas; scrapers 51/31/104/92.
+
+- [x] **T-16A — Sellar el manifest de recuperación con la fecha del run** (~25 min)
+  - **RF:** RF-3, RF-5, RF-6.
+  - **Depende de:** T-11, T-12, T-16.
+  - **Hecho cuando:** los manifests que sube la recuperación planificada se
+    sellan con la fecha del run y un instante dentro de su ventana (fecha del
+    run + `max(hora de inicio del log, hora de ejecución)`), de modo que el
+    diagnóstico los ancle como publicación del run recuperado aunque la
+    recuperación sea días después; un test de recuperación tardía demuestra que
+    `run_diagnostic` clasifica la publicación como correcta (antes: pendiente)
+    y la suite del pipeline queda en verde.
 
 - [ ] **T-17 — Comprobación real con el run 2026-10-01** (~25 min)
   - **RF:** RF-3, RF-5, RF-6.
-  - **Depende de:** T-15, T-16.
+  - **Depende de:** T-15, T-16, T-16A.
   - **Hecho cuando:** con los restos preservados (T-01) y validación de la
     persona, la recuperación publica Indeed y Multi-site con manifest, deja el
     run analizable y `python -m verification.verify_run` lo diagnostica con la
