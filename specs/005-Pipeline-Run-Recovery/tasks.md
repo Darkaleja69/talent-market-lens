@@ -37,7 +37,7 @@ comprobación indicada antes de continuar.
     (condición de red de la tarea, `StopOnIdleEnd`) y su estado
     confirmado/descartado; separa hechos de hipótesis.
 
-- [ ] **T-03 — Definir el estado del run en disco** (~25 min)
+- [x] **T-03 — Definir el estado del run en disco** (~25 min)
   - **RF:** RF-1.
   - **Hecho cuando:** existe el esquema documentado de
     `logs/run_state/<fecha>.json` (claves en inglés: `run_date`, `started_at`,
@@ -45,7 +45,7 @@ comprobación indicada antes de continuar.
     `last_activity_at`; estado `pending`/`closed`) y una función de escritura
     atómica disponible para los `.ps1`.
 
-- [ ] **T-04 — Persistir el estado desde el pipeline en hitos** (~25 min)
+- [x] **T-04 — Persistir el estado desde el pipeline en hitos** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** T-03.
   - **Hecho cuando:** `run_scrapers_and_upload.ps1` escribe el estado al
@@ -55,7 +55,7 @@ comprobación indicada antes de continuar.
 
 ## 2. Decisión (módulo Python)
 
-- [ ] **T-05 — Detectar runs truncados reutilizando `run_evidence`** (~25 min)
+- [x] **T-05 — Detectar runs truncados reutilizando `run_evidence`** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** T-03.
   - **Hecho cuando:** `verification/recovery.py` expone
@@ -63,7 +63,7 @@ comprobación indicada antes de continuar.
     excluyendo cerrados) y los tests cubren: truncado con y sin estado, run
     cerrado normal, sin logs y varios runs el mismo día.
 
-- [ ] **T-06 — Construir el plan de recuperación por fuente** (~25 min)
+- [x] **T-06 — Construir el plan de recuperación por fuente** (~25 min)
   - **RF:** RF-2, RF-3.
   - **Depende de:** T-05.
   - **Hecho cuando:** `build_plan` devuelve, por fuente, los pendientes con su
@@ -73,14 +73,14 @@ comprobación indicada antes de continuar.
     `required_cols`, `coherence`, `fingerprint_source` y `key_column`; tests
     cubren cada fuente, ausencia de restos y Multi-site sobrescrito.
 
-- [ ] **T-07 — Garantizar idempotencia del plan** (~25 min)
+- [x] **T-07 — Garantizar idempotencia del plan** (~25 min)
   - **RF:** RF-3.
   - **Depende de:** T-06.
   - **Hecho cuando:** el plan omite lo ya publicado (objeto remoto coincidente
     vía `verification.landing` o claves ya en `uploaded_keys`) y su ejecución
     repetida no cambia subidas; tests con lector falso y con claves repetidas.
 
-- [ ] **T-08 — Decidir `_READY` y generar el cierre analizable** (~25 min)
+- [x] **T-08 — Decidir `_READY` y generar el cierre analizable** (~25 min)
   - **RF:** RF-5, RF-6.
   - **Depende de:** T-06.
   - **Hecho cuando:** `decide_ready` aplica `any_valid`/`all` a los datos
@@ -90,7 +90,7 @@ comprobación indicada antes de continuar.
 
 ## 3. Supervisor, ejecutor y ciclo
 
-- [ ] **T-09 — Supervisar el pipeline con transcripción y evidencia** (~25 min)
+- [x] **T-09 — Supervisar el pipeline con transcripción y evidencia** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-04.
   - **Hecho cuando:** `run_pipeline_supervised.ps1` lanza el pipeline como
@@ -99,7 +99,7 @@ comprobación indicada antes de continuar.
     `run_state/<fecha>.abort.json` con evidencia; una prueba local con un hijo
     que sale sin cerrar demuestra la detección sin tocar Azure.
 
-- [ ] **T-10 — Esperar de forma acotada y reconciliar al arrancar** (~25 min)
+- [x] **T-10 — Esperar de forma acotada y reconciliar al arrancar** (~25 min)
   - **RF:** RF-2, RF-4.
   - **Depende de:** T-09.
   - **Hecho cuando:** el supervisor espera (config por defecto 6 h) a que
@@ -108,7 +108,7 @@ comprobación indicada antes de continuar.
     anteriores antes de lanzar los scrapers; tests de decisión cubren ambos
     caminos.
 
-- [ ] **T-11 — Evolucionar el ejecutor de recuperación** (~25 min)
+- [x] **T-11 — Evolucionar el ejecutor de recuperación** (~25 min)
   - **RF:** RF-2, RF-3.
   - **Depende de:** T-06, T-07.
   - **Hecho cuando:** `recover_and_upload.ps1` acepta `-Date`/`-PlanJson`,
@@ -118,7 +118,7 @@ comprobación indicada antes de continuar.
     devuelve código distinto de cero si algo falla; sigue funcionando sin
     `-Date` para históricos.
 
-- [ ] **T-12 — Cerrar el log y escribir `_READY` fiel** (~25 min)
+- [x] **T-12 — Cerrar el log y escribir `_READY` fiel** (~25 min)
   - **RF:** RF-5, RF-6.
   - **Depende de:** T-08, T-11.
   - **Hecho cuando:** el ejecutor añade a `logs/upload-<run_date>.log` el
@@ -126,7 +126,7 @@ comprobación indicada antes de continuar.
     `_READY/dia=<run_date>` si la política se cumple con datos publicados
     (registrando el motivo si no); no reescribe `_READY` ya existente.
 
-- [ ] **T-13 — Respetar los pendientes en la limpieza** (~20 min)
+- [x] **T-13 — Respetar los pendientes en la limpieza** (~20 min)
   - **RF:** RF-2.
   - **Depende de:** T-05.
   - **Hecho cuando:** `cleanup_old_data.ps1` excluye los ficheros de runs
@@ -141,7 +141,7 @@ comprobación indicada antes de continuar.
     la persona lo valida; una ejecución de comprobación registra la
     transcripción.
 
-- [ ] **T-15 — Probar la integración offline del ciclo** (~25 min)
+- [x] **T-15 — Probar la integración offline del ciclo** (~25 min)
   - **RF:** RF-1–RF-6.
   - **Depende de:** T-10–T-13.
   - **Hecho cuando:** un fixture temporal con logs truncados, estado y restos
