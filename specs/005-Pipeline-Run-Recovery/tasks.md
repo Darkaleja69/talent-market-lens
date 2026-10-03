@@ -133,13 +133,20 @@ comprobación indicada antes de continuar.
     `pending` y aplica una retención configurable (por defecto 7 días) al
     resto, registrando lo que caduca; un test de decisión cubre ambos casos.
 
-- [ ] **T-14 — Llevar el ciclo a la tarea programada** (~15 min)
+- [x] **T-14 — Llevar el ciclo a la tarea programada** (~15 min)
   - **RF:** RF-4, RF-7.
   - **Depende de:** T-09, T-10.
   - **Hecho cuando:** la acción de `Scrapers_Daily_Upload` ejecuta
     `run_pipeline_supervised.ps1` manteniendo horario, condiciones y límites, y
     la persona lo valida; una ejecución de comprobación registra la
     transcripción.
+  - **Evidencia (2026-10-03):** acción cambiada a `run_pipeline_supervised.ps1`
+    (solo cambió la acción respecto del XML original; backup en
+    `%TEMP%\opencode\task-backup`); ejecución de comprobación 12:32:55–14:34:25
+    con `====  Fin pipeline` y transcripción
+    `logs/transcript-2026-10-03.log`; estado `closed` sin `abort.json`;
+    verificación independiente con suite completa en verde (752 passed); la
+    persona valida el cambio.
 
 - [x] **T-15 — Probar la integración offline del ciclo** (~25 min)
   - **RF:** RF-1–RF-6.
