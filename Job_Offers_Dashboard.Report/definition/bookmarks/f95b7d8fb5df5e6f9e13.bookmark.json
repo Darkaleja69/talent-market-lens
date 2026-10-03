@@ -3,9 +3,7 @@
   "displayName": "Salary Insights Remove Filter",
   "name": "f95b7d8fb5df5e6f9e13",
   "options": {
-    "targetVisualNames": [
-      "slicer_geo_7f3a9c21b04d5e688a10"
-    ]
+    "targetVisualNames": []
   },
   "explorationState": {
     "version": "1.3",
@@ -105,6 +103,18 @@
               "objects": {}
             }
           },
+          "125e6060041100090883": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "1297f652a08fa007bea8": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
           "9eb3b9cea3c21a7b8684": {
             "filters": {
               "byExpr": [
@@ -124,7 +134,7 @@
                   "howCreated": 0
                 },
                 {
-                  "name": "a038c287100a406b8d76",
+                  "name": "736e25fc0e42d64316cc",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -171,298 +181,17 @@
               }
             }
           },
-          "1c1427900cff90d61dc3": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "1297f652a08fa007bea8": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
           "17743d8839f15b0480d8": {
             "singleVisual": {
               "visualType": "shape",
               "objects": {}
             }
           },
-          "1c4914dda710985f3fb3": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
-            }
-          },
-          "23ed5e40b03e43ca4b74": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "28484b16da919c482406": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "4ae9e19a7563f6fe5137": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
-            }
-          },
-          "5338956d2efe165d8ea1": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
-            }
-          },
-          "6f71d211826eb7dbb7d5": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
-            }
-          },
-          "749f4371be303b5896fb": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "7c00b67ba38388d46653": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "86c5e091936ca8a74ec7": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {},
-              "display": {
-                "mode": "hidden"
-              }
-            }
-          },
-          "8d9d3cd9f5b6ac5a51cc": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "b91f23955c398273e565": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
-            }
-          },
-          "bb8e780933715da60b68": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "c43dcc6fd96202d13b4b": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {}
-            }
-          },
-          "c8871434d4a3ad3d8277": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "d76a2df32f2779418e7e": {
-            "singleVisual": {
-              "visualType": "image",
-              "objects": {},
-              "display": {
-                "mode": "hidden"
-              }
-            }
-          },
-          "fad5f624d7db84047613": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "f74fa9c8a3a8f41d70fe": {
-            "filters": {
-              "byExpr": [
-                {
-                  "name": "90e58843cb2f2fde99b1",
-                  "type": "TopN",
-                  "expression": {
-                    "Column": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Dim_SkillList"
-                        }
-                      },
-                      "Property": "SkillName"
-                    }
-                  },
-                  "howCreated": 0
-                },
-                {
-                  "name": "f4114b182bbec05bb07a",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Skill Median Salary EUR"
-                    }
-                  },
-                  "howCreated": 0
-                },
-                {
-                  "name": "2def9165d0274b009ee9",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Skill Demand"
-                    }
-                  },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "tableEx",
-              "objects": {},
-              "activeProjections": {
-                "Values": [
-                  {
-                    "Column": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Dim_SkillList"
-                        }
-                      },
-                      "Property": "SkillName"
-                    }
-                  },
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Skill Median Salary EUR"
-                    }
-                  },
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Skill Demand"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "512c961abaac373c4792": {
-            "filters": {
-              "byExpr": [
-                {
-                  "name": "bf2d566107501d0e3010",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "P75 Mid Salary EUR"
-                    }
-                  },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "P75 Mid Salary EUR"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "dac9f592cf0258517cf7": {
-            "filters": {
-              "byExpr": [
-                {
-                  "name": "11aec1c58e0da5106dbb",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Median Mid Salary EUR"
-                    }
-                  },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Median Mid Salary EUR"
-                    }
-                  }
-                ]
-              }
-            }
-          },
           "19ad6e95d599a2fd2e3c": {
             "filters": {
               "byExpr": [
                 {
-                  "name": "434e951ca5899362a5ac",
+                  "name": "96cf2f3c37ced2680a00",
                   "type": "Advanced",
                   "expression": {
                     "Column": {
@@ -497,6 +226,18 @@
               }
             }
           },
+          "1c1427900cff90d61dc3": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "1c4914dda710985f3fb3": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
           "1d29613c7bfe333c42df": {
             "singleVisual": {
               "visualType": "textbox",
@@ -504,6 +245,18 @@
             }
           },
           "206733948a3adc137511": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "23ed5e40b03e43ca4b74": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "28484b16da919c482406": {
             "singleVisual": {
               "visualType": "shape",
               "objects": {}
@@ -528,7 +281,7 @@
                   "howCreated": 0
                 },
                 {
-                  "name": "9dc2754a45c8c350710e",
+                  "name": "9ce2d3d30a25299c9813",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
@@ -634,6 +387,12 @@
               }
             }
           },
+          "4ae9e19a7563f6fe5137": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
           "524c9299863e5e85f1d5": {
             "filters": {
               "byExpr": [
@@ -689,11 +448,425 @@
               }
             }
           },
+          "5338956d2efe165d8ea1": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "f74fa9c8a3a8f41d70fe": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "90e58843cb2f2fde99b1",
+                  "type": "TopN",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Dim_SkillList"
+                        }
+                      },
+                      "Property": "SkillName"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "e60ae60660cb7d161094",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Skill Median Salary EUR"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "2954cbcb0c5411260000",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Skill Demand"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "af140834a70c0c940870",
+                  "type": "Categorical",
+                  "filter": {
+                    "Version": 2,
+                    "From": [
+                      {
+                        "Name": "d",
+                        "Entity": "Dim_SkillList",
+                        "Type": 0
+                      }
+                    ],
+                    "Where": [
+                      {
+                        "Condition": {
+                          "Not": {
+                            "Expression": {
+                              "In": {
+                                "Expressions": [
+                                  {
+                                    "Column": {
+                                      "Expression": {
+                                        "SourceRef": {
+                                          "Source": "d"
+                                        }
+                                      },
+                                      "Property": "SkillName"
+                                    }
+                                  }
+                                ],
+                                "Values": [
+                                  [
+                                    {
+                                      "Literal": {
+                                        "Value": "null"
+                                      }
+                                    }
+                                  ]
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Dim_SkillList"
+                        }
+                      },
+                      "Property": "SkillName"
+                    }
+                  },
+                  "howCreated": 1
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "tableEx",
+              "objects": {},
+              "activeProjections": {
+                "Values": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Dim_SkillList"
+                        }
+                      },
+                      "Property": "SkillName"
+                    }
+                  },
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Skill Median Salary EUR"
+                    }
+                  },
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Skill Demand"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "512c961abaac373c4792": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "05dc48090db6dc967200",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "P75 Mid Salary EUR"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {},
+              "activeProjections": {
+                "Data": [
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "P75 Mid Salary EUR"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "5e89debf982c8135da32": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "dac9f592cf0258517cf7": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "fb6b515c208d0cc52ae0",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Median Mid Salary EUR"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {},
+              "activeProjections": {
+                "Data": [
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Median Mid Salary EUR"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "6f71d211826eb7dbb7d5": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "4a880744116f0fcb1b0a": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "4fad76a2eeccca25cc52",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Salary Disclosure Rate"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {},
+              "activeProjections": {
+                "Data": [
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Salary Disclosure Rate"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "749f4371be303b5896fb": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "71a6fb73df36712a911d": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "772a3fb8ec2e856e8b72",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "P25 Mid Salary EUR"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {},
+              "activeProjections": {
+                "Data": [
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "P25 Mid Salary EUR"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "7c00b67ba38388d46653": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "7c7537d1ce755fd87329": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "2f6b6266454260380163",
+                  "type": "Categorical",
+                  "expression": {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "WorkModeBucket"
+                    }
+                  },
+                  "howCreated": 0
+                },
+                {
+                  "name": "ccb7023d8b88ec0cac10",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Avg Mid Salary EUR"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "clusteredBarChart",
+              "objects": {},
+              "activeProjections": {
+                "Category": [
+                  {
+                    "Column": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Fact_Offers"
+                        }
+                      },
+                      "Property": "WorkModeBucket"
+                    }
+                  }
+                ],
+                "Y": [
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Avg Mid Salary EUR"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "86c5e091936ca8a74ec7": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {},
+              "display": {
+                "mode": "hidden"
+              }
+            }
+          },
+          "8d9d3cd9f5b6ac5a51cc": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
           "8f6e9b2757713a83341c": {
             "filters": {
               "byExpr": [
                 {
-                  "name": "6d279b64b934b6da5c17",
+                  "name": "f2e7819963760e785311",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
@@ -799,6 +972,18 @@
               }
             }
           },
+          "b91f23955c398273e565": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "bb8e780933715da60b68": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
           "c1d2272d722a23267d63": {
             "filters": {
               "byExpr": [
@@ -854,26 +1039,48 @@
               }
             }
           },
+          "c43dcc6fd96202d13b4b": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {}
+            }
+          },
+          "c8871434d4a3ad3d8277": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "card_fp_filters_48100224700d4795bd4c0c89": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "7883537c048b69de949b",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Selected Filters Text Salary_Insights"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {}
+            }
+          },
           "d3f4cc9094ad95738298": {
             "filters": {
               "byExpr": [
                 {
-                  "name": "8a3c32430c7003ae6fb6",
-                  "type": "Categorical",
-                  "expression": {
-                    "Column": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Dim_SkillList"
-                        }
-                      },
-                      "Property": "SkillName"
-                    }
-                  },
-                  "howCreated": 1
-                },
-                {
-                  "name": "326d5f66472c7aa09ab8",
+                  "name": "9cf87e4741ce9a17805d",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
@@ -924,11 +1131,65 @@
               }
             }
           },
+          "d76a2df32f2779418e7e": {
+            "singleVisual": {
+              "visualType": "image",
+              "objects": {},
+              "display": {
+                "mode": "hidden"
+              }
+            }
+          },
+          "d995ea38e9e83ad8359c": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "c51adb61cbe3e58ee4be": {
+            "filters": {
+              "byExpr": [
+                {
+                  "name": "ed79e6330cca0026caa4",
+                  "type": "Advanced",
+                  "expression": {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Avg Mid Salary EUR"
+                    }
+                  },
+                  "howCreated": 0
+                }
+              ]
+            },
+            "singleVisual": {
+              "visualType": "cardVisual",
+              "objects": {},
+              "activeProjections": {
+                "Data": [
+                  {
+                    "Measure": {
+                      "Expression": {
+                        "SourceRef": {
+                          "Entity": "Metrics"
+                        }
+                      },
+                      "Property": "Avg Mid Salary EUR"
+                    }
+                  }
+                ]
+              }
+            }
+          },
           "e941950649ddb0eadb2c": {
             "filters": {
               "byExpr": [
                 {
-                  "name": "dfd46470ec5e0a0bc62a",
+                  "name": "75a5eb52c944ccda58d6",
                   "type": "Advanced",
                   "expression": {
                     "Column": {
@@ -963,11 +1224,17 @@
               }
             }
           },
-          "4a880744116f0fcb1b0a": {
+          "fad5f624d7db84047613": {
+            "singleVisual": {
+              "visualType": "shape",
+              "objects": {}
+            }
+          },
+          "map_europe_4f8a2c1d9b3e5f7a8b1c": {
             "filters": {
               "byExpr": [
                 {
-                  "name": "24b016b45cd1e0350439",
+                  "name": "a7f3c9e21b5d4e608a71",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -976,91 +1243,28 @@
                           "Entity": "Metrics"
                         }
                       },
-                      "Property": "Salary Disclosure Rate"
+                      "Property": "Geo - Show Map Feature"
                     }
                   },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Salary Disclosure Rate"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "71a6fb73df36712a911d": {
-            "filters": {
-              "byExpr": [
+                  "howCreated": 1
+                },
                 {
-                  "name": "fd324150c7436983c320",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "P25 Mid Salary EUR"
-                    }
-                  },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "P25 Mid Salary EUR"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "7c7537d1ce755fd87329": {
-            "filters": {
-              "byExpr": [
-                {
-                  "name": "f2e3e4f259809b89275b",
+                  "name": "0209dcd062c4b6001906",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
                       "Expression": {
                         "SourceRef": {
-                          "Entity": "Fact_Offers"
+                          "Entity": "MapFeature"
                         }
                       },
-                      "Property": "WorkModeBucket"
+                      "Property": "MapKey"
                     }
                   },
                   "howCreated": 0
                 },
                 {
-                  "name": "ea6e848c122acd867078",
+                  "name": "2e1c319da085eceb50e5",
                   "type": "Advanced",
                   "expression": {
                     "Measure": {
@@ -1069,7 +1273,7 @@
                           "Entity": "Metrics"
                         }
                       },
-                      "Property": "Avg Mid Salary EUR"
+                      "Property": "Geo - Map Value"
                     }
                   },
                   "howCreated": 0
@@ -1077,7 +1281,7 @@
               ]
             },
             "singleVisual": {
-              "visualType": "clusteredBarChart",
+              "visualType": "shapeMap",
               "objects": {},
               "activeProjections": {
                 "Category": [
@@ -1085,14 +1289,14 @@
                     "Column": {
                       "Expression": {
                         "SourceRef": {
-                          "Entity": "Fact_Offers"
+                          "Entity": "MapFeature"
                         }
                       },
-                      "Property": "WorkModeBucket"
+                      "Property": "MapKey"
                     }
                   }
                 ],
-                "Y": [
+                "Value": [
                   {
                     "Measure": {
                       "Expression": {
@@ -1100,71 +1304,7 @@
                           "Entity": "Metrics"
                         }
                       },
-                      "Property": "Avg Mid Salary EUR"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "card_fp_filters_48100224700d4795bd4c0c89": {
-            "filters": {
-              "byExpr": [
-                {
-                  "name": "74a35bf17d30a5a6090b",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Selected Filters Text Salary_Insights"
-                    }
-                  },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {}
-            }
-          },
-          "c51adb61cbe3e58ee4be": {
-            "filters": {
-              "byExpr": [
-                {
-                  "name": "4b23a6c4ba216a3e6946",
-                  "type": "Advanced",
-                  "expression": {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Avg Mid Salary EUR"
-                    }
-                  },
-                  "howCreated": 0
-                }
-              ]
-            },
-            "singleVisual": {
-              "visualType": "cardVisual",
-              "objects": {},
-              "activeProjections": {
-                "Data": [
-                  {
-                    "Measure": {
-                      "Expression": {
-                        "SourceRef": {
-                          "Entity": "Metrics"
-                        }
-                      },
-                      "Property": "Avg Mid Salary EUR"
+                      "Property": "Geo - Map Value"
                     }
                   }
                 ]
@@ -1175,7 +1315,7 @@
             "filters": {
               "byExpr": [
                 {
-                  "name": "fec2e3e6ad277b680090",
+                  "name": "cbce86b6c868adbce27d",
                   "type": "Categorical",
                   "expression": {
                     "Column": {
@@ -1193,25 +1333,57 @@
             },
             "singleVisual": {
               "visualType": "advancedSlicerVisual",
-              "objects": {}
-            }
-          },
-          "d995ea38e9e83ad8359c": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "125e6060041100090883": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
-            }
-          },
-          "5e89debf982c8135da32": {
-            "singleVisual": {
-              "visualType": "shape",
-              "objects": {}
+              "objects": {
+                "merge": {
+                  "general": [
+                    {
+                      "properties": {
+                        "filter": {
+                          "filter": {
+                            "Version": 2,
+                            "From": [
+                              {
+                                "Name": "g",
+                                "Entity": "Geo Selection",
+                                "Type": 0
+                              }
+                            ],
+                            "Where": [
+                              {
+                                "Condition": {
+                                  "In": {
+                                    "Expressions": [
+                                      {
+                                        "Column": {
+                                          "Expression": {
+                                            "SourceRef": {
+                                              "Source": "g"
+                                            }
+                                          },
+                                          "Property": "Selection"
+                                        }
+                                      }
+                                    ],
+                                    "Values": [
+                                      [
+                                        {
+                                          "Literal": {
+                                            "Value": "'Europe'"
+                                          }
+                                        }
+                                      ]
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
             }
           }
         },

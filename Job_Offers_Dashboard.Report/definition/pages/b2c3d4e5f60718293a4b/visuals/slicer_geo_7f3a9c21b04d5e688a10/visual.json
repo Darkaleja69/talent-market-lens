@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.13.0/schema.json",
   "name": "slicer_geo_7f3a9c21b04d5e688a10",
   "position": {
     "x": 983.31983805668028,
@@ -176,7 +176,7 @@
                           [
                             {
                               "Literal": {
-                                "Value": "'Spain'"
+                                "Value": "'Europe'"
                               }
                             }
                           ]
@@ -246,5 +246,23 @@
       ]
     },
     "drillFilterOtherVisuals": true
+  },
+  "filterConfig": {
+    "filters": [
+      {
+        "name": "55fe46be33597a5ca086",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Geo Selection"
+              }
+            },
+            "Property": "Selection"
+          }
+        },
+        "type": "Categorical"
+      }
+    ]
   }
 }

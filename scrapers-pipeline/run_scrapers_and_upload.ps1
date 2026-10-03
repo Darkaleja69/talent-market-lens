@@ -10,7 +10,18 @@
 #
 #  Uso (Task Scheduler, diariamente a las 00:00):
 #    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "...\run_scrapers_and_upload.ps1"
+#
+#  -Supervised (T-10; RF-4): solo lo pasa run_pipeline_supervised.ps1, que
+#  desde T-14 es el script de la tarea programada. Antes de lanzar los
+#  scrapers reconcilia, con recover_and_upload.ps1 -Date, los runs
+#  truncados/pendientes anteriores a hoy que ya no tengan wrappers vivos; un
+#  fallo ahi nunca aborta el run que empieza. La reconciliacion automatica
+#  forma parte del ciclo normal de la tarea programada.
 # =============================================================================
+
+param(
+    [switch]$Supervised
+)
 
 $ErrorActionPreference = "Continue"
 Set-StrictMode -Version Latest
@@ -85,6 +96,88 @@ $script:GlobalFailures = 0
 #    Rejected = numero de ficheros rechazados por validacion
 #    ExitCode = exit code del wrapper (si termino)
 $script:PublishResults = @{}
+
+# --- Estado persistente del run (RF-1) ---------------------------------------
+#  Hito 1 (inicio): se crea DESPUES de validar config/SAS/AzCopy (un arranque
+#  que sale con exit 2 antes de lanzar nada no debe dejar un estado "pending"
+#  que la recuperacion interprete como run truncado con trabajo pendiente; el
+#  log general ya registra ese aborto para el diagnostico). El started_at es el
+#  instante real de arranque ($StartTime), no el momento de escribir el fichero.
+#  Fichero: logs/run_state/<run_date>.json. Un fallo al guardar el estado NUNCA
+#  aborta el pipeline (RF-9): se registra WARN y se continua.
+. (Join-Path $ScriptDir "run_state.ps1")
+$script:RunStateDir = Join-Path $LogDir "run_state"
+$script:RunState = $null
+
+#  Persiste en disco el estado en memoria. Nunca aborta el pipeline.
+function Save-RunState {
+    if ($null -eq $script:RunState) { return }
+    try {
+        Write-RunState -State $script:RunState -StateDir $script:RunStateDir | Out-Null
+    } catch {
+        Write-Log "No se pudo guardar el estado del run: $($_.Exception.Message)" -Level WARN
+    }
+}
+
+#  Hito 2 (por fuente): registra el resultado de una fuente y persiste. Se
+#  invoca en TODOS los caminos que asignan $script:PublishResults para que
+#  ninguna fuente quede sin estado. $Result puede no traer Uploaded/Rejected
+#  (p. ej. wrapper inexistente o timeout global).
+function Update-RunSourceState {
+    param([string]$Name, [hashtable]$Result)
+    if ($null -eq $script:RunState) { return }
+    try {
+        $uploaded = 0
+        $rejected = 0
+        if ($Result.ContainsKey("Uploaded")) { $uploaded = [int]$Result.Uploaded }
+        if ($Result.ContainsKey("Rejected")) { $rejected = [int]$Result.Rejected }
+        Set-RunSourceState -State $script:RunState -Source $Name -Status ([string]$Result.Status) `
+            -Uploaded $uploaded -Rejected $rejected
+    } catch {
+        Write-Log "[$Name] No se pudo actualizar su estado en el run: $($_.Exception.Message)" -Level WARN
+        return
+    }
+    Save-RunState
+}
+
+try {
+    $script:RunState = New-RunState -RunDate $Today -StartedAt $StartTime.ToString("o")
+} catch {
+    $script:RunState = $null
+    Write-Log "No se pudo crear el estado del run: $($_.Exception.Message)" -Level WARN
+}
+if ($null -ne $script:RunState) {
+    Save-RunState
+    if (Test-Path -LiteralPath (Join-Path $script:RunStateDir "$Today.json")) {
+        Write-Log "Estado del run persistido en $($script:RunStateDir)\$Today.json"
+    }
+}
+
+# --- Reconciliacion de runs anteriores (RF-4; solo con -Supervised) ----------
+#  Descubre (CLI local de verification.recovery) los runs truncados/pendientes
+#  ANTERIORES a hoy y EN ALCANCE AUTOMATICO (desde 2026-10-01, no superados;
+#  los historicos y superados se registran con su motivo, T-21) y recupera los
+#  que ya no tengan wrappers vivos. Un fallo aqui nunca aborta el run que
+#  empieza: se registra y se continua (RF-4). Sin -Supervised no se ejecuta
+#  nada de esto (RF-9).
+if ($Supervised) {
+    . (Join-Path $ScriptDir "reconcile_pending_runs.ps1")
+    try {
+        $reconciliation = Invoke-PendingReconciliation `
+            -ProjectsRoot $ProjectsRoot `
+            -LogsDir $LogDir `
+            -StateDir $script:RunStateDir `
+            -Before $Today `
+            -RecoveryScript (Join-Path $ScriptDir "recover_and_upload.ps1") `
+            -Logger { param($Message, $Level) Write-Log $Message -Level $Level }
+        Write-Log ("Reconciliacion: {0} pendiente(s), {1} recuperado(s), {2} con wrappers vivos, {3} fuera de alcance, {4} fallo(s)" -f `
+            $reconciliation.discovered, $reconciliation.invoked.Count, `
+            $reconciliation.skipped_live.Count, $reconciliation.skipped_scope.Count, `
+            $reconciliation.failures.Count)
+    } catch {
+        Write-Log "La reconciliacion de pendientes fallo (se continua con el run): $($_.Exception.Message)" -Level WARN
+    }
+}
 
 # --- Captura fiable del exit code de un proceso ------------------------------
 #  Bug conocido de PS 5.1: tras Start-Process -PassThru, $proc.ExitCode puede
@@ -480,6 +573,7 @@ foreach ($s in $Scrapers) {
         Write-Log "[$name] Wrapper no existe: $($s.Wrapper)" -Level ERROR
         $script:GlobalFailures++
         $script:PublishResults[$name] = @{ Status = "failed"; ExitCode = -1; Message = "Wrapper no existe" }
+        Update-RunSourceState -Name $name -Result $script:PublishResults[$name]
         continue
     }
     try {
@@ -490,6 +584,7 @@ foreach ($s in $Scrapers) {
         Write-Log "[$name] No se pudo lanzar el proceso: $($_.Exception.Message)" -Level ERROR
         $script:GlobalFailures++
         $script:PublishResults[$name] = @{ Status = "failed"; ExitCode = -1; Message = $_.Exception.Message }
+        Update-RunSourceState -Name $name -Result $script:PublishResults[$name]
         continue
     }
     $runningJobs[$name] = @{ Proc=$proc; Scraper=$s; StartedAt=(Get-Date); Logged30=$false }
@@ -550,6 +645,7 @@ while ($runningJobs.Count -gt 0) {
                 # trigger (_READY); si no, queda como 'killed' (sin datos).
                 $killedStatus = if ($up.Status -eq "ok" -or $up.Status -eq "partial") { $up.Status } else { "killed" }
                 $script:PublishResults[$name] = @{ Status = $killedStatus; ExitCode = -1; Uploaded = $up.Uploaded; Rejected = $up.Rejected; Message = $up.Message }
+                Update-RunSourceState -Name $name -Result $script:PublishResults[$name]
                 continue
             }
 
@@ -579,6 +675,7 @@ while ($runningJobs.Count -gt 0) {
                 $script:GlobalFailures++
             }
             $script:PublishResults[$name] = $up
+            Update-RunSourceState -Name $name -Result $script:PublishResults[$name]
             continue
         }
 
@@ -600,6 +697,7 @@ while ($runningJobs.Count -gt 0) {
             try { Stop-Process -Id $entry.Value.Proc.Id -Force -ErrorAction Stop } catch {}
             $script:GlobalFailures++
             $script:PublishResults[$nm] = @{ Status = "killed"; ExitCode = -1 }
+            Update-RunSourceState -Name $nm -Result $script:PublishResults[$nm]
         }
         $runningJobs.Clear()
         break
@@ -618,6 +716,20 @@ $Elapsed = (Get-Date) - $StartTime
 Write-Log "====  Fin pipeline. Fallos: $script:GlobalFailures  Duracion: $([math]::Round($Elapsed.TotalSeconds))s ===="
 foreach ($pr in $script:PublishResults.GetEnumerator()) {
     Write-Log "  [$($pr.Key)] status=$($pr.Value.Status) subidos=$($pr.Value.Uploaded) rechazados=$($pr.Value.Rejected)"
+}
+
+# --- Cierre del estado persistente del run (RF-1) ----------------------------
+#  Hito 3 (cierre): tras "Fin pipeline" y el resumen por fuente, el run queda
+#  "closed" con finished_at. Si el proceso muere antes, el estado se queda
+#  "pending" y el log sin "Fin pipeline" lo delata (RF-1). Un fallo al guardar
+#  NUNCA aborta el pipeline (RF-9).
+if ($null -ne $script:RunState) {
+    try {
+        Close-RunState -State $script:RunState
+    } catch {
+        Write-Log "No se pudo cerrar el estado del run: $($_.Exception.Message)" -Level WARN
+    }
+    Save-RunState
 }
 
 # --- Notificar a Databricks que los datos del dia estan listos ----------------

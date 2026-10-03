@@ -1147,15 +1147,21 @@ def test_main_overwrites_the_result_file_on_each_run(tmp_path, capsys):
     args = _main_args(tmp_path, logs_dir, "--output", str(output))
 
     verify_run.main(args)
-    first = output.read_text(encoding="utf-8")
+    first = json.loads(output.read_text(encoding="utf-8"))
     verify_run.main(args)
-    second = output.read_text(encoding="utf-8")
+    second = json.loads(output.read_text(encoding="utf-8"))
     capsys.readouterr()
 
+    # ``generated_at`` is the only clock-dependent field emitted by
+    # ``report.diagnostic_to_dict`` (a single ``datetime.now()`` in report.py);
+    # neutralise it so two runs crossing a second boundary stay comparable.
+    first_generated = first.pop("generated_at")
+    second_generated = second.pop("generated_at")
     assert first == second
-    assert "contenido anterior" not in second
-    payload = json.loads(second)
-    assert payload["schema_version"] == 1
+    assert datetime.fromisoformat(first_generated)
+    assert datetime.fromisoformat(second_generated)
+    assert "contenido anterior" not in json.dumps(second)
+    assert second["schema_version"] == 1
     # The result is overwritten in place: no sibling temporaries remain.
     assert [path.name for path in results_dir.iterdir()] == ["diagnostic.json"]
 
