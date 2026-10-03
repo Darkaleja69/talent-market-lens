@@ -170,7 +170,7 @@ comprobación indicada antes de continuar.
     `run_diagnostic` clasifica la publicación como correcta (antes: pendiente)
     y la suite del pipeline queda en verde.
 
-- [ ] **T-17 — Comprobación real con el run 2026-10-01** (~25 min)
+- [x] **T-17 — Comprobación real con el run 2026-10-01** (~25 min)
   - **RF:** RF-3, RF-5, RF-6.
   - **Depende de:** T-15, T-16, T-16A.
   - **Hecho cuando:** con los restos preservados (T-01) y validación de la
@@ -180,6 +180,10 @@ comprobación indicada antes de continuar.
     evidencia.
   - Si los restos ya no sirvieran: aborto controlado equivalente con una
     fuente acotada, con la persona validando la subida.
+  - **Evidencia (2026-10-03):** ver `recovery-2026-10-01.md`; recuperación
+    exit 0, Indeed (67 filas) y Multi-site (6 nuevas) con manifest, cierre del
+    log y `_READY` `RECOVERED`; el diagnóstico analiza el run y clasifica la
+    publicación como correcta (tendencia no comparable por huellas).
 
 - [ ] **T-18 — Tratar la causa raíz** (~25 min)
   - **RF:** RF-8.
