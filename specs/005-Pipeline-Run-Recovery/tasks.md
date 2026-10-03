@@ -208,12 +208,16 @@ comprobación indicada antes de continuar.
     mitigación y lo no averiguado (H1 sin confirmar, H2 neutralizada); suite
     761 passed; verificación independiente PASS.
 
-- [ ] **T-19 — Documentar el proceso en AGENTS.md** (~15 min)
+- [x] **T-19 — Documentar el proceso en AGENTS.md** (~15 min)
   - **RF:** RF-1–RF-9 (verificación del alcance).
   - **Depende de:** T-14, T-17.
   - **Hecho cuando:** AGENTS.md incluye el comando de recuperación (`-DryRun` y
     real), el estado del run y el comando de tests, con el visto bueno de la
     persona.
+  - **Evidencia (2026-10-03):** AGENTS.md documenta el ciclo supervisado, la
+    recuperación manual (`-DryRun`/real/`-PlanJson`), el estado del run y el
+    comando de tests; verificación independiente PASS; la persona revisó el
+    diff, aportó su propio ajuste y dio el visto bueno.
 
 ## 5. Correcciones de la comprobación real (2026-10-03)
 
