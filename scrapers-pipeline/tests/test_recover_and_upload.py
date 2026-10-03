@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime
@@ -20,7 +21,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from verification import run_evidence
+from verification import run_evidence, verify_run
 
 PIPELINE_DIR = Path(__file__).resolve().parents[1]
 RECOVER = PIPELINE_DIR / "recover_and_upload.ps1"
@@ -200,6 +201,47 @@ def _run_recover(
         env=env,
     )
     return completed, log_dir
+
+
+# T-16A: manifest destination keys look like
+# ``.../_manifests/<source>/<stamp>.json<SAS>`` inside the recorded AzCopy call.
+_MANIFEST_KEY_RE = re.compile(r"/_manifests/([^/|]+)/(\d{8}_\d{6})\.json")
+
+
+def _manifest_stamps(calls: str) -> dict[str, str]:
+    """Map scraper -> stamp from the recorded manifest upload destinations."""
+    stamps: dict[str, str] = {}
+    for line in calls.splitlines():
+        if not line.startswith("copy|"):
+            continue
+        for match in _MANIFEST_KEY_RE.finditer(line):
+            stamps[match.group(1)] = match.group(2)
+    return stamps
+
+
+def _write_general_log_header(
+    log_dir: Path, *, start_clock: str = "00:00:00", run_date: str = DATE
+) -> Path:
+    """Create the run's general log with its ``Inicio`` header (T-16A)."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    general_log = log_dir / f"upload-{run_date}.log"
+    general_log.write_text(
+        f"{start_clock}  [INFO]  ====  Inicio pipeline scrapers  ({run_date}) ====\n"
+        "00:00:05  [INFO]  Lanzando 4 scrapers en paralelo...\n",
+        encoding="utf-8",
+    )
+    return general_log
+
+
+def _run_window(log_path: Path) -> tuple[datetime, datetime]:
+    """Return the ``[started_at, finished_at]`` window parsed from the log."""
+    summary = run_evidence.parse_pipeline_log(log_path)
+    assert summary.completed is True
+    assert summary.started_at and summary.finished_at
+    return (
+        datetime.fromisoformat(summary.started_at),
+        datetime.fromisoformat(summary.finished_at),
+    )
 
 
 def _indeed_fixture(projects: Path, *, with_title: bool = True) -> Path:
@@ -708,3 +750,211 @@ def test_T12_missing_run_state_is_recorded(tmp_path):
     log_text = _log_text(log_dir)
     assert "No existe el estado del run" in log_text
     assert "no se inventa" in log_text
+
+
+# --------------------------------------------------------------------------
+# T-16A: run-date manifest stamping for late recoveries
+# --------------------------------------------------------------------------
+
+
+def test_T16A_late_recovery_manifest_is_stamped_with_the_run_date(tmp_path):
+    """Days-late recovery: the manifest anchors the recovered run, not today.
+
+    Before T-16A the stamp was ``Get-Date`` (the recovery day), so
+    ``run_diagnostic`` found no manifest inside the run window and Indeed's
+    publication would have been pending (the T-17 reproduction).
+    """
+    projects = tmp_path / "projects"
+    parquet = _indeed_fixture(projects)
+    log_dir = tmp_path / "logs"
+    general_log = _write_general_log_header(log_dir)
+    plan = _write_plan(
+        tmp_path,
+        [
+            _item(
+                path=str(parquet),
+                required_cols=INDEED_REQUIRED,
+                coherence="indeed",
+                fingerprint_source="indeed",
+            )
+        ],
+    )
+
+    completed, _ = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    stamps = _manifest_stamps(calls)
+    assert set(stamps) == {"indeed"}
+    # The recovery day is not the run day: the stamp carries the run date.
+    assert stamps["indeed"].startswith(f"{COMPACT}_")
+    # Reuse the diagnostic's own window check: the stamp is an anchor.
+    window = _run_window(general_log)
+    assert verify_run._stamp_within_window(stamps["indeed"], window)
+
+
+def test_T16A_missing_general_log_falls_back_to_the_run_date(tmp_path):
+    """Without a readable ``Inicio`` time, now is used on the run date."""
+    projects = tmp_path / "projects"
+    parquet = _indeed_fixture(projects)
+    plan = _write_plan(
+        tmp_path,
+        [
+            _item(
+                path=str(parquet),
+                required_cols=INDEED_REQUIRED,
+                coherence="indeed",
+                fingerprint_source="indeed",
+            )
+        ],
+    )
+
+    completed, _ = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    # No general log existed when the item was sealed: the clock is the
+    # recovery's own, but the date is still the run date.
+    assert _manifest_stamps(calls)["indeed"].startswith(f"{COMPACT}_")
+
+
+def test_T16A_filtered_delta_name_and_manifest_share_the_run_stamp(tmp_path):
+    """The ``_new_$stamp`` file name matches the manifest stamp (T-16A)."""
+    projects = tmp_path / "projects"
+    snapshot = _write_parquet(
+        projects / "linkedin_jobs_scraper" / "data" / "output" / "jobs.parquet",
+        {
+            "job_id": ["a", "b"],
+            "job_url": ["https://example.com/1", "https://example.com/2"],
+            "company_name": ["ACME", "Beta"],
+            "title": ["Data Engineer", "Analyst"],
+            "scraped_at": ["2026-10-01", "2026-10-01"],
+        },
+    )
+    log_dir = tmp_path / "logs"
+    _write_general_log_header(log_dir)
+    plan = _write_plan(
+        tmp_path,
+        [
+            _item(
+                source="linkedin",
+                mode="delta",
+                path=str(snapshot),
+                required_cols=[
+                    "job_id",
+                    "job_url",
+                    "title",
+                    "company_name",
+                    "scraped_at",
+                ],
+                coherence="linkedin",
+                fingerprint_source="linkedin",
+                key_column="job_id",
+                only_new=True,
+            )
+        ],
+    )
+
+    completed, _ = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    manifest_stamp = _manifest_stamps(calls)["linkedin"]
+    assert manifest_stamp.startswith(f"{COMPACT}_")
+    uploaded = json.loads(
+        (tmp_path / "manifest_uploaded.json").read_text(encoding="utf-8")
+    )
+    remote = uploaded["files"][0]["remote"]
+    match = re.search(r"_new_(\d{8}_\d{6})\.parquet$", remote)
+    assert match is not None, remote
+    assert match.group(1) == manifest_stamp
+
+
+def test_T16A_stamp_stays_in_window_when_the_run_crosses_midnight(tmp_path):
+    """A reconciliation closing past midnight keeps the log's start time."""
+    projects = tmp_path / "projects"
+    parquet = _indeed_fixture(projects)
+    log_dir = tmp_path / "logs"
+    general_log = _write_general_log_header(log_dir, start_clock="23:59:55")
+    plan = _write_plan(
+        tmp_path,
+        [
+            _item(
+                path=str(parquet),
+                required_cols=INDEED_REQUIRED,
+                coherence="indeed",
+                fingerprint_source="indeed",
+            )
+        ],
+    )
+
+    completed, _ = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    stamp = _manifest_stamps(calls)["indeed"]
+    assert stamp.startswith(f"{COMPACT}_")
+    window = _run_window(general_log)
+    assert verify_run._stamp_within_window(stamp, window)
+    if datetime.now().strftime("%H:%M:%S") < "23:59:55":
+        # Recovered after midnight: max(start, now) keeps the run start.
+        assert stamp == f"{COMPACT}_235955"
+
+
+def test_T16A_stamp_uses_the_last_inicio_block_analysed_by_the_diagnostic(
+    tmp_path,
+):
+    """Multi-block day: the seal follows ``parse_pipeline_log``'s last block.
+
+    A finished earlier run (22:00) and a later truncated one (23:50) share the
+    date. ``run_evidence.parse_pipeline_log`` analyses the last block, so the
+    stamp must use its start: with the first block it would fall outside the
+    analysed window (verifier's reproduction).
+    """
+    projects = tmp_path / "projects"
+    parquet = _indeed_fixture(projects)
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    general_log = log_dir / f"upload-{DATE}.log"
+    general_log.write_text(
+        f"22:00:00  [INFO]  ====  Inicio pipeline scrapers  ({DATE}) ====\n"
+        "22:30:00  [INFO]  ====  Fin pipeline. Fallos: 0  Duracion: 1800s ====\n"
+        f"23:50:00  [INFO]  ====  Inicio pipeline scrapers  ({DATE}) ====\n"
+        "23:50:05  [INFO]  Lanzando 4 scrapers en paralelo...\n",
+        encoding="utf-8",
+    )
+    plan = _write_plan(
+        tmp_path,
+        [
+            _item(
+                path=str(parquet),
+                required_cols=INDEED_REQUIRED,
+                coherence="indeed",
+                fingerprint_source="indeed",
+            )
+        ],
+    )
+
+    completed, _ = _run_recover(tmp_path, plan=plan, projects_root=projects)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    calls = (tmp_path / "azcopy_calls.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    stamp = _manifest_stamps(calls)["indeed"]
+    assert stamp.startswith(f"{COMPACT}_")
+    # The diagnostic analyses the last block of the day (23:50), not the first.
+    window = _run_window(general_log)
+    assert window[0] == datetime.fromisoformat(f"{DATE}T23:50:00")
+    assert verify_run._stamp_within_window(stamp, window)
+    if datetime.now().strftime("%H:%M:%S") < "23:50:00":
+        # max(last start, now) keeps the last block's start.
+        assert stamp == f"{COMPACT}_235000"

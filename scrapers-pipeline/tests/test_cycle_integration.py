@@ -30,7 +30,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from verification import run_evidence
+from verification import landing, publication, run_evidence, verify_run
 
 PIPELINE_DIR = Path(__file__).resolve().parents[1]
 RECOVER = PIPELINE_DIR / "recover_and_upload.ps1"
@@ -293,6 +293,51 @@ def _landing_tree(root: Path) -> dict[str, int]:
     }
 
 
+class _FakeReader:
+    """In-memory ``landing.RemoteReader`` over the simulated landing (T-16A).
+
+    Same pattern as ``tests/test_verify_run.py``: the objects dict maps
+    container-relative keys to their bytes, so ``run_diagnostic`` can check the
+    recovered publication and its trend without Azure or credentials.
+    """
+
+    def __init__(self, objects: dict[str, bytes]) -> None:
+        self.objects = dict(objects)
+
+    def list_objects(self, prefix: str) -> list[landing.RemoteObject]:
+        return [
+            landing.RemoteObject(path=key, size=len(data))
+            for key, data in self.objects.items()
+            if key.startswith(prefix)
+        ]
+
+    def download(self, remote_path: str, local_path: Path) -> None:
+        data = self.objects.get(remote_path)
+        if data is None:
+            raise landing.RemoteError("objeto no encontrado")
+        local = Path(local_path)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        local.write_bytes(data)
+
+    def close(self) -> None:  # pragma: no cover - protocol completeness
+        pass
+
+
+def _landing_objects(root: Path) -> dict[str, bytes]:
+    """Read every file of the simulated landing into memory."""
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _parquet_bytes(columns: dict) -> bytes:
+    sink = pa.BufferOutputStream()
+    pq.write_table(pa.table(columns), sink)
+    return sink.getvalue().to_pybytes()
+
+
 def test_T15_offline_recovery_cycle_end_to_end(tmp_path):
     workspace = _build_workspace(tmp_path)
     landing = tmp_path / "landing"
@@ -429,3 +474,56 @@ def test_T15_offline_recovery_cycle_end_to_end(tmp_path):
     assert _landing_tree(landing) == tree_after_run2  # nothing new at all
     assert ready.read_bytes() == ready_bytes
     assert run_evidence.parse_pipeline_log(general_log).completed is True
+
+    # --- 6) Diagnostic over the simulated landing (T-16A) --------------------
+    # The recovered manifest is sealed with the run date and an instant inside
+    # its window, so run_diagnostic anchors Indeed's publication to the run
+    # (before T-16A the manifest carried the recovery day and it was pending).
+    objects = _landing_objects(landing)
+    indeed_manifests = sorted((landing / "_manifests" / "indeed").glob("*.json"))
+    assert indeed_manifests, "Indeed's recovery manifest must exist"
+    current_manifest = json.loads(
+        max(indeed_manifests, key=lambda path: path.name).read_text(encoding="utf-8")
+    )
+    fingerprint = current_manifest["fingerprint"]
+    history_key = "indeed/dia=2026-09-30/indeed_jobs_20260930_0001.parquet"
+    objects["_manifests/indeed/20260930_010000.json"] = json.dumps(
+        {
+            "schema_version": 1,
+            "total_files": 1,
+            "bad_files": 0,
+            "fingerprint": fingerprint,
+            "files": [
+                {
+                    "file": "indeed_jobs_20260930_0001.parquet",
+                    "status": "ok",
+                    "rows": 2,
+                    "remote": "dia=2026-09-30/indeed_jobs_20260930_0001.parquet",
+                }
+            ],
+        }
+    ).encode("utf-8")
+    objects[history_key] = _parquet_bytes(
+        {
+            "job_key": ["h1", "h2"],
+            "title": ["Data Engineer", "Analyst"],
+            "company": ["ACME", "Beta"],
+            "viewjob_url": ["https://example.com/h1", "https://example.com/h2"],
+            "scraped_at": [RUN_DATE, RUN_DATE],
+        }
+    )
+
+    reader = _FakeReader(objects)
+    diagnostic = verify_run.run_diagnostic(
+        workspace["ws"], workspace["logs"], reader=reader
+    )
+    indeed = next(s for s in diagnostic.sources if s.source == "indeed")
+
+    assert indeed.publication_state == publication.PUBLICATION_OK
+    assert indeed.delta_offers == 2
+    # The comparable history makes the recovered run a real trend anchor. The
+    # idempotent re-run left a second manifest of the same run (same
+    # fingerprint), so the series has at least the anchor plus its history.
+    assert indeed.trend is not None
+    assert indeed.trend.runs_used >= 2
+    assert indeed.trend.fields
