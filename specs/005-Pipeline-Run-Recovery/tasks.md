@@ -214,7 +214,7 @@ la reconciliación al arrancar recuperó 18 fechas históricas fuera de alcance 
 re-subió tres veces el run del 2026-07-23 porque el plan no consultó la
 landing. Se corrigen dentro de esta misma spec (AGENTS.md).
 
-- [ ] **T-20 — Idempotencia real en el plan de recuperación** (~25 min)
+- [x] **T-20 — Idempotencia real en el plan de recuperación** (~25 min)
   - **RF:** RF-3.
   - **Depende de:** T-07, T-11.
   - **Hallazgo:** el plan que usa la recuperación automática no inyecta el
@@ -225,6 +225,12 @@ landing. Se corrigen dentro de esta misma spec (AGENTS.md).
     el ejecutor consulta la landing (`verification.landing`) y omite lo ya
     publicado; un test de doble recuperación demuestra que la segunda no vuelve
     a subir ni duplica manifests; la suite del pipeline sigue en verde.
+  - **Evidencia (2026-10-03):** CLI `plan --check-landing` construye el lector
+    real (`landing.AzCopyReader`; SAS solo desde el entorno, nunca en argv ni
+    logs) y omite lo publicado con `published_key`; `recover_and_upload.ps1` lo
+    usa en reconciliación y supervisor; sin SAS/red falla cerrado y el run
+    queda `pending`; test e2e de doble recuperación sin subidas nuevas ni
+    manifests duplicados; suite 757 passed; verificación independiente PASS.
 
 - [ ] **T-21 — Acotar la reconciliación a los runs recuperables** (~25 min)
   - **RF:** RF-2, RF-4.
