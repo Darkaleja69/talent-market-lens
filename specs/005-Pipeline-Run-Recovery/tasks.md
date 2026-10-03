@@ -206,3 +206,34 @@ comprobación indicada antes de continuar.
   - **Hecho cuando:** AGENTS.md incluye el comando de recuperación (`-DryRun` y
     real), el estado del run y el comando de tests, con el visto bueno de la
     persona.
+
+## 5. Correcciones de la comprobación real (2026-10-03)
+
+La ejecución de comprobación de T-14 destapó dos defectos de esta misma spec:
+la reconciliación al arrancar recuperó 18 fechas históricas fuera de alcance y
+re-subió tres veces el run del 2026-07-23 porque el plan no consultó la
+landing. Se corrigen dentro de esta misma spec (AGENTS.md).
+
+- [ ] **T-20 — Idempotencia real en el plan de recuperación** (~25 min)
+  - **RF:** RF-3.
+  - **Depende de:** T-07, T-11.
+  - **Hallazgo:** el plan que usa la recuperación automática no inyecta el
+    lector remoto de `verification.landing`, así que `published_key` queda nulo
+    y lo ya publicado no se omite (2026-07-23: plan idéntico y mismas subidas
+    tres veces).
+  - **Hecho cuando:** el plan de recuperación que consumen la reconciliación y
+    el ejecutor consulta la landing (`verification.landing`) y omite lo ya
+    publicado; un test de doble recuperación demuestra que la segunda no vuelve
+    a subir ni duplica manifests; la suite del pipeline sigue en verde.
+
+- [ ] **T-21 — Acotar la reconciliación a los runs recuperables** (~25 min)
+  - **RF:** RF-2, RF-4.
+  - **Depende de:** T-05, T-10.
+  - **Hallazgo:** el arranque supervisado del 2026-10-03 recuperó 2026-07-22…
+    2026-09-25 (18 fechas, 27 subidas, `_READY` históricos) pese a que la spec
+    deja los históricos fuera de alcance; `pending --before 2026-10-03` sigue
+    devolviendo 3 runs ya recuperados/`superseded`.
+  - **Hecho cuando:** la reconciliación no recupera runs anteriores al
+    2026-10-01 ni runs ya cerrados/`superseded`, lo registra con motivo, y un
+    test cubre el límite inferior y el filtro; el comando `pending` deja de
+    listar lo ya recuperado.
