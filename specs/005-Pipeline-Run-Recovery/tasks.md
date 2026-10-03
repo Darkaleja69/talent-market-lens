@@ -192,13 +192,20 @@ comprobación indicada antes de continuar.
     log y `_READY` `RECOVERED`; el diagnóstico analiza el run y clasifica la
     publicación como correcta (tendencia no comparable por huellas).
 
-- [ ] **T-18 — Tratar la causa raíz** (~25 min)
+- [x] **T-18 — Tratar la causa raíz** (~25 min)
   - **RF:** RF-8.
   - **Depende de:** T-02, T-14.
   - **Hecho cuando:** con la evidencia disponible y la instrumentación activa,
     se corrige la causa si es identificable (p. ej. condición de red de la
     tarea) o se documenta en `evidence-2026-10-01.md` la mitigación y lo no
     averiguado.
+  - **Evidencia (2026-10-03):** `RunOnlyIfNetworkAvailable=false` y
+    `StopOnIdleEnd=false` aplicados a `Scrapers_Daily_Upload` (solo esos dos
+    ajustes; backup del XML en `%TEMP%\opencode\task-backup`); la tarea no
+    requirió elevación, el registro operativo del Programador queda pendiente
+    de consola elevada; la sección 8 de `evidence-2026-10-01.md` documenta la
+    mitigación y lo no averiguado (H1 sin confirmar, H2 neutralizada); suite
+    761 passed; verificación independiente PASS.
 
 - [ ] **T-19 — Documentar el proceso en AGENTS.md** (~15 min)
   - **RF:** RF-1–RF-9 (verificación del alcance).
