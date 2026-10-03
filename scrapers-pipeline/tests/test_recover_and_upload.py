@@ -1,8 +1,9 @@
 """Tests for the plan-driven recovery executor (T-11; RF-2, RF-3).
 
 Offline: ``recover_and_upload.ps1`` runs with a fake AzCopy (a .ps1 that
-records its arguments and copies the uploaded manifest to a known place), a
-temporary ``uploaded_keys`` directory and a temporary quarantine. Real
+records its arguments and copies the uploaded manifest to a known place, plus
+a .cmd wrapper so the Python plan CLI can invoke it too; T-20), a temporary
+``uploaded_keys`` directory and a temporary quarantine. Real
 ``ensure_compatible.py``/``filter_new_offers.py`` validate the fixtures built
 with pyarrow. No Azure, SAS or credentials are used (the SAS env var is a
 dummy), and every temporary file lives under pytest's ``tmp_path``.
@@ -76,13 +77,31 @@ def _write_plan(tmp_path: Path, items: list[dict]) -> Path:
     return path
 
 
+def _write_cmd_wrapper(tmp_path: Path, script: Path) -> Path:
+    """Return a .cmd that forwards every argument to the PowerShell script.
+
+    The recovery executor can call a ``.ps1`` with ``&``, but the Python plan
+    CLI invokes AzCopy with ``subprocess`` (T-20), which cannot start a
+    ``.ps1`` directly on Windows. The wrapper keeps one fake for both paths.
+    """
+    wrapper = tmp_path / "fake_azcopy.cmd"
+    wrapper.write_text(
+        "@echo off\n"
+        f'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0{script.name}" %*\n'
+        "exit /b %ERRORLEVEL%\n",
+        encoding="ascii",
+    )
+    return wrapper
+
+
 def _write_fake_azcopy(tmp_path: Path, *, exit_code: int = 0) -> Path:
     """Fake AzCopy: records every call, answers ``list`` and keeps copies.
 
     ``list`` prints the lines of ``<tmp>/ready_list.txt`` when it exists (used
     to simulate an existing ``_READY``). Every ``copy`` of a leaf file keeps a
     copy under ``<tmp>/uploaded_files/<name>`` (manifests also go to the legacy
-    ``manifest_uploaded.json``).
+    ``manifest_uploaded.json``). Returns the .cmd wrapper so both the executor
+    and the plan CLI can run it.
     """
     calls = tmp_path / "azcopy_calls.log"
     uploaded = tmp_path / "manifest_uploaded.json"
@@ -114,7 +133,7 @@ def _write_fake_azcopy(tmp_path: Path, *, exit_code: int = 0) -> Path:
         ),
         encoding="utf-8",
     )
-    return script
+    return _write_cmd_wrapper(tmp_path, script)
 
 
 def _write_fake_azcopy_manifest_failure(tmp_path: Path) -> Path:
@@ -149,6 +168,7 @@ def _run_recover(
     projects_root: Path | None = None,
     extra: list[str] | None = None,
     ready_policy: str | None = None,
+    env_overrides: dict[str, str] | None = None,
 ):
     log_dir = tmp_path / "logs"
     args = [
@@ -191,6 +211,8 @@ def _run_recover(
         "LANDING_SAS_TOKEN": "test-sas",
         "LANDING_STORAGE_ACCOUNT": "testaccount",
     }
+    if env_overrides:
+        env.update(env_overrides)
     completed = subprocess.run(
         args,
         capture_output=True,
@@ -958,3 +980,122 @@ def test_T16A_stamp_uses_the_last_inicio_block_analysed_by_the_diagnostic(
     if datetime.now().strftime("%H:%M:%S") < "23:50:00":
         # max(last start, now) keeps the last block's start.
         assert stamp == f"{COMPACT}_235000"
+
+
+# --------------------------------------------------------------------------
+# T-20: the production plan checks the landing and a second recovery is a no-op
+# --------------------------------------------------------------------------
+
+
+def _write_fake_landing_azcopy(tmp_path: Path, landing_root: Path) -> Path:
+    """Fake AzCopy backed by a local directory that mirrors the landing.
+
+    ``copy`` publishes into ``landing_root`` (a staged directory lands
+    directly under its key, as ``--as-subdir=false`` mandates) and ``list``
+    prints ``INFO: <key>; Content Length: <n>`` for the objects under the
+    prefix, so the Python plan CLI (``landing.AzCopyReader``) can resolve
+    ``published_key`` offline. Returns the .cmd wrapper used by both the
+    executor and the plan CLI.
+    """
+    calls = tmp_path / "azcopy_calls.log"
+    script = tmp_path / "fake_landing_azcopy.ps1"
+    script.write_text(
+        "\n".join(
+            [
+                "param([Parameter(ValueFromRemainingArguments = $true)][string[]]$AzArgs)",
+                f"Add-Content -LiteralPath '{calls}' -Value ($AzArgs -join '|')",
+                "function Get-LocalPath([string]$url) {",
+                "    $clean = ($url -split '\\?')[0]",
+                "    $idx = $clean.IndexOf('.net/')",
+                "    if ($idx -lt 0) { return $null }",
+                "    $key = $clean.Substring($idx + 5).Trim('/')",
+                "    $slash = $key.IndexOf('/')",
+                f"    if ($slash -lt 0) {{ return '{landing_root}' }}",
+                "    $rel = $key.Substring($slash + 1)",
+                f"    if ([string]::IsNullOrWhiteSpace($rel)) {{ return '{landing_root}' }}",
+                f"    return Join-Path '{landing_root}' ($rel -replace '/', '\\')",
+                "}",
+                "if ($AzArgs[0] -eq 'list') {",
+                "    $prefixPath = Get-LocalPath $AzArgs[1]",
+                "    if ($prefixPath -and (Test-Path -LiteralPath $prefixPath -PathType Container)) {",
+                "        Get-ChildItem -LiteralPath $prefixPath -Recurse -File | ForEach-Object {",
+                "            $key = $_.FullName.Substring($prefixPath.Length).TrimStart('\\') -replace '\\\\','/'",
+                '            Write-Output ("INFO: $key; Content Length: $($_.Length)")',
+                "        }",
+                "    }",
+                "    exit 0",
+                "}",
+                "if ($AzArgs[0] -eq 'copy') {",
+                "    $src = $AzArgs[1]",
+                "    $target = Get-LocalPath $AzArgs[2]",
+                "    if (Test-Path -LiteralPath $src -PathType Container) {",
+                "        New-Item -ItemType Directory -Force -Path $target | Out-Null",
+                "        Copy-Item -Path (Join-Path $src '*') -Destination $target -Recurse -Force",
+                "    } else {",
+                "        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null",
+                "        Copy-Item -LiteralPath $src -Destination $target -Force",
+                "    }",
+                "    exit 0",
+                "}",
+                "exit 1",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return _write_cmd_wrapper(tmp_path, script)
+
+
+def test_T20_second_recovery_does_not_upload_or_duplicate_manifests(tmp_path):
+    """The plan consumes the landing: the second recovery uploads nothing.
+
+    The executor generates its plan with `-Date`; since T-20 that plan asks
+    for the landing check, so the Indeed file already published on the
+    simulated landing is omitted with its ``published_key`` and no data or
+    manifest is copied again.
+    """
+    projects = tmp_path / "projects"
+    parquet = _indeed_fixture(projects)
+    landing_root = tmp_path / "landing"
+    azcopy = _write_fake_landing_azcopy(tmp_path, landing_root)
+
+    first, log_dir = _run_recover(
+        tmp_path,
+        date=DATE,
+        azcopy=azcopy,
+        projects_root=projects,
+        env_overrides={"LANDING_SAS_TOKEN": "?sv=test"},
+    )
+    assert first.returncode == 0, first.stdout + first.stderr
+
+    calls_path = tmp_path / "azcopy_calls.log"
+    copies_first = [
+        line
+        for line in calls_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if line.startswith("copy|")
+    ]
+    assert any("/indeed/dia=" in line for line in copies_first)
+    assert any("_manifests/indeed/" in line for line in copies_first)
+
+    second, _ = _run_recover(
+        tmp_path,
+        date=DATE,
+        azcopy=azcopy,
+        projects_root=projects,
+        env_overrides={"LANDING_SAS_TOKEN": "?sv=test"},
+    )
+    assert second.returncode == 0, second.stdout + second.stderr
+
+    copies_second = [
+        line
+        for line in calls_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        if line.startswith("copy|")
+    ]
+    assert copies_second == copies_first  # nothing re-uploaded, no new manifest
+    log_text = (log_dir / f"recover-{DATE}.log").read_text(
+        encoding="utf-8", errors="replace"
+    )
+    assert "ya publicado en la landing" in log_text
+    # Exactly one manifest of the run: the second recovery did not duplicate it.
+    manifests = sorted((landing_root / "_manifests" / "indeed").glob("*.json"))
+    assert len(manifests) == 1

@@ -700,6 +700,11 @@ class _FakeReader:
         self._objects = list(objects)
         self._error = error
         self.list_calls: list[str] = []
+        self.closed = False
+
+    def publish(self, path: str) -> None:
+        """Add an object to the fake landing (a previous recovery uploaded it)."""
+        self._objects.append(landing.RemoteObject(path=path))
 
     def list_objects(self, prefix: str):
         self.list_calls.append(prefix)
@@ -710,8 +715,8 @@ class _FakeReader:
     def download(self, remote_path: str, local_path: Path) -> None:  # pragma: no cover
         raise AssertionError("la idempotencia no debe descargar objetos")
 
-    def close(self) -> None:  # pragma: no cover
-        pass
+    def close(self) -> None:
+        self.closed = True
 
 
 def _indeed_file_plan(tmp_path: Path) -> recovery.RecoveryPlan:
@@ -1594,3 +1599,139 @@ def test_T13_pending_cli_out_contract_with_the_real_cli(tmp_path):
     assert payload["before"] == DATE_NEW
     assert payload["count"] == 1
     assert payload["runs"][0]["run_date"] == DATE_OLD
+
+
+# --------------------------------------------------------------------------
+# T-20: the plan CLI consults the landing (production idempotence wiring)
+# --------------------------------------------------------------------------
+
+
+def _write_indeed_fixture(projects: Path) -> Path:
+    return _write_parquet(
+        projects
+        / "indeed_jobs_scraper"
+        / "output"
+        / "indeed_jobs_20261001_0001.parquet",
+        "job_key",
+        ["a"],
+    )
+
+
+def _plan_indeed_item(plan_payload: dict) -> dict:
+    return next(item for item in plan_payload["items"] if item["source"] == "indeed")
+
+
+def _run_plan_cli(
+    projects: Path, out: Path, *extra_args: str
+) -> int:
+    return recovery.main(
+        [
+            "plan",
+            "--run-date",
+            DATE_NEW,
+            "--projects-root",
+            str(projects),
+            "--check-landing",
+            *extra_args,
+            "--out",
+            str(out),
+        ]
+    )
+
+
+def test_T20_plan_cli_check_landing_omits_published_and_sets_key(
+    tmp_path, monkeypatch
+):
+    projects = tmp_path / "projects"
+    _write_indeed_fixture(projects)
+    key = f"indeed/dia={DATE_NEW}/indeed_jobs_20261001_0001.parquet"
+    reader = _FakeReader([landing.RemoteObject(path=key)])
+    monkeypatch.setattr(recovery, "_open_landing_reader", lambda **kwargs: reader)
+    out = tmp_path / "plan.json"
+
+    exit_code = _run_plan_cli(projects, out)
+
+    assert exit_code == 0
+    indeed = _plan_indeed_item(json.loads(out.read_text(encoding="utf-8")))
+    assert indeed["recoverable"] is False
+    assert indeed["published_key"] == key
+    assert "ya publicado en la landing" in indeed["reason"]
+    assert reader.list_calls  # the landing was consulted
+    assert reader.closed  # the CLI released the reader
+
+
+def test_T20_recovery_twice_does_not_make_anything_recoverable(
+    tmp_path, monkeypatch
+):
+    """First recovery publishes; the second plan omits everything.
+
+    The fake reader starts empty (the first recovery would upload), then its
+    landing lists the published key: the second plan must omit the item with
+    ``published_key``, so the executor has nothing to upload and no manifest
+    to write.
+    """
+    projects = tmp_path / "projects"
+    _write_indeed_fixture(projects)
+    key = f"indeed/dia={DATE_NEW}/indeed_jobs_20261001_0001.parquet"
+    reader = _FakeReader()
+    monkeypatch.setattr(recovery, "_open_landing_reader", lambda **kwargs: reader)
+
+    first = tmp_path / "first.json"
+    assert _run_plan_cli(projects, first) == 0
+    indeed1 = _plan_indeed_item(json.loads(first.read_text(encoding="utf-8")))
+    assert indeed1["recoverable"] is True
+    assert indeed1["published_key"] is None
+
+    reader.publish(key)  # the first recovery published the file
+
+    second = tmp_path / "second.json"
+    assert _run_plan_cli(projects, second) == 0
+    payload2 = json.loads(second.read_text(encoding="utf-8"))
+    indeed2 = _plan_indeed_item(payload2)
+    assert indeed2["recoverable"] is False
+    assert indeed2["published_key"] == key
+    assert all(not item["recoverable"] for item in payload2["items"])
+
+
+def test_T20_plan_cli_check_landing_without_sas_fails_with_reason(
+    tmp_path, monkeypatch, capsys
+):
+    projects = tmp_path / "projects"
+    _write_indeed_fixture(projects)
+    monkeypatch.delenv(landing.SAS_TOKEN_ENV, raising=False)
+    out = tmp_path / "plan.json"
+
+    exit_code = _run_plan_cli(projects, out)
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "LANDING_SAS_TOKEN" in captured.err
+    assert "no duplicar" in captured.err
+    assert not out.exists()  # no unverified plan is produced
+
+
+def test_T20_plan_cli_remote_failure_is_recorded_without_sas(
+    tmp_path, monkeypatch, capsys
+):
+    projects = tmp_path / "projects"
+    _write_indeed_fixture(projects)
+    sas = "?sv=2026&sig=SUPERSECRET"
+    base_url = "https://testaccount.blob.core.windows.net/landing"
+
+    def failing_runner(command):
+        return subprocess.CompletedProcess(
+            command, 1, "", f"ERROR: fallo listando {base_url}?{sas}"
+        )
+
+    reader = landing.AzCopyReader(base_url, sas, runner=failing_runner)
+    monkeypatch.setattr(recovery, "_open_landing_reader", lambda **kwargs: reader)
+    out = tmp_path / "plan.json"
+
+    exit_code = _run_plan_cli(projects, out)
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "no se pudo comprobar la landing" in captured.err
+    assert "SUPERSECRET" not in captured.err
+    assert "sig=" not in captured.err
+    assert not out.exists()  # no unverified plan is produced
