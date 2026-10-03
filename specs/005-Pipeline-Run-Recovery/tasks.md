@@ -232,7 +232,7 @@ landing. Se corrigen dentro de esta misma spec (AGENTS.md).
     queda `pending`; test e2e de doble recuperación sin subidas nuevas ni
     manifests duplicados; suite 757 passed; verificación independiente PASS.
 
-- [ ] **T-21 — Acotar la reconciliación a los runs recuperables** (~25 min)
+- [x] **T-21 — Acotar la reconciliación a los runs recuperables** (~25 min)
   - **RF:** RF-2, RF-4.
   - **Depende de:** T-05, T-10.
   - **Hallazgo:** el arranque supervisado del 2026-10-03 recuperó 2026-07-22…
@@ -243,3 +243,8 @@ landing. Se corrigen dentro de esta misma spec (AGENTS.md).
     2026-10-01 ni runs ya cerrados/`superseded`, lo registra con motivo, y un
     test cubre el límite inferior y el filtro; el comando `pending` deja de
     listar lo ya recuperado.
+  - **Evidencia (2026-10-03):** constante única `AUTO_RECOVERY_MIN_DATE`
+    (2026-10-01) y exclusión de `superseded` en `_pending_selection`; reconcile
+    registra los excluidos con motivo y no los invoca; `pending --before
+    2026-10-03` pasa de 3 runs a 0 con 3 `skipped`; la limpieza (T-13) puede
+    caducar lo ya recuperado; suite 761 passed; verificación independiente PASS.
