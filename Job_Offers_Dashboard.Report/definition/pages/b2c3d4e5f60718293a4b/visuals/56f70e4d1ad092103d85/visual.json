@@ -1,5 +1,5 @@
 {
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.13.0/schema.json",
   "name": "f74fa9c8a3a8f41d70fe",
   "position": {
     "x": 133.61132205730067,
@@ -65,23 +65,6 @@
             }
           ]
         }
-      },
-      "sortDefinition": {
-        "sort": [
-          {
-            "field": {
-              "Measure": {
-                "Expression": {
-                  "SourceRef": {
-                    "Entity": "Metrics"
-                  }
-                },
-                "Property": "Skill Median Salary EUR"
-              }
-            },
-            "direction": "Descending"
-          }
-        ]
       }
     },
     "objects": {
@@ -121,6 +104,22 @@
                 }
               }
             }
+          }
+        }
+      ],
+      "columnWidth": [
+        {
+          "properties": {
+            "value": {
+              "expr": {
+                "Literal": {
+                  "Value": "140.5889744736317D"
+                }
+              }
+            }
+          },
+          "selector": {
+            "metadata": "Dim_SkillList.SkillName"
           }
         }
       ]
@@ -272,6 +271,63 @@
             "Property": "SkillName"
           }
         },
+        "type": "TopN",
+        "objects": {
+          "general": [
+            {
+              "properties": {
+                "isInvertedSelectionMode": {
+                  "expr": {
+                    "Literal": {
+                      "Value": "true"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "908f90bb0c3eb0ee605a",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Metrics"
+              }
+            },
+            "Property": "Skill Median Salary EUR"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "05f973fb706a42030b85",
+        "field": {
+          "Measure": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Metrics"
+              }
+            },
+            "Property": "Skill Demand"
+          }
+        },
+        "type": "Advanced"
+      },
+      {
+        "name": "af140834a70c0c940870",
+        "field": {
+          "Column": {
+            "Expression": {
+              "SourceRef": {
+                "Entity": "Dim_SkillList"
+              }
+            },
+            "Property": "SkillName"
+          }
+        },
         "type": "Categorical",
         "filter": {
           "Version": 2,
@@ -316,6 +372,7 @@
             }
           ]
         },
+        "howCreated": "User",
         "objects": {
           "general": [
             {
