@@ -252,9 +252,45 @@ function Invoke-MergeReconstruction {
     }
 }
 
+# T-16A: stamp the recovery manifest with the run date, not the recovery day,
+# so run_evidence/verify_run anchor the publication to the recovered run. The
+# clock is max(last-Inicio-block start, now): a late recovery then lands on the
+# run date at its closing time, and a reconciliation closing past midnight
+# keeps the start time; both stay inside the [started_at, finished_at] window
+# the diagnostic reconstructs. The start comes from the log's LAST "Inicio
+# pipeline scrapers" block, because run_evidence.parse_pipeline_log analyses
+# blocks[-1] (a first-block start could fall outside the analysed window when
+# the day holds several runs). Without a readable start time, now is used.
+function Get-RunManifestStamp {
+    param([string]$RunDate)
+    $now = Get-Date
+    if ($RunDate -notmatch '^\d{4}-\d{2}-\d{2}$') {
+        # No known run date: keep the historical behaviour.
+        return $now.ToString("yyyyMMdd_HHmmss")
+    }
+    $startClock = ""
+    $generalLog = Join-Path $LogDir "upload-$RunDate.log"
+    if (Test-Path -LiteralPath $generalLog) {
+        try {
+            # Last block, aligned with run_evidence.parse_pipeline_log.
+            $header = Select-String -LiteralPath $generalLog `
+                -Pattern '^(\d{2}:\d{2}:\d{2}).*Inicio pipeline scrapers' |
+                Select-Object -Last 1
+            if ($null -ne $header -and $header.Matches.Count -gt 0) {
+                $startClock = [string]$header.Matches[0].Groups[1].Value
+            }
+        } catch {
+            $startClock = ""
+        }
+    }
+    $clock = $now.ToString("HH:mm:ss")
+    if ($startClock -and $startClock -gt $clock) { $clock = $startClock }
+    return "{0}_{1}" -f ($RunDate -replace '-', ''), ($clock -replace ':', '')
+}
+
 # Procesa un item recuperable: staging, filtro, validacion, subida, manifest.
 function Invoke-PlanItem {
-    param($Item, [switch]$DryRun)
+    param($Item, [switch]$DryRun, [string]$RunDate = "")
     $source = [string]$Item.source
     $day = [string]$Item.day
     $result = @{ Status = "failed"; Uploaded = 0; Rejected = 0; Message = "" }
@@ -289,7 +325,8 @@ function Invoke-PlanItem {
             return $result
         }
 
-        $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        # T-16A: run-date stamp shared by the filtered file name and the manifest.
+        $stamp = Get-RunManifestStamp -RunDate $RunDate
         $stageDir = Join-Path $env:TEMP ("recovery-$source-$day-" + (Get-Date).Ticks)
         New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
         Copy-Item -LiteralPath $localPath -Destination $stageDir -Force
@@ -636,7 +673,7 @@ function Invoke-RecoveryPlanMode {
             $summary += "$source=omitido"
             continue
         }
-        $result = Invoke-PlanItem -Item $item -DryRun:$DryRun
+        $result = Invoke-PlanItem -Item $item -RunDate $effectiveRunDate -DryRun:$DryRun
         switch ([string]$result.Status) {
             "published" {
                 $sourceResults[$source] = @{ status = "ok"; uploaded = [int]$result.Uploaded; rejected = [int]$result.Rejected }
