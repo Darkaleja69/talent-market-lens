@@ -202,8 +202,9 @@ comprobación indicada antes de continuar.
   - **Evidencia (2026-10-03):** `RunOnlyIfNetworkAvailable=false` y
     `StopOnIdleEnd=false` aplicados a `Scrapers_Daily_Upload` (solo esos dos
     ajustes; backup del XML en `%TEMP%\opencode\task-backup`); la tarea no
-    requirió elevación, el registro operativo del Programador queda pendiente
-    de consola elevada; la sección 8 de `evidence-2026-10-01.md` documenta la
+    requirió elevación; el registro operativo del Programador quedó habilitado
+    con consola elevada y verificado (`IsEnabled=True`); la sección 8 de
+    `evidence-2026-10-01.md` documenta la
     mitigación y lo no averiguado (H1 sin confirmar, H2 neutralizada); suite
     761 passed; verificación independiente PASS.
 
