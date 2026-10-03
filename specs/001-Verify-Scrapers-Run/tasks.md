@@ -397,3 +397,14 @@ y JSON sin BOM. Se corrige dentro de esta misma spec.
     manifiestos no seleccionados no disparan descargas de objetos publicados.
     (Defecto real: la comprobación del run 2026-09-30 se quedó colgada más de
     15 minutos midiendo 18–25 manifests por scraper.)
+
+## 10. Correcciones posteriores
+
+- [x] **T-62 — Estabilizar la comprobación de sobrescritura del resultado** (~15 min)
+  - **RF:** RF-16.
+  - **Hecho cuando:** `test_main_overwrites_the_result_file_on_each_run` deja de
+    depender del reloj: dos diagnósticos consecutivos que crucen un cambio de
+    segundo no hacen fallar el test (el único campo dependiente del reloj,
+    `generated_at`, se neutraliza en la comparación), manteniendo la
+    comprobación de que el fichero se sobrescribe en el sitio y sin temporales;
+    la suite del diagnóstico pasa de forma repetida.
