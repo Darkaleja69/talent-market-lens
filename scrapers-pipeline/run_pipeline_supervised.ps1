@@ -14,8 +14,8 @@
 #  the date's live wrappers to disappear. If they disappear it invokes the
 #  recovery executor (-RecoveryScript -Date <run_date>); if the cap is reached
 #  the run is left pending and the abort evidence records the timeout and the
-#  wrappers still alive. It never kills a process. The real activation in the
-#  scheduled task arrives with T-14; until then the supervisor is opt-in.
+#  wrappers still alive. It never kills a process. Since T-14 the scheduled
+#  task runs this supervisor (the pipeline is no longer launched directly).
 #
 #  Usage:
 #    powershell.exe -NoProfile -ExecutionPolicy Bypass -File run_pipeline_supervised.ps1

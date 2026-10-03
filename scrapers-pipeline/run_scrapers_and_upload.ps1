@@ -11,12 +11,12 @@
 #  Uso (Task Scheduler, diariamente a las 00:00):
 #    powershell.exe -NoProfile -ExecutionPolicy Bypass -File "...\run_scrapers_and_upload.ps1"
 #
-#  -Supervised (T-10; RF-4): solo lo pasa run_pipeline_supervised.ps1. Antes
-#  de lanzar los scrapers reconcilia, con recover_and_upload.ps1 -Date, los
-#  runs truncados/pendientes anteriores a hoy que ya no tengan wrappers vivos;
-#  un fallo ahi nunca aborta el run que empieza. La tarea programada actual NO
-#  pasa -Supervised, de modo que la recuperacion automatica no cambia el flujo
-#  normal hasta T-14.
+#  -Supervised (T-10; RF-4): solo lo pasa run_pipeline_supervised.ps1, que
+#  desde T-14 es el script de la tarea programada. Antes de lanzar los
+#  scrapers reconcilia, con recover_and_upload.ps1 -Date, los runs
+#  truncados/pendientes anteriores a hoy que ya no tengan wrappers vivos; un
+#  fallo ahi nunca aborta el run que empieza. La reconciliacion automatica
+#  forma parte del ciclo normal de la tarea programada.
 # =============================================================================
 
 param(
