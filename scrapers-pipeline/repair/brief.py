@@ -27,6 +27,10 @@ Design rules:
   keys (password/secret/token/SAS...) or browser-profile paths (AppData,
   Chrome, Default, Cookies...) is rejected with a Spanish message before it
   reaches a record. :func:`build_brief` validates its own result.
+  :func:`find_forbidden` exposes the same check as data (the T-15 record audit
+  reports every finding without raising) and :func:`find_forbidden_text` scans
+  plain text for assigned secret values, so technical prose such as
+  "challenge-token reuse" is not a false positive.
 - An unknown source gets the generic playbook (§6.7), the minimum
   representative scope and no invented evidence paths.
 """
@@ -266,6 +270,30 @@ _PROFILE_PATH_RE = re.compile(
     r"|(?:^|[\\/])(?:chrome|cdp|browser)_profile(?:[\\/]|$)"
 )
 
+# Plain-text patterns of the records hygiene audit (T-15; RF-11). They match
+# assigned VALUES, never technical words: prose such as "challenge-token
+# reuse" or "cookies/clearance tokens" stays clean, while a real assignment, a
+# bearer header, a SAS signature or a challenge cookie with value is flagged.
+# The reasons never echo the secret value, only the key or cookie name.
+_TEXT_KEY_VALUE_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])"
+    r"((?:[A-Za-z0-9]+[_-])*"
+    r"(?:password|passwd|secret|token|sas|api[_-]?key|credential|private[_-]?key))"
+    r"\s*[\"']?\s*[:=]\s*\S"
+)
+_TEXT_BEARER_RE = re.compile(r"(?i)authorization\s*[:=]\s*bearer\s+\S+")
+_TEXT_SHARED_ACCESS_SIGNATURE_RE = re.compile(
+    r"(?i)sharedaccesssignature(?:\s*[=:]\s*|\s+)\S"
+)
+_TEXT_SIG_RE = re.compile(r"(?i)(?:^|[?&\s])sig=[A-Za-z0-9%]{4,}")
+_TEXT_ACCOUNT_KEY_RE = re.compile(r"(?i)accountkey=\S")
+_TEXT_JWT_RE = re.compile(
+    r"(?<![\w-])eyJ[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]{8,}){2}(?![\w-])"
+)
+_TEXT_CHALLENGE_COOKIE_RE = re.compile(
+    r"(?i)(?<![\w-])(cf_clearance|_abck|datadome)=[^\s;\"']+"
+)
+
 
 class BriefError(RuntimeError):
     """The brief carries forbidden content (credentials or browser profiles)."""
@@ -315,6 +343,72 @@ def render_brief(brief: dict[str, object]) -> str:
     return json.dumps(brief, ensure_ascii=False, indent=2)
 
 
+def find_forbidden(value: object) -> tuple[str, ...]:
+    """Return the Spanish motives why a value is forbidden (T-15; RF-11).
+
+    The structural safety check of :func:`validate_brief` exposed as data: it
+    walks dictionaries, lists/tuples and strings and returns one motive per
+    credential-like dictionary KEY (password, secret, token, SAS, API key,
+    credential, private key) and per browser-profile path value. It is pure,
+    never raises and never echoes a credential value; the T-15 record audit
+    uses it to report every finding instead of stopping at the first one.
+    """
+    reasons: list[str] = []
+    _collect_forbidden(value, reasons)
+    return tuple(reasons)
+
+
+def find_forbidden_text(text: str) -> tuple[str, ...]:
+    """Return the Spanish motives why plain text must not be stored (T-15).
+
+    Unlike :func:`find_forbidden` (the structural gate of JSON payloads), this
+    scanner only flags assigned VALUES: a sensitive key followed by ``:`` or
+    ``=``, an ``Authorization: Bearer`` header, a ``SharedAccessSignature``
+    value, a SAS ``sig``/``AccountKey`` value, a JWT, a real challenge cookie
+    (``cf_clearance``/``_abck``/``datadome``) with a value, or a browser
+    profile path. It is pure, never raises and never echoes a secret value;
+    technical prose such as "challenge-token reuse" or "cookies/clearance
+    tokens" is not a secret and stays clean.
+    """
+    reasons: list[str] = []
+    for match in _TEXT_KEY_VALUE_RE.finditer(text):
+        reasons.append(
+            f"clave sensible con valor asignado: «{match.group(1)}»"
+        )
+    if _TEXT_BEARER_RE.search(text):
+        reasons.append("cabecera «Authorization: Bearer» con valor")
+    if _TEXT_SHARED_ACCESS_SIGNATURE_RE.search(text):
+        reasons.append("firma SAS «SharedAccessSignature» con valor")
+    if _TEXT_SIG_RE.search(text):
+        reasons.append("parámetro «sig» de firma SAS con valor")
+    if _TEXT_ACCOUNT_KEY_RE.search(text):
+        reasons.append("clave de cuenta «AccountKey» con valor")
+    if _TEXT_JWT_RE.search(text):
+        reasons.append("token JWT incrustado")
+    for match in _TEXT_CHALLENGE_COOKIE_RE.finditer(text):
+        reasons.append(
+            f"cookie de challenge con valor: «{match.group(1)}»"
+        )
+    for match in _PROFILE_PATH_RE.finditer(text):
+        if _is_bare_cookies_prefix(match):
+            # "cookies/clearance tokens" at the start of a text is a technical
+            # reference, not a browser profile: a real profile path is rooted
+            # somewhere before its Cookies segment.
+            continue
+        reasons.append(
+            f"ruta de perfil de navegador: «{match.group(0)}»"
+        )
+    return tuple(dict.fromkeys(reasons))
+
+
+def _is_bare_cookies_prefix(match: re.Match) -> bool:
+    """True for a match that is only a ``Cookies/`` prefix at the text start."""
+    return (
+        match.start() == 0
+        and match.group(0).lower().startswith("cookies")
+    )
+
+
 def validate_brief(brief: dict[str, object]) -> None:
     """Reject a brief with credentials or browser-profile paths (Spanish).
 
@@ -322,29 +416,32 @@ def validate_brief(brief: dict[str, object]) -> None:
     credential) and strings matching real browser-profile locations (User
     Data, Google\\Chrome, Chromium, Mozilla\\Firefox\\Profiles,
     Microsoft\\Edge\\User Data, Cookies, Login Data, *_profile directories)
-    raise :class:`BriefError` with a Spanish message. A temporary diagnostic
-    under ``AppData\\Local\\Temp`` is not a profile and is accepted.
+    raise :class:`BriefError` with the first motive of :func:`find_forbidden`.
+    A temporary diagnostic under ``AppData\\Local\\Temp`` is not a profile and
+    is accepted.
     """
-    _validate_value(brief)
+    reasons = find_forbidden(brief)
+    if reasons:
+        raise BriefError(f"el brief contiene {reasons[0]}")
 
 
-def _validate_value(value: object) -> None:
-    """Walk the brief and raise on the first forbidden key or path."""
+def _collect_forbidden(value: object, reasons: list[str]) -> None:
+    """Accumulate the forbidden motives of a value, in walk order."""
     if isinstance(value, dict):
         for item_key, item in value.items():
             if isinstance(item_key, str) and _SENSITIVE_KEY_RE.search(item_key):
-                raise BriefError(
-                    f"el brief contiene una clave sensible «{item_key}»: no "
-                    "debe incluir credenciales"
+                reasons.append(
+                    f"una clave sensible «{item_key}»: no debe incluir "
+                    "credenciales"
                 )
-            _validate_value(item)
+            _collect_forbidden(item, reasons)
     elif isinstance(value, (list, tuple)):
         for item in value:
-            _validate_value(item)
+            _collect_forbidden(item, reasons)
     elif isinstance(value, str):
         if _PROFILE_PATH_RE.search(value):
-            raise BriefError(
-                f"el brief contiene una ruta de perfil de navegador: «{value}»"
+            reasons.append(
+                f"una ruta de perfil de navegador: «{value}»"
             )
 
 

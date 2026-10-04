@@ -46,6 +46,12 @@ Only a ``probado`` repair raises the verified count of the source (RF-10); a
 ``descartado`` or ``escalado`` repair records its outcome without lowering or
 raising the bar. All new content is rendered in memory before anything is
 written, and a failed write restores the previous files.
+
+:func:`audit_records` (T-15, RF-11) is the hygiene safety net: it scans the
+text files of the records tree (``plan.md``, the JSON files, ``evidence/**``,
+``README.md``, ``history.json``) and reports credentials, tokens or
+browser-profile paths as findings instead of raising. Binary evidence is
+skipped; the free texts of T-13/T-14 are therefore covered end to end.
 """
 from __future__ import annotations
 
@@ -377,6 +383,115 @@ def complete_record(
             f"no se pudo completar el registro «{opened.directory}»: {exc}"
         ) from exc
     return opened
+
+
+# --- Hygiene audit (T-15; RF-11) ----------------------------------------------
+
+
+@dataclass(frozen=True)
+class HygieneFinding:
+    """One hygiene finding of the records tree (T-15; RF-11).
+
+    ``path`` is the file where the forbidden content lives and ``reason`` the
+    Spanish motive. Findings are informative data: :func:`audit_records` never
+    raises because of them and never echoes a secret value.
+    """
+
+    path: Path
+    reason: str
+
+
+# Binary evidence (screenshots, PDFs, archives) is never decoded as text: a
+# known binary suffix or a NUL byte marks the file and it is skipped.
+_BINARY_SUFFIXES = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".ico",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".pdf",
+        ".zip",
+        ".gz",
+        ".7z",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".mp3",
+        ".mp4",
+        ".webm",
+    }
+)
+
+
+def audit_records(
+    repairs_dir: str | Path | None = None,
+) -> tuple[HygieneFinding, ...]:
+    """Audit the records tree for credentials and browser profiles (T-15).
+
+    Walks every file under ``repairs_dir`` (by default the repository-anchored
+    ``repairs/``): the text files of each record (``plan.md``,
+    ``context.json``, ``quality_before.json``, ``quality_after.json``), its
+    ``evidence/**`` files and the root ``README.md`` and ``history.json``.
+    JSON files are additionally checked with the T-05 structural gate
+    (:func:`repair.brief.find_forbidden`) and every text file with
+    :func:`repair.brief.find_forbidden_text`, which flags assigned secret
+    values without rejecting technical prose.
+
+    Binary files (a known binary suffix or a NUL byte) are skipped; an
+    unreadable, undecodable or malformed file is reported as an informative
+    finding, never as an exception. The result is deterministic: findings in
+    walk order, empty when the tree is clean (RF-11).
+    """
+    base = (
+        Path(repairs_dir) if repairs_dir is not None else DEFAULT_REPAIRS_DIR
+    )
+    if not base.is_dir():
+        return (
+            HygieneFinding(
+                base, f"no existe el directorio de registros «{base}»"
+            ),
+        )
+    findings: list[HygieneFinding] = []
+    for path in sorted(base.rglob("*")):
+        if path.is_file():
+            findings.extend(_audit_file(path))
+    return tuple(findings)
+
+
+def _audit_file(path: Path) -> list[HygieneFinding]:
+    """Return the hygiene findings of one record file (T-15)."""
+    if path.suffix.lower() in _BINARY_SUFFIXES:
+        return []
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        return [HygieneFinding(path, f"no se pudo leer el fichero: {exc}")]
+    if b"\x00" in raw:
+        # Binary content (for example a screenshot): never read as text.
+        return []
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        return [
+            HygieneFinding(
+                path, f"el fichero no es texto UTF-8 legible: {exc}"
+            )
+        ]
+    reasons = list(brief_module.find_forbidden_text(text))
+    if path.suffix.lower() == ".json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            reasons.append(f"el fichero JSON no es válido: {exc}")
+        else:
+            reasons = list(brief_module.find_forbidden(payload)) + reasons
+    return [HygieneFinding(path, reason) for reason in dict.fromkeys(reasons)]
 
 
 def _source_id(brief: dict[str, object]) -> str:
