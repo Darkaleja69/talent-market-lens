@@ -11,8 +11,12 @@ failed sources and the secondary investigations from it (T-02, T-03).
 :func:`select_targets` turns the payload into :class:`RepairTarget` objects for
 every source with ``status: failed``, whatever its ``id`` (generic playbook),
 each with its state, offers, reasons, diagnostic evidence and local evidence
-paths. An ``inconclusive`` global status is rejected with a clear Spanish
-message because no repair must start from it (RF-1).
+paths. :func:`select_secondary_targets` turns the completeness investigations
+(``required_field_below_target`` and ``optional_field_at_or_below_threshold``)
+into secondary targets with their field and current percentage, and
+:func:`select_all_targets` returns the prioritized queue: primary targets
+first, secondary ones after (RF-1). An ``inconclusive`` global status is
+rejected with a clear Spanish message because no repair must start from it.
 
 Design rules:
 
@@ -43,8 +47,23 @@ DEFAULT_DIAGNOSTIC_PATH = (
 
 # Machine codes of the diagnostic contract used by the selection (plan §4):
 # `failed` marks a repair target; `inconclusive` forbids starting any repair.
+# `unknown` is only a local fallback for a secondary investigation whose
+# source is absent from `sources[]`; it never comes from the diagnostic.
 SOURCE_FAILED = "failed"
+SOURCE_UNKNOWN = "unknown"
 GLOBAL_INCONCLUSIVE = "inconclusive"
+
+# Roles of the repair queue (RF-1): failed sources are primary targets, the
+# completeness investigations are secondary ones, always prioritized after.
+ROLE_PRIMARY = "primary"
+ROLE_SECONDARY = "secondary"
+
+# Completeness investigation triggers that become secondary objectives (RF-1;
+# plan §4). `source_failed` is intentionally absent: a failed source is
+# already covered by its primary target, so it must not be duplicated.
+TRIGGER_REQUIRED_FIELD = "required_field_below_target"
+TRIGGER_OPTIONAL_FIELD = "optional_field_at_or_below_threshold"
+SECONDARY_TRIGGERS = frozenset({TRIGGER_REQUIRED_FIELD, TRIGGER_OPTIONAL_FIELD})
 
 # Local evidence paths of the source playbooks, relative to the repository
 # root (plan §2.3). They are pointers for the web inspector: the wildcard
@@ -126,6 +145,13 @@ class RepairTarget:
     playbook paths of §2.3 for known sources plus the loaded diagnostic and,
     when present, its ``run.log_path``; a source absent from the playbook gets
     no invented path (plan §6.7). ``run_date`` is the date of the source run.
+
+    ``role`` tells a primary target (a failed source) from a secondary one (a
+    completeness investigation, plan §6.6). Secondary targets fill ``trigger``
+    (``required_field_below_target``/``optional_field_at_or_below_threshold``),
+    ``field`` (the affected canonical field) and ``current_pct`` (the field
+    percentage taken from the diagnostic ``completeness``, or ``None`` when it
+    is absent or not numeric). Primary targets keep those three at ``None``.
     """
 
     source: str
@@ -138,6 +164,10 @@ class RepairTarget:
     evidence: tuple[str, ...]
     evidence_paths: tuple[str, ...]
     run_date: date | None
+    field: str | None = None
+    trigger: str | None = None
+    current_pct: float | None = None
+    role: str = ROLE_PRIMARY
 
 
 def load_diagnostic(
@@ -190,6 +220,49 @@ def select_targets(loaded: LoadedDiagnostic) -> tuple[RepairTarget, ...]:
         if target is not None:
             selected.append(target)
     return tuple(selected)
+
+
+def select_secondary_targets(loaded: LoadedDiagnostic) -> tuple[RepairTarget, ...]:
+    """Extract the secondary completeness targets from a diagnostic (RF-1).
+
+    The ``investigations[]`` with trigger ``required_field_below_target`` or
+    ``optional_field_at_or_below_threshold`` become secondary targets, in the
+    diagnostic order. ``source_failed`` investigations are excluded: the
+    failed source already has its primary target, and a secondary never
+    replaces or duplicates it. A source may be both primary and secondary
+    (for example Indeed or LinkedIn, which have field investigations).
+
+    Each secondary carries its ``field``, ``trigger``, ``current_pct`` (the
+    matching ``completeness[].pct`` of its source, or ``None`` when it is
+    absent or not numeric) and the same source context as a primary target:
+    state, offers, reasons, evidence and local evidence paths. An
+    investigation without a usable field is ignored: a completeness objective
+    needs a field.
+
+    Raises :class:`DiagnosticError` under the same conditions as
+    :func:`select_targets` (inconclusive global status).
+    """
+    payload = loaded.payload
+    if _global_status(payload) == GLOBAL_INCONCLUSIVE:
+        raise DiagnosticError(_inconclusive_message(loaded))
+    run_date = _run_date(payload)
+    selected: list[RepairTarget] = []
+    for entry in _investigation_entries(payload):
+        target = _secondary_target_from_investigation(entry, loaded, run_date)
+        if target is not None:
+            selected.append(target)
+    return tuple(selected)
+
+
+def select_all_targets(loaded: LoadedDiagnostic) -> tuple[RepairTarget, ...]:
+    """Return the prioritized repair queue of a diagnostic (RF-1).
+
+    Primary targets (the failed sources, in diagnostic order) come first and
+    the secondary completeness targets (in ``investigations[]`` order) after
+    them. The caller may shorten the queue; the order is the prioritization.
+    Raises :class:`DiagnosticError` when the global status is inconclusive.
+    """
+    return select_targets(loaded) + select_secondary_targets(loaded)
 
 
 def _read_payload(diagnostic_path: Path) -> dict:
@@ -369,6 +442,88 @@ def _target_from_source(
         evidence_paths=_evidence_paths(source_id, loaded),
         run_date=run_date,
     )
+
+
+def _investigation_entries(payload: dict) -> tuple[dict, ...]:
+    """Return the usable investigation mappings, in diagnostic order.
+
+    A missing or malformed ``investigations`` value yields no entries and
+    non-mapping items are ignored, mirroring :func:`_source_entries`.
+    """
+    investigations = payload.get("investigations")
+    if not isinstance(investigations, list):
+        return ()
+    return tuple(
+        entry for entry in investigations if isinstance(entry, dict)
+    )
+
+
+def _source_by_id(payload: dict, source_id: str) -> dict | None:
+    """Return the ``sources[]`` entry of ``source_id``, or ``None``."""
+    for entry in _source_entries(payload):
+        if entry.get("id") == source_id:
+            return entry
+    return None
+
+
+def _secondary_target_from_investigation(
+    entry: dict,
+    loaded: LoadedDiagnostic,
+    run_date: date | None,
+) -> RepairTarget | None:
+    """Build the secondary target of a completeness investigation, or ``None``.
+
+    ``source_failed`` investigations and entries without a usable source or
+    field are ignored. The source context is taken from the matching
+    ``sources[]`` entry when it exists; an investigation whose source is
+    absent keeps the investigation data and reports ``SOURCE_UNKNOWN``.
+    """
+    trigger = _optional_str(entry.get("trigger"))
+    if trigger not in SECONDARY_TRIGGERS:
+        return None
+    source_id = _optional_str(entry.get("source"))
+    field = _optional_str(entry.get("field"))
+    if source_id is None or field is None:
+        return None
+    source_entry = _source_by_id(loaded.payload, source_id) or {}
+    return RepairTarget(
+        source=source_id,
+        kind=_optional_str(source_entry.get("kind")),
+        status=_optional_str(source_entry.get("status")) or SOURCE_UNKNOWN,
+        outcome=_optional_str(source_entry.get("outcome")),
+        offers_current_run=_optional_int(source_entry.get("offers_current_run")),
+        offers_snapshot=_optional_int(source_entry.get("offers_snapshot")),
+        failures=_string_tuple(source_entry.get("failures")),
+        evidence=_string_tuple(source_entry.get("evidence")),
+        evidence_paths=_evidence_paths(source_id, loaded),
+        run_date=run_date,
+        field=field,
+        trigger=trigger,
+        current_pct=_current_pct(source_entry, field),
+        role=ROLE_SECONDARY,
+    )
+
+
+def _current_pct(source_entry: dict, field: str) -> float | None:
+    """Return the ``completeness[].pct`` of ``field``, or ``None``.
+
+    The percentage is read from the source's own measurement; a missing entry
+    or a non-numeric value yields ``None`` instead of an invented number.
+    """
+    completeness = source_entry.get("completeness")
+    if not isinstance(completeness, list):
+        return None
+    for item in completeness:
+        if isinstance(item, dict) and item.get("field") == field:
+            return _optional_pct(item.get("pct"))
+    return None
+
+
+def _optional_pct(value: object) -> float | None:
+    """Return the value as a float when it is a number (never a bool)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 def _evidence_paths(source_id: str, loaded: LoadedDiagnostic) -> tuple[str, ...]:
