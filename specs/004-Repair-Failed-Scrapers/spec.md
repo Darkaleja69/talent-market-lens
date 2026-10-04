@@ -4,8 +4,9 @@
 
 El diagnóstico diario (spec 001) escribe en
 `scrapers-pipeline/logs/diagnostic_last.json` el resultado de la última
-ejecución: estado global, estado por fuente independiente (Indeed, LinkedIn,
-InfoJobs y los seis portales de Multi-site), ofertas, completitud, publicación,
+ejecución: estado global, estado por fuente independiente (hoy Indeed, LinkedIn,
+InfoJobs y los seis portales de Multi-site; en general, las fuentes que el
+diagnóstico monitorice en cada momento), ofertas, completitud, publicación,
 motivos, evidencias e investigaciones pendientes.
 
 Esta funcionalidad convierte ese diagnóstico en reparaciones: detecta las
@@ -76,13 +77,20 @@ informe que distinga hechos observados de hipótesis, con evidencias
 La investigación deberá comprobar `robots.txt` y los términos de uso antes de
 proponer un cambio, y no modificar código.
 
-### RF-4 — Priorizar la evitación de CAPTCHA y rate limit
+### RF-4 — Diseñar para no recibir CAPTCHA visible ni rate limit
 
 **Criterio de aceptación (EARS):** Cuando el fallo sea un bloqueo (CAPTCHA,
-403/429 o límite de peticiones), la reparación deberá buscar primero la vía que
-lo evite (API JSON interna, sesión y cookies reales, cabeceras y ritmo
-adecuados, endpoints alternativos) sin implementar resolución automática de
-CAPTCHAs ni superar verificaciones de identidad.
+403/429 o límite de peticiones), el scraper deberá rediseñarse para no volver a
+disparar el challenge, aplicando en su máximo legal la escalera anti-bot: API
+JSON interna, sesión y cookies reales del usuario, reutilización de tokens de
+challenge (clearance cookies) dentro de su vigencia, fingerprint coherente,
+cabeceras, flujo de navegación y ritmo humanos, y throttling. Quedará prohibida
+la resolución automática de CAPTCHAs (solvers o servicios), la superación de
+verificaciones de identidad y cualquier patrón de decepción del sistema de
+verificación. Si aun así apareciera un CAPTCHA visible, el scraper podrá pausar
+y avisar a la persona para que lo resuelva ella misma (modo asistido) y
+continuará con esa sesión; la aparición se registrará como evidencia de que el
+diseño debe endurecerse.
 
 ### RF-5 — No usar servicios de pago y consultar cualquier escalado
 
@@ -145,7 +153,8 @@ reparaciones (`repairs/README.md`) y el historial de umbrales.
 ### RF-12 — Validación humana del push
 
 **Criterio de aceptación (EARS):** Cuando una reparación esté probada (tests en
-verde y prueba en vivo con el umbral alcanzado), el sistema deberá pedir a la
+verde, prueba en vivo con el umbral alcanzado y puerta de calidad superada), el
+sistema deberá pedir a la
 persona que valide el push de la rama del fix. Mientras no haya esa validación,
 no deberá hacer push, merge a `main` ni abrir pull requests.
 
@@ -171,20 +180,37 @@ subir datos a Azure, modificar la landing, los manifests ni los ficheros de
 `specs/`; la única ejecución de scrapers permitida es la prueba en vivo acotada
 de RF-9.
 
+### RF-16 — Puerta de calidad de la reparación
+
+**Criterio de aceptación (EARS):** Cuando se evalúe una prueba en vivo, el
+sistema deberá comprobar además que la reparación no degrada la información: los
+campos obligatorios (`title`, `company`, `description`) deberán estar al 100 %
+en la muestra y ningún campo ya cubierto podrá caer más de 5 puntos porcentuales
+respecto al perfil del run de origen. La ausencia de campos opcionales que el
+portal no despliega (por ejemplo, salario o skills) no se considera fallo; solo
+cuenta si el scraper los extraía y deja de hacerlo. Los campos objetivo del brief
+se exigen únicamente cuando la web/API los expone, y la `description` completa
+es prioritaria aunque no exista `skills`, porque las skills se derivan de la
+descripción en Databricks; se mide según el contrato de cada fuente (cuenta la
+mejor descripción que la vía permitida pueda almacenar). Si la puerta no se
+cumple, la reparación no se dará
+por probada aunque el recuento de ofertas alcance el umbral.
+
 ## Requisitos no funcionales
 
 - Los mensajes y registros dirigidos a la persona estarán en español; los
   identificadores, campos de máquina y nombres de fichero, en inglés.
-- El núcleo determinista (selección de objetivos, umbral incremental y
-  registros) se cubrirá con tests unitarios y de integración offline, sin red
-  ni credenciales.
+- El núcleo determinista (selección de objetivos, umbral incremental, puerta de
+  calidad y registros) se cubrirá con tests unitarios y de integración offline,
+  sin red ni credenciales.
 - La prueba en vivo la ejecuta el implementador; el verificador no necesita
   red para su trabajo.
-- No se implementarán soluciones de CAPTCHA ni se contratarán servicios de
-  pago; las nuevas dependencias de los scrapers se justificarán en el registro.
+- No se implementarán solvers ni servicios de resolución de CAPTCHA, ni se
+  contratarán servicios de pago; las nuevas dependencias de los scrapers se
+  justificarán en el registro.
 - Los registros y evidencias no contendrán credenciales ni datos personales
   innecesarios.
-- La selección de objetivos, el umbral y el registro serán reproducibles: la
+- La selección de objetivos, el umbral, la calidad y el registro serán reproducibles: la
   misma entrada produce la misma decisión.
 - Las skills y agentes del proceso viven en `.opencode/` y quedan fuera de git
   por decisión del proyecto; el proceso documentará su instalación.
@@ -193,8 +219,10 @@ de RF-9.
 
 - No existe el diagnóstico o es inconcluso: no se inicia ninguna reparación y
   se indica por qué.
-- Fuente fallida por bloqueo (CAPTCHA/rate limit): se busca la vía que lo evite
-  sin resolverlo.
+- Fuente fallida por bloqueo (CAPTCHA/rate limit): se rediseña para no volver a
+  dispararlo (sesión y tokens reales, fingerprint, ritmo y flujo humanos); si
+  aparece un CAPTCHA visible, se pausa y lo resuelve la persona (asistido), sin
+  solvers automáticos.
 - Fuente fallida por error técnico (por ejemplo, exit code distinto de cero o
   un portal de Multi-site con error): se investiga el error real de la fuente.
 - Fuente fallida por quedarse sin ofertas con la ejecución correcta: se
@@ -226,7 +254,8 @@ de RF-9.
   el ciclo queda preparado, no automatizado).
 - Bloquear decisiones que excedan los medios locales (proxies, servicios de
   pago): solo se proponen a la persona.
-- Resolver CAPTCHAs o verificaciones de identidad.
+- Resolver CAPTCHAs de forma automática (solvers o servicios) o superar
+  verificaciones de identidad.
 - Cambiar los umbrales, contratos o comportamiento del diagnóstico de la
   spec 001.
 - Subir, publicar o transformar datos (landing, Azure, Databricks).
@@ -235,19 +264,21 @@ de RF-9.
 
 ## Criterios de finalización
 
-- El núcleo determinista (objetivos, brief, umbral, registros y CLI) existe en
-  `scrapers-pipeline/repair/` con tests offline en verde.
+- El núcleo determinista (objetivos, brief, umbral, puerta de calidad, registros
+  y CLI) existe en `scrapers-pipeline/repair/` con tests offline en verde.
 - El subagente `web-inspector` y la elección de skills quedan documentados para
   el orquestador, y las tres skills están instaladas y en uso.
-- Cada reparación deja un registro versionado con plan, cambios, pruebas y
-  resultado; el índice y el historial de umbrales se actualizan.
-- La selección de objetivos funciona sobre el diagnóstico real del 2026-09-30:
-  detecta `infojobs`, `stepstone_nl`, `nvb`, `jobs_ch`, `glassdoor`, `indeed` y
-  `linkedin` con su evidencia, y las investigaciones secundarias.
-- **Comprobación real:** el proceso repara y prueba en vivo al menos la fuente
-  `infojobs` (bloqueo por CAPTCHA al abrir) con el umbral alcanzado, tests en
-  verde y registro completo, y la persona valida el push; las demás fuentes
-  fallidas quedan documentadas como reparaciones pendientes.
+- Cada reparación deja un registro versionado con plan, cambios, pruebas,
+  calidad y resultado; el índice y el historial de umbrales se actualizan.
+- La selección de objetivos funciona sobre el último diagnóstico disponible,
+  sea cual sea el run y las fuentes: identifica las fuentes fallidas y las
+  investigaciones secundarias con su evidencia, sin listas fijas, incluidas
+  fuentes añadidas después de esta spec.
+- **Comprobación real:** con el run vigente, el proceso repara y prueba en vivo
+  al menos una fuente fallida (en el primer ciclo, InfoJobs, bloqueo por CAPTCHA
+  al abrir) con el umbral y la puerta de calidad alcanzados, tests en verde y
+  registro completo, y la persona valida el push; las demás fuentes fallidas
+  quedan documentadas como reparaciones pendientes.
 - No se hace push ni merge sin validación de la persona.
 - El comando de tests del módulo de reparaciones queda reflejado en
   `AGENTS.md` con el visto bueno de la persona.
@@ -260,20 +291,30 @@ de RF-9.
 - Una spec (la 004) construye el proceso; cada fix se abre en su propia rama
   `repair/<fuente>-<fecha>` con su pequeño plan almacenado.
 - El push de una rama de fix se pide a la persona solo cuando el fix esté
-  probado (tests en verde y prueba en vivo con umbral alcanzado).
+  probado (tests en verde, prueba en vivo con umbral alcanzado y puerta de
+  calidad superada).
 - Se permite el rediseño del scraper; las dependencias se minimizan pero no se
   bloquea un arreglo claramente necesario.
 - Sin servicios de pago; primero técnicas locales y respeto a
   `robots.txt`/TOS; el escalado (por ejemplo, proxies) se consulta.
-- Prioridad a evitar CAPTCHA y rate limit sin entrar en ellos.
+- Prioridad absoluta a no recibir CAPTCHA visible: el diseño busca que el
+  challenge no se dispare (sesión/cookies/tokens reales, fingerprint y ritmo
+  coherentes, flujo humano, throttling). La resolución automática y la
+  verificación de identidad quedan fuera; si aun así aparece un CAPTCHA, se
+  pausa y lo resuelve la persona.
 - La prueba en vivo es acotada y ligada a la ejecución del proceso; no se
   repite en exceso y nunca sube datos.
 - Umbral incremental: la siguiente reparación de una fuente exige más ofertas
   que el mayor recuento verificado anterior (mínimo 1 la primera vez).
 - Los registros de reparación se conservan en el repositorio (rama del fix) y
   el historial de umbrales es legible por máquina.
+- La puerta de calidad no exige campos que el portal no publica: salario o skills
+  ausentes por diseño del sitio no son fallo. La prioridad es la `description`
+  completa, de la que Databricks deriva las skills.
 - Las skills y agentes quedan fuera de git (`.opencode/` ignorado), por
   decisión de la persona.
-- Primer caso real: InfoJobs, que abre directamente en CAPTCHA.
+- Primer caso real: la fuente fallida del run vigente (en el primer ciclo,
+  InfoJobs, que abre directamente en CAPTCHA); el objetivo del fix es que el
+  challenge deje de dispararse.
 - La primera versión se ejecuta a mano; el contrato queda preparado para el
   ciclo nocturno.
