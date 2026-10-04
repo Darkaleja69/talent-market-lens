@@ -93,27 +93,27 @@ su registro, no por fase.
 
 ## 2. Umbral incremental y puerta de calidad
 
-- [ ] **T-08 — Implementar la regla pura del umbral** (~20 min)
+- [x] **T-08 — Implementar la regla pura del umbral** (~20 min)
   - **RF:** RF-10.
   - **Hecho cuando:** `repair/threshold.py` calcula
     `umbral = max(1, mayor recuento verificado + 1)` por fuente; tests con
     historial vacío (1), con 2 (3) y con un recuento previo mayor.
 
-- [ ] **T-09 — Leer y actualizar `repairs/history.json`** (~25 min)
+- [x] **T-09 — Leer y actualizar `repairs/history.json`** (~25 min)
   - **RF:** RF-10.
   - **Depende de:** T-08.
   - **Hecho cuando:** el historial por fuente se lee y se actualiza sin
     decrecer nunca, con fuentes independientes y tolerancia a fichero ausente
     o corrupto; tests de escritura atómica y de formato en inglés.
 
-- [ ] **T-10 — Probar los límites del umbral** (~20 min)
+- [x] **T-10 — Probar los límites del umbral** (~20 min)
   - **RF:** RF-10.
   - **Depende de:** T-08, T-09.
   - **Hecho cuando:** tests cubren primera reparación, subida del listón
     (2 → 3), no decrecimiento, aislamiento entre fuentes e historial
     manipulado.
 
-- [ ] **T-11 — Implementar la puerta de calidad** (~25 min)
+- [x] **T-11 — Implementar la puerta de calidad** (~25 min)
   - **RF:** RF-7, RF-8, RF-11, RF-16.
   - **Depende de:** T-04.
   - **Hecho cuando:** `repair/quality.py` mide un parquet con
