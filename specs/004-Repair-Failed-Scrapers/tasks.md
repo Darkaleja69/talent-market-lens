@@ -29,7 +29,7 @@ su registro, no por fase.
 
 ## 1. Diagnóstico, objetivos y brief
 
-- [ ] **T-01 — Leer, validar y comprobar la vigencia del diagnóstico** (~25 min)
+- [x] **T-01 — Leer, validar y comprobar la vigencia del diagnóstico** (~25 min)
   - **RF:** RF-1, RF-13.
   - **Hecho cuando:** `repair/targets.py` lee el diagnóstico (ruta
     parametrizable, por defecto `scrapers-pipeline/logs/diagnostic_last.json`),
@@ -38,7 +38,7 @@ su registro, no por fase.
     diagnóstico es más antiguo que el último `upload-*.log`; tests con fichero
     ausente, JSON inválido, versión desconocida y aviso de desfase.
 
-- [ ] **T-02 — Extraer las fuentes fallidas con su evidencia** (~25 min)
+- [x] **T-02 — Extraer las fuentes fallidas con su evidencia** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** T-01.
   - **Hecho cuando:** un fixture saneado del diagnóstico real del 2026-10-03
@@ -48,7 +48,7 @@ su registro, no por fase.
     en el fixture también produce objetivo genérico; un diagnóstico correcto no
     produce objetivos y uno inconcluso se rechaza indicándolo.
 
-- [ ] **T-03 — Incluir los objetivos secundarios de completitud** (~20 min)
+- [x] **T-03 — Incluir los objetivos secundarios de completitud** (~20 min)
   - **RF:** RF-1.
   - **Depende de:** T-02.
   - **Hecho cuando:** las investigaciones `required_field_below_target` y
@@ -57,7 +57,7 @@ su registro, no por fase.
     `indeed`, `linkedin` en el fixture real), y quedan priorizados después de
     las fuentes fallidas.
 
-- [ ] **T-04 — Calcular el perfil de calidad de cada objetivo** (~25 min)
+- [x] **T-04 — Calcular el perfil de calidad de cada objetivo** (~25 min)
   - **RF:** RF-1, RF-7.
   - **Depende de:** T-02, T-03.
   - **Hecho cuando:** cada objetivo incluye, por campo, si es obligatorio, su
@@ -66,7 +66,7 @@ su registro, no por fase.
     valores fuera del fixture y con tests de los casos 0 %, umbral 60 %, campo
     ausente por el portal (sin meta, no es fallo) y campo degradado.
 
-- [ ] **T-05 — Construir el brief por objetivo** (~25 min)
+- [x] **T-05 — Construir el brief por objetivo** (~25 min)
   - **RF:** RF-1, RF-3.
   - **Depende de:** T-02–T-04.
   - **Hecho cuando:** `repair/brief.py` produce un JSON en inglés con fuente,
@@ -75,7 +75,7 @@ su registro, no por fase.
     prueba propuesto, sin credenciales ni rutas de perfiles de navegador; tests
     de estructura y de contenido.
 
-- [ ] **T-06 — Presentar los objetivos en español** (~20 min)
+- [x] **T-06 — Presentar los objetivos en español** (~20 min)
   - **RF:** RF-1.
   - **Depende de:** T-05.
   - **Hecho cuando:** la salida para la persona lista los objetivos en español,
@@ -83,7 +83,7 @@ su registro, no por fase.
     calidad y playbook), y los identificadores de máquina se mantienen en
     inglés.
 
-- [ ] **T-07 — Cubrir el diagnóstico real con tests** (~25 min)
+- [x] **T-07 — Cubrir el diagnóstico real con tests** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** T-02–T-06.
   - **Hecho cuando:** la suite incluye un fixture saneado del diagnóstico del
