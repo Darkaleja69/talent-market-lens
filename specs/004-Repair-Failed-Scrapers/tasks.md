@@ -164,20 +164,20 @@ su registro, no por fase.
 
 ## 4. CLI y contrato de entrada
 
-- [ ] **T-16 — Construir la CLI delgada de reparaciones** (~25 min)
+- [x] **T-16 — Construir la CLI delgada de reparaciones** (~25 min)
   - **RF:** RF-13.
   - **Depende de:** T-05, T-09, T-11, T-14.
   - **Hecho cuando:** `python -m repair.cli targets|brief|threshold|quality|record`
     funciona desde `scrapers-pipeline/`, acepta `--diagnostic` con la ruta por
     defecto y no contiene reglas de negocio propias.
 
-- [ ] **T-17 — Probar la CLI** (~20 min)
+- [x] **T-17 — Probar la CLI** (~20 min)
   - **RF:** RF-13.
   - **Depende de:** T-16.
   - **Hecho cuando:** tests cubren subcomandos, ruta por defecto, ruta
     explícita, fichero ausente y códigos de salida, con mensajes en español.
 
-- [ ] **T-18 — Documentar el uso y el paso 0 de refresco** (~20 min)
+- [x] **T-18 — Documentar el uso y el paso 0 de refresco** (~20 min)
   - **RF:** RF-13.
   - **Depende de:** T-16.
   - **Hecho cuando:** `scrapers-pipeline/repair/README.md` explica los
