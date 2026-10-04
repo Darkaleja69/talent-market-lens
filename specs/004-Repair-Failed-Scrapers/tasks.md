@@ -130,7 +130,7 @@ su registro, no por fase.
 
 ## 3. Registros y constancia
 
-- [ ] **T-12 — Definir la plantilla y el índice de reparaciones** (~25 min)
+- [x] **T-12 — Definir la plantilla y el índice de reparaciones** (~25 min)
   - **RF:** RF-2, RF-11.
   - **Hecho cuando:** existe la plantilla del registro (`plan.md`) con fuente,
     run, fallo observado, evidencia, plan de investigación, cambios, pruebas
@@ -139,7 +139,7 @@ su registro, no por fase.
     índice (fecha, fuente, estado, rama, resultado, calidad) y un ejemplo
     saneado.
 
-- [ ] **T-13 — Crear el registro al abrir una reparación** (~25 min)
+- [x] **T-13 — Crear el registro al abrir una reparación** (~25 min)
   - **RF:** RF-2.
   - **Depende de:** T-12.
   - **Hecho cuando:** `repair/records.py` crea `repairs/<fecha>-<fuente>/` en
@@ -147,7 +147,7 @@ su registro, no por fase.
     directorio `evidence/`), sin sobrescribir un registro existente; tests de
     creación y de colisión.
 
-- [ ] **T-14 — Completar el registro y actualizar índice e historial** (~25 min)
+- [x] **T-14 — Completar el registro y actualizar índice e historial** (~25 min)
   - **RF:** RF-11.
   - **Depende de:** T-09, T-11, T-13.
   - **Hecho cuando:** una reparación terminada (probada, descartada o escalada)
@@ -155,7 +155,7 @@ su registro, no por fase.
     recuento verificado y su delta de calidad (`quality_after.json`); tests de
     los tres estados.
 
-- [ ] **T-15 — Comprobar que los registros no filtran secretos** (~15 min)
+- [x] **T-15 — Comprobar que los registros no filtran secretos** (~15 min)
   - **RF:** RF-11.
   - **Depende de:** T-14.
   - **Hecho cuando:** un test recorre los registros y evidencias y rechaza
