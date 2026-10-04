@@ -1,10 +1,11 @@
-"""Tests for the diagnostic selection (T-01, T-02).
+"""Tests for the diagnostic selection (T-01, T-02, T-03).
 
 Offline tests for ``repair.targets``: missing/unreadable/invalid diagnostic,
-schema-version contract, the non-fatal staleness warning (T-01), and the
-primary targets extracted from the real sanitized 2026-10-03 fixture, the
-generic playbook, a correct diagnostic and an inconclusive one (T-02;
-RF-1, RF-13).
+schema-version contract, the non-fatal staleness warning (T-01), the primary
+targets extracted from the real sanitized 2026-10-03 fixture, the generic
+playbook, a correct diagnostic and an inconclusive one (T-02), and the
+secondary completeness targets with their field, percentage and prioritized
+queue (T-03; RF-1, RF-13).
 """
 from __future__ import annotations
 
@@ -572,3 +573,293 @@ def test_repair_target_is_frozen():
 
     with pytest.raises(FrozenInstanceError):
         target.status = "ok"  # type: ignore[misc]
+
+
+# --- Secondary completeness targets (T-03; RF-1) -----------------------------
+
+# Field investigations of the real fixture, in `investigations[]` order:
+# (source, trigger, field, pct from the matching `completeness[]`).
+_EXPECTED_SECONDARY_FIELDS = [
+    ("indeed", "required_field_below_target", "description", 0.0),
+    ("indeed", "optional_field_at_or_below_threshold", "salary", 35.08771929824562),
+    ("indeed", "optional_field_at_or_below_threshold", "skills", 0.0),
+    (
+        "indeed",
+        "optional_field_at_or_below_threshold",
+        "work_mode",
+        17.54385964912281,
+    ),
+    ("linkedin", "required_field_below_target", "description", 88.44640515082867),
+    ("linkedin", "optional_field_at_or_below_threshold", "salary", 16.31095743412424),
+    (
+        "linkedin",
+        "optional_field_at_or_below_threshold",
+        "work_mode",
+        42.42279718612138,
+    ),
+    ("stepstone_nl", "optional_field_at_or_below_threshold", "salary", 0.0),
+    ("stepstone_nl", "optional_field_at_or_below_threshold", "skills", 0.0),
+    ("stepstone_nl", "optional_field_at_or_below_threshold", "work_mode", 0.0),
+    ("nvb", "optional_field_at_or_below_threshold", "work_mode", 0.0),
+    ("jobs_ch", "optional_field_at_or_below_threshold", "salary", 40.38461538461539),
+    ("jobs_ch", "optional_field_at_or_below_threshold", "skills", 32.69230769230769),
+    (
+        "jobs_ch",
+        "optional_field_at_or_below_threshold",
+        "work_mode",
+        11.538461538461538,
+    ),
+]
+
+
+def _select_secondary_from_payload(tmp_path: Path, payload: dict):
+    path = _write_diagnostic(tmp_path / "diagnostic_last.json", payload)
+    return (
+        targets.select_secondary_targets(targets.load_diagnostic(path)),
+        path,
+    )
+
+
+def _select_secondary_from_fixture():
+    return targets.select_secondary_targets(
+        targets.load_diagnostic(_REAL_FIXTURE)
+    )
+
+
+def test_real_diagnostic_secondary_targets_match_the_field_investigations():
+    selected = _select_secondary_from_fixture()
+
+    actual = [(target.source, target.trigger, target.field) for target in selected]
+    expected = [
+        (source, trigger, field)
+        for source, trigger, field, _ in _EXPECTED_SECONDARY_FIELDS
+    ]
+    assert actual == expected
+    assert all(target.role == targets.ROLE_SECONDARY for target in selected)
+    assert all(target.trigger in targets.SECONDARY_TRIGGERS for target in selected)
+
+
+def test_real_diagnostic_secondary_targets_carry_their_current_pct():
+    selected = _select_secondary_from_fixture()
+
+    actual = [target.current_pct for target in selected]
+    expected = [pct for *_, pct in _EXPECTED_SECONDARY_FIELDS]
+
+    assert actual == pytest.approx(expected)
+
+
+def test_real_diagnostic_secondary_sources_are_the_completeness_ones():
+    selected = _select_secondary_from_fixture()
+
+    assert {target.source for target in selected} == {
+        "indeed",
+        "linkedin",
+        "stepstone_nl",
+        "nvb",
+        "jobs_ch",
+    }
+    # `source_failed` sources are already covered by their primary target.
+    assert "infojobs" not in {target.source for target in selected}
+    assert "irishjobs" not in {target.source for target in selected}
+    assert "glassdoor" not in {target.source for target in selected}
+
+
+def test_real_diagnostic_secondary_targets_carry_context_evidence_and_date():
+    loaded = targets.load_diagnostic(_REAL_FIXTURE)
+    selected = targets.select_secondary_targets(loaded)
+
+    stepstone = next(
+        target
+        for target in selected
+        if target.source == "stepstone_nl" and target.field == "salary"
+    )
+    assert stepstone.run_date == date(2026, 10, 3)
+    assert stepstone.kind == "multi_site"
+    assert stepstone.status == "ok"
+    assert stepstone.outcome == "ok"
+    assert stepstone.offers_current_run == 3
+    assert stepstone.evidence == (
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: exit=0 merge_exit=0 output_merged=True",
+    )
+    # No playbook for stepstone_nl: only the generic diagnostic paths.
+    assert stepstone.evidence_paths == (
+        str(_REAL_FIXTURE),
+        loaded.payload["run"]["log_path"],
+    )
+
+    indeed = next(
+        target
+        for target in selected
+        if target.source == "indeed" and target.field == "description"
+    )
+    assert indeed.status == "failed"
+    assert indeed.failures == (
+        "campo obligatorio 'description' por debajo del umbral",
+    )
+    indeed_playbook = _EXPECTED_PLAYBOOK_PATHS["indeed"]
+    assert indeed.evidence_paths[: len(indeed_playbook)] == indeed_playbook
+
+
+def test_primary_targets_keep_the_secondary_fields_empty():
+    for target in _select_from_fixture():
+        assert target.role == targets.ROLE_PRIMARY
+        assert target.field is None
+        assert target.trigger is None
+        assert target.current_pct is None
+
+
+def test_combined_queue_prioritizes_primaries_before_secondaries():
+    loaded = targets.load_diagnostic(_REAL_FIXTURE)
+    queue = targets.select_all_targets(loaded)
+    primaries = targets.select_targets(loaded)
+    secondaries = targets.select_secondary_targets(loaded)
+
+    assert len(primaries) == 5
+    assert len(secondaries) == len(_EXPECTED_SECONDARY_FIELDS)
+    assert queue == primaries + secondaries
+    assert [target.role for target in queue] == (
+        [targets.ROLE_PRIMARY] * len(primaries)
+        + [targets.ROLE_SECONDARY] * len(secondaries)
+    )
+    assert [target.source for target in queue[:5]] == [
+        "indeed",
+        "linkedin",
+        "infojobs",
+        "irishjobs",
+        "glassdoor",
+    ]
+
+
+def test_secondary_from_a_failed_source_does_not_replace_its_primary():
+    queue = targets.select_all_targets(targets.load_diagnostic(_REAL_FIXTURE))
+
+    indeed_primary = next(
+        target
+        for target in queue
+        if target.source == "indeed" and target.role == targets.ROLE_PRIMARY
+    )
+    indeed_secondary = next(
+        target
+        for target in queue
+        if target.source == "indeed"
+        and target.role == targets.ROLE_SECONDARY
+        and target.field == "description"
+    )
+
+    assert indeed_primary is not indeed_secondary
+    assert indeed_primary.field is None
+    assert indeed_secondary.field == "description"
+    assert indeed_secondary.trigger == targets.TRIGGER_REQUIRED_FIELD
+
+
+def test_secondary_pct_is_none_when_missing_or_not_numeric(tmp_path):
+    payload = _payload(
+        "partial",
+        [
+            _source(
+                "stepstone_nl",
+                status="ok",
+                completeness=[
+                    {"field": "salary", "pct": None},
+                    {"field": "skills", "pct": "32.7"},
+                    {"field": "work_mode", "pct": True},
+                ],
+            )
+        ],
+    )
+    payload["investigations"] = [
+        {
+            "source": "stepstone_nl",
+            "trigger": targets.TRIGGER_OPTIONAL_FIELD,
+            "field": field,
+            "state": "unconfirmed",
+        }
+        for field in ("salary", "skills", "work_mode", "description")
+    ]
+
+    selected, _ = _select_secondary_from_payload(tmp_path, payload)
+
+    assert [target.field for target in selected] == [
+        "salary",
+        "skills",
+        "work_mode",
+        "description",
+    ]
+    assert [target.current_pct for target in selected] == [None, None, None, None]
+
+
+def test_secondary_investigation_without_field_is_ignored(tmp_path):
+    payload = _payload("partial", [])
+    payload["investigations"] = [
+        {
+            "source": "nuevafuente",
+            "trigger": targets.TRIGGER_REQUIRED_FIELD,
+            "field": None,
+            "state": "unconfirmed",
+        }
+    ]
+
+    selected, _ = _select_secondary_from_payload(tmp_path, payload)
+
+    assert selected == ()
+
+
+def test_source_failed_investigations_do_not_become_secondary_targets(tmp_path):
+    payload = _payload("partial", [])
+    payload["investigations"] = [
+        {
+            "source": "infojobs",
+            "trigger": "source_failed",
+            "field": None,
+            "state": "unconfirmed",
+        }
+    ]
+
+    selected, _ = _select_secondary_from_payload(tmp_path, payload)
+
+    assert selected == ()
+
+
+def test_secondary_without_source_context_keeps_the_investigation(tmp_path):
+    payload = _payload("partial", [])
+    payload["investigations"] = [
+        {
+            "source": "nuevafuente",
+            "trigger": targets.TRIGGER_OPTIONAL_FIELD,
+            "field": "salary",
+            "state": "unconfirmed",
+        }
+    ]
+
+    selected, path = _select_secondary_from_payload(tmp_path, payload)
+    target = selected[0]
+
+    assert target.source == "nuevafuente"
+    assert target.role == targets.ROLE_SECONDARY
+    assert target.status == targets.SOURCE_UNKNOWN
+    assert target.kind is None
+    assert target.current_pct is None
+    assert target.evidence == ()
+    assert target.evidence_paths == (str(path),)
+
+
+def test_correct_diagnostic_has_no_secondary_targets(tmp_path):
+    payload = _payload("ok", [_source("indeed", status="ok")])
+
+    selected, _ = _select_secondary_from_payload(tmp_path, payload)
+
+    assert selected == ()
+
+
+def test_secondary_selection_rejects_inconclusive_diagnostic(tmp_path):
+    payload = _payload("inconclusive", [], reason="sin ejecución comparable")
+    path = _write_diagnostic(tmp_path / "diagnostic_last.json", payload)
+
+    with pytest.raises(targets.DiagnosticError) as excinfo:
+        targets.select_secondary_targets(targets.load_diagnostic(path))
+    assert "inconcluso" in str(excinfo.value)
+
+    with pytest.raises(targets.DiagnosticError):
+        targets.select_all_targets(targets.load_diagnostic(path))
