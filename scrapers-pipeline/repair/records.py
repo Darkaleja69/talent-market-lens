@@ -38,8 +38,14 @@ Design rules:
 - The brief passes the T-05 safety gate before anything is written: a record
   never stores credentials or browser-profile paths (RF-11).
 
-Only the creation is implemented here; completing a record and updating the
-index/history is T-14.
+:func:`complete_record` closes a record (T-14, RF-11): it replaces the pending
+sections of ``plan.md`` with the result, the changes, the tests and the live
+test, stores the live measurement as ``quality_after.json`` and updates one row
+of ``repairs/README.md`` and the per-source entry of ``repairs/history.json``.
+Only a ``probado`` repair raises the verified count of the source (RF-10); a
+``descartado`` or ``escalado`` repair records its outcome without lowering or
+raising the bar. All new content is rendered in memory before anything is
+written, and a failed write restores the previous files.
 """
 from __future__ import annotations
 
@@ -51,15 +57,26 @@ from datetime import date, datetime
 from pathlib import Path
 
 from repair import brief as brief_module
+from repair import quality as quality_module
+from repair import threshold
 
 # repair/records.py -> parents[2] is the repository root.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_REPAIRS_DIR = REPO_ROOT / "repairs"
 DEFAULT_TEMPLATE_PATH = Path(__file__).resolve().parent / "record_template.md"
+# repairs/README.md holds the repair index between the index markers (T-12).
+DEFAULT_INDEX_PATH = DEFAULT_REPAIRS_DIR / "README.md"
 
 # State of a freshly opened record (RF-2); T-14 moves it to probado,
 # descartado or escalado.
 STATUS_PLANNED = "planificado"
+
+# Final states of a completed record (RF-11); only ``probado`` raises the
+# verified count of the source (RF-10).
+STATUS_TESTED = "probado"
+STATUS_DISCARDED = "descartado"
+STATUS_ESCALATED = "escalado"
+FINAL_STATUSES = (STATUS_TESTED, STATUS_DISCARDED, STATUS_ESCALATED)
 
 # quality_before.json contract (English, same shape as the sanitized example).
 QUALITY_BEFORE_SCHEMA_VERSION = 1
@@ -71,6 +88,30 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SOURCE_RE = re.compile(r"^[A-Za-z0-9_]+$")
 _PLACEHOLDER_RE = re.compile(r"\{\{[a-z_]+\}\}")
 _EVIDENCE_DIR_NAME = "evidence"
+_QUALITY_AFTER_NAME = "quality_after.json"
+
+# A record directory opened by T-13: <YYYYMMDD>-<source>.
+_RECORD_DIR_RE = re.compile(r"^(?P<date>\d{8})-(?P<source>[A-Za-z0-9_]+)$")
+# The index table lives between these stable markers (T-12).
+_INDEX_RE = re.compile(
+    r"(?P<open><!--\s*repair-index:start\s*-->)"
+    r"(?P<body>.*?)"
+    r"(?P<close><!--\s*repair-index:end\s*-->)",
+    re.DOTALL,
+)
+_INDEX_HEADER = "| fecha | fuente | estado | rama | resultado | calidad |"
+_INDEX_SEPARATOR = "|---|---|---|---|---|---|"
+
+# Spanish labels of the quality row statuses; the codes stay English.
+_QUALITY_STATUS_ES = {
+    quality_module.STATUS_PASS: "cumple",
+    quality_module.STATUS_FAIL: "no cumple",
+    quality_module.STATUS_NOT_APPLICABLE: "no aplica",
+}
+_QUALITY_TABLE_HEADER = (
+    "| Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |"
+)
+_QUALITY_TABLE_SEPARATOR = "|---|---|---|---|---|---|---|"
 
 
 class RecordError(RuntimeError):
@@ -97,6 +138,11 @@ class RepairRecord:
     source: str
     date: date
     branch: str
+
+    @property
+    def quality_after_path(self) -> Path:
+        """Path of ``quality_after.json`` (T-14 stores the live measurement)."""
+        return self.directory / _QUALITY_AFTER_NAME
 
 
 def create_record(
@@ -210,6 +256,127 @@ def create_record(
         date=record_date,
         branch=branch,
     )
+
+
+def complete_record(
+    record: RepairRecord | str | Path,
+    *,
+    status: str,
+    result: str,
+    changes: str | None = None,
+    tests: str | None = None,
+    live_test: str | None = None,
+    verified_offers: int | None = None,
+    quality_after: quality_module.QualityVerdict | dict | None = None,
+    index_path: str | Path | None = None,
+    history_path: str | Path | None = None,
+) -> RepairRecord:
+    """Close a repair record and update the index and the history (T-14; RF-11).
+
+    ``record`` is the :class:`RepairRecord` opened by :func:`create_record` or
+    its directory (``repairs/<YYYYMMDD>-<source>/``). ``status`` is the final
+    state (``probado``, ``descartado`` or ``escalado``) and ``result`` the
+    short Spanish outcome for the person. ``changes``, ``tests`` and
+    ``live_test`` are the Spanish markdown bodies of their plan sections
+    (``live_test`` documents the scope and the count); a missing body gets an
+    explicit "nothing recorded" note instead of an invented one.
+
+    ``verified_offers`` is the offer count the live test obtained: required
+    (integer ≥ 1) for a ``probado`` repair and optional otherwise. ``quality_after``
+    is a :class:`quality.QualityVerdict` or the dict of
+    ``quality.verdict_to_dict``; it is validated against the record source and
+    stored as ``quality_after.json`` with the stable English format. When it is
+    omitted, an existing ``quality_after.json`` of the record is reused, so a
+    second call does not drop the measurement.
+
+    ``index_path`` and ``history_path`` default to ``repairs/README.md`` and
+    ``repairs/history.json`` anchored to the repository root. The index gets
+    exactly one row per ``(fecha, fuente)``, sorted by date and source; a
+    missing index or one without its stable markers is a Spanish
+    :class:`RecordError` raised before anything is written. The history entry
+    of the source is enriched with ``last_result``, ``last_run_date``,
+    ``quality_ok`` and ``quality_delta_pp`` (the worst known field delta);
+    only a ``probado`` repair raises ``best_verified_offers`` (RF-10), and the
+    unknown keys already stored are kept.
+
+    All the new content is rendered (and every input validated) before the
+    filesystem is touched; if a write fails, the previous content of the
+    record, the index and the history is restored.
+    """
+    opened = _as_record(record)
+    final_status = _final_status(status)
+    result_text = _section_text(result, "result")
+    changes_text = _section_text(changes, "changes", optional=True)
+    tests_text = _section_text(tests, "tests", optional=True)
+    live_test_text = _section_text(live_test, "live_test", optional=True)
+    offers = _verified_count(verified_offers, final_status)
+
+    plan_text = _read_text(opened.plan_path, "el plan del registro")
+    before_entries = _load_quality_before(opened.quality_before_path)
+    quality_payload = _resolve_quality_after(quality_after, opened)
+
+    index_file = (
+        Path(index_path) if index_path is not None else DEFAULT_INDEX_PATH
+    )
+    history_file = (
+        Path(history_path)
+        if history_path is not None
+        else threshold.DEFAULT_HISTORY_PATH
+    )
+    index_text = _read_text(index_file, "el índice de reparaciones")
+    new_index_text = _updated_index(
+        index_text,
+        index_file,
+        opened,
+        final_status,
+        result_text,
+        quality_payload,
+    )
+
+    loaded_history = threshold.load_history(history_file)
+    new_history = _updated_history(
+        loaded_history.history, opened, final_status, offers, quality_payload
+    )
+
+    new_plan_text = _updated_plan(
+        plan_text,
+        changes_text=changes_text,
+        tests_text=tests_text,
+        live_test_text=live_test_text,
+        quality_payload=quality_payload,
+        before_entries=before_entries,
+        result_text=result_text,
+        status=final_status,
+        offers=offers,
+    )
+
+    documents: list[tuple[Path, str]] = []
+    if quality_payload is not None and quality_after is not None:
+        documents.append(
+            (opened.quality_after_path, _render_json(quality_payload))
+        )
+    documents.append((opened.plan_path, new_plan_text))
+    documents.append((index_file, new_index_text))
+
+    originals = {
+        path: (path.read_bytes() if path.exists() else None)
+        for path, _ in documents
+    }
+    history_original = (
+        history_file.read_bytes() if history_file.exists() else None
+    )
+    try:
+        for path, text in documents:
+            _write_text(path, text)
+        threshold.save_history(new_history, history_file)
+    except Exception as exc:
+        _restore(documents, originals, history_file, history_original)
+        if isinstance(exc, RecordError):
+            raise
+        raise RecordError(
+            f"no se pudo completar el registro «{opened.directory}»: {exc}"
+        ) from exc
+    return opened
 
 
 def _source_id(brief: dict[str, object]) -> str:
@@ -574,3 +741,569 @@ def _count_text(value: object) -> str:
 def _string_or(value: object) -> str:
     """Return the value as text, with a Spanish fallback for ``None``."""
     return "sin dato" if value is None else str(value)
+
+
+# --- Completing a record (T-14; RF-11) ---------------------------------------
+
+
+def _as_record(record: RepairRecord | str | Path) -> RepairRecord:
+    """Return the record, building its paths when a directory is given."""
+    if isinstance(record, RepairRecord):
+        return record
+    directory = Path(record)
+    if not directory.is_dir():
+        raise RecordError(
+            f"no existe el directorio del registro «{directory}»"
+        )
+    match = _RECORD_DIR_RE.fullmatch(directory.name)
+    if match is None:
+        raise RecordError(
+            f"el directorio «{directory.name}» no sigue el patrón "
+            "«<YYYYMMDD>-<fuente>» de un registro"
+        )
+    try:
+        record_date = datetime.strptime(match.group("date"), "%Y%m%d").date()
+    except ValueError as exc:
+        raise RecordError(
+            f"la fecha del registro «{directory.name}» no es una fecha real "
+            "del calendario"
+        ) from exc
+    source = match.group("source")
+    return RepairRecord(
+        directory=directory,
+        plan_path=directory / "plan.md",
+        context_path=directory / "context.json",
+        quality_before_path=directory / "quality_before.json",
+        evidence_dir=directory / _EVIDENCE_DIR_NAME,
+        source=source,
+        date=record_date,
+        branch=f"repair/{source}-{record_date:%Y%m%d}",
+    )
+
+
+def _final_status(value: object) -> str:
+    """Return the final status, or a Spanish error for an unknown one."""
+    if not isinstance(value, str) or value not in FINAL_STATUSES:
+        raise RecordError(
+            "el estado final del registro debe ser uno de: "
+            + ", ".join(FINAL_STATUSES)
+        )
+    return value
+
+
+def _section_text(
+    value: object, section_id: str, *, optional: bool = False
+) -> str | None:
+    """Validate a Spanish section body; a missing optional one returns None."""
+    if value is None:
+        if optional:
+            return None
+        raise RecordError(
+            f"falta el texto de la sección «{section_id}» del registro"
+        )
+    if not isinstance(value, str) or not value.strip():
+        raise RecordError(
+            f"el texto de la sección «{section_id}» debe ser texto no vacío"
+        )
+    if "record:section:" in value:
+        raise RecordError(
+            f"el texto de la sección «{section_id}» no puede contener los "
+            "marcadores «record:section»"
+        )
+    return value.strip()
+
+
+def _verified_count(value: object, status: str) -> int | None:
+    """Validate the verified count: mandatory (≥ 1) only for ``probado``."""
+    if value is None:
+        if status == STATUS_TESTED:
+            raise RecordError(
+                "una reparación probada necesita su recuento verificado "
+                "(verified_offers) como entero ≥ 1"
+            )
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise RecordError(
+            "el recuento verificado (verified_offers) debe ser un entero, no "
+            f"{type(value).__name__}"
+        )
+    minimum = 1 if status == STATUS_TESTED else 0
+    if value < minimum:
+        raise RecordError(
+            f"el recuento verificado de una reparación {status} debe ser un "
+            f"entero ≥ {minimum}, no {value}"
+        )
+    return value
+
+
+def _read_text(path: Path, label: str) -> str:
+    """Read a UTF-8 text file, or raise a clear Spanish error."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RecordError(f"no se pudo leer {label} «{path}»: {exc}") from exc
+
+
+def _read_json(path: Path, label: str) -> object:
+    """Read and parse a UTF-8 JSON file, or raise a Spanish error."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RecordError(f"no se pudo leer {label} «{path}»: {exc}") from exc
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RecordError(
+            f"{label} «{path}» no contiene JSON válido: {exc}"
+        ) from exc
+
+
+def _load_quality_before(path: Path) -> list[dict[str, object]]:
+    """Return the field entries of the stored ``quality_before.json``."""
+    payload = _read_json(path, "quality_before.json")
+    if not isinstance(payload, dict):
+        raise RecordError(f"«{path}» no contiene un objeto JSON")
+    fields = payload.get("fields")
+    if not isinstance(fields, list):
+        raise RecordError(
+            f"«{path}» no trae la lista de campos («fields»)"
+        )
+    entries: list[dict[str, object]] = []
+    for entry in fields:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("field"), str)
+            or not entry["field"]
+        ):
+            raise RecordError(
+                f"«{path}» tiene una fila de calidad sin campo («field»)"
+            )
+        entries.append(entry)
+    return entries
+
+
+def _resolve_quality_after(
+    value: quality_module.QualityVerdict | dict | None, record: RepairRecord
+) -> dict | None:
+    """Validate the live measurement, or reuse the stored one when omitted.
+
+    A measurement of another source is rejected: ``quality_after.json`` of a
+    record is never overwritten with the verdict of a different source.
+    """
+    path = record.quality_after_path
+    if value is None:
+        if not path.exists():
+            return None
+        payload = _read_json(path, "quality_after.json")
+        if not isinstance(payload, dict):
+            raise RecordError(f"«{path}» no contiene un objeto JSON")
+        _validate_quality_payload(payload, record)
+        return payload
+    if isinstance(value, quality_module.QualityVerdict):
+        payload = quality_module.verdict_to_dict(value)
+    elif isinstance(value, dict):
+        payload = value
+    else:
+        raise RecordError(
+            "la medición de calidad debe ser un QualityVerdict o un dict de "
+            "quality.verdict_to_dict"
+        )
+    _validate_quality_payload(payload, record)
+    return payload
+
+
+def _validate_quality_payload(
+    payload: dict, record: RepairRecord
+) -> None:
+    """Check the essential shape of a ``quality_after.json`` payload."""
+    if payload.get("source") != record.source:
+        raise RecordError(
+            f"la medición de calidad es de la fuente «{payload.get('source')}» "
+            f"y el registro es de «{record.source}»: no se sobrescribe"
+        )
+    if not isinstance(payload.get("ok"), bool):
+        raise RecordError(
+            "la medición de calidad no trae el veredicto «ok» booleano"
+        )
+    fields = payload.get("fields")
+    if not isinstance(fields, list):
+        raise RecordError(
+            "la medición de calidad no trae la lista de campos («fields»)"
+        )
+    for entry in fields:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("field"), str)
+            or not entry["field"]
+        ):
+            raise RecordError(
+                "hay una fila de la medición de calidad sin campo («field»)"
+            )
+    blockers = payload.get("blockers")
+    if blockers is not None and not isinstance(blockers, list):
+        raise RecordError(
+            "la medición de calidad no trae «blockers» como lista"
+        )
+
+
+def _updated_plan(
+    text: str,
+    *,
+    changes_text: str | None,
+    tests_text: str | None,
+    live_test_text: str | None,
+    quality_payload: dict | None,
+    before_entries: list[dict[str, object]],
+    result_text: str,
+    status: str,
+    offers: int | None,
+) -> str:
+    """Replace only the content of the five sections T-14 completes."""
+    updated = text
+    updated = _fill_section(
+        updated,
+        "changes",
+        _narrative_body(
+            "Cambios realizados",
+            changes_text,
+            "_(Sin cambios registrados en esta reparación.)_",
+        ),
+    )
+    updated = _fill_section(
+        updated,
+        "tests",
+        _narrative_body(
+            "Pruebas: tests",
+            tests_text,
+            "_(Sin pruebas registradas.)_",
+        ),
+    )
+    updated = _fill_section(
+        updated,
+        "live_test",
+        _narrative_body(
+            "Pruebas: prueba en vivo",
+            live_test_text,
+            "_(Sin prueba en vivo registrada.)_",
+        ),
+    )
+    updated = _fill_section(
+        updated,
+        "quality",
+        _quality_section_body(quality_payload, before_entries),
+    )
+    updated = _fill_section(
+        updated,
+        "result",
+        _result_body(result_text, status, offers),
+    )
+    if not updated.endswith("\n"):
+        updated += "\n"
+    return updated
+
+
+def _narrative_body(title: str, text: str | None, fallback: str) -> str:
+    """Render a section body with the given text or the explicit fallback."""
+    body = text if text is not None else fallback
+    return f"## {title}\n\n{body}"
+
+
+def _quality_section_body(
+    payload: dict | None, before_entries: list[dict[str, object]]
+) -> str:
+    """Render the before/after quality table and the verdict (T-14).
+
+    The "después" values come from ``quality_after``; the "antes" value of
+    each field comes from the stored ``quality_before.json`` (falling back to
+    the row's own ``before_pct`` when the field is not in the profile).
+    """
+    lines = ["## Calidad", ""]
+    if payload is None:
+        lines.append(
+            "Tabla antes/después por campo (`quality_before.json`; "
+            "`quality_after.json` sin medición):"
+        )
+        lines.append("")
+        lines.extend(_before_only_rows(before_entries))
+        lines.extend(
+            [
+                "",
+                "_(Sin medición de calidad: la prueba en vivo no se completó.)_",
+            ]
+        )
+        return "\n".join(lines)
+    lines.append(
+        "Tabla antes/después por campo (`quality_before.json` → "
+        "`quality_after.json`):"
+    )
+    lines.append("")
+    lines.extend(_after_rows(payload, before_entries))
+    lines.extend(["", _verdict_text(payload)])
+    return "\n".join(lines)
+
+
+def _before_only_rows(entries: list[dict[str, object]]) -> list[str]:
+    """Render the before profile with the measurement still pending."""
+    lines = [_QUALITY_TABLE_HEADER, _QUALITY_TABLE_SEPARATOR]
+    if not entries:
+        lines.append("| _(sin perfil de calidad)_ | | | | | | |")
+        return lines
+    for entry in entries:
+        lines.append(
+            f"| {entry['field']} "
+            f"| {'sí' if entry.get('required') else 'no'} "
+            f"| {_pct_text(entry.get('current_pct'))} "
+            "| pendiente | pendiente "
+            f"| {_target_text(entry.get('target_pct'))} "
+            "| pendiente |"
+        )
+    return lines
+
+
+def _after_rows(
+    payload: dict, before_entries: list[dict[str, object]]
+) -> list[str]:
+    """Render one markdown row per measured field of the verdict."""
+    before_by_field = {
+        entry["field"]: entry.get("current_pct") for entry in before_entries
+    }
+    lines = [_QUALITY_TABLE_HEADER, _QUALITY_TABLE_SEPARATOR]
+    fields = payload.get("fields") or []
+    if not fields:
+        lines.append("| _(sin filas medidas)_ | | | | | | |")
+        return lines
+    for row in fields:
+        field = row["field"]
+        if field in before_by_field:
+            before = before_by_field[field]
+        else:
+            before = row.get("before_pct")
+        status = row.get("status")
+        lines.append(
+            f"| {field} "
+            f"| {'sí' if row.get('required') else 'no'} "
+            f"| {_pct_text(before)} "
+            f"| {_pct_text(row.get('after_pct'))} "
+            f"| {_delta_text(row.get('delta_pp'))} "
+            f"| {_target_text(row.get('target_pct'))} "
+            f"| {_QUALITY_STATUS_ES.get(status, _string_or(status))} |"
+        )
+    return lines
+
+
+def _verdict_text(payload: dict) -> str:
+    """Render the Spanish verdict line with the English blocker codes."""
+    verdict = "OK" if payload.get("ok") else "NO OK"
+    blockers = [str(code) for code in (payload.get("blockers") or [])]
+    if blockers:
+        return (
+            f"Veredicto de `quality.py`: **{verdict}** — bloqueos: "
+            + ", ".join(f"`{code}`" for code in blockers)
+            + "."
+        )
+    return f"Veredicto de `quality.py`: **{verdict}**."
+
+
+def _result_body(
+    result_text: str, status: str, offers: int | None
+) -> str:
+    """Render the result, the verified count and the final state (RF-11)."""
+    lines = ["## Resultado y estado", "", f"- **Resultado:** {result_text}"]
+    if offers is not None:
+        lines.append(f"- **Ofertas verificadas:** {offers}")
+    if status == STATUS_TESTED:
+        lines.append(
+            "- **Validación del push:** pendiente de la persona (RF-12)"
+        )
+    else:
+        lines.append(
+            f"- **Validación del push:** no aplica (reparación {status})"
+        )
+    lines.append(f"- **Estado:** {status}")
+    return "\n".join(lines)
+
+
+def _updated_index(
+    text: str,
+    index_file: Path,
+    record: RepairRecord,
+    status: str,
+    result_text: str,
+    payload: dict | None,
+) -> str:
+    """Insert or update the single index row of ``(fecha, fuente)`` (T-14)."""
+    match = _INDEX_RE.search(text)
+    if match is None:
+        raise RecordError(
+            f"el índice «{index_file}» no tiene los marcadores "
+            "«repair-index:start» y «repair-index:end»: no se actualiza nada"
+        )
+    body_lines = match.group("body").strip().splitlines()
+    if (
+        len(body_lines) < 2
+        or body_lines[0] != _INDEX_HEADER
+        or body_lines[1] != _INDEX_SEPARATOR
+    ):
+        raise RecordError(
+            f"el índice «{index_file}» no tiene la cabecera esperada "
+            f"«{_INDEX_HEADER}»"
+        )
+    key = (record.date.isoformat(), record.source)
+    rows = [
+        line
+        for line in body_lines[2:]
+        if line.strip() and _index_row_key(line) != key
+    ]
+    rows.append(_index_row(record, status, result_text, payload))
+    rows.sort(key=_index_sort_key)
+    body = "\n" + "\n".join([_INDEX_HEADER, _INDEX_SEPARATOR, *rows]) + "\n"
+    return text[: match.start("body")] + body + text[match.end("body") :]
+
+
+def _index_row(
+    record: RepairRecord, status: str, result_text: str, payload: dict | None
+) -> str:
+    """Render the markdown row of a completed repair (six safe columns)."""
+    summary = _single_line(result_text)
+    return (
+        f"| {record.date.isoformat()} | {record.source} | {status} "
+        f"| {record.branch} | {summary} | {_index_quality_text(payload)} |"
+    )
+
+
+def _index_row_key(line: str) -> tuple[str, str] | None:
+    """Return ``(fecha, fuente)`` of an index row, or None if malformed."""
+    parts = [part.strip() for part in line.split("|")]
+    if len(parts) < 4 or parts[0] or not parts[1] or not parts[2]:
+        return None
+    return parts[1], parts[2]
+
+
+def _index_sort_key(line: str) -> tuple[str, str]:
+    """Sort rows by date and source; malformed rows go last, untouched."""
+    key = _index_row_key(line)
+    return key if key is not None else ("\uffff", "\uffff")
+
+
+def _index_quality_text(payload: dict | None) -> str:
+    """Summarize the verdict for the ``calidad`` column in Spanish."""
+    if payload is None:
+        return "sin medición"
+    label = "OK" if payload.get("ok") else "NO OK"
+    fields = payload.get("fields") or []
+    failed = [
+        row["field"]
+        for row in fields
+        if row.get("status") == quality_module.STATUS_FAIL
+    ]
+    if failed:
+        return f"{label}: fallan {', '.join(failed)}"
+    passed = [
+        row["field"]
+        for row in fields
+        if row.get("status") == quality_module.STATUS_PASS
+    ]
+    if passed:
+        return f"{label}: cumplen {', '.join(passed)}"
+    blockers = [str(code) for code in (payload.get("blockers") or [])]
+    if blockers:
+        return f"{label}: {', '.join(blockers)}"
+    return label
+
+
+def _single_line(text: str) -> str:
+    """Collapse a Spanish summary into one markdown table cell."""
+    return " ".join(text.split()).replace("|", "\\|")
+
+
+def _updated_history(
+    history: dict,
+    record: RepairRecord,
+    status: str,
+    offers: int | None,
+    payload: dict | None,
+) -> dict:
+    """Enrich the source entry; only ``probado`` raises the verified count.
+
+    ``record_verified`` keeps the maximum, so the bar never decreases (RF-10).
+    A non-verified source with no entry gets ``best_verified_offers: 0`` (the
+    explicit "no verified offers yet" floor: the next threshold is still 1);
+    an existing value is never touched by a discarding or escalating repair.
+    Unknown keys already stored in the entry are kept.
+    """
+    if status == STATUS_TESTED:
+        history = threshold.record_verified(
+            history, record.source, offers
+        )
+    new_history = dict(history)
+    sources = new_history.get("sources")
+    sources = dict(sources) if isinstance(sources, dict) else {}
+    entry = sources.get(record.source)
+    entry = dict(entry) if isinstance(entry, dict) else {}
+    if "best_verified_offers" not in entry:
+        entry["best_verified_offers"] = 0
+    entry.update(
+        {
+            "last_result": status,
+            "last_run_date": record.date.isoformat(),
+            "quality_ok": None if payload is None else bool(payload.get("ok")),
+            "quality_delta_pp": _worst_delta(payload),
+        }
+    )
+    sources[record.source] = entry
+    new_history["sources"] = sources
+    return new_history
+
+
+def _worst_delta(payload: dict | None) -> float | None:
+    """Return the worst known field delta in points, or ``None``.
+
+    The single number stored in the history is the smallest field delta of the
+    measurement (the one that matters for the no-regression rule of RF-16);
+    when no field has a before value there is no delta and ``None`` is stored.
+    """
+    if payload is None:
+        return None
+    deltas = []
+    for row in payload.get("fields") or []:
+        if not isinstance(row, dict):
+            continue
+        number = _optional_number(row.get("delta_pp"))
+        if number is not None:
+            deltas.append(float(number))
+    return min(deltas) if deltas else None
+
+
+def _delta_text(value: object) -> str:
+    """Format a percentage-point delta with its sign, or a missing note."""
+    number = _optional_number(value)
+    if number is None:
+        return "sin dato"
+    return f"{float(number):+.1f} pp"
+
+
+def _restore(
+    documents: list[tuple[Path, str]],
+    originals: dict[Path, bytes | None],
+    history_file: Path,
+    history_original: bytes | None,
+) -> None:
+    """Best-effort rollback of a failed completion (record, index, history)."""
+    for path, _ in documents:
+        original = originals.get(path)
+        try:
+            if original is None:
+                if path.exists():
+                    path.unlink()
+            else:
+                path.write_bytes(original)
+        except OSError:
+            continue
+    try:
+        if history_original is None:
+            if history_file.exists():
+                history_file.unlink()
+        else:
+            history_file.write_bytes(history_original)
+    except OSError:
+        pass
