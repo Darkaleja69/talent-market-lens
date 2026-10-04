@@ -1,11 +1,12 @@
-"""Tests for the diagnostic selection (T-01, T-02, T-03).
+"""Tests for the diagnostic selection (T-01..T-04).
 
 Offline tests for ``repair.targets``: missing/unreadable/invalid diagnostic,
 schema-version contract, the non-fatal staleness warning (T-01), the primary
 targets extracted from the real sanitized 2026-10-03 fixture, the generic
-playbook, a correct diagnostic and an inconclusive one (T-02), and the
-secondary completeness targets with their field, percentage and prioritized
-queue (T-03; RF-1, RF-13).
+playbook, a correct diagnostic and an inconclusive one (T-02), the secondary
+completeness targets with their field, percentage and prioritized queue
+(T-03), and the per-field quality profiles with their targets (T-04;
+RF-1, RF-7, RF-13, RF-16).
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from repair import targets
+from verification import field_contract
 
 _MISSING = object()
 
@@ -863,3 +865,183 @@ def test_secondary_selection_rejects_inconclusive_diagnostic(tmp_path):
 
     with pytest.raises(targets.DiagnosticError):
         targets.select_all_targets(targets.load_diagnostic(path))
+
+
+# --- Quality profiles (T-04; RF-1, RF-7, RF-16) ------------------------------
+
+
+def _profile(target) -> dict:
+    """Return the target profile as a field -> entry map (canonical order)."""
+    return {entry.field: entry for entry in target.quality}
+
+
+def test_all_targets_carry_the_canonical_quality_profile():
+    queue = targets.select_all_targets(targets.load_diagnostic(_REAL_FIXTURE))
+
+    for target in queue:
+        assert [entry.field for entry in target.quality] == list(
+            field_contract.MEASURED_FIELDS
+        )
+
+
+def test_quality_profile_real_fixture_for_indeed():
+    indeed = _profile(_target(_select_from_fixture(), "indeed"))
+
+    assert indeed["title"].required is True
+    assert indeed["title"].current_pct == 100.0
+    assert indeed["title"].target_pct == 100.0
+    assert indeed["description"].required is True
+    assert indeed["description"].current_pct == 0.0
+    assert indeed["description"].target_pct == 100.0
+    assert indeed["company"].current_pct == 100.0
+    assert indeed["company"].target_pct == 100.0
+    assert indeed["salary"].required is False
+    assert indeed["salary"].current_pct == pytest.approx(35.08771929824562)
+    assert indeed["salary"].target_pct == 100.0
+    assert indeed["work_mode"].current_pct == pytest.approx(17.54385964912281)
+    assert indeed["work_mode"].target_pct == 100.0
+    # Indeed does not publish skills: no target, so its absence is not a
+    # failure (RF-16); the diagnostic measurement is still reported.
+    assert indeed["skills"].current_pct == 0.0
+    assert indeed["skills"].target_pct is None
+    assert indeed["skills"].is_focus is False
+
+
+def test_quality_profile_real_fixture_for_linkedin():
+    linkedin = _profile(_target(_select_from_fixture(), "linkedin"))
+
+    assert linkedin["description"].current_pct == pytest.approx(
+        88.44640515082867
+    )
+    assert linkedin["description"].target_pct == 100.0
+    assert linkedin["salary"].current_pct == pytest.approx(16.31095743412424)
+    assert linkedin["salary"].target_pct == 100.0
+    # LinkedIn publishes skills, so they also aim at 100.
+    assert linkedin["skills"].current_pct == pytest.approx(80.67246929772267)
+    assert linkedin["skills"].target_pct == 100.0
+    assert linkedin["work_mode"].current_pct == pytest.approx(42.42279718612138)
+    assert linkedin["work_mode"].target_pct == 100.0
+
+
+def test_quality_profile_real_fixture_for_nvb_secondary_focus():
+    selected = _select_secondary_from_fixture()
+    nvb = next(target for target in selected if target.source == "nvb")
+    profile = _profile(nvb)
+
+    assert nvb.field == "work_mode"
+    assert profile["work_mode"].current_pct == 0.0
+    assert profile["work_mode"].target_pct == 100.0
+    assert profile["work_mode"].is_focus is True
+    assert all(
+        entry.is_focus is False
+        for field, entry in profile.items()
+        if field != "work_mode"
+    )
+    assert profile["salary"].current_pct == pytest.approx(68.01801801801801)
+    assert profile["salary"].target_pct == 100.0
+    assert profile["skills"].current_pct == pytest.approx(80.18018018018019)
+    assert profile["skills"].target_pct == 100.0
+
+
+def test_primary_targets_have_no_focus_field():
+    for target in _select_from_fixture():
+        assert all(entry.is_focus is False for entry in target.quality)
+
+
+def test_required_fields_target_100_without_completeness():
+    infojobs = _profile(_target(_select_from_fixture(), "infojobs"))
+
+    for field in ("title", "company", "description"):
+        assert infojobs[field].required is True
+        assert infojobs[field].current_pct is None
+        assert infojobs[field].target_pct == 100.0
+    # Published optionals also aim at 100; InfoJobs does not publish skills.
+    assert infojobs["salary"].current_pct is None
+    assert infojobs["salary"].target_pct == 100.0
+    assert infojobs["work_mode"].target_pct == 100.0
+    assert infojobs["skills"].target_pct is None
+
+
+def test_optional_at_60_pct_still_targets_100(tmp_path):
+    payload = _payload(
+        "partial",
+        [
+            _source(
+                "jobs_ch",
+                status="failed",
+                completeness=[{"field": "salary", "pct": 60.0}],
+            )
+        ],
+    )
+
+    selected, _ = _select_from_payload(tmp_path, payload)
+    salary = _profile(selected[0])["salary"]
+
+    assert salary.required is False
+    assert salary.current_pct == 60.0
+    assert salary.target_pct == 100.0
+
+
+@pytest.mark.parametrize("current_pct", [12.5, 100.0])
+def test_published_optional_always_targets_100(tmp_path, current_pct):
+    payload = _payload(
+        "partial",
+        [
+            _source(
+                "jobs_ch",
+                status="failed",
+                completeness=[{"field": "salary", "pct": current_pct}],
+            )
+        ],
+    )
+
+    selected, _ = _select_from_payload(tmp_path, payload)
+    salary = _profile(selected[0])["salary"]
+
+    assert salary.current_pct == current_pct
+    assert salary.target_pct == 100.0
+
+
+def test_unpublished_optional_gets_no_target(tmp_path):
+    payload = _payload(
+        "partial",
+        [
+            _source(
+                "indeed",
+                status="failed",
+                completeness=[{"field": "skills", "pct": 0.0}],
+            )
+        ],
+    )
+
+    selected, _ = _select_from_payload(tmp_path, payload)
+    skills = _profile(selected[0])["skills"]
+
+    assert skills.required is False
+    assert skills.current_pct == 0.0
+    assert skills.target_pct is None
+
+
+def test_unknown_source_profile_targets_only_required_fields(tmp_path):
+    payload = _load_fixture_payload()
+    payload["sources"].append(
+        _source("nuevafuente", outcome="error", offers_current_run=None)
+    )
+
+    selected, _ = _select_from_payload(tmp_path, payload)
+    profile = _profile(_target(selected, "nuevafuente"))
+
+    assert list(profile) == list(field_contract.MEASURED_FIELDS)
+    for entry in profile.values():
+        assert entry.current_pct is None
+        if entry.required:
+            assert entry.target_pct == 100.0
+        else:
+            assert entry.target_pct is None
+
+
+def test_quality_profile_is_frozen():
+    entry = _select_from_fixture()[0].quality[0]
+
+    with pytest.raises(FrozenInstanceError):
+        entry.target_pct = 50.0  # type: ignore[misc]

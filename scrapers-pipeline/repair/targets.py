@@ -15,8 +15,12 @@ paths. :func:`select_secondary_targets` turns the completeness investigations
 (``required_field_below_target`` and ``optional_field_at_or_below_threshold``)
 into secondary targets with their field and current percentage, and
 :func:`select_all_targets` returns the prioritized queue: primary targets
-first, secondary ones after (RF-1). An ``inconclusive`` global status is
-rejected with a clear Spanish message because no repair must start from it.
+first, secondary ones after (RF-1). Every target carries a per-field
+:class:`QualityProfile` (T-04; RF-1, RF-7, RF-16) built from the data contract
+and the diagnostic: required fields and the optionals the source publishes aim
+at 100 %, an unpublished optional gets no target. An ``inconclusive`` global
+status is rejected with a clear Spanish message because no repair must start
+from it.
 
 Design rules:
 
@@ -36,6 +40,8 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+
+from verification import field_contract, sources
 
 # Only the schema this process knows how to interpret is accepted (plan §4).
 SCHEMA_VERSION = 1
@@ -127,6 +133,30 @@ class LoadedDiagnostic:
 
 
 @dataclass(frozen=True)
+class QualityProfile:
+    """Per-field quality profile of a repair target (T-04; RF-1, RF-7, RF-16).
+
+    One entry per canonical measured field, in
+    ``field_contract.MEASURED_FIELDS`` order. ``required`` comes from the data
+    contract. ``current_pct`` is the diagnostic measurement of that field for
+    the target source (``None`` when the field was not measured: never
+    invented). ``target_pct`` is the goal: 100.0 for a required field and for
+    an optional field the source publishes (``sources.field_aliases``
+    non-empty; plan §2.5, §9), and ``None`` for an optional field the portal
+    does not publish (for example ``skills`` in Indeed), whose absence is not
+    a failure (RF-16). ``is_focus`` marks the field of the secondary
+    investigation, so T-05/T-06 can highlight it; primary targets keep it
+    ``False``.
+    """
+
+    field: str
+    required: bool
+    current_pct: float | None
+    target_pct: float | None
+    is_focus: bool = False
+
+
+@dataclass(frozen=True)
 class RepairTarget:
     """One failed source to repair, extracted from the diagnostic (T-02; RF-1).
 
@@ -152,6 +182,10 @@ class RepairTarget:
     ``field`` (the affected canonical field) and ``current_pct`` (the field
     percentage taken from the diagnostic ``completeness``, or ``None`` when it
     is absent or not numeric). Primary targets keep those three at ``None``.
+
+    ``quality`` is the per-field :class:`QualityProfile` of the target, in
+    canonical field order and built from the diagnostic; it defaults to an
+    empty tuple so direct constructions stay valid.
     """
 
     source: str
@@ -168,6 +202,7 @@ class RepairTarget:
     trigger: str | None = None
     current_pct: float | None = None
     role: str = ROLE_PRIMARY
+    quality: tuple[QualityProfile, ...] = ()
 
 
 def load_diagnostic(
@@ -413,10 +448,10 @@ def _source_entries(payload: dict) -> tuple[dict, ...]:
     A missing or malformed ``sources`` value yields no entries and non-mapping
     items are ignored: extraction never crashes on a partial payload.
     """
-    sources = payload.get("sources")
-    if not isinstance(sources, list):
+    raw_sources = payload.get("sources")
+    if not isinstance(raw_sources, list):
         return ()
-    return tuple(entry for entry in sources if isinstance(entry, dict))
+    return tuple(entry for entry in raw_sources if isinstance(entry, dict))
 
 
 def _target_from_source(
@@ -441,6 +476,7 @@ def _target_from_source(
         evidence=_string_tuple(entry.get("evidence")),
         evidence_paths=_evidence_paths(source_id, loaded),
         run_date=run_date,
+        quality=_quality_profile(entry, source_id, focus_field=None),
     )
 
 
@@ -501,7 +537,75 @@ def _secondary_target_from_investigation(
         trigger=trigger,
         current_pct=_current_pct(source_entry, field),
         role=ROLE_SECONDARY,
+        quality=_quality_profile(source_entry, source_id, focus_field=field),
     )
+
+
+def _quality_profile(
+    source_entry: dict,
+    source_id: str,
+    focus_field: str | None,
+) -> tuple[QualityProfile, ...]:
+    """Build the per-field quality profile of one target (T-04; RF-1, RF-7).
+
+    The profile follows the canonical ``field_contract.MEASURED_FIELDS`` order
+    and is built only from the contract and the diagnostic: ``current_pct`` is
+    the source's own ``completeness[].pct`` (``None`` when not measured, never
+    invented) and ``target_pct`` is 100.0 for a required field and for an
+    optional field the source publishes (``sources.field_aliases`` non-empty;
+    plan §2.5, §9). An optional field the portal does not publish gets no
+    target, so its absence is not a failure (RF-16). An unknown source has no
+    aliases in the catalog, so only its required fields get a target.
+    ``focus_field`` marks the secondary investigation field.
+    """
+    current = _completeness_by_field(source_entry)
+    profile: list[QualityProfile] = []
+    for field in field_contract.MEASURED_FIELDS:
+        required = field_contract.is_required(field)
+        published = bool(_field_aliases(source_id, field))
+        profile.append(
+            QualityProfile(
+                field=field,
+                required=required,
+                current_pct=current.get(field),
+                target_pct=100.0 if required or published else None,
+                is_focus=field == focus_field,
+            )
+        )
+    return tuple(profile)
+
+
+def _field_aliases(source_id: str, field: str) -> tuple[str, ...]:
+    """Return the source's origin aliases for a field, or ``()``.
+
+    An unknown source or field yields no aliases: the catalog does not claim
+    the portal publishes it, so no target is invented (plan §6.7).
+    """
+    try:
+        return tuple(sources.field_aliases(source_id, field))
+    except KeyError:
+        return ()
+
+
+def _completeness_by_field(source_entry: dict) -> dict[str, float | None]:
+    """Return the source's measured field -> pct map, without inventing data.
+
+    A missing or malformed ``completeness`` yields an empty map; an entry with
+    a non-numeric ``pct`` is kept with ``None`` (the field was measured but
+    the diagnostic carries no usable percentage). The first entry of a field
+    wins, so a duplicated field never changes the reported value.
+    """
+    completeness = source_entry.get("completeness")
+    if not isinstance(completeness, list):
+        return {}
+    measured: dict[str, float | None] = {}
+    for item in completeness:
+        if not isinstance(item, dict):
+            continue
+        field = _optional_str(item.get("field"))
+        if field is not None and field not in measured:
+            measured[field] = _optional_pct(item.get("pct"))
+    return measured
 
 
 def _current_pct(source_entry: dict, field: str) -> float | None:
@@ -510,13 +614,7 @@ def _current_pct(source_entry: dict, field: str) -> float | None:
     The percentage is read from the source's own measurement; a missing entry
     or a non-numeric value yields ``None`` instead of an invented number.
     """
-    completeness = source_entry.get("completeness")
-    if not isinstance(completeness, list):
-        return None
-    for item in completeness:
-        if isinstance(item, dict) and item.get("field") == field:
-            return _optional_pct(item.get("pct"))
-    return None
+    return _completeness_by_field(source_entry).get(field)
 
 
 def _optional_pct(value: object) -> float | None:
