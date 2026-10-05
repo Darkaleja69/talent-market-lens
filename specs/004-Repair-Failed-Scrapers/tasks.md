@@ -201,7 +201,7 @@ su registro, no por fase.
     preventivas de §6.0 aplican (sesión/tokens reales, fingerprint, ritmo y
     flujo humanos).
 
-- [ ] **T-20 — Añadir el comando de entrada `/repair`** (~20 min)
+- [x] **T-20 — Añadir el comando de entrada `/repair`** (~20 min)
   - **RF:** RF-13.
   - **Depende de:** T-16.
   - **Hecho cuando:** `.opencode/command/repair.md` lanza el flujo sobre el
