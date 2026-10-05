@@ -188,7 +188,7 @@ su registro, no por fase.
 
 ## 5. Agentes, skills y comando de entrada
 
-- [ ] **T-19 — Crear el subagente `web-inspector` (contrato v2)** (~25 min)
+- [x] **T-19 — Crear el subagente `web-inspector` (contrato v2)** (~25 min)
   - **RF:** RF-3, RF-4, RF-6.
   - **Hecho cuando:** `.opencode/agent/web-inspector.md` define el subagente en
     modo lectura de código (solo escribe evidencias bajo
