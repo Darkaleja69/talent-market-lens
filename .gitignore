@@ -81,9 +81,14 @@ env/
 
 # ---------------------------------------------------------------------------
 # Herramientas locales (opencode)
+# Se versiona la arquitectura de agentes, comandos y skills. Quedan fuera las
+# dependencias, los ficheros de paquete locales y las capturas de investigación.
 # ---------------------------------------------------------------------------
-.opencode/
-**/.opencode/
+**/.opencode/node_modules/
+**/.opencode/package.json
+**/.opencode/package-lock.json
+**/.opencode/bun.lock
+**/.opencode/.agent-screenshots/
 
 # ---------------------------------------------------------------------------
 # Sistema operativo / editor
