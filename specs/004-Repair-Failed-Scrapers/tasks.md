@@ -224,9 +224,10 @@ su registro, no por fase.
 - [ ] **T-22 — Comprobar el flujo de agentes en una fuente simulada** (~20 min)
   - **RF:** RF-3, RF-14.
   - **Depende de:** T-19–T-21.
-  - **Hecho cuando:** una revisión documentada de una ejecución de prueba
-    (objetivo simulado, sin red) confirma que el especialista recibe el brief y
-    el playbook, devuelve la auditoría de campos y la meta de calidad, el
+  - **Hecho cuando:** `specs/004-Repair-Failed-Scrapers/agent-flow-review.md`
+    recoge una revisión documentada de una ejecución de prueba (objetivo
+    simulado, sin red) que confirma que el especialista recibe el brief y el
+    playbook, devuelve la auditoría de campos y la meta de calidad, el
     implementador recibe el informe, el verificador no usa red y ninguna puerta
     se salta.
 
