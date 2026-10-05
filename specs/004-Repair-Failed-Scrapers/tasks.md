@@ -221,7 +221,7 @@ su registro, no por fase.
     §6.0 (diseñar para no disparar el CAPTCHA, sin solvers), sin duplicar reglas
     de negocio.
 
-- [ ] **T-22 — Comprobar el flujo de agentes en una fuente simulada** (~20 min)
+- [x] **T-22 — Comprobar el flujo de agentes en una fuente simulada** (~20 min)
   - **RF:** RF-3, RF-14.
   - **Depende de:** T-19–T-21.
   - **Hecho cuando:** `specs/004-Repair-Failed-Scrapers/agent-flow-review.md`
