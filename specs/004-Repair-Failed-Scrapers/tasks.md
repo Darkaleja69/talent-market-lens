@@ -233,7 +233,7 @@ su registro, no por fase.
 
 ## 6. Integración offline y regresión
 
-- [ ] **T-23 — Probar la integración del núcleo determinista** (~25 min)
+- [x] **T-23 — Probar la integración del núcleo determinista** (~25 min)
   - **RF:** RF-1–RF-11, RF-16.
   - **Depende de:** T-07, T-10, T-11, T-15, T-17.
   - **Hecho cuando:** un test recorre sobre el fixture real
@@ -241,7 +241,7 @@ su registro, no por fase.
     fuentes fallidas, los objetivos secundarios y las reparaciones aisladas por
     fuente.
 
-- [ ] **T-24 — Probar los límites del flujo determinista** (~20 min)
+- [x] **T-24 — Probar los límites del flujo determinista** (~20 min)
   - **RF:** RF-1, RF-9, RF-10, RF-14.
   - **Depende de:** T-23.
   - **Hecho cuando:** tests cubren diagnóstico inexistente/inconcluso/desfasado,
@@ -250,7 +250,7 @@ su registro, no por fase.
     aislamiento entre reparaciones simultáneas y fuente desconocida añadida al
     diagnóstico.
 
-- [ ] **T-25 — Regresión de la suite del pipeline** (~15 min)
+- [x] **T-25 — Regresión de la suite del pipeline** (~15 min)
   - **RF:** RF-8.
   - **Depende de:** T-23.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa
