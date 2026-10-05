@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "username": "aleja",
+  "skills": {
+    "paths": [".opencode/skills"]
+  },
+  "agent": {
+    "indeed-scraper": {
+      "description": "Subagente experto en el scraper de Indeed de este proyecto. Ejecuta el scraper, interpreta outputs, diagnostica fallos de parseo, detecta cuando Indeed cambia selectores y actualiza parser y skills. Usa cuando el usuario quiera lanzar, depurar o mantener el scraper de Indeed.",
+      "mode": "subagent",
+      "model": "opencode-go/glm-5.2",
+      "permission": {
+        "bash": "allow",
+        "edit": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "write": "allow"
+      }
+    }
+  },
+  "permission": {
+    "bash": {
+      "python *": "allow",
+      "pip *": "allow",
+      "pip3 *": "allow",
+      "Get-ChildItem *": "allow",
+      "*": "ask"
+    },
+    "edit": "ask",
+    "write": "ask"
+  }
+}
