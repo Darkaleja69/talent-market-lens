@@ -146,7 +146,7 @@ scrapers completos; las capturas y extractos que produce se copian a
 `repairs/<fecha>-<fuente>/evidence/` (y a `.opencode/.agent-screenshots/`, que
 está fuera de git).
 
-### 3.3 Skills (instaladas en `.opencode/skills/`, fuera de git por decisión del proyecto)
+### 3.3 Skills (versionadas en `.opencode/skills/`)
 
 | Skill | Uso |
 |---|---|
@@ -555,7 +555,9 @@ dentro de pytest.
    gestionadas y cualquier elusión de verificación de identidad.
 9. **Multi-site por portal.** Cada portal es un objetivo independiente.
    **Descartado:** tratar Multi-site como una sola fuente.
-10. **Skills y agentes fuera de git.** El proceso documenta su instalación.
+10. **Skills, agentes y comandos versionados en `.opencode/`** (solo
+    dependencias locales y capturas de investigación quedan fuera). El proceso
+    documenta su instalación.
 11. **El `web-inspector` no edita código, pero sí escribe evidencias.** Un
     informe sin capturas en el registro no es verificable. **Descartado:**
     inspector totalmente efímero y modo lectura absoluto.
@@ -614,9 +616,10 @@ dentro de pytest.
 ## 14. Cumplimiento de la constitución
 
 - **Stack simple:** núcleo en biblioteca estándar (pytest para tests); sin
-  dependencias nuevas en los scrapers salvo justificación en el registro. Las
-  herramientas de investigación (CLI `agent-browser`, Chrome, skills) son
-  tooling local, no runtime, y quedan fuera de git.
+  dependencias nuevas en los scrapers salvo justificación en el registro. La
+  arquitectura de agentes, comandos y skills se versiona en `.opencode/`; la
+  CLI `agent-browser` y Chrome son tooling local, no runtime, y las capturas
+  de investigación quedan fuera de git.
 - **Spec y código:** este plan implementa RF-1–RF-16; lo que exceda el alcance
   se propone como spec nueva o actualización de la 004.
 - **Lógica e interfaz:** selección, umbral, calidad y registros son módulos

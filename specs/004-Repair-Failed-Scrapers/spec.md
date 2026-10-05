@@ -212,8 +212,10 @@ por probada aunque el recuento de ofertas alcance el umbral.
   innecesarios.
 - La selección de objetivos, el umbral, la calidad y el registro serán reproducibles: la
   misma entrada produce la misma decisión.
-- Las skills y agentes del proceso viven en `.opencode/` y quedan fuera de git
-  por decisión del proyecto; el proceso documentará su instalación.
+- La arquitectura de agentes, comandos y skills del proceso vive en
+  `.opencode/` y se versiona en git (solo quedan fuera las dependencias
+  locales, los ficheros de paquete y las capturas de investigación); el proceso
+  documenta su instalación.
 
 ## Casos límite
 
@@ -311,8 +313,10 @@ por probada aunque el recuento de ofertas alcance el umbral.
 - La puerta de calidad no exige campos que el portal no publica: salario o skills
   ausentes por diseño del sitio no son fallo. La prioridad es la `description`
   completa, de la que Databricks deriva las skills.
-- Las skills y agentes quedan fuera de git (`.opencode/` ignorado), por
-  decisión de la persona.
+- La arquitectura de agentes, comandos y skills se versiona en `.opencode/`
+  para que sea visible y reproducible; solo quedan fuera las dependencias
+  locales (`node_modules`, ficheros de paquete) y las capturas de
+  investigación, por decisión de la persona.
 - Primer caso real: la fuente fallida del run vigente (en el primer ciclo,
   InfoJobs, que abre directamente en CAPTCHA); el objetivo del fix es que el
   challenge deje de dispararse.
