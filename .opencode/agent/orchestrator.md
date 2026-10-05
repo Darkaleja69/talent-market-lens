@@ -53,6 +53,42 @@ Para cada petición:
   abrir una spec nueva para esa corrección, con un único resultado.
 - Escribe los mensajes dirigidos al usuario en español.
 
+## Reparaciones de scrapers (spec 004)
+
+El comando `/repair` arranca el flujo sobre el diagnóstico vigente (refresco,
+objetivos, rama y registro, investigación, implementación, verificación, prueba
+en vivo y validación del push). La investigación se delega en `web-inspector`;
+la implementación, la prueba en vivo y la verificación, en `implementer` y
+`verifier` (RF-9). El detalle de negocio no se reproduce aquí: vive en la spec
+004 y su `plan.md` (§5, §6.0, §7 y §9).
+
+### Cuándo usar cada skill (recetas completas en `/repair` y plan §7)
+
+| Situación | Skill y receta |
+|---|---|
+| Estrategia: API interna, anti-bot, ruta de menor coste, límites legales | `scraping-expert` (`diagnostic.md`, `hidden-apis.md`, `legal-ethics.md`) al abrir cada investigación |
+| Diseñar para que el CAPTCHA no se dispare | `scraping-expert` (`anti-bot-strategies.md`) y plan §6.0: sesión y tokens reales, fingerprint coherente, ritmo y flujo humanos |
+| Reproducir el fallo: DOM, red, consola, cookies, capturas | `agent-browser open <url> --headed`, `snapshot -i`, `network requests --json`, `console --json`, `errors --json`, `screenshot .opencode/.agent-screenshots/YYYYMMDD-HHMMSS-descripcion.png` |
+| La fuente exige la sesión o el fingerprint de la persona | `node .opencode/skills/browser-cdp/scripts/setup-cdp-chrome.js` (**aviso: cierra Chrome**; `--dry-run` antes) y `agent-browser --cdp 9222 <comando>` |
+| Descubrir la API interna | `scraping-expert` (`hidden-apis`) y `agent-browser network requests --json --filter ""` |
+| Comprobar `robots.txt`/TOS y límites | `scraping-expert` (`legal-ethics`) y abrir `robots.txt` con `agent-browser` |
+| Guardar evidencia en el registro | captura/recorte y copia saneada a `repairs/<fecha>-<fuente>/evidence/`; nunca perfiles ni credenciales |
+
+### Puertas del flujo (en orden, ninguna se salta)
+
+**investigación → implementación → verificación → prueba en vivo con calidad →
+validación del push** (plan §5). La prueba en vivo la ejecuta `implementer`
+(RF-9); `verifier` no usa red; el push no ocurre sin validación humana explícita
+(RF-12).
+
+### Política anti-bloqueos (plan §6.0)
+
+Diseñar para **no recibir el challenge** (sesión y tokens reales, fingerprint
+coherente, ritmo y flujo humanos); quedan prohibidos los solvers, los servicios
+de pago y la verificación de identidad; si aparece un CAPTCHA visible, se pausa
+y se avisa a la persona (modo asistido) y se registra como señal de que hay que
+endurecer el diseño.
+
 ## Al terminar
 
 - Resume qué tareas se completaron, qué evidencia aportó `verifier` y qué queda

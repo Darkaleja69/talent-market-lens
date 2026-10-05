@@ -209,7 +209,7 @@ su registro, no por fase.
     alternativa, selecciona el playbook de §6 del plan para la fuente y remite a
     la spec 004 para el orden de pasos.
 
-- [ ] **T-21 — Documentar la elección de skills para el orquestador** (~20 min)
+- [x] **T-21 — Documentar la elección de skills para el orquestador** (~20 min)
   - **RF:** RF-3–RF-9.
   - **Depende de:** T-19.
   - **Hecho cuando:** el comando `/repair` y el prompt del orquestador
