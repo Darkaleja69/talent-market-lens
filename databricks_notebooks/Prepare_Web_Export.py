@@ -10,6 +10,9 @@ under ``docs/dashboard``:
   (version, data date, generated at, mode, counts, size) and
   ``export_exceeds_limit`` decides full vs aggregated against the configurable
   25 MiB limit.
+- ``build_web_export`` projects the four Gold tables and ``write_web_export``
+  writes one Parquet file per table plus ``meta.json`` through the Hadoop
+  FileSystem API (idempotent; works locally and on ``abfss://``).
 - ``geo_country`` ports the M partition of ``Fact_Offers`` (trim, US states
   used as country, language aliases, empty -> ``(Not specified)``).
 - ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog; ``region_map_df`` turns
@@ -561,3 +564,171 @@ def project_calendar(df):
     """Project the calendar to exactly the 14 contract columns."""
     _require_columns(df, WEB_CALENDAR_COLUMNS, "project_calendar")
     return df.select(*WEB_CALENDAR_COLUMNS)
+
+
+# ---------------------------------------------------------------------------
+# Build and write the export
+# ---------------------------------------------------------------------------
+
+
+def build_web_export(spark, fact_offers, fact_offer_skills,
+                     dim_skill_list, dim_calendar) -> dict:
+    """Project the four already-built Gold tables to the web contract.
+
+    The notebook reads Gold and only projects here, so the dedup logic stays in
+    ``gold_build.ipynb``. Returns the ``{name: DataFrame}`` dict with
+    ``fact_offers`` (adding ``GeoCountry``/``GeoRegion`` through
+    ``region_map_df``), ``fact_offer_skills``, ``dim_skill_list`` and
+    ``dim_calendar``.
+    """
+    region_map = region_map_df(spark)
+    return {
+        "fact_offers": project_fact_offers(fact_offers, region_map),
+        "fact_offer_skills": project_offer_skills(fact_offer_skills),
+        "dim_skill_list": project_skill_list(dim_skill_list),
+        "dim_calendar": project_calendar(dim_calendar),
+    }
+
+
+def collect_export_stats(tables) -> tuple:
+    """Return ``(table_counts, source_counts, data_date)`` for ``meta.json``.
+
+    ``table_counts`` counts rows per table; ``source_counts`` counts offers per
+    non-null/non-blank ``source_scraper`` (trimmed, ordered by source); and
+    ``data_date`` is the max ``posted_date`` as a ``datetime.date``, or ``None``
+    when fact_offers is empty or has no posting dates.
+    """
+    from pyspark.sql import functions as F
+
+    table_counts = {name: int(df.count()) for name, df in tables.items()}
+    offers = tables["fact_offers"]
+    source_rows = (offers
+                   .select(F.trim(F.col("source_scraper")).alias("source"))
+                   .where(F.col("source").isNotNull() & (F.col("source") != ""))
+                   .groupBy("source")
+                   .count()
+                   .orderBy("source")
+                   .collect())
+    source_counts = {row["source"]: int(row["count"]) for row in source_rows}
+    data_date = offers.select(F.max("posted_date")).collect()[0][0]
+    return table_counts, source_counts, data_date
+
+
+def _as_uri(path) -> str:
+    """Normalize a path to a URI; local Windows drives become ``file:///``."""
+    uri = str(path).replace("\\", "/").rstrip("/")
+    if len(uri) >= 2 and uri[1] == ":":
+        uri = "file:///" + uri
+    return uri
+
+
+def _hadoop_context(spark, path):
+    """Return ``(FileSystem, Path)`` for ``path`` using Spark's JVM config."""
+    jpath = spark._jvm.org.apache.hadoop.fs.Path(path)
+    return jpath.getFileSystem(spark._jsc.hadoopConfiguration()), jpath
+
+
+def _hadoop_delete(spark, path, recursive=False) -> None:
+    fs, jpath = _hadoop_context(spark, path)
+    fs.delete(jpath, recursive)
+
+
+def _delete_checksum(spark, path) -> None:
+    """Remove the hidden ``.crc`` next to ``path`` (local FS; no-op elsewhere)."""
+    parent, _, name = str(path).rstrip("/").rpartition("/")
+    _hadoop_delete(spark, f"{parent}/.{name}.crc")
+
+
+def _single_part_file(spark, directory) -> str:
+    """Path of the only ``part-*`` file written by ``coalesce(1)``."""
+    fs, jdir = _hadoop_context(spark, directory)
+    parts = [status.getPath() for status in fs.listStatus(jdir)
+             if status.getPath().getName().startswith("part-")]
+    if len(parts) != 1:
+        raise RuntimeError(
+            f"se esperaba un único part-* en {directory}, "
+            f"encontrados {len(parts)}")
+    return parts[0].toString()
+
+
+def _hadoop_rename(spark, source, target) -> None:
+    fs, jsource = _hadoop_context(spark, source)
+    if not fs.rename(jsource, spark._jvm.org.apache.hadoop.fs.Path(target)):
+        raise RuntimeError(f"no se pudo mover {source} a {target}")
+
+
+def _file_size(spark, path) -> int:
+    fs, jpath = _hadoop_context(spark, path)
+    return int(fs.getFileStatus(jpath).getLen())
+
+
+def _write_text(spark, path, text) -> None:
+    """Write UTF-8 text as a single file (create/overwrite via Hadoop)."""
+    fs, jpath = _hadoop_context(spark, path)
+    stream = fs.create(jpath, True)
+    try:
+        stream.write(bytearray(text.encode("utf-8")))
+    finally:
+        stream.close()
+    _delete_checksum(spark, path)
+
+
+def _write_parquet(df, uri) -> None:
+    """Write ``df`` as a single-part Parquet dataset under the temporary URI."""
+    df.coalesce(1).write.mode("overwrite").parquet(uri)
+
+
+def write_web_export(spark, tables, dest, meta=None, size_provider=None):
+    """Write the export to ``dest``: one Parquet file per table (+ meta.json).
+
+    Final layout, fixed names and idempotent::
+
+        <dest>/fact_offers.parquet
+        <dest>/fact_offer_skills.parquet
+        <dest>/dim_skill_list.parquet
+        <dest>/dim_calendar.parquet
+        <dest>/meta.json            (only when ``meta`` is provided)
+
+    Each table is written with ``coalesce(1)`` into a temporary directory
+    inside ``dest`` and its single ``part-*`` file is renamed with the Hadoop
+    FileSystem API, so the same code works locally (``file:///``) and on
+    Databricks (``abfss://``). A previous final file is deleted before the
+    rename and the temporary directory (plus local checksum files) is removed,
+    so re-running never duplicates rows nor leaves temporaries.
+
+    ``size_bytes`` sums the real sizes of the four final files; pass
+    ``size_provider`` (called without arguments) to override it, e.g. a
+    wrapper around ``dbutils.fs.ls``. When ``meta`` is not ``None``, a copy is
+    updated with the real size and the derived ``mode``, written to
+    ``meta.json`` and returned; otherwise ``None`` is returned.
+    """
+    dest_uri = _as_uri(dest)
+
+    for name, df in tables.items():
+        temp_uri = f"{dest_uri}/__tmp_{name}"
+        final_uri = f"{dest_uri}/{name}.parquet"
+        _hadoop_delete(spark, final_uri)
+        _hadoop_delete(spark, temp_uri, recursive=True)
+        try:
+            _write_parquet(df, temp_uri)
+            part_path = _single_part_file(spark, temp_uri)
+            _hadoop_rename(spark, part_path, final_uri)
+            _delete_checksum(spark, final_uri)
+        finally:
+            _hadoop_delete(spark, temp_uri, recursive=True)
+
+    if meta is None:
+        return None
+
+    if size_provider is not None:
+        size_bytes = int(size_provider())
+    else:
+        size_bytes = sum(_file_size(spark, f"{dest_uri}/{name}.parquet")
+                         for name in tables)
+
+    updated = dict(meta)
+    updated["size_bytes"] = size_bytes
+    updated["mode"] = ("aggregated" if export_exceeds_limit(size_bytes)
+                       else "full")
+    _write_text(spark, f"{dest_uri}/meta.json", meta_json(updated))
+    return updated
