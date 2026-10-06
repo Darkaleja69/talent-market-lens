@@ -58,7 +58,7 @@ comprobación. El trabajo vive en el worktree de la rama
     `skills_source`, `experience_level_source`, `posted_date_raw`,
     `posted_date_source`, `salary_currency`, `salary_period`).
 
-- [ ] **T-04 — Construir `meta.json` y el control de tamaño** (~20 min)
+- [x] **T-04 — Construir `meta.json` y el control de tamaño** (~20 min)
   - **RF:** RF-3, RF-4.
   - **Depende de:** T-03.
   - **Hecho cuando:** `build_meta` produce el JSON del contrato (§5.4:

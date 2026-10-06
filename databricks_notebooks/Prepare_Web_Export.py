@@ -6,6 +6,10 @@ under ``docs/dashboard``:
 - ``WEB_*_COLUMNS`` fix the public column contract of each exported table and
   the ``project_*`` helpers select exactly those columns (adding or removing a
   column is a deliberate contract change).
+- ``build_meta``/``meta_json`` produce the deterministic freshness payload
+  (version, data date, generated at, mode, counts, size) and
+  ``export_exceeds_limit`` decides full vs aggregated against the configurable
+  25 MiB limit.
 - ``geo_country`` ports the M partition of ``Fact_Offers`` (trim, US states
   used as country, language aliases, empty -> ``(Not specified)``).
 - ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog; ``region_map_df`` turns
@@ -30,6 +34,9 @@ data (scrapers deliver pre-cleaned text); note Python's ``str.strip()`` is
 broader and would remove them, so they must not reach the export.
 """
 from __future__ import annotations
+
+import datetime as dt
+import json
 
 # ---------------------------------------------------------------------------
 # Web export contract (public columns per table)
@@ -83,6 +90,11 @@ WEB_CALENDAR_COLUMNS = [
     "DayName",
     "IsWeekend",
 ]
+
+# Contract version of meta.json and default size limit (configurable and
+# orientative; the export only switches to aggregated when strictly larger).
+EXPORT_VERSION = 1
+DEFAULT_MAX_EXPORT_BYTES = 25 * 1024 * 1024  # 25 MiB
 
 # ---------------------------------------------------------------------------
 # Reference data (equivalent to the Power BI table Dim_RegionMap)
@@ -376,6 +388,74 @@ def geo_region(country, region) -> str:
     c = _text(country)
     r = _text(region)
     return _REGION_LOOKUP.get((c, r), "(Other)")
+
+
+# ---------------------------------------------------------------------------
+# meta.json and size control (pure, no Spark)
+# ---------------------------------------------------------------------------
+
+
+def export_exceeds_limit(size_bytes, limit_bytes=DEFAULT_MAX_EXPORT_BYTES) -> bool:
+    """True only when the export is strictly larger than the limit.
+
+    ``limit_bytes`` is configurable and orientative (25 MiB by default); at the
+    exact threshold the export still fits and stays ``full``.
+    """
+    return size_bytes > limit_bytes
+
+
+def _as_data_date(data_date) -> str:
+    """Normalize a date, datetime or string to the "YYYY-MM-DD" contract."""
+    if isinstance(data_date, dt.datetime):
+        return data_date.date().isoformat()
+    if isinstance(data_date, dt.date):
+        return data_date.isoformat()
+    return str(data_date)
+
+
+def _as_generated_at(generated_at) -> str:
+    """ISO-8601 UTC ending in Z (seconds precision).
+
+    ``None`` means now; naive datetimes are assumed UTC and aware ones are
+    converted to UTC; strings pass through unchanged.
+    """
+    if generated_at is None:
+        generated_at = dt.datetime.now(dt.timezone.utc)
+    if isinstance(generated_at, dt.datetime):
+        if generated_at.tzinfo is None:
+            generated_at = generated_at.replace(tzinfo=dt.timezone.utc)
+        else:
+            generated_at = generated_at.astimezone(dt.timezone.utc)
+        return (generated_at.replace(microsecond=0)
+                .isoformat().replace("+00:00", "Z"))
+    return str(generated_at)
+
+
+def build_meta(table_counts, source_counts, data_date, generated_at=None,
+               size_bytes=0, mode=None, export_version=EXPORT_VERSION) -> dict:
+    """Build the ``meta.json`` payload of the export contract (plan 5.4).
+
+    ``mode`` defaults to ``"aggregated"`` only when the export exceeds the size
+    limit, otherwise ``"full"``; pass it explicitly to override.
+    ``generated_at`` defaults to now (UTC) and ``data_date`` accepts a date, a
+    datetime or a "YYYY-MM-DD" string.
+    """
+    if mode is None:
+        mode = "aggregated" if export_exceeds_limit(size_bytes) else "full"
+    return {
+        "export_version": export_version,
+        "data_date": _as_data_date(data_date),
+        "generated_at": _as_generated_at(generated_at),
+        "mode": mode,
+        "tables": dict(table_counts),
+        "sources": dict(source_counts),
+        "size_bytes": int(size_bytes),
+    }
+
+
+def meta_json(meta) -> str:
+    """Serialize ``meta`` deterministically (sorted keys, no ASCII escapes)."""
+    return json.dumps(meta, ensure_ascii=False, indent=2, sort_keys=True)
 
 
 # ---------------------------------------------------------------------------

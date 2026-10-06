@@ -7,6 +7,7 @@ every exported table and the geographic parity between ``project_fact_offers``
 and the pure functions. If pyspark is not installed, only the Spark tests skip.
 """
 import datetime as dt
+import json
 import os
 import re
 import sys
@@ -123,6 +124,88 @@ def test_region_map_matches_semantic_model():
     # Multiset equality: any added, removed, changed or duplicated row in the
     # model forces REGION_MAP to be updated.
     assert sorted(parsed) == sorted(w.REGION_MAP)
+
+
+# meta.json and size control
+
+
+def test_export_version_and_default_limit():
+    assert w.EXPORT_VERSION == 1
+    assert w.DEFAULT_MAX_EXPORT_BYTES == 25 * 1024 * 1024
+
+
+def test_export_exceeds_limit_three_segments():
+    limit = 1000
+    assert w.export_exceeds_limit(999, limit) is False
+    # At the exact threshold the export still fits.
+    assert w.export_exceeds_limit(1000, limit) is False
+    assert w.export_exceeds_limit(1001, limit) is True
+    assert w.export_exceeds_limit(w.DEFAULT_MAX_EXPORT_BYTES) is False
+    assert w.export_exceeds_limit(w.DEFAULT_MAX_EXPORT_BYTES + 1) is True
+
+
+def test_build_meta_exact_keys_types_and_counts():
+    tables = {"fact_offers": 10, "fact_offer_skills": 20,
+              "dim_skill_list": 5, "dim_calendar": 7}
+    sources = {"Indeed": 6, "LinkedIn": 4}
+    meta = w.build_meta(
+        tables, sources, dt.date(2026, 10, 5),
+        generated_at=dt.datetime(2026, 10, 6, 12, 0, tzinfo=dt.timezone.utc),
+        size_bytes=123456)
+    assert set(meta) == {"export_version", "data_date", "generated_at", "mode",
+                         "tables", "sources", "size_bytes"}
+    assert meta["export_version"] == w.EXPORT_VERSION
+    assert meta["data_date"] == "2026-10-05"
+    assert meta["generated_at"] == "2026-10-06T12:00:00Z"
+    assert meta["mode"] == "full"
+    assert meta["tables"] == tables
+    assert meta["sources"] == sources
+    assert meta["size_bytes"] == 123456
+    assert isinstance(meta["export_version"], int)
+    assert isinstance(meta["size_bytes"], int)
+    # Copies, not aliases of the caller dicts.
+    assert meta["tables"] is not tables
+    assert meta["sources"] is not sources
+
+
+def test_build_meta_data_date_accepts_date_datetime_and_str():
+    assert w.build_meta({}, {}, dt.date(2026, 10, 5))["data_date"] == "2026-10-05"
+    assert (w.build_meta({}, {}, dt.datetime(2026, 10, 5, 23, 30))["data_date"]
+            == "2026-10-05")
+    assert w.build_meta({}, {}, "2026-10-05")["data_date"] == "2026-10-05"
+
+
+def test_build_meta_generated_at_defaults_to_now_utc():
+    before = dt.datetime.now(dt.timezone.utc)
+    meta = w.build_meta({}, {}, "2026-10-05")
+    after = dt.datetime.now(dt.timezone.utc)
+    assert meta["generated_at"].endswith("Z")
+    parsed = dt.datetime.fromisoformat(meta["generated_at"].replace("Z", "+00:00"))
+    assert parsed.microsecond == 0
+    assert before - dt.timedelta(seconds=1) <= parsed <= after + dt.timedelta(seconds=1)
+
+
+def test_build_meta_mode_follows_limit_and_explicit_mode_wins():
+    limit = w.DEFAULT_MAX_EXPORT_BYTES
+    assert w.build_meta({}, {}, "2026-10-05", size_bytes=limit)["mode"] == "full"
+    assert w.build_meta({}, {}, "2026-10-05",
+                        size_bytes=limit + 1)["mode"] == "aggregated"
+    assert w.build_meta({}, {}, "2026-10-05", size_bytes=limit + 1,
+                        mode="full")["mode"] == "full"
+
+
+def test_meta_json_is_deterministic_and_keeps_utf8():
+    meta = w.build_meta(
+        {"fact_offers": 1}, {"Esló": 1}, "2026-10-05",
+        generated_at=dt.datetime(2026, 10, 6, 12, 0, tzinfo=dt.timezone.utc),
+        size_bytes=10)
+    first = w.meta_json(meta)
+    assert first == w.meta_json(meta)
+    assert "Esló" in first and "\\u00f3" not in first
+    assert json.loads(first) == meta
+    # Top-level keys are sorted.
+    pairs = json.loads(first, object_pairs_hook=list)
+    assert [key for key, _ in pairs] == sorted(meta)
 
 
 # ---------------------------------------------------------------------------
