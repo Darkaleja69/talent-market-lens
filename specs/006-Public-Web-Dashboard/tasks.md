@@ -47,7 +47,7 @@ comprobación. El trabajo vive en el worktree de la rama
     fallback `(Other)`), y `test_web_export.py` cubre cada caso, incluidos
     trims, mayúsculas y ciudades conocidas; sin Spark en estos tests.
 
-- [ ] **T-03 — Fijar la proyección y el contrato de tablas** (~25 min)
+- [x] **T-03 — Fijar la proyección y el contrato de tablas** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** T-02.
   - **Hecho cuando:** existen las constantes de columnas del contrato (§5.1 del
