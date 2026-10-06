@@ -25,7 +25,7 @@ comprobación. El trabajo vive en el worktree de la rama
 
 ## 1. Preparación (paralelo a la 004)
 
-- [ ] **T-01 — Crear rama/worktree y baseline en verde** (~20 min)
+- [x] **T-01 — Crear rama/worktree y baseline en verde** (~20 min)
   - **RF:** RF-12.
   - **Hecho cuando:** existe `..\talent-market-lens-006` como worktree de
     `spec/006-public-web-dashboard` creada desde `main` (sin la 004), con
