@@ -1,25 +1,88 @@
-"""Export of the Gold layer for the public web dashboard (geography part).
+"""Export of the Gold layer for the public web dashboard.
 
 This module owns the Parquet + ``meta.json`` export consumed by the static site
-under ``docs/dashboard``. This first step versions the geography that Power BI
-used to compute:
+under ``docs/dashboard``:
 
+- ``WEB_*_COLUMNS`` fix the public column contract of each exported table and
+  the ``project_*`` helpers select exactly those columns (adding or removing a
+  column is a deliberate contract change).
 - ``geo_country`` ports the M partition of ``Fact_Offers`` (trim, US states
   used as country, language aliases, empty -> ``(Not specified)``).
-- ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog and ``geo_region`` maps
-  exact ``(country, region)`` pairs to their target region with ``(Other)`` as
-  fallback.
+- ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog; ``region_map_df`` turns
+  it into a Spark dimension and ``geo_region`` maps exact ``(country, region)``
+  pairs to their target region with ``(Other)`` as fallback.
 
 ``Dim_Geo`` and that M partition live only in the semantic model (a documented
 exception in ``Prepare_Gold.py``), so they are ported here on purpose to keep
 the export and the map independent from Power BI. If the model mapping changes,
 this constant is updated together with its fidelity test.
 
-Only the standard library is imported at module level, so ``geo_country``,
-``geo_region`` and ``REGION_MAP`` can be imported and tested without Spark.
-PySpark is imported lazily inside the functions that need it.
+Only the standard library is imported at module level, so the contract and the
+geography can be imported and tested without Spark. PySpark is imported lazily
+inside the functions that need it.
+
+Whitespace semantics: the Spark projection trims with ``_trim_whitespace``
+(Java ``\\s``: space, tab, LF, CR, FF and VT) instead of Spark ``trim`` (which
+only removes the ASCII space), so DataFrame results match the pure helpers on
+the whitespace the scrapers can introduce. Exotic Unicode blanks (NBSP,
+em-space) are not normalized by the Spark regex and are not expected in the
+data (scrapers deliver pre-cleaned text); note Python's ``str.strip()`` is
+broader and would remove them, so they must not reach the export.
 """
 from __future__ import annotations
+
+# ---------------------------------------------------------------------------
+# Web export contract (public columns per table)
+# ---------------------------------------------------------------------------
+
+# Gold fact_offers projected for the web. Excluded on purpose (internal or
+# unused by the views): description_clean, skills, salary_quality,
+# skills_source, experience_level_source, posted_date_raw, posted_date_source,
+# salary_currency and salary_period.
+WEB_FACT_COLUMNS = [
+    "job_id",
+    "job_url",
+    "title",
+    "company_name",
+    "location_city",
+    "location_region",
+    "location_country",
+    "GeoCountry",
+    "GeoRegion",
+    "posted_date",
+    "PostedYearMonth",
+    "IsValidPostingDate",
+    "WorkModeBucket",
+    "SalaryMinAnnual_EUR",
+    "SalaryMaxAnnual_EUR",
+    "SalaryMidAnnual_EUR",
+    "experience_level",
+    "role_category",
+    "employment_type",
+    "source_scraper",
+]
+
+WEB_OFFER_SKILL_COLUMNS = ["JobID", "Skill"]
+
+WEB_SKILL_LIST_COLUMNS = ["SkillName", "SkillCategory"]
+
+# Exactly the columns produced by Prepare_Gold.dim_calendar.
+WEB_CALENDAR_COLUMNS = [
+    "Date",
+    "DateKey",
+    "Year",
+    "MonthNumber",
+    "MonthName",
+    "ShortMonth",
+    "YearMonth",
+    "Quarter",
+    "YearQuarter",
+    "WeekISO",
+    "Day",
+    "WeekDay",
+    "DayName",
+    "IsWeekend",
+]
 
 # ---------------------------------------------------------------------------
 # Reference data (equivalent to the Power BI table Dim_RegionMap)
@@ -313,3 +376,108 @@ def geo_region(country, region) -> str:
     c = _text(country)
     r = _text(region)
     return _REGION_LOOKUP.get((c, r), "(Other)")
+
+
+# ---------------------------------------------------------------------------
+# Spark projection to the web contract
+# ---------------------------------------------------------------------------
+
+
+def _require_columns(df, columns, table: str) -> None:
+    """Fail loudly when the source table does not match the contract."""
+    missing = [c for c in columns if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"{table}: faltan columnas de origen en el DataFrame -> {missing}")
+
+
+def _trim_whitespace(col):
+    """Trim Java ``\\s`` whitespace: space, tab, LF, CR, FF and VT.
+
+    Spark ``F.trim`` only removes the ASCII space, so it diverges from
+    Python's ``str.strip()`` on tabs/newlines; ``regexp_replace`` aligns the
+    DataFrame projection with the pure geography helpers.
+    """
+    from pyspark.sql import functions as F
+
+    return F.regexp_replace(col, r"^\s+|\s+$", "")
+
+
+def region_map_df(spark):
+    """Dim_RegionMap as a Spark dimension (SourceCountry, SourceRegion, Target).
+
+    The model repeats ("Spain", "Cantabria", "Cantabria"); dropping duplicates
+    on the (SourceCountry, SourceRegion) pair keeps the GeoRegion join
+    one-to-one so it cannot multiply fact rows.
+    """
+    schema = "SourceCountry string, SourceRegion string, TargetRegion string"
+    return (spark.createDataFrame(list(REGION_MAP), schema)
+            .dropDuplicates(["SourceCountry", "SourceRegion"]))
+
+
+def project_fact_offers(df, region_map):
+    """Project Gold fact_offers to the web contract, adding the geography.
+
+    GeoCountry replicates the M normalization with a ``F.when`` chain over the
+    trimmed country (no Python UDFs). GeoRegion is a left join of the trimmed
+    raw ``location_country``/``location_region`` pair against the region map
+    with ``coalesce(TargetRegion, "(Other)")``; like the model M
+    (``Fact_Offers.tmdl:280-282``) the join uses the raw values, not the
+    normalized GeoCountry.
+
+    Raises ValueError listing the missing columns instead of writing an
+    incomplete export.
+    """
+    from pyspark.sql import functions as F
+
+    _require_columns(
+        df,
+        [c for c in WEB_FACT_COLUMNS if c not in ("GeoCountry", "GeoRegion")],
+        "project_fact_offers")
+
+    trimmed_country = _trim_whitespace(F.col("location_country"))
+    geo_country_col = (
+        F.when(trimmed_country.isNull()
+               | (trimmed_country == "")
+               | (trimmed_country == "(Not specified)"),
+               F.lit("(Not specified)"))
+         .when(trimmed_country.isin("CA", "FL", "PA"), F.lit("United States"))
+         .when(trimmed_country == "Alemania", F.lit("Germany"))
+         .when(trimmed_country.isin("Austria y Suiza", "Austria and Switzerland"),
+               F.lit("Austria"))
+         .when(trimmed_country == "Oriente Medio y África",
+               F.lit("Middle East & Africa"))
+         .otherwise(trimmed_country)
+    )
+    prepared = (df
+                .withColumn("__country_trim", trimmed_country)
+                .withColumn("__region_trim",
+                            _trim_whitespace(F.col("location_region")))
+                .withColumn("GeoCountry", geo_country_col))
+    joined = prepared.join(
+        region_map,
+        on=((F.col("__country_trim") == region_map["SourceCountry"])
+            & (F.col("__region_trim") == region_map["SourceRegion"])),
+        how="left")
+    return (joined
+            .withColumn("GeoRegion",
+                        F.coalesce(F.col("TargetRegion"), F.lit("(Other)")))
+            .select(*WEB_FACT_COLUMNS))
+
+
+def project_offer_skills(df):
+    """Project the offer-skill bridge to exactly (JobID, Skill)."""
+    _require_columns(df, WEB_OFFER_SKILL_COLUMNS, "project_offer_skills")
+    return df.select(*WEB_OFFER_SKILL_COLUMNS)
+
+
+def project_skill_list(df):
+    """Project the skill catalog to exactly (SkillName, SkillCategory)."""
+    _require_columns(df, WEB_SKILL_LIST_COLUMNS, "project_skill_list")
+    return df.select(*WEB_SKILL_LIST_COLUMNS)
+
+
+def project_calendar(df):
+    """Project the calendar to exactly the 14 contract columns."""
+    _require_columns(df, WEB_CALENDAR_COLUMNS, "project_calendar")
+    return df.select(*WEB_CALENDAR_COLUMNS)
