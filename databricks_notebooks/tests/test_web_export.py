@@ -10,6 +10,7 @@ import datetime as dt
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -245,9 +246,27 @@ if _HAS_PYSPARK:
         T.StructField("internal_note", T.StringType(), True),
     ])
     FACT_DEFAULTS = {f.name: None for f in FACT_SOURCE_SCHEMA.fields}
+
+    # Synthetic Gold fact_offers: exactly the producer contract, so the build
+    # tests exercise the real input shape.
+    _GOLD_TYPES = {
+        "posted_date": T.DateType(),
+        "IsValidPostingDate": T.BooleanType(),
+        "is_salary_available": T.BooleanType(),
+        "SalaryMinAnnual_EUR": T.DoubleType(),
+        "SalaryMaxAnnual_EUR": T.DoubleType(),
+        "SalaryMidAnnual_EUR": T.DoubleType(),
+    }
+    GOLD_FACT_SCHEMA = T.StructType([
+        T.StructField(name, _GOLD_TYPES.get(name, T.StringType()), True)
+        for name in g.FACT_OFFERS_COLUMNS
+    ])
+    GOLD_FACT_DEFAULTS = {f.name: None for f in GOLD_FACT_SCHEMA.fields}
 else:  # pragma: no cover - Spark tests skip without pyspark
     FACT_SOURCE_SCHEMA = None
     FACT_DEFAULTS = {}
+    GOLD_FACT_SCHEMA = None
+    GOLD_FACT_DEFAULTS = {}
 
 EXCLUDED_FACT_COLUMNS = [
     "description_clean", "skills", "salary_quality", "skills_source",
@@ -265,6 +284,39 @@ def _fact_row(**kwargs):
 def _fact_df(spark, rows):
     return spark.createDataFrame([_fact_row(**r) for r in rows],
                                  schema=FACT_SOURCE_SCHEMA)
+
+
+def _gold_fact_df(spark, rows):
+    data = []
+    for row in rows:
+        merged = dict(GOLD_FACT_DEFAULTS)
+        merged.update(row)
+        data.append(merged)
+    return spark.createDataFrame(data, schema=GOLD_FACT_SCHEMA)
+
+
+def _gold_tables(spark):
+    """Synthetic Gold tables: two offers (Spain/Madrid and Alemania/Berlín)."""
+    fact = _gold_fact_df(spark, [
+        {"job_id": "1", "title": "Data Engineer", "location_city": "Madrid",
+         "location_region": "Madrid", "location_country": "Spain",
+         "posted_date": dt.date(2026, 9, 1), "source_scraper": "Indeed",
+         "IsValidPostingDate": True, "SalaryMinAnnual_EUR": 40000.0,
+         "SalaryMaxAnnual_EUR": 50000.0, "SalaryMidAnnual_EUR": 45000.0},
+        {"job_id": "2", "title": "Analyst", "location_city": "Berlín",
+         "location_region": "Berlín", "location_country": "Alemania",
+         "posted_date": dt.date(2026, 9, 3), "source_scraper": "LinkedIn",
+         "IsValidPostingDate": True, "SalaryMinAnnual_EUR": 30000.0,
+         "SalaryMaxAnnual_EUR": 36000.0, "SalaryMidAnnual_EUR": 33000.0},
+    ])
+    skills = spark.createDataFrame(
+        [("1", "Python"), ("1", "SQL"), ("2", "SQL")], ["JobID", "Skill"])
+    skill_list = spark.createDataFrame(
+        [("Python", "Programming Languages"), ("SQL", "Programming Languages")],
+        ["SkillName", "SkillCategory"])
+    calendar = g.dim_calendar(spark, dt.date(2026, 9, 1), dt.date(2026, 9, 3))
+    return {"fact_offers": fact, "fact_offer_skills": skills,
+            "dim_skill_list": skill_list, "dim_calendar": calendar}
 
 
 @pytest.fixture(scope="session")
@@ -305,6 +357,82 @@ def spark():
             time.sleep(5)
     yield session
     session.stop()
+
+
+@pytest.fixture
+def local_export_io(monkeypatch):
+    """Run the write tests on Windows hosts without Hadoop winutils.
+
+    Spark's writer needs ``winutils.exe`` (HADOOP_HOME) to chmod output
+    directories, and Hadoop's local FileSystem metadata raises
+    ``UnsatisfiedLinkError`` without the native library. On such hosts the
+    low-level writer and the Hadoop FS helpers are replaced with os/pyarrow
+    equivalents, so the export layout (one file per table), rename,
+    idempotency, size and meta.json logic stay under test. Linux, Databricks
+    and Windows with HADOOP_HOME run the real Spark + Hadoop path (T-06 runs
+    it for real on a cluster).
+    """
+    if os.name != "nt" or os.environ.get("HADOOP_HOME"):
+        return
+    pa = pytest.importorskip("pyarrow")
+    pytest.importorskip("pandas")
+    import pyarrow.parquet as pq
+
+    def _local(path):
+        text = str(path)
+        if text.startswith("file:///"):
+            text = text[len("file:///"):]
+        return text.replace("/", os.sep)
+
+    def _write_parquet(df, uri):
+        base = _local(uri)
+        os.makedirs(base, exist_ok=True)
+        pdf = df.toPandas()
+        for column in pdf.columns:
+            if pdf[column].isna().all():
+                pdf[column] = pdf[column].astype("string")
+        table = pa.Table.from_pandas(pdf, preserve_index=False)
+        pq.write_table(table, os.path.join(base, "part-00000-local.parquet"))
+
+    def _delete(spark, path, recursive=False):
+        target = _local(path)
+        if os.path.isdir(target):
+            if recursive:
+                shutil.rmtree(target)
+            else:
+                os.rmdir(target)
+            return True
+        if os.path.isfile(target):
+            os.remove(target)
+            return True
+        return False
+
+    def _single_part(spark, directory):
+        base = _local(directory)
+        parts = [name for name in os.listdir(base)
+                 if name.startswith("part-")]
+        if len(parts) != 1:
+            raise RuntimeError(
+                f"se esperaba un único part-* en {directory}, "
+                f"encontrados {len(parts)}")
+        return os.path.join(base, parts[0])
+
+    def _rename(spark, source, target):
+        os.replace(_local(source), _local(target))
+
+    def _size(spark, path):
+        return os.path.getsize(_local(path))
+
+    def _write_text(spark, path, text):
+        with open(_local(path), "w", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+
+    monkeypatch.setattr(w, "_write_parquet", _write_parquet)
+    monkeypatch.setattr(w, "_hadoop_delete", _delete)
+    monkeypatch.setattr(w, "_single_part_file", _single_part)
+    monkeypatch.setattr(w, "_hadoop_rename", _rename)
+    monkeypatch.setattr(w, "_file_size", _size)
+    monkeypatch.setattr(w, "_write_text", _write_text)
 
 
 GEO_SAMPLES = [
@@ -456,6 +584,134 @@ def test_project_bridge_tables_missing_columns_raise(spark):
         w.project_skill_list(spark.createDataFrame([], "SkillName string"))
     with pytest.raises(ValueError, match="IsWeekend"):
         w.project_calendar(spark.createDataFrame([], "Date date"))
+
+
+# build_web_export / collect_export_stats / write_web_export
+
+
+@requires_spark
+def test_build_web_export_projects_four_tables(spark):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    assert set(tables) == {"fact_offers", "fact_offer_skills",
+                           "dim_skill_list", "dim_calendar"}
+    assert tables["fact_offers"].columns == list(w.WEB_FACT_COLUMNS)
+    assert tables["fact_offer_skills"].columns == list(w.WEB_OFFER_SKILL_COLUMNS)
+    assert tables["dim_skill_list"].columns == list(w.WEB_SKILL_LIST_COLUMNS)
+    assert tables["dim_calendar"].columns == list(w.WEB_CALENDAR_COLUMNS)
+    offers = {r["job_id"]: r for r in tables["fact_offers"].collect()}
+    assert offers["1"]["GeoCountry"] == "Spain"
+    assert offers["1"]["GeoRegion"] == "Madrid"
+    assert offers["2"]["GeoCountry"] == "Germany"
+    assert offers["2"]["GeoRegion"] == "(Other)"
+    assert tables["fact_offer_skills"].count() == 3
+
+
+@requires_spark
+def test_collect_export_stats_counts_sources_and_data_date(spark):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    table_counts, source_counts, data_date = w.collect_export_stats(tables)
+    assert table_counts == {"fact_offers": 2, "fact_offer_skills": 3,
+                            "dim_skill_list": 2, "dim_calendar": 3}
+    assert source_counts == {"Indeed": 1, "LinkedIn": 1}
+    assert data_date == dt.date(2026, 9, 3)
+
+
+@requires_spark
+def test_collect_export_stats_ignores_blank_sources_and_empty_is_none(spark):
+    fact = _gold_fact_df(spark, [
+        {"job_id": "1", "source_scraper": "Indeed"},
+        {"job_id": "2", "source_scraper": ""},
+        {"job_id": "3", "source_scraper": "   "},
+        {"job_id": "4", "source_scraper": None},
+    ])
+    empty = spark.createDataFrame([], "JobID string, Skill string")
+    table_counts, source_counts, data_date = w.collect_export_stats(
+        {"fact_offers": fact, "fact_offer_skills": empty})
+    assert table_counts == {"fact_offers": 4, "fact_offer_skills": 0}
+    assert source_counts == {"Indeed": 1}
+    assert data_date is None
+
+
+@requires_spark
+def test_write_web_export_single_files_meta_and_idempotent(
+        spark, tmp_path, local_export_io):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    table_counts, source_counts, data_date = w.collect_export_stats(tables)
+    meta = w.build_meta(table_counts, source_counts, data_date,
+                        generated_at=dt.datetime(2026, 10, 6, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    names = ["fact_offers", "fact_offer_skills", "dim_skill_list",
+             "dim_calendar"]
+    dest = tmp_path / "web_export"
+
+    written = w.write_web_export(spark, tables, dest, meta=meta)
+
+    expected_files = sorted([f"{name}.parquet" for name in names]
+                            + ["meta.json"])
+    assert sorted(p.name for p in dest.iterdir()) == expected_files
+    for name in names:
+        path = dest / f"{name}.parquet"
+        assert path.is_file()
+        read = spark.read.parquet(path.as_uri())
+        assert read.columns == tables[name].columns
+        assert read.count() == tables[name].count()
+        if name == "fact_offers":
+            # Types must survive the round-trip. The fixture gives these
+            # columns values on purpose: all-null columns degrade to string in
+            # the local pyarrow fallback writer, which would hide a typing
+            # regression instead of testing it.
+            dtypes = dict(read.dtypes)
+            assert dtypes["job_id"] == "string"
+            assert dtypes["posted_date"] == "date"
+            assert dtypes["IsValidPostingDate"] == "boolean"
+            assert dtypes["SalaryMidAnnual_EUR"] == "double"
+    payload = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+    assert payload["size_bytes"] > 0
+    assert payload["size_bytes"] == written["size_bytes"]
+    assert payload["mode"] == "full"
+    assert payload["generated_at"] == "2026-10-06T12:00:00Z"
+    assert payload["data_date"] == "2026-09-03"
+    assert payload["tables"] == {"fact_offers": 2, "fact_offer_skills": 3,
+                                 "dim_skill_list": 2, "dim_calendar": 3}
+
+    # Idempotent: the second run leaves the same files and rows behind.
+    w.write_web_export(spark, tables, dest, meta=meta)
+    assert sorted(p.name for p in dest.iterdir()) == expected_files
+    for name in names:
+        path = dest / f"{name}.parquet"
+        assert spark.read.parquet(path.as_uri()).count() == \
+            tables[name].count()
+
+
+@requires_spark
+def test_write_web_export_size_provider_forces_aggregated(
+        spark, tmp_path, local_export_io):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    meta = w.build_meta({"fact_offers": 2}, {"Indeed": 1},
+                        dt.date(2026, 9, 3))
+    dest = tmp_path / "aggregated"
+    big = w.DEFAULT_MAX_EXPORT_BYTES + 1
+
+    written = w.write_web_export(spark, tables, dest, meta=meta,
+                                 size_provider=lambda: big)
+
+    assert written["size_bytes"] == big
+    assert written["mode"] == "aggregated"
+    payload = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+    assert payload["size_bytes"] == big
+    assert payload["mode"] == "aggregated"
 
 
 def test_module_uses_no_python_udfs():

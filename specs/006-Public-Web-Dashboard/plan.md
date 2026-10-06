@@ -159,8 +159,9 @@ columna interna se cuele.
 | `project_offer_skills(df)`, `project_skill_list(df)` | Proyección de las tablas puente/catálogo | RF-1 |
 | `build_meta(...)` | Construye el `meta.json` | RF-3 |
 | `export_exceeds_limit(path|sizes)` | Decide full vs. agregados contra el umbral | RF-4 |
-| `build_web_export(spark, offers)` | Orquesta: proyecta las tablas y devuelve el dict | RF-1 |
-| `write_web_export(tables, dest)` | Escribe Parquet (`overwrite`, idempotente) y el `meta.json` | RF-1, RF-3 |
+| `build_web_export(spark, fact_offers, fact_offer_skills, dim_skill_list, dim_calendar)` | Proyecta las tablas Gold (geografía incluida) y devuelve el dict | RF-1 |
+| `collect_export_stats(tables)` | Recuentos por tabla y fuente, y fecha de datos para el `meta.json` | RF-3 |
+| `write_web_export(spark, tables, dest, meta=None, size_provider=None)` | Escribe un fichero Parquet por tabla (`overwrite`, idempotente), calcula el tamaño, deriva el modo y escribe el `meta.json`; devuelve el meta actualizado | RF-1, RF-3, RF-4 |
 
 Las funciones puras (`geo_country`, `geo_region`, `build_meta`,
 `export_exceeds_limit`) no importan Spark y se testean sin clúster; las de
@@ -218,10 +219,11 @@ implementan agregados si la medición no los necesita.
 ### 5.6 Tarea en el job de Databricks
 
 `web_export_build.ipynb` resuelve widgets (`storage_account`, `container`,
-`catalog`, `gold_schema`, `export_prefix`) y llama a `write_web_export`. La
-tarea se añade **al final** del job (manual, una vez), es idempotente
-(`overwrite`) y no altera las tareas existentes. Si el clúster no tiene permiso
-de escritura, el job falla de forma explícita.
+`catalog`, `gold_schema`, `export_prefix`), lee las tablas Gold, proyecta con
+`build_web_export`, recoge los recuentos con `collect_export_stats` y escribe el
+export con `write_web_export`. La tarea se añade **al final** del job (manual,
+una vez), es idempotente (`overwrite`) y no altera las tareas existentes. Si el
+clúster no tiene permiso de escritura, el job falla de forma explícita.
 
 ## 6. Contrato del sitio
 

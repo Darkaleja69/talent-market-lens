@@ -67,14 +67,18 @@ comprobación. El trabajo vive en el worktree de la rama
     umbral configurable (~25 MB por defecto); tests de claves, recuentos, fecha
     de datos y de los tres tramos del umbral.
 
-- [ ] **T-05 — Implementar el build y la escritura idempotente** (~25 min)
+- [x] **T-05 — Implementar el build y la escritura idempotente** (~25 min)
   - **RF:** RF-1, RF-2, RF-3.
   - **Depende de:** T-02–T-04.
-  - **Hecho cuando:** `build_web_export(spark, offers)` devuelve el dict de
-    tablas y `write_web_export(tables, dest)` escribe un solo Parquet por tabla
-    (`overwrite`) más `meta.json`; los tests de integración Spark (patrón
+  - **Hecho cuando:** `build_web_export(spark, fact_offers, fact_offer_skills,
+    dim_skill_list, dim_calendar)` proyecta las tablas Gold y
+    `collect_export_stats` produce los recuentos y la fecha de datos;
+    `write_web_export(spark, tables, dest, meta=...)` escribe un solo fichero
+    Parquet por tabla (`overwrite`), calcula el tamaño, deriva el modo y escribe
+    `meta.json`; los tests de integración Spark (patrón
     `test_integration_spark.py`) escriben en un directorio temporal y verifican
-    tablas, tipos, recuentos y reejecución sin duplicados.
+    tablas, tipos, recuentos, fichero único por tabla y reejecución sin
+    duplicados.
 
 - [ ] **T-06 — Notebook fino, tarea al final del job y ejecución real** (~25 min)
   - **RF:** RF-1, RF-3, RF-4.
