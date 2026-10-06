@@ -37,7 +37,7 @@ comprobación. El trabajo vive en el worktree de la rama
 
 ## 2. Export de datos (Databricks)
 
-- [ ] **T-02 — Portar la geografía a funciones puras** (~25 min)
+- [x] **T-02 — Portar la geografía a funciones puras** (~25 min)
   - **RF:** RF-2.
   - **Hecho cuando:** `Prepare_Web_Export.py` define `REGION_MAP` (constante de
     `Dim_RegionMap`), `geo_country(value)` y `geo_region(country, region)` con
