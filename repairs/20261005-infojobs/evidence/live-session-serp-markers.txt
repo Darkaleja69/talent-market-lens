@@ -1,0 +1,37 @@
+﻿=== Sesión real (Chrome del usuario vía CDP 9222) — marcadores — 2026-10-06 ~22:44-22:50 Europe/Madrid ===
+Perfil: Chrome real con sesión iniciada (agent-browser --cdp 9222). Sin solvers ni acciones de cuenta.
+Navegaciones a la fuente: 2 (home + SERP). Sin reintentos. Sin CAPTCHA visible.
+
+--- Home https://www.infojobs.net/ ---
+HTTP 200 (documento). title: "InfoJobs". h1: "Siempre a mejor".
+Diálogo de consentimiento de cookies (Didomi) visible. Sin marcadores de challenge.
+Captura: .opencode/.agent-screenshots/20261006-224500-infojobs-home.png (copia en evidence).
+
+--- SERP https://www.infojobs.net/ofertas-trabajo/madrid/madrid ---
+HTTP 200 (documento, HTML renderizado en servidor).
+URL final: https://www.infojobs.net/ofertas-trabajo/madrid/madrid (sin salto a /distil/ ni ?captcha).
+title: "Ofertas de trabajo en Madrid, Madrid". h1: "8,192 ofertas en Madrid".
+canonical: https://www-internal.infojobs.net/ofertas-trabajo/madrid/madrid
+Marcadores (eval):
+  distil=false | geetest=false | captcha en URL=false | ij-OfferList-offerCardItem=10
+  title/job-title-=5 | description-link=5 | sincedate-tag=5 | salary-info=3 | salary-no-information=2 | description-p=5
+Paginación visible: 1..5 + "Siguiente".
+Tarjetas con oferta real (5; los li restantes son tarjetas promocionales sin título):
+  1. Store Manager Flagship - Moda Premium Caballero | LUXETALENT | Madrid | Hace 4h | Salario no disponible
+  2. Asesor/a inmobiliario/a | Tecnocasa Consulting Inmovillaverde 2025 | Madrid | Hace 4h | Más de 1200 €
+  3. Odontólogo/a especialista en periodoncia. TOLEDO | ASISA DENTAL | Madrid | Hace 18m | Salario no disponible
+  4. COMERCIAL PARA TIENDA TELEFONÍA MULTIMARCA | ANCOTEL COMUNICACIONES SL | Madrid | Hace 24m | 15.000 € - 24.000 € Bruto/año
+Estructura DOM de la tarjeta (eval):
+  h2 id="job-title-<hash>" ; a.ij-OfferCardContent-description-link -> /<ciudad>/<slug>/of-i<hash>?applicationOrigin=search-new...
+  h3 a.ij-OfferCardContent-description-subtitle-link (empresa)
+  span.ij-OfferCardContent-description-list-item-truncate (ciudad)
+  [data-testid=sincedate-tag] ("Hace 4h\n(Publicada de nuevo)")
+  ul[1] = [ciudad, modalidad ("Presencial"), fecha] ; ul[2] = [contrato, jornada, salario]
+  p.ij-OfferCardContent-description-description (descripción extensa, ~600-2000+ caracteres)
+Cookies relevantes presentes (SOLO NOMBRES; valores no registrados):
+  reese84, JSESSIONID, AWSALB, IJUSERUID, ijreactcvskills, IJ_MCMID, didomi_token,
+  ajs_anonymous_id, ajs_user_id, _gcl_au, _sharedID, _sharedID_cst, ab.storage.sessionId.<uuid>
+  - reese84 = token de challenge de Distil/Imperva vigente en el perfil real.
+Consola: sin scripts de challenge (no geetest); 1 TypeError propio de la web (rubik/company_feedback, línea 66).
+Errores: solo ese TypeError.
+Captura SERP: NO disponible — el comando screenshot falló 2 veces seguidas con error local de conexión CDP (os error 10060); se respetó el límite de no reintentar más. Evidencia alternativa: este volcado, el de red y consola.

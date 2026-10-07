@@ -1,0 +1,118 @@
+﻿=== run_nightly.log: bloqueos y politica de reintento desde 2026-09-18 ===
+Recorte de infojobs_jobs_scraper/data/run_nightly.log (saneado).
+
+2026-09-18 00:01:12 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-18 00:21:39 RESULT: total=0 incidencias=1 blocked=True
+2026-09-18 00:21:39 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-18 00:27:42 RESULT: total=0 incidencias=2 blocked=True
+2026-09-18 00:27:42 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-18 00:31:47 RESULT: total=0 incidencias=1 blocked=True
+2026-09-18 00:31:47 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-18 00:31:49 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-19 00:00:08 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-19 00:01:40 RESULT: total=0 incidencias=1 blocked=True
+2026-09-19 00:01:40 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-19 00:10:50 RESULT: total=0 incidencias=1 blocked=True
+2026-09-19 00:10:50 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-19 00:23:24 RESULT: total=0 incidencias=1 blocked=True
+2026-09-19 00:23:24 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-19 00:23:55 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-21 00:00:11 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-21 00:01:12 RESULT: total=0 incidencias=1 blocked=True
+2026-09-21 00:01:12 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-21 00:05:12 RESULT: total=0 incidencias=1 blocked=True
+2026-09-21 00:05:12 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-21 00:09:12 RESULT: total=0 incidencias=1 blocked=True
+2026-09-21 00:09:12 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-21 00:09:13 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-22 00:00:07 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-22 00:01:07 RESULT: total=0 incidencias=1 blocked=True
+2026-09-22 00:01:07 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-22 00:08:09 RESULT: total=0 incidencias=1 blocked=True
+2026-09-22 00:08:10 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-22 00:17:11 RESULT: total=0 incidencias=1 blocked=True
+2026-09-22 00:17:11 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-22 00:17:27 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-23 00:00:07 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-23 00:01:10 RESULT: total=0 incidencias=1 blocked=True
+2026-09-23 00:01:10 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-23 00:08:49 RESULT: total=0 incidencias=1 blocked=True
+2026-09-23 00:08:49 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-23 00:16:21 RESULT: total=0 incidencias=1 blocked=True
+2026-09-23 00:16:21 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-23 00:16:26 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-24 00:00:08 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-24 00:01:10 RESULT: total=0 incidencias=1 blocked=True
+2026-09-24 00:01:10 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-24 00:10:42 RESULT: total=0 incidencias=1 blocked=True
+2026-09-24 00:10:42 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-24 00:21:20 RESULT: total=0 incidencias=1 blocked=True
+2026-09-24 00:21:20 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-24 00:21:59 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-25 00:00:16 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-25 00:01:18 RESULT: total=0 incidencias=1 blocked=True
+2026-09-25 00:01:18 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-25 00:09:24 RESULT: total=0 incidencias=1 blocked=True
+2026-09-25 00:09:25 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-25 00:17:05 RESULT: total=0 incidencias=1 blocked=True
+2026-09-25 00:17:05 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-25 00:17:27 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-26 00:00:12 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-26 00:45:19 RESULT: total=0 incidencias=1 blocked=True
+2026-09-26 00:45:19 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-26 00:54:24 RESULT: total=0 incidencias=1 blocked=True
+2026-09-26 00:54:24 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-26 00:54:25 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-27 00:00:17 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-27 00:02:52 RESULT: total=0 incidencias=1 blocked=True
+2026-09-27 00:02:52 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-27 00:21:12 RESULT: total=0 incidencias=4 blocked=True
+2026-09-27 00:21:12 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-27 00:32:49 RESULT: total=0 incidencias=3 blocked=True
+2026-09-27 00:32:49 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-27 00:33:11 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-28 00:00:07 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-28 00:01:12 RESULT: total=0 incidencias=1 blocked=True
+2026-09-28 00:01:12 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-28 00:01:13 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-09-28 00:01:15 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-29 00:00:18 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-29 00:01:35 RESULT: total=0 incidencias=1 blocked=True
+2026-09-29 00:01:35 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-29 00:01:37 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-09-29 00:01:43 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-09-30 00:00:07 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-09-30 00:01:18 RESULT: total=0 incidencias=1 blocked=True
+2026-09-30 00:01:18 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-09-30 00:01:20 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-09-30 00:01:23 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-10-01 00:00:39 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-10-01 00:02:23 RESULT: total=0 incidencias=1 blocked=True
+2026-10-01 00:02:23 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-10-01 00:02:24 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-10-01 00:02:31 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-10-02 00:01:18 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-10-02 00:03:40 RESULT: total=0 incidencias=1 blocked=True
+2026-10-02 00:03:40 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-10-02 00:03:43 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-10-02 00:03:49 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-10-03 00:00:23 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-10-03 00:02:00 RESULT: total=0 incidencias=1 blocked=True
+2026-10-03 00:02:00 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-10-03 00:02:01 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-10-03 00:02:04 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-10-03 12:40:02 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-10-03 12:41:47 RESULT: total=0 incidencias=1 blocked=True
+2026-10-03 12:41:47 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-10-03 12:41:48 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-10-03 12:41:49 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-10-05 00:00:27 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-10-05 00:02:34 RESULT: total=0 incidencias=1 blocked=True
+2026-10-05 00:02:34 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-10-05 00:02:38 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-10-05 00:02:48 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===
+2026-10-06 00:00:45 === INICIO RUN NOCTURNA INFOJOBS ===
+2026-10-06 00:04:01 RESULT: total=0 incidencias=1 blocked=True
+2026-10-06 00:04:01 BLOQUEO por CAPTCHA (exit=-1, total=0).
+2026-10-06 00:04:03 No se reintenta: RETRYPOLICY source=infojobs decision=stop reason=blocked_antibot
+2026-10-06 00:04:06 === FIN RUN NOCTURNA INFOJOBS exit=-1 ===

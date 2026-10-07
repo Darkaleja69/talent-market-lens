@@ -1,0 +1,24 @@
+﻿=== Cookies del perfil real en www.infojobs.net (solo nombres/atributos; sin valores) ===
+Fecha: 2026-10-06 ~22:49 Europe/Madrid. Origen: agent-browser --cdp 9222 cookies get --json.
+
+name | domain | path | httpOnly | secure
+_gcl_au | .infojobs.net | / | false | false
+_sharedID | .infojobs.net | / | false | false
+_sharedID_cst | .infojobs.net | / | false | false
+ab.storage.sessionId.<uuid> | .infojobs.net | / | false | false
+ajs_anonymous_id | .infojobs.net | / | false | false
+ajs_user_id | .infojobs.net | / | false | false
+AWSALB | www.infojobs.net | / | false | false
+didomi_token | .infojobs.net | / | false | false
+IJ_MCMID | .infojobs.net | / | false | false
+ijreactcvskills | www.infojobs.net | / | false | false
+IJUSERUID | .infojobs.net | / | false | false
+JSESSIONID | .infojobs.net | / | true* | true
+reese84 | .infojobs.net | / | false | false
+
+Notas:
+- reese84 es la cookie de challenge de Distil/Imperva (antes Distil Networks); su presencia vigente indica que
+  el navegador real resolvio el challenge invisible y puede reutilizar el token dentro de su vigencia.
+- No aparecen cf_clearance, _abck ni datadome: el vendor observado es Distil/Imperva + GeeTest en el challenge visible.
+- * httpOnly de JSESSIONID se registro como true/secure true segun la salida de la CLI.
+- Los valores de cookies NO se copiaron a ningun fichero del repositorio.

@@ -265,7 +265,7 @@ su registro, no por fase.
     esta rama, con el diagnóstico refrescado y su registro `planificado`
     generado desde el brief real (playbook §6.1).
 
-- [ ] **T-27 — Investigar el bloqueo real de InfoJobs** (~25 min)
+- [x] **T-27 — Investigar el bloqueo real de InfoJobs** (~25 min)
   - **RF:** RF-3–RF-6.
   - **Depende de:** T-26.
   - **Hecho cuando:** el informe del especialista describe el CAPTCHA al abrir,

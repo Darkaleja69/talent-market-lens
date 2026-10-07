@@ -1,0 +1,35 @@
+﻿=== Evidencia offline T-27: bloqueo CAPTCHA InfoJobs (recortes saneados) ===
+Sesion web-inspector 2026-10-06. Rutas de usuario sustituidas por <HOME>.
+
+--- infojobs_jobs_scraper\data\logs\run_20260918_000421.log ---
+[00:04:35] Scraper InfoJobs -- 3 ciudades x 6 keywords x 13 paginas main.py:108
+[00:04:39] State cargado: 1400 ofertas ya procesadas (se saltaran)  main.py:115
+[00:18:58] Madrid (Madrid) · keyword = data                         main.py:131
+[00:19:00]   Pagina 1/13                                            main.py:150
+[00:19:39]   CAPTCHA en modo desatendido; abortando run             main.py:157
+[00:21:10] Total ofertas: 0 (unicas: 0)                             main.py:269
+| Total ofertas | 0     |
+RESULT total=0 incidencias=1 blocked=true
+[00:21:17] Run abortada por CAPTCHA.                                main.py:349
+
+--- infojobs_jobs_scraper\data\logs\run_20261005_000038.log ---
+[00:00:38] Scraper InfoJobs -- 3 ciudades x 6 keywords x 13 paginas main.py:123
+           State cargado: 1512 ofertas ya procesadas (se saltaran)  main.py:130
+[00:01:15] Madrid (Madrid) · keyword = data                         main.py:146
+             Pagina 1/13                                            main.py:165
+[00:01:32]   CAPTCHA en modo desatendido; abortando run             main.py:172
+[00:01:44] Total ofertas: 0 (unicas: 0)                             main.py:285
+| Total ofertas | 0     |
+RESULT total=0 incidencias=1 blocked=true
+[00:01:45] Run abortada por CAPTCHA.                                main.py:365
+
+--- infojobs_jobs_scraper\data\nightly_stdout_attempt1.log ---
+[00:01:09] Scraper InfoJobs -- 3 ciudades x 6 keywords x 13 paginas main.py:123
+           State cargado: 1512 ofertas ya procesadas (se saltaran)  main.py:130
+[00:02:57] Madrid (Madrid) � keyword = data                         main.py:146
+[00:02:58]   Pagina 1/13                                            main.py:165
+[00:03:19]   CAPTCHA en modo desatendido; abortando run             main.py:172
+[00:03:28] Total ofertas: 0 (unicas: 0)                             main.py:285
+| Total ofertas | 0     |
+RESULT total=0 incidencias=1 blocked=true
+[00:03:30] Run abortada por CAPTCHA.                                main.py:365

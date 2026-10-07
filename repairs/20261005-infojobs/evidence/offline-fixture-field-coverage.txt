@@ -1,0 +1,29 @@
+﻿=== Cobertura de campos observada en fixtures de listado (offline) ===
+Recuento de marcadores por fichero. Los fixtures se capturaron en runs exitosos (21/09/2026 y 22/08/2026).
+
+--- infojobs_jobs_scraper\tests\fixtures\listing_madrid.html ---
+bytes: 1309703
+ij-OfferCardContent-description-link : 5
+job-title- : 11
+ij-OfferCardContent-description-subtitle-link : 5
+ij-OfferCardContent-description-list-item-truncate : 5
+sincedate-tag : 5
+salary-info : 1
+salary-no-information : 4
+description-description : 10
+remoto|teletrabajo|híbrido|hibrido|presencial : 54
+
+--- infojobs_jobs_scraper\tests\fixtures\listing_madrid_current.html ---
+bytes: 147629
+ij-OfferCardContent-description-link : 5
+job-title- : 10
+ij-OfferCardContent-description-subtitle-link : 5
+ij-OfferCardContent-description-list-item-truncate : 5
+sincedate-tag : 5
+salary-info : 3
+salary-no-information : 2
+description-description : 10
+remoto|teletrabajo|híbrido|hibrido|presencial : 20
+
+=== Extracto de una tarjeta (primer li ij-OfferList-offerCardItem, recortado a 5000 chars) ===
+<li class="ij-List-item ij-OfferList-offerCardItem sui-PrimitiveLinkBox"><div class="sui-AtomCard-Wrapper"><div class="sui-AtomCard"><div class="sui-AtomCard-Container sui-AtomCard-Container-is-inset sui-AtomCard-Container-design-filled sui-AtomCard-Container-color-surface sui-AtomCard-Container-elevation-none sui-AtomCard-Container-cornerSize-l ij-OfferCard sui-PrimitiveLinkBox"><span class="sui-AtomCard-Panel" aria-hidden="true"></span><div class="sui-AtomCard-Container-Content"><div class="ij-OfferCardContent"><div class="ij-OfferCardContent-media"><a href="https://ineco.ofertas-trabajo.infojobs.net" class="ij-OfferCardContent-media-link sui-PrimitiveLinkBoxRaised" target="_blank" rel="noopener noreferrer" aria-label="Consultoría y TI - INECO" tabindex="-1"><figure class="sui-MoleculeThumbnail sui-MoleculeThumbnail--medium sui-MoleculeThumbnail--squared"><div><div class="sui-MoleculeThumbnail-containerImage sui-MoleculeThumbnail-containerImage--1-1"><div class="sui-AtomImage is-loaded"><figure class="sui-AtomImage-figure"><picture><source media="(max-width: 480px)" srcset="https://multimedia-logos.infojobs.net/image/upload/09/09e7dd06-32ef-48d0-8d4d-1f4ffad432b6?rule=smallDevice95"><img class="sui-AtomImage-image" decoding="auto" fetchpriority="auto" loading="eager" data-element="image" src="https://multimedia-logos.infojobs.net/image/upload/09/09e7dd06-32ef-48d0-8d4d-1f4ffad432b6?rule=largeDevice155" aria-hidden="true" width="70" height="70"></picture></figure></div></div></div></figure></a></div><div class="ij-OfferCardContent-info"><div class="ij-OfferCardContent-description"><div class="ij-OfferCardContent-description-head"><div class="ij-OfferCardContent-description-head-left"><div class="ij-OfferCardContent-description-badges"></div><div class="sui-AtomBadge sui-AtomBadge-size-small sui-AtomBadge-type-primary sui-AtomBadge-design-solid"><span class="sui-AtomBadge-icon-text">Destacada</span></div><h2 id="job-title-e5c0784e3c43dba45832fd710e1833" class="ij-OfferCardContent-description-title"><a class="ij-OfferCardContent-description-link sui-PrimitiveLinkBoxLink" href="//www.infojobs.net/madrid/28686-beca-planificacion-estrategica-del-transporte/of-ie5c0784e3c43dba45832fd710e1833?applicationOrigin=search-new&amp;page=1&amp;sortBy=RELEVANCE" aria-label="28686 - Beca de Planificación Estratégica del Transporte"><span class="ij-OfferCardContent-description-title-link">28686 - Beca de Planificación Estratégica del Transporte</span></a></h2><h3 id="job-company-e5c0784e3c43dba45832fd710e1833" class="ij-OfferCardContent-description-subtitle"><a href="https://ineco.ofertas-trabajo.infojobs.net" class="ij-OfferCardContent-description-subtitle-link sui-PrimitiveLinkBoxRaised">Consultoría y TI - INECO</a></h3></div><div class="ij-OfferCardContent-description-head-right"><div class="ij-OfferCardContent-description-favorite-bookmark sui-PrimitiveLinkBoxRaised"><button class="sui-AtomButton sui-AtomButton--neutral sui-AtomButton--flat sui-AtomButton--center sui-AtomButton--large sui-AtomButton--empty sui-AtomButton--circular" aria-label="Guardar oferta" aria-labelledby="bookmark-e5c0784e3c43dba45832fd710e1833 job-title-e5c0784e3c43dba45832fd710e1833 job-company-e5c0784e3c43dba45832fd710e1833" aria-pressed="false" data-testid="bookmark" id="bookmark-e5c0784e3c43dba45832fd710e1833" shape="circular" tabindex="0" type="button"><span class="sui-AtomButton-inner"><span class="sui-AtomButton-content"></span><span class="sui-AtomButton-rightIcon"><span class="sui-AtomIcon sui-AtomIcon--size-medium sui-AtomIcon--color-currentColor sui-AtomIcon--design-filled" role="presentation" aria-hidden="true" focusable="false"><span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.722 15.977a3.5 3.5 0 0 1 4.556 0l2.727 2.337a.3.3 0 0 0 .495-.228V5.25a.5.5 0 0 0-.5-.5H7a.5.5 0 0 0-.5.5v12.836a.3.3 0 0 0 .495.228zM7 3.25h10a2 2 0 0 1 2 2v14.576a1 1 0 0 1-1.65.759l-4.048-3.47a2 2 0 0 0-2.604 0l-4.047 3.47A1 1 0 0 1 5 19.825V5.25a2 2 0 0 1 2-2"></path></svg></span></span></span></span></button></div></div></div><ul class="ij-OfferCardContent-description-list"><li class="ij-OfferCardContent-description-list-item"><span class="ij-OfferCardContent-description-list-item-truncate">Madrid</span></li>

@@ -1,0 +1,43 @@
+﻿=== Sondeo HTTP simple (curl, sin navegador, 1 peticion, 2026-10-06 15:46 UTC) ===
+URL: https://www.infojobs.net/ofertas-trabajo/madrid/madrid/data
+User-Agent: TalentMarketLensBot/0.1 (academic research; respects robots.txt)
+
+--- Cabeceras de respuesta (completas) ---
+HTTP/1.1 405 Not Allowed
+Content-Type: text/html
+Content-Length: 31802
+Connection: keep-alive
+access-control-allow-origin: *
+cache-control: no-cache, no-store
+date: Tue, 06 Oct 2026 15:46:12 GMT
+server: bon
+server-timing: bon, total;dur=239.737957
+X-Cache: LambdaGeneratedResponse from cloudfront
+Via: 1.1 6593d4255052cf75552b6c16639a4c8e.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: MAD53-P7
+X-Amz-Cf-Id: bhod-rk2hTeJHO-WNfK4xCEQjFIpQIt3C74ib3r3rOexJa59PQeYLQ==
+
+
+--- Marcadores en el cuerpo (conteo, case-insensitive) ---
+distil : 2
+sherlock : 0
+captcha : 23
+no podemos identificar : 0
+challenge : 3
+geetest : 11
+turnstile : 0
+ij-OfferList-offerCardItem : 0
+
+--- Canonical ---
+https://www.infojobs.net/distil/distil/captcha.xhtml
+
+--- H1 ---
+¿Eres humano o un robot?
+
+--- GeeTest (tokens de sesion recortados) ---
+initGeetest({ gt: "ce33de396f8d04030f6eca8fbd225070", challenge: "6f86...<recortado>", offline: false, new_captcha: true, lang: "es" })
+script: https://static.geetest.com/static/tools/gt.js
+solvedCaptcha -> geetest_challenge / geetest_seccode / geetest_validate
+
+--- Nota ---
+El cuerpo completo esta en infojobs-serp-probe.html (31.802 bytes). No hay 'no podemos identificar tu navegador' ni imagen 'sherlock' en esta variante del challenge.

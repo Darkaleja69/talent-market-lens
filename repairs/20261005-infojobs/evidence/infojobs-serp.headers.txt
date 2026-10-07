@@ -1,0 +1,14 @@
+HTTP/1.1 405 Not Allowed
+Content-Type: text/html
+Content-Length: 31802
+Connection: keep-alive
+access-control-allow-origin: *
+cache-control: no-cache, no-store
+date: Tue, 06 Oct 2026 15:46:12 GMT
+server: bon
+server-timing: bon, total;dur=239.737957
+X-Cache: LambdaGeneratedResponse from cloudfront
+Via: 1.1 6593d4255052cf75552b6c16639a4c8e.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: MAD53-P7
+X-Amz-Cf-Id: bhod-rk2hTeJHO-WNfK4xCEQjFIpQIt3C74ib3r3rOexJa59PQeYLQ==
+
