@@ -18,16 +18,15 @@ from scraper.config import (
     LOG_DIR,
     RATE_LIMIT_MIN,
     RATE_LIMIT_MAX,
-    CAPTCHA_TIMEOUT,
-    CAPTCHA_MAX_ATTEMPTS,
     ROBOTS_DISALLOWED,
 )
 from scraper.browser import get_browser_context
 from scraper.navigator import (
-    detect_captcha,
     handle_captcha,
+    session_has_reese84,
     slow_scroll_to_bottom,
     respectful_sleep,
+    warm_up,
     auto_login,
 )
 from scraper.parser import parse_listing
@@ -50,6 +49,7 @@ CARD_MARKER = "ij-OfferList-offerCardItem"
 class RunResult:
     offers: list[Offer] = field(default_factory=list)
     blocked: bool = False
+    block_reason: str | None = None
     skipped_total: int = 0
     incidencias: list[str] = field(default_factory=list)
     log_path: Path | None = None
@@ -115,6 +115,7 @@ def run(
     all_offers: list[Offer] = []
     bloqueos: list[str] = []
     captcha_blocked = False
+    block_reason: str | None = None
 
     state = RunState()
     skipped_total = 0
@@ -133,6 +134,9 @@ def run(
 
     playwright, context = get_browser_context()
     page = context.new_page()
+
+    # Human-like warm-up before the first SERP: home -> cookie banner -> search.
+    warm_up(page)
 
     if login:
         auto_login(page)
@@ -166,24 +170,22 @@ def run(
                             page.goto(url, wait_until="domcontentloaded", timeout=30000)
                             respectful_sleep(2, 4)
 
-                            if detect_captcha(page):
-                                bloqueos.append(f"captcha: {ciudad_buscada} p.{p}")
-                                if unattended:
-                                    console.log(
-                                        "  [red]CAPTCHA en modo desatendido; abortando run[/]"
-                                    )
-                                    captcha_blocked = True
-                                    break
-                                if not handle_captcha(
-                                    page,
-                                    max_attempts=CAPTCHA_MAX_ATTEMPTS,
-                                    timeout=CAPTCHA_TIMEOUT,
-                                ):
-                                    console.log(
-                                        "  [red]CAPTCHA no resuelto; abortando run[/]"
-                                    )
-                                    captcha_blocked = True
-                                    break
+                            clean, marker = handle_captcha(page)
+                            if not clean:
+                                current_url = page.url
+                                reese = session_has_reese84(page)
+                                bloqueos.append(
+                                    f"captcha[{marker}]: {ciudad_buscada} p.{p} "
+                                    f"url={current_url} reese84={reese}"
+                                )
+                                console.log(
+                                    f"  [red]Challenge visible: marcador={marker} "
+                                    f"url={current_url} reese84={reese}; "
+                                    "abortando run sin recargas[/]"
+                                )
+                                captcha_blocked = True
+                                block_reason = marker
+                                break
 
                             slow_scroll_to_bottom(page)
                             respectful_sleep(1, 2)
@@ -297,6 +299,7 @@ def run(
     return RunResult(
         offers=unique_offers,
         blocked=captcha_blocked,
+        block_reason=block_reason,
         skipped_total=skipped_total,
         incidencias=bloqueos,
         log_path=log_path,
@@ -313,8 +316,8 @@ def main() -> None:
     parser_cfg.add_argument("--login", action="store_true",
                             help="Iniciar sesion en InfoJobs antes de scrapear")
     parser_cfg.add_argument("--unattended", action="store_true",
-                            help="Modo desatendido: no espera resolucion manual "
-                                 "de CAPTCHA; aborta y avisa")
+                            help="Modo desatendido (por defecto): ante un "
+                                 "challenge visible aborta y registra el marcador")
 
     args = parser_cfg.parse_args()
 
@@ -352,17 +355,19 @@ def main() -> None:
     console.print(table)
 
     blocked_flag = "true" if result.blocked else "false"
+    reason_field = f" reason={result.block_reason}" if result.block_reason else ""
     console.print(
         f"RESULT total={len(offers)} incidencias={len(result.incidencias)} "
-        f"blocked={blocked_flag}"
+        f"blocked={blocked_flag}{reason_field}"
     )
 
     if result.blocked:
+        reason_txt = f" ({result.block_reason})" if result.block_reason else ""
         notify(
-            f"InfoJobs BLOQUEADO por CAPTCHA. ofertas={len(offers)} "
+            f"InfoJobs BLOQUEADO por CAPTCHA{reason_txt}. ofertas={len(offers)} "
             f"incidencias={len(result.incidencias)}"
         )
-        console.log("[bold red]Run abortada por CAPTCHA.[/]")
+        console.log(f"[bold red]Run abortada: challenge visible{reason_txt}.[/]")
         exit_code = 2
     elif not offers:
         console.log("[bold yellow]No se obtuvieron ofertas nuevas.[/]")

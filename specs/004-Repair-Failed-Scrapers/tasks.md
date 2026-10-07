@@ -277,7 +277,7 @@ su registro, no por fase.
     preventiva §6.0 que debe implementarse (sesión/tokens reales, fingerprint,
     flujo y ritmo humanos).
 
-- [ ] **T-28 — Reparar el scraper de InfoJobs** (~25 min)
+- [x] **T-28 — Reparar el scraper de InfoJobs** (~25 min)
   - **RF:** RF-7.
   - **Depende de:** T-27.
   - **Hecho cuando:** el scraper obtiene ofertas por la vía elegida (rediseño

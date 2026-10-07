@@ -34,7 +34,7 @@
       "field": "salary",
       "is_focus": false,
       "required": false,
-      "target_pct": 100.0
+      "target_pct": null
     },
     {
       "current_pct": null,

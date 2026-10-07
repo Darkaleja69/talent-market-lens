@@ -1,5 +1,25 @@
-from playwright.sync_api import sync_playwright, BrowserContext, Playwright
+"""Persistent Chrome context for the InfoJobs scraper.
+
+patchright is used as a drop-in replacement of playwright (same API,
+binary-level anti-detection patches): it reduces the automation fingerprint
+that Distil/Imperva uses to serve the challenge (T-27). If patchright is not
+installed, the scraper falls back to plain playwright with a warning.
+``navigator.webdriver`` is never patched by hand.
+"""
+from __future__ import annotations
+
+import logging
+
 from scraper.config import PROFILE_DIR, HEADLESS, LOCALE, TIMEZONE
+
+log = logging.getLogger(__name__)
+
+# patchright is a drop-in replacement of playwright
+try:
+    from patchright.sync_api import sync_playwright, BrowserContext, Playwright
+except ImportError:  # pragma: no cover - depends on the environment
+    log.warning("patchright no disponible, usando playwright (mas detectable).")
+    from playwright.sync_api import sync_playwright, BrowserContext, Playwright  # type: ignore
 
 
 def launch_persistent_context(playwright: Playwright) -> BrowserContext:

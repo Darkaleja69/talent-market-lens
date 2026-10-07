@@ -80,8 +80,58 @@ locales de usuario se escriben como <HOME>.
 <!-- record:section:changes -->
 ## Cambios realizados
 
-_(Pendiente: módulos y ficheros modificados, diseño elegido y dependencias
-nuevas justificadas, si las hay.)_
+- **Causa (T-27):** bloqueo por sesión/reputación (Distil/Imperva + GeeTest),
+  no por parser. El perfil propio del scraper navegaba en frío sin un token de
+  challenge válido; el perfil real (con `reese84`) recibe la SERP SSR completa.
+  Diseño preventivo §6.0, sin solvers ni servicios de pago.
+- **Técnica contra el challenge:** warm-up humano (home → banner de cookies
+  Didomi best-effort → búsqueda), contexto persistente con perfil configurable
+  (reutilizable con una copia de la sesión real, mismo dispositivo/red),
+  fingerprint coherente vía `patchright` (drop-in de Playwright; no se parchea
+  `navigator.webdriver` a mano) y ritmo actual (5–9 s con jitter). Si aparece un
+  challenge visible se **aborta** y se registra el marcador, la URL y la
+  presencia de `reese84`; sin pausa larga ni recargas ciegas (política de la
+  persona, 2026-10-08). La renovación de sesión queda fuera del scraper.
+- **Módulos cambiados:**
+  - `scraper/navigator.py`: `detect_captcha` → `captcha_marker` (marcadores
+    reales: URL `/distil/`/`captcha`, canonical, h1 «eres humano»/«un robot»
+    normalizado sin acentos, `geetest`/`initGeetest`, iframe `distil` e imagen
+    `sherlock` residual); `handle_captcha` ya no recarga ni espera: devuelve
+    `(False, marcador)` para abortar; se añaden `session_has_reese84` y el
+    warm-up (`warm_up`/`accept_cookies`).
+  - `scraper/browser.py`: `patchright` como drop-in con fallback a Playwright
+    (aviso en log), contexto persistente y perfil configurable.
+  - `scraper/main.py`: warm-up antes de la primera SERP; al detectar challenge
+    registra `marcador`, `url` y `reese84` en el log y en `bloqueos` y sale con
+    `blocked=true reason=<marcador>`; el flag `--unattended` se conserva por
+    compatibilidad del wrapper (la política de aborto es la única).
+  - `scraper/config.py`: `PROFILE_DIR` configurable con `INFOJOBS_PROFILE_DIR`
+    (por defecto `data/profile`); se retiran `CAPTCHA_TIMEOUT` y
+    `CAPTCHA_MAX_ATTEMPTS` (ya no hay espera); `ROBOTS_DISALLOWED` se conserva.
+  - `scraper/parser.py`: el delta real es `_clean_offer_url` (elimina query y
+    fragmento de la URL de la oferta, fuera `?applicationOrigin...`, patrón en
+    `Disallow`), más los tests que fijan el comportamiento. La extracción del
+    texto completo del párrafo de la tarjeta
+    (`p.ij-OfferCardContent-description-description`) ya existía en HEAD y no
+    cambia: queda cubierta por tests (descripción idéntica al párrafo de la
+    tarjeta y URLs limpias). `salary` «Más de X €» se mantiene tal cual (sin
+    meta y sin periodo inventado).
+  - `scraper/requirements.txt`: `patchright>=1.49`.
+  - `tests/test_navigator.py` (nuevo) y `tests/test_parser.py`: cobertura
+    offline de cada marcador real, aborto sin recargas y descripción completa
+    con el fixture actual.
+- **Dependencias nuevas justificadas:** `patchright>=1.49` — drop-in de
+  Playwright ya usado en Indeed/LinkedIn/multi-site; parchea a nivel binario
+  las señales de automatización y reduce la probabilidad de que Distil sirva el
+  challenge, sin solvers. Si no está instalado, hay fallback a Playwright con
+  aviso.
+- **Meta de calidad reconciliada:** `salary` pasa a `target_pct: null` (sin
+  meta) en `context.json` y `quality_before.json`: el portal publica «Salario
+  no disponible» en parte de las ofertas y su ausencia no es fallo; se evita el
+  falso `target_not_reached` de la puerta `repair.quality`. `skills` ya estaba
+  sin meta (se derivan en Databricks). Obligatorios al 100 % en la muestra:
+  `title`, `company` y `description` (texto de tarjeta). No se tocó el núcleo
+  `scrapers-pipeline/repair/`.
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->

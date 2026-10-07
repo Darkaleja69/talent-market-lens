@@ -30,6 +30,16 @@ def _href(el: Tag | None) -> str:
     return href
 
 
+def _clean_offer_url(url: str) -> str:
+    """Drop query and fragment from an offer URL.
+
+    The card link carries ``?applicationOrigin=search-new...``; that pattern
+    is disallowed by ``robots.txt`` and is never visited nor stored (T-28).
+    """
+    without_fragment = url.split("#", 1)[0]
+    return without_fragment.split("?", 1)[0]
+
+
 def _extract_offer_id_from_h2(h2: Tag | None) -> str:
     if h2 is None:
         return ""
@@ -131,7 +141,7 @@ def parse_listing(html: str, ciudad: str, keyword: str, pagina: int) -> list[Off
             )
             titulo = _text(title_span)
             empresa = _text(company_link)
-            url_oferta = _href(title_link)
+            url_oferta = _clean_offer_url(_href(title_link))
 
             ciudad_detectada = _text(city_span) if city_span else ciudad
             provincia_detectada = ""
@@ -169,6 +179,9 @@ def parse_listing(html: str, ciudad: str, keyword: str, pagina: int) -> list[Off
                         if not jornada:
                             jornada = txt
 
+            # Quality priority (T-28): the description is the full text of the
+            # card paragraph; the detail page is disallowed by robots.txt and
+            # is never visited.
             descripcion_snippet = _text(desc_p) if desc_p else None
 
             offer = Offer(
