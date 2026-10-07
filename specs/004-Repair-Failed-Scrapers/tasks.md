@@ -258,7 +258,7 @@ su registro, no por fase.
 
 ## 7. Primer caso real (rama `repair/infojobs-<fecha>`)
 
-- [ ] **T-26 — Abrir la rama y el registro de InfoJobs** (~15 min)
+- [x] **T-26 — Abrir la rama y el registro de InfoJobs** (~15 min)
   - **RF:** RF-2.
   - **Depende de:** T-13, T-16.
   - **Hecho cuando:** existe la rama `repair/infojobs-<fecha>` creada desde
