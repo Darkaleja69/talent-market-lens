@@ -33,12 +33,14 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 
 ## Ramas y flujo de trabajo
 - Una rama por spec: `spec/<NNN>-<nombre-corto>` (p. ej. `spec/001-verify-scrapers-run`). Se crea desde `main` al iniciar la spec.
+- El trabajo de cada spec se hace en un **worktree** en una carpeta hermana del clon principal (p. ej. `../talent-market-lens-006`), nunca dentro del árbol de otro worktree: así no ensucia `git status`, no choca con `specs/` ni peligra con limpiezas accidentales.
 - Antes de crear una spec, comprueba en `specs/` que su número no esté ya en uso: los números de spec no se reutilizan ni se crean duplicados (si existen 001 y 002, la siguiente es 003).
 - Todo el trabajo de una spec (código, tests y actualización de `specs/`) ocurre en su rama.
 - `main` solo recibe merges de ramas de spec; no se commitea directamente en `main`.
 - Se hace `git push` de la rama a `origin` con frecuencia para respaldar y dejar historial visible.
 - Fusionar a `main` con las tareas cerradas y los tests en verde (`git switch main`, `git pull`, `git merge --no-ff spec/<...>`) es un **checkpoint**, no el cierre: la rama **no se borra y no se etiqueta** todavía.
 - Una spec se **cierra** (etiquetar `git tag -a spec-NNN -m "spec NNN completada"` y borrar la rama) solo cuando su **comprobación real** funciona, no solo los tests. Si la comprobación real falla, se corrige dentro de la misma spec y su rama, y se repite.
+- El worktree de la spec se elimina (`git worktree remove <ruta>`) al **cerrar** la spec (tag y borrado de rama); el merge a `main` no lo elimina, solo lleva consigo los documentos de `specs/`.
 - Los defectos de implementación o de tests detectados al verificar una spec se corrigen en esa misma spec; no se abre una spec nueva para parchear el objetivo incumplido de otra.
 
 
