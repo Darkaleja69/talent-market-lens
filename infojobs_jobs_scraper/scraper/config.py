@@ -30,6 +30,12 @@ def _resolve_profile_dir(raw: str | None = None) -> Path:
 
 PROFILE_DIR = _resolve_profile_dir()
 
+# T-30 (iteracion): en modo CDP el scraper se conecta a un Chrome lanzado
+# directamente (sin las flags de automatizacion de Playwright), la via que
+# pasa el challenge de Distil/Imperva (mismo patron que Indeed). Vacio =
+# modo persistente con patchright (comportamiento por defecto).
+CDP_URL: str = os.getenv("INFOJOBS_CDP_URL", "").strip()
+
 CIUDADES: list[dict[str, str]] = [
     {
         "nombre": "Madrid",

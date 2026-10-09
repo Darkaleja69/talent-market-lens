@@ -20,7 +20,7 @@ from scraper.config import (
     RATE_LIMIT_MAX,
     ROBOTS_DISALLOWED,
 )
-from scraper.browser import get_browser_context
+from scraper.browser import close_browser_context, get_browser_context
 from scraper.navigator import (
     handle_captcha,
     session_has_reese84,
@@ -241,11 +241,7 @@ def run(
                                     page.close()
                                 except Exception:
                                     pass
-                                try:
-                                    context.close()
-                                    playwright.stop()
-                                except Exception:
-                                    pass
+                                close_browser_context(playwright, context)
                                 playwright, context = get_browser_context()
                                 page = context.new_page()
                                 respectful_sleep(5, 8)
@@ -271,10 +267,10 @@ def run(
                 break
     finally:
         try:
-            context.close()
-            playwright.stop()
+            page.close()
         except Exception:
             pass
+        close_browser_context(playwright, context)
 
     seen_ids: set[str] = set()
     unique_offers: list[Offer] = []
