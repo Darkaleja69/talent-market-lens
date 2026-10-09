@@ -286,14 +286,14 @@ su registro, no por fase.
     aplica la estrategia preventiva de §6.0 (sin solvers) y documenta la técnica
     contra el challenge.
 
-- [ ] **T-29 — Verificar el fix de InfoJobs** (~25 min)
+- [x] **T-29 — Verificar el fix de InfoJobs** (~25 min)
   - **RF:** RF-8.
   - **Depende de:** T-28.
   - **Hecho cuando:** el verificador ejecuta la suite de InfoJobs (pytest,
     Ruff y mypy) y la del diagnóstico, revisa el diff contra esta spec, el
     playbook §6.1 y el registro, y no quedan hallazgos bloqueantes.
 
-- [ ] **T-30 — Probar InfoJobs en vivo de forma acotada** (~25 min)
+- [x] **T-30 — Probar InfoJobs en vivo de forma acotada** (~25 min)
   - **RF:** RF-9, RF-10, RF-15, RF-16.
   - **Depende de:** T-29.
   - **Hecho cuando:** el implementador ejecuta una búsqueda acotada (1 keyword
