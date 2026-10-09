@@ -1,0 +1,101 @@
+{
+  "blockers": [],
+  "fields": [
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "id",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "title",
+      "reasons": [],
+      "required": true,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "company",
+      "reasons": [],
+      "required": true,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "description",
+      "reasons": [],
+      "required": true,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 25.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "salary",
+      "reasons": [],
+      "required": false,
+      "status": "not_applicable",
+      "target_pct": null
+    },
+    {
+      "after_pct": 0.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "skills",
+      "reasons": [],
+      "required": false,
+      "status": "not_applicable",
+      "target_pct": null
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "work_mode",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "location",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": null,
+      "delta_pp": null,
+      "field": "posted_date",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    }
+  ],
+  "missing_columns": [],
+  "ok": true,
+  "read_error": null,
+  "regression_tolerance_pp": 5.0,
+  "source": "infojobs",
+  "total_offers": 4
+}

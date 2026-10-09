@@ -1,0 +1,30 @@
+=== Prueba en vivo InfoJobs (T-30) — 2026-10-10 00:17-00:18 Europe/Madrid ===
+
+Alcance: 1 keyword x 1 ciudad x 1 pagina (madrid / comercial / p.1).
+Modo: CDP (INFOJOBS_CDP_URL=http://127.0.0.1:9333) sobre Chrome lanzado
+directamente con la copia de la sesion real (perfil de la investigacion T-27).
+Sin Azure, sin landing, sin merge. Sin solvers.
+
+Comando (desde infojobs_jobs_scraper):
+  $env:INFOJOBS_CDP_URL = "http://127.0.0.1:9333"
+  python -m scraper.main --ciudades madrid --keywords comercial --paginas 1
+
+Resultado:
+  RESULT total=4 incidencias=0 blocked=false  (exit 0)
+  PROGRESS source=infojobs parsed=5 new=5
+  Tarjetas parseadas: 5 | unicas: 4 (1 repetida en pagina) | umbral exigido: 1
+  Challenge visible: no (0 incidencias).
+
+Sesion (comprobada por CDP antes de la prueba, keyword comercial):
+  geetest=false | distil=false | captcha en URL=false
+  canonical=https://www-internal.infojobs.net/ofertas-trabajo/madrid/madrid/comercial
+  cards=10 | job-title=5 | description-p=5
+
+Puerta de calidad (repair.cli quality): Veredicto OK
+  title/company/description 100 % (obligatorios)
+  work_mode/location/posted_date 100 % | salary 25 % (sin meta) | skills 0 % (sin meta)
+
+Evidencia:
+  - 20261010-live-test-run.txt (log de la run; rutas saneadas a <HOME>)
+  - quality_after.json (veredicto de la puerta de calidad)
+  - data/offers_20261010_001837.parquet (original del scraper, fuera del registro)

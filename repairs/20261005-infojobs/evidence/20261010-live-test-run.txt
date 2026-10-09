@@ -1,0 +1,43 @@
+[00:17:46] Scraper InfoJobs -- 1 ciudades x 1 keywords x 1 paginas  main.py:124
+           Log:                                                     main.py:129
+           <HOME>\Documents\projects\infojobs_jobs_scraper\            
+           data\logs\run_20261010_001746.log                                   
+           State cargado: 1719 ofertas ya procesadas (se saltaran)  main.py:131
+[00:18:03] Madrid (Madrid) · keyword = comercial                    main.py:150
+             Pagina 1/1                                             main.py:169
+[00:18:20] PROGRESS source=infojobs parsed=5 new=5                   main.py:99
+           ts=2026-10-10T00:18:20                                              
+             [+] 5 ofertas                                          main.py:223
+[00:18:36] Archivos guardados:                                       main.py:85
+             excel:                                                  main.py:87
+           <HOME>\Documents\projects\infojobs_jobs_scraper\d           
+           ata\offers_20261010_001827.xlsx                                     
+             parquet:                                                main.py:87
+           <HOME>\Documents\projects\infojobs_jobs_scraper\d           
+           ata\offers_20261010_001827.parquet                                  
+             delta:                                                  main.py:87
+           <HOME>\Documents\projects\infojobs_jobs_scraper\d           
+           ata\delta_table                                                     
+
+[00:18:37] Total ofertas: 5 (unicas: 4)                             main.py:283
+           Archivos guardados:                                       main.py:85
+             excel:                                                  main.py:87
+           <HOME>\Documents\projects\infojobs_jobs_scraper\d           
+           ata\offers_20261010_001837.xlsx                                     
+             parquet:                                                main.py:87
+           <HOME>\Documents\projects\infojobs_jobs_scraper\d           
+           ata\offers_20261010_001837.parquet                                  
+             delta:                                                  main.py:87
+           <HOME>\Documents\projects\infojobs_jobs_scraper\d           
+           ata\delta_table                                                     
+         Resumen         
++-----------------------+
+| Metrica       | Valor |
+|---------------+-------|
+| Total ofertas | 4     |
+| Ciudades      | 1     |
+| Keywords      | 1     |
+| Paginas       | 1     |
+| Incidencias   | 0     |
++-----------------------+
+RESULT total=4 incidencias=0 blocked=false

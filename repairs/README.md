@@ -59,4 +59,5 @@ filas a mano. Convención de cada fila:
 <!-- repair-index:start -->
 | fecha | fuente | estado | rama | resultado | calidad |
 |---|---|---|---|---|---|
+| 2026-10-05 | infojobs | probado | repair/infojobs-20261005 | 4 ofertas verificadas (umbral 1) en la prueba acotada; modo CDP validado: Chrome lanzado directo + conexión del scraper sin challenge | OK: cumplen id, title, company, description, work_mode, location, posted_date |
 <!-- repair-index:end -->

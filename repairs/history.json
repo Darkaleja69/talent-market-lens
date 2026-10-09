@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "infojobs": {
+      "best_verified_offers": 4,
+      "last_result": "probado",
+      "last_run_date": "2026-10-05",
+      "quality_delta_pp": null,
+      "quality_ok": true
+    }
+  }
+}

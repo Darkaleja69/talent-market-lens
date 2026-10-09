@@ -84,95 +84,100 @@ locales de usuario se escriben como <HOME>.
   no por parser. El perfil propio del scraper navegaba en frío sin un token de
   challenge válido; el perfil real (con `reese84`) recibe la SERP SSR completa.
   Diseño preventivo §6.0, sin solvers ni servicios de pago.
-- **Técnica contra el challenge:** warm-up humano (home → banner de cookies
-  Didomi best-effort → búsqueda), contexto persistente con perfil configurable
-  (reutilizable con una copia de la sesión real, mismo dispositivo/red),
-  fingerprint coherente vía `patchright` (drop-in de Playwright; no se parchea
-  `navigator.webdriver` a mano) y ritmo actual (5–9 s con jitter). Si aparece un
-  challenge visible se **aborta** y se registra el marcador, la URL y la
-  presencia de `reese84`; sin pausa larga ni recargas ciegas (política de la
-  persona, 2026-10-08). La renovación de sesión queda fuera del scraper.
-- **Módulos cambiados:**
-  - `scraper/navigator.py`: `detect_captcha` → `captcha_marker` (marcadores
-    reales: URL `/distil/`/`captcha`, canonical, h1 «eres humano»/«un robot»
-    normalizado sin acentos, `geetest`/`initGeetest`, iframe `distil` e imagen
-    `sherlock` residual); `handle_captcha` ya no recarga ni espera: devuelve
-    `(False, marcador)` para abortar; se añaden `session_has_reese84` y el
-    warm-up (`warm_up`/`accept_cookies`).
-  - `scraper/browser.py`: `patchright` como drop-in con fallback a Playwright
-    (aviso en log), contexto persistente y perfil configurable.
-  - `scraper/main.py`: warm-up antes de la primera SERP; al detectar challenge
-    registra `marcador`, `url` y `reese84` en el log y en `bloqueos` y sale con
-    `blocked=true reason=<marcador>`; el flag `--unattended` se conserva por
-    compatibilidad del wrapper (la política de aborto es la única).
-  - `scraper/config.py`: `PROFILE_DIR` configurable con `INFOJOBS_PROFILE_DIR`
-    (por defecto `data/profile`); se retiran `CAPTCHA_TIMEOUT` y
-    `CAPTCHA_MAX_ATTEMPTS` (ya no hay espera); `ROBOTS_DISALLOWED` se conserva.
-  - `scraper/parser.py`: el delta real es `_clean_offer_url` (elimina query y
-    fragmento de la URL de la oferta, fuera `?applicationOrigin...`, patrón en
-    `Disallow`), más los tests que fijan el comportamiento. La extracción del
-    texto completo del párrafo de la tarjeta
-    (`p.ij-OfferCardContent-description-description`) ya existía en HEAD y no
-    cambia: queda cubierta por tests (descripción idéntica al párrafo de la
-    tarjeta y URLs limpias). `salary` «Más de X €» se mantiene tal cual (sin
-    meta y sin periodo inventado).
-  - `scraper/requirements.txt`: `patchright>=1.49`.
-  - `tests/test_navigator.py` (nuevo) y `tests/test_parser.py`: cobertura
-    offline de cada marcador real, aborto sin recargas y descripción completa
-    con el fixture actual.
+- **Técnica contra el challenge (T-28):** warm-up humano (home → banner de
+  cookies Didomi best-effort → búsqueda), contexto persistente con perfil
+  configurable (`INFOJOBS_PROFILE_DIR`, por defecto `data/profile`),
+  fingerprint coherente vía `patchright` (drop-in de Playwright) y ritmo actual
+  (5–9 s con jitter). Si aparece un challenge visible se **aborta** y se
+  registra el marcador, la URL y la presencia de `reese84`; sin pausa larga ni
+  recargas ciegas. La renovación de sesión queda fuera del scraper.
+- **Módulos (T-28):** `navigator.py` (marcadores reales y aborto),
+  `browser.py` (patchright con fallback y perfil configurable), `main.py`
+  (warm-up y registro del bloqueo), `config.py` (perfil configurable y
+  retirada de la espera de CAPTCHA), `parser.py` (`_clean_offer_url`),
+  `requirements.txt` (patchright) y tests `test_navigator.py`/`test_parser.py`.
 - **Dependencias nuevas justificadas:** `patchright>=1.49` — drop-in de
   Playwright ya usado en Indeed/LinkedIn/multi-site; parchea a nivel binario
   las señales de automatización y reduce la probabilidad de que Distil sirva el
   challenge, sin solvers. Si no está instalado, hay fallback a Playwright con
   aviso.
-- **Meta de calidad reconciliada:** `salary` pasa a `target_pct: null` (sin
-  meta) en `context.json` y `quality_before.json`: el portal publica «Salario
-  no disponible» en parte de las ofertas y su ausencia no es fallo; se evita el
-  falso `target_not_reached` de la puerta `repair.quality`. `skills` ya estaba
-  sin meta (se derivan en Databricks). Obligatorios al 100 % en la muestra:
-  `title`, `company` y `description` (texto de tarjeta). No se tocó el núcleo
-  `scrapers-pipeline/repair/`.
+- **Iteración T-30 (2026-10-10):** con el mismo perfil, Chrome lanzado por
+  Playwright seguía recibiendo el challenge (`canonical_captcha`) incluso con
+  `reese84` recién renovado; un Chrome lanzado **directamente** (sin flags de
+  automatización) carga la SERP limpia (comprobado en vivo: `geetest=false`,
+  canonical interno, 10 tarjetas). Se añade el **modo CDP**
+  (`INFOJOBS_CDP_URL`): el scraper se conecta a un Chrome externo y al terminar
+  se **desconecta sin cerrarlo** (`close_browser_context`); el modo persistente
+  con patchright queda como fallback por defecto. El wrapper nocturno levanta
+  el Chrome CDP (puerto 9333) si no responde, con perfil dedicado
+  (`INFOJOBS_CDP_PROFILE`; por defecto la copia de la sesión real usada en la
+  investigación, fuera del repositorio).
+- **Meta de calidad reconciliada:** `salary` sin meta; obligatorios al 100 %
+  en la muestra: `title`, `company` y `description` (texto de tarjeta).
+  No se tocó el núcleo `scrapers-pipeline/repair/`.
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
 ## Pruebas: tests
 
-_(Pendiente: suites ejecutadas del scraper afectado y del diagnóstico, y su
-resultado.)_
+- `python -m pytest tests/ -q` → **58 passed** (incluye `tests/test_browser.py`,
+  nuevo: modo CDP reutiliza el contexto externo y el cierre **desconecta** sin
+  cerrar el Chrome del usuario; modo persistente cierra su contexto; si la
+  conexión CDP falla, el driver se detiene y el error se propaga).
+- `python -m pytest scrapers-pipeline/tests -q` → **1124 passed** (suite del
+  diagnóstico, exigida por T-29).
+- `python -m ruff check scraper tests` → **All checks passed**.
+- `python -m mypy scraper` → **Success: no issues found in 11 source files**.
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+- **Alcance:** 1 keyword × 1 ciudad × 1 página (madrid / comercial / p.1).
+  Sin subida a Azure, sin landing, sin merge, sin solvers.
+- **Modo:** CDP (`INFOJOBS_CDP_URL=http://127.0.0.1:9333`) sobre un Chrome
+  lanzado directamente con la copia de la sesión real; el scraper abre su
+  pestaña, hace warm-up y navega la SERP.
+- **Comando:** `python -m scraper.main --ciudades madrid --keywords comercial
+  --paginas 1` con `INFOJOBS_CDP_URL` (desde `infojobs_jobs_scraper/`).
+- **Resultado:** `RESULT total=4 incidencias=0 blocked=false` (exit 0);
+  5 tarjetas parseadas, 4 únicas (1 repetida en página), 0 challenges.
+  Umbral exigido: 1 → **cumplido**.
+- **Sesión:** `reese84` presente; SERP limpia antes de la prueba
+  (`geetest=false`, canonical `www-internal.infojobs.net/.../comercial`,
+  10 tarjetas / 5 títulos / 5 descripciones). La persona resolvió un challenge
+  visible durante la preparación (modo asistido); el run acotado en sí no
+  recibió ninguno.
+- **Evidencia:** `evidence/20261010-live-test-run.txt` (log de la run; rutas
+  saneadas a `<HOME>`), `evidence/20261010-live-test-summary.txt` (resumen con
+  marcadores y comando) y `quality_after.json` (puerta de calidad).
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| skills | no | sin dato | pendiente | pendiente | sin meta | pendiente |
-| work_mode | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| location | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| title | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| company | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| description | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| salary | no | sin dato | 25.0 % | sin dato | sin meta | no aplica |
+| skills | no | sin dato | 0.0 % | sin dato | sin meta | no aplica |
+| work_mode | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| location | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| posted_date | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
 
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** 4 ofertas verificadas (umbral 1) en la prueba acotada; modo CDP validado: Chrome lanzado directo + conexión del scraper sin challenge
+- **Ofertas verificadas:** 4
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->
