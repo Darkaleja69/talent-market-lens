@@ -307,7 +307,7 @@ su registro, no por fase.
     itera. Si no se alcanza el umbral, se itera en la misma rama; si se agotan
     las opciones locales, se prepara el escalado con opciones para la persona.
 
-- [ ] **T-31 — Cerrar el registro y validar el push** (~20 min)
+- [x] **T-31 — Cerrar el registro y validar el push** (~20 min)
   - **RF:** RF-11, RF-12.
   - **Depende de:** T-30.
   - **Hecho cuando:** el registro queda completo y en estado `probado` (o
