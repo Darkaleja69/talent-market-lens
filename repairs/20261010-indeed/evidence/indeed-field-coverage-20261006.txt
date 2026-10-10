@@ -1,0 +1,22 @@
+﻿filas: 54
+job_key: 54/54 (100%)
+title: 54/54 (100%)
+company: 54/54 (100%)
+description_html: 0/54 (0%)
+description_text: 0/54 (0%)
+salary_text: 33/54 (61%)
+salary_min: 33/54 (61%)
+salary_max: 33/54 (61%)
+salary_type: 33/54 (61%)
+workplace_type: 20/54 (37%)
+is_remote: 54/54 (100%)
+location: 54/54 (100%)
+posted_date: 54/54 (100%)
+posted_relative: 54/54 (100%)
+snippet: 54/54 (100%)
+benefits: 0/54 (0%)
+contract_type: 0/54 (0%)
+schedule: 0/54 (0%)
+job_type: 0/54 (0%)
+skills column presente: False
+col en distinct workplace_type: ['', 'remote']

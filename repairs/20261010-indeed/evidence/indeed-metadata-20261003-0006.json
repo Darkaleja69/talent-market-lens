@@ -1,0 +1,38 @@
+{
+  "run_id": "c034bb52-3f42-4004-9763-b47f3149b776",
+  "started_at": "2026-10-02T22:06:05.324935+00:00",
+  "finished_at": "2026-10-02T23:21:08.627374+00:00",
+  "duration_seconds": 4503.3,
+  "country": "IE",
+  "cities": [
+    "Dublin",
+    "Cork"
+  ],
+  "terms": [
+    "data",
+    "data engineer",
+    "data analyst",
+    "data scientist"
+  ],
+  "pages": 2,
+  "total_serps": 16,
+  "total_offers_raw": 62,
+  "total_unique": 57,
+  "by_city": {
+    "data|Dublin": 15,
+    "data|Cork": 6,
+    "data engineer|Dublin": 15,
+    "data engineer|Cork": 15,
+    "data scientist|Dublin": 6,
+    "data scientist|Cork": 5
+  },
+  "limit": 0,
+  "logged_in": true,
+  "cdp_port": 9222,
+  "scraper_version": "1.1.0",
+  "enrich_success_rate": "0/53",
+  "description_filled_rate": "0/57",
+  "enrich_rate_target": 0.9,
+  "enrich_attempted": 53,
+  "enrich_success": 0
+}

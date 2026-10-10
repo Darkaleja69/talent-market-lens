@@ -1,0 +1,32 @@
+[
+    {
+        "type":  "page",
+        "title":  "Security Check - Indeed.com",
+        "url":  "https://nl.indeed.com/jobs?q=data\u0026l=Rotterdam\u0026fromage=7"
+    },
+    {
+        "type":  "iframe",
+        "title":  "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/f/av0/rch/d32ty/0x4AAAAAAADnPIDROrmt1Wwj/light/fbE/new/normal?lang=auto",
+        "url":  "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/f/av0/rch/d32ty/0x4AAAAAAADnPIDROrmt1Wwj/light/fbE/new/normal?lang=auto"
+    },
+    {
+        "type":  "page",
+        "title":  "Nueva pestaña",
+        "url":  "chrome://newtab/"
+    },
+    {
+        "type":  "browser_ui",
+        "title":  "Omnibox Popup",
+        "url":  "chrome://omnibox-popup.top-chrome/"
+    },
+    {
+        "type":  "browser_ui",
+        "title":  "Omnibox Popup",
+        "url":  "chrome://omnibox-popup.top-chrome/omnibox_popup_aim.html"
+    },
+    {
+        "type":  "worker",
+        "title":  "blob:https://nl.indeed.com/72adb624-b741-4c15-a65c-03002e408c6a",
+        "url":  "blob:https://nl.indeed.com/72adb624-b741-4c15-a65c-03002e408c6a"
+    }
+]

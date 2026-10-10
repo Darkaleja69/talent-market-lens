@@ -1,0 +1,20 @@
+Run nocturno Indeed 2026-10-10 - marcador y argumentos del wrapper.
+----------------------------------------------------------------------
+Marcador del run 2026-10-10:
+last_run=20261010_003408 exit=-1 terms=data,data engineer,data analyst,data scientist countries=NL,IE pages=2 watchdog=none
+
+
+Config relevante de run_nightly_indeed.ps1:
+$MaxAttempts        = 2           # 1 reintento SOLO si es error tecnico (no Cloudflare)
+$CdpPort            = 9222
+$SearchTerms        = "data,data engineer,data analyst,data scientist"
+$Pages              = 2
+$Fromage            = 7
+$EnrichRate         = 0.9         # objetivo ~80-90% de ofertas con detalle completo
+$EnrichMax          = 15          # tope de clics por SERP (mas bajo = mas seguro; el resto desde cache)
+"--cdp", "$CdpPort",
+"--terms=`"$SearchTerms`"",
+"--pages", "$Pages",
+"--enrich-rate", "$EnrichRate",
+"--enrich-max", "$EnrichMax",
+"--pause-every", "2",

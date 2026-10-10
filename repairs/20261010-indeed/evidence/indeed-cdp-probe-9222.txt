@@ -1,0 +1,29 @@
+Sonda CDP patchright 1.60.1 connect_over_cdp -> http://localhost:9222 (Chrome Indeed, Chrome/154.0.8037.98, misma instancia del run 2026-10-10)
+Fecha ejecucion: 2026-10-10 (local). Solo conecta, lista contextos y desconecta (pw.stop); NO browser.close(); no toca paginas.
+------------------------------------------------------------------------
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+System.Management.Automation.RemoteException
+ProtocolError: Protocol error (Network.setCacheDisabled): Internal server error, session closed.
+    at <HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\driver\package\lib\coreBundle.js:35076:61
+    at new Promise (<anonymous>)
+    at _CRSession.send (<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\driver\package\lib\coreBundle.js:35075:16)
+    at <HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\driver\package\lib\coreBundle.js:35955:61
+    at <HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\driver\package\lib\coreBundle.js:35920:20
+    at Array.map (<anonymous>)
+    at CRNetworkManager._forEachSession (<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\driver\package\lib\coreBundle.js:35918:56)
+    at CRNetworkManager.setRequestInterception (<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\driver\package\lib\coreBundle.js:35955:22) {
+  type: 'closed',
+  method: 'Network.setCacheDisabled',
+  logs: ''
+}
+System.Management.Automation.RemoteException
+Node.js v24.15.0
+CONNECT FAIL after 20.0s: TimeoutError
+BrowserType.connect_over_cdp: Timeout 20000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+  - <ws connected> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+
