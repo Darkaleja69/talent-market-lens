@@ -94,7 +94,7 @@ comprobación. El trabajo vive en el worktree de la rama
 
 ## 3. Datos y consultas de la web
 
-- [ ] **T-07 — Portar las ~18 medidas a `queries.js`** (~25 min)
+- [x] **T-07 — Portar las ~18 medidas a `queries.js`** (~25 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-06.
   - **Hecho cuando:** `queries.js` implementa las 18 medidas de §7 del plan con

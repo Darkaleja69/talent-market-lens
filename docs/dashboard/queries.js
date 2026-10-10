@@ -362,3 +362,141 @@ export function p75MidSalary(options = {}) {
   return midSalaryStatistic('quantile_cont(f.SalaryMidAnnual_EUR, 0.75)', 'p75_mid_salary_eur', options);
 }
 
+/* ========================================================================== *
+ * Chart aggregations (§7 of the plan; no new business logic)
+ * ========================================================================== */
+
+/**
+ * Job Postings by Month (Market Pulse line chart, 'Total Job Offers' per
+ * month). Ordered oldest first; months without data are absent.
+ */
+export function monthlyTrend(options = {}) {
+  const { where = '', minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
+  return `SELECT f.PostedYearMonth AS year_month,
+       COUNT(*) AS job_offers
+FROM fact_offers AS f
+WHERE f.PostedYearMonth IS NOT NULL
+  AND ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
+GROUP BY f.PostedYearMonth
+ORDER BY year_month`;
+}
+
+/** Top Roles (Market Pulse, clustered bar, TopN 10 by 'Total Job Offers'). */
+export function topRoles(options = {}) {
+  const { where = '', limit = 10, minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
+  return `SELECT f.role_category AS role_category,
+       COUNT(*) AS job_offers
+FROM fact_offers AS f
+WHERE f.role_category IS NOT NULL
+  AND ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
+GROUP BY f.role_category
+ORDER BY job_offers DESC, role_category
+${limitClause(limit)}`.trim();
+}
+
+/** Top Companies (Market Pulse, clustered bar, TopN 10, blanks excluded). */
+export function topCompanies(options = {}) {
+  const { where = '', limit = 10, minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
+  return `SELECT f.company_name AS company_name,
+       COUNT(*) AS job_offers
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.company_name, '')) <> ''
+  AND ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
+GROUP BY f.company_name
+ORDER BY job_offers DESC, company_name
+${limitClause(limit)}`.trim();
+}
+
+/** Experience Level donut (Market Pulse, 'Total Job Offers' share by bucket). */
+export function experienceBreakdown(options = {}) {
+  const { where = '', minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
+  return `SELECT COALESCE(f.experience_level, '(Not specified)') AS experience_level,
+       COUNT(*) AS job_offers
+FROM fact_offers AS f
+WHERE ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
+GROUP BY 1
+ORDER BY job_offers DESC, experience_level`;
+}
+
+/** Avg Salary by Role Category (Salary Insights, 'Avg Mid Salary EUR'). */
+export function avgMidSalaryByRole({ where = '' } = {}) {
+  return `SELECT COALESCE(f.role_category, '(Not specified)') AS role_category,
+       AVG(f.SalaryMidAnnual_EUR) AS avg_mid_salary_eur
+FROM fact_offers AS f
+WHERE ${midSalaryQualityFilter} AND ${applyWhere(where)}
+GROUP BY 1
+ORDER BY 1`;
+}
+
+/** Avg Salary by Work Model (Salary Insights, 'Avg Mid Salary EUR'). */
+export function avgMidSalaryByWorkMode({ where = '' } = {}) {
+  return `SELECT COALESCE(f.WorkModeBucket, '(Not specified)') AS work_mode,
+       AVG(f.SalaryMidAnnual_EUR) AS avg_mid_salary_eur
+FROM fact_offers AS f
+WHERE ${midSalaryQualityFilter} AND ${applyWhere(where)}
+GROUP BY 1
+ORDER BY 1`;
+}
+
+/**
+ * Top Paying Skills (Salary Insights table). Ports the visual filters:
+ * TopN 15 by 'Skill Median Salary EUR' descending plus a minimum 'Skill Demand'
+ * threshold (see TOP_PAYING_SKILLS_MIN_DEMAND). The median only looks at offers
+ * with a valid mid salary (the measure's own filters), while 'Skill Demand'
+ * counts every offer of the skill, exactly like two independent DAX measures
+ * in the same table (verified against the Spain capture: GCP 43 077 EUR /
+ * 232 offers). Skills without any valid salary are excluded (advanced filter
+ * on the median), not ranked with a blank.
+ */
+export function topPayingSkills(options = {}) {
+  const {
+    where = '',
+    limit = TOP_PAYING_SKILLS_LIMIT,
+    minDemand = TOP_PAYING_SKILLS_MIN_DEMAND,
+  } = options;
+  const demand = asCount(minDemand, TOP_PAYING_SKILLS_MIN_DEMAND);
+  const medianExpression = `MEDIAN(f.SalaryMidAnnual_EUR) FILTER (WHERE ${midSalaryQualityFilter})`;
+  return `SELECT fs.Skill AS skill,
+       s.SkillCategory AS skill_category,
+       ${medianExpression} AS skill_median_salary_eur,
+       COUNT(DISTINCT fs.JobID) AS skill_demand
+FROM fact_offer_skills AS fs
+${BRIDGE_JOIN}
+${CATALOG_JOIN}
+WHERE ${applyWhere(where)}
+GROUP BY fs.Skill, s.SkillCategory
+HAVING COUNT(DISTINCT fs.JobID) >= ${demand}
+  AND ${medianExpression} IS NOT NULL
+ORDER BY skill_median_salary_eur DESC NULLS LAST, skill_demand DESC
+${limitClause(limit)}`.trim();
+}
+
+/** Offers by GeoCountry for the choropleth map (Market Pulse/ Salary Insights). */
+export function offersByCountry(options = {}) {
+  const { where = '', minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
+  return `SELECT COALESCE(f.GeoCountry, '(Not specified)') AS country,
+       COUNT(*) AS job_offers
+FROM fact_offers AS f
+WHERE ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
+GROUP BY 1
+ORDER BY job_offers DESC, country`;
+}
+
+/**
+ * Skill Demand by Category donut (Roles & Skills, 'Skill Demand' per catalog
+ * category). The DAX measure counts Fact_OfferSkills rows (one row per offer
+ * + skill), so an offer mentioning two skills of one category weighs twice;
+ * COUNT(*) reproduces it. Verified against the capture: the pair-based shares
+ * (29.5/27.6/25.5/13.8/3.6 %) match the report (29.14/27.98/25.96/13.23/3.69 %),
+ * while distinct offers would not (32.4/22.0/22.8/16.7/6.2 %).
+ */
+export function skillDemandByCategory({ where = '' } = {}) {
+  return `SELECT s.SkillCategory AS skill_category,
+       COUNT(*) AS skill_demand
+FROM fact_offer_skills AS fs
+${BRIDGE_JOIN}
+${CATALOG_JOIN}
+WHERE ${applyWhere(where)}
+GROUP BY s.SkillCategory
+ORDER BY skill_demand DESC, skill_category`;
+}
