@@ -70,11 +70,13 @@ La salida empieza con `Objetivos de reparación — run de origen: <fecha>` y
 Construye el JSON en inglés (fuente, run, motivo, evidencia y rutas, playbook,
 perfil y metas de calidad, alcance de prueba); con `--output` lo escribe y lo
 anuncia, y sin él lo imprime. Si una fuente tiene varios candidatos (un
-primario y sus investigaciones de campo), `--field CAMPO` desambigua; sin él
-falla listándolos (salida 1).
+primario y sus investigaciones de campo), `--field CAMPO` desambigua:
+`--field primary` selecciona el objetivo primario y el nombre del campo, un
+secundario; sin `--field`, el comando falla listándolos (salida 1).
 
 ```powershell
 python -m repair.cli brief --source infojobs
+python -m repair.cli brief --source indeed --field primary
 python -m repair.cli brief --source stepstone_nl --field salary
 python -m repair.cli brief --source infojobs --output "brief-infojobs.json"
 ```

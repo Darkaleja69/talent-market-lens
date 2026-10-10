@@ -268,6 +268,49 @@ def test_brief_selects_a_secondary_field(capsys):
     assert payload["trigger"] == "optional_field_at_or_below_threshold"
 
 
+def test_brief_selects_the_primary_with_field_primary(capsys):
+    code, out, err = _run(
+        capsys,
+        [
+            "brief",
+            "--source",
+            "indeed",
+            "--field",
+            "primary",
+            *_fixture_arguments(),
+        ],
+    )
+
+    assert code == 0
+    assert err == ""
+    payload = json.loads(out)
+    assert payload["source"] == "indeed"
+    assert payload["role"] == "primary"
+    assert payload["field"] is None
+    assert payload["playbook"]["section"] == "6.2"
+
+
+def test_brief_primary_selector_without_a_primary_target_reports_it(capsys):
+    code, out, err = _run(
+        capsys,
+        [
+            "brief",
+            "--source",
+            "stepstone_nl",
+            "--field",
+            "primary",
+            *_fixture_arguments(),
+        ],
+    )
+
+    assert code == 1
+    assert out == ""
+    assert err.startswith("Error: ")
+    assert "objetivo primario" in err
+    assert "stepstone_nl" in err
+    assert "Traceback" not in err
+
+
 def test_brief_ambiguous_source_without_field_lists_the_candidates(capsys):
     code, out, err = _run(
         capsys, ["brief", "--source", "indeed", *_fixture_arguments()]
@@ -277,6 +320,7 @@ def test_brief_ambiguous_source_without_field_lists_the_candidates(capsys):
     assert out == ""
     assert err.startswith("Error: ")
     assert "--field" in err
+    assert "--field primary" in err
     assert "candidatos" in err
     assert "indeed" in err
     assert "Traceback" not in err

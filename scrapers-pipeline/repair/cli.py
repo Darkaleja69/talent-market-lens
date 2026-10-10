@@ -11,7 +11,8 @@ their output:
 - ``brief``: builds the English JSON brief of one target with
   :mod:`repair.brief`; a source with several candidates (for example Indeed,
   which has a primary target and its field investigations) requires
-  ``--field`` to pick one.
+  ``--field`` to pick one, either ``--field primary`` for the primary target
+  or the field name of a secondary investigation.
 - ``threshold``: shows the incremental threshold per source from
   ``repairs/history.json`` with :mod:`repair.threshold`.
 - ``quality``: measures a live-test Parquet against the
@@ -142,8 +143,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CAMPO",
         help=(
-            "campo que elige entre varios candidatos de la misma fuente "
-            "(por ejemplo, un secundario frente al primario)"
+            "campo que elige entre varios candidatos de la misma fuente; "
+            "usa «primary» para el objetivo primario frente a un secundario"
         ),
     )
     brief_parser.add_argument(
@@ -439,7 +440,19 @@ def _complete_record(args: argparse.Namespace) -> int:
 def _candidates(
     loaded: targets.LoadedDiagnostic, source: str, field: str | None
 ) -> tuple[targets.RepairTarget, ...]:
-    """Return the queue targets matching ``source`` (and ``field`` when given)."""
+    """Return the queue targets matching ``source`` (and ``field`` when given).
+
+    The literal ``primary`` of ``--field`` selects the primary target of the
+    source, so a source that mixes a primary target with its field
+    investigations can ask for the primary without naming any field.
+    """
+    if field == targets.ROLE_PRIMARY:
+        return tuple(
+            target
+            for target in targets.select_all_targets(loaded)
+            if target.source == source
+            and target.role == targets.ROLE_PRIMARY
+        )
     return tuple(
         target
         for target in targets.select_all_targets(loaded)
@@ -459,10 +472,16 @@ def _single_candidate(
     No candidate is a clear error (the source or field is not in the
     diagnostic queue). Several candidates (a primary target plus its field
     investigations, typically) list their ``role`` and ``field`` and ask for
-    ``--field`` when it was not given.
+    ``--field`` when it was not given; ``--field primary`` selects the primary
+    target.
     """
     if not candidates:
-        detail = f" y el campo «{field}»" if field else ""
+        if field == targets.ROLE_PRIMARY:
+            detail = " (objetivo primario)"
+        elif field:
+            detail = f" y el campo «{field}»"
+        else:
+            detail = ""
         raise CliInputError(
             f"no hay ningún objetivo para la fuente «{source}»{detail} en el "
             "diagnóstico; usa «targets» para ver los objetivos disponibles"
@@ -475,7 +494,10 @@ def _single_candidate(
             for candidate in candidates
         )
         if field is None:
-            hint = "indica «--field» para elegir uno"
+            hint = (
+                "indica «--field primary» para el objetivo primario o "
+                "«--field CAMPO» para un secundario"
+            )
         else:
             hint = (
                 "el diagnóstico tiene varios objetivos para esa fuente y campo"
