@@ -11,8 +11,9 @@ under ``docs/dashboard``:
   ``export_exceeds_limit`` decides full vs aggregated against the configurable
   25 MiB limit.
 - ``build_web_export`` projects the four Gold tables and ``write_web_export``
-  writes one Parquet file per table plus ``meta.json`` through the Hadoop
-  FileSystem API (idempotent; works locally and on ``abfss://``).
+  writes one Parquet file per table plus ``meta.json`` (idempotent). The file
+  operations route through ``dbutils.fs`` on Databricks (Unity Catalog
+  credentials, any access mode) and through the Hadoop FileSystem locally.
 - ``geo_country`` ports the M partition of ``Fact_Offers`` (trim, US states
   used as country, language aliases, empty -> ``(Not specified)``).
 - ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog; ``region_map_df`` turns
@@ -40,6 +41,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 
 # ---------------------------------------------------------------------------
 # Web export contract (public columns per table)
@@ -622,48 +624,107 @@ def _as_uri(path) -> str:
     return uri
 
 
+def _get_dbutils(spark):
+    """Return the Databricks ``dbutils`` facade, or ``None`` off Databricks.
+
+    Databricks sets ``DATABRICKS_RUNTIME_VERSION``; only there ``DBUtils``
+    exists and ``dbutils.fs`` receives the cluster credentials (Unity Catalog
+    aware, any access mode). Everywhere else — local tests included — the
+    Hadoop FileSystem path is used instead. This helper is the single seam the
+    routing tests monkeypatch; any failure falls back to Hadoop.
+    """
+    if not os.environ.get("DATABRICKS_RUNTIME_VERSION"):
+        return None
+    try:
+        from pyspark.dbutils import DBUtils
+        return DBUtils(spark)
+    except Exception:  # noqa: BLE001 - no dbutils means Hadoop fallback
+        return None
+
+
 def _hadoop_context(spark, path):
     """Return ``(FileSystem, Path)`` for ``path`` using Spark's JVM config."""
     jpath = spark._jvm.org.apache.hadoop.fs.Path(path)
     return jpath.getFileSystem(spark._jsc.hadoopConfiguration()), jpath
 
 
-def _hadoop_delete(spark, path, recursive=False) -> None:
+def _fs_delete(spark, path, recursive=False) -> None:
+    """Delete ``path`` through the credential-aware FileSystem (idempotent).
+
+    On Databricks ``dbutils.fs.rm`` authenticates with the cluster
+    credentials; a missing path may raise ``java.io.FileNotFoundException``
+    (first run) or return ``False``, so only the "not found" message is
+    tolerated and real failures (credentials, permissions) still propagate.
+    Locally the Hadoop ``delete`` already returns ``False`` for missing paths.
+    """
+    dbutils = _get_dbutils(spark)
+    if dbutils is not None:
+        try:
+            dbutils.fs.rm(path, recursive)
+        except Exception as exc:  # noqa: BLE001 - only "not found" is safe
+            if "FileNotFoundException" not in str(exc):
+                raise
+        return
     fs, jpath = _hadoop_context(spark, path)
     fs.delete(jpath, recursive)
 
 
 def _delete_checksum(spark, path) -> None:
-    """Remove the hidden ``.crc`` next to ``path`` (local FS; no-op elsewhere)."""
+    """Remove the hidden ``.crc`` next to ``path`` (local Hadoop FS only)."""
+    if _get_dbutils(spark) is not None:
+        return
     parent, _, name = str(path).rstrip("/").rpartition("/")
-    _hadoop_delete(spark, f"{parent}/.{name}.crc")
+    _fs_delete(spark, f"{parent}/.{name}.crc")
 
 
 def _single_part_file(spark, directory) -> str:
     """Path of the only ``part-*`` file written by ``coalesce(1)``."""
-    fs, jdir = _hadoop_context(spark, directory)
-    parts = [status.getPath() for status in fs.listStatus(jdir)
-             if status.getPath().getName().startswith("part-")]
+    dbutils = _get_dbutils(spark)
+    if dbutils is not None:
+        parts = [entry.path for entry in dbutils.fs.ls(directory)
+                 if entry.name.startswith("part-")]
+    else:
+        fs, jdir = _hadoop_context(spark, directory)
+        parts = [status.getPath().toString() for status in fs.listStatus(jdir)
+                 if status.getPath().getName().startswith("part-")]
     if len(parts) != 1:
         raise RuntimeError(
             f"se esperaba un único part-* en {directory}, "
             f"encontrados {len(parts)}")
-    return parts[0].toString()
+    return parts[0]
 
 
-def _hadoop_rename(spark, source, target) -> None:
+def _fs_rename(spark, source, target) -> None:
+    """Move ``source`` to ``target`` through the credential-aware FileSystem."""
+    dbutils = _get_dbutils(spark)
+    if dbutils is not None:
+        dbutils.fs.mv(source, target)
+        return
     fs, jsource = _hadoop_context(spark, source)
     if not fs.rename(jsource, spark._jvm.org.apache.hadoop.fs.Path(target)):
         raise RuntimeError(f"no se pudo mover {source} a {target}")
 
 
-def _file_size(spark, path) -> int:
+def _fs_size(spark, path) -> int:
+    """Size in bytes of the single file at ``path`` (export Parquet)."""
+    dbutils = _get_dbutils(spark)
+    if dbutils is not None:
+        return int(dbutils.fs.ls(path)[0].size)
     fs, jpath = _hadoop_context(spark, path)
     return int(fs.getFileStatus(jpath).getLen())
 
 
-def _write_text(spark, path, text) -> None:
-    """Write UTF-8 text as a single file (create/overwrite via Hadoop)."""
+def _fs_write_text(spark, path, text) -> None:
+    """Write UTF-8 text as a single file (create/overwrite).
+
+    On Databricks ``dbutils.fs.put`` may append a final newline, which keeps
+    ``meta.json`` valid. Locally the Hadoop stream is rewritten and the
+    ``.crc`` checksum of the file is removed.
+    """
+    dbutils = _get_dbutils(spark)
+    if dbutils is not None:
+        dbutils.fs.put(path, text, overwrite=True)
+        return
     fs, jpath = _hadoop_context(spark, path)
     stream = fs.create(jpath, True)
     try:
@@ -690,11 +751,12 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
         <dest>/meta.json            (only when ``meta`` is provided)
 
     Each table is written with ``coalesce(1)`` into a temporary directory
-    inside ``dest`` and its single ``part-*`` file is renamed with the Hadoop
-    FileSystem API, so the same code works locally (``file:///``) and on
-    Databricks (``abfss://``). A previous final file is deleted before the
-    rename and the temporary directory (plus local checksum files) is removed,
-    so re-running never duplicates rows nor leaves temporaries.
+    inside ``dest`` and its single ``part-*`` file is renamed through the
+    module's file helpers: ``dbutils.fs`` on Databricks (Unity Catalog
+    credentials, works in any access mode) and the Hadoop FileSystem locally
+    (``file:///``). A previous final file is deleted before the rename and the
+    temporary directory (plus local checksum files) is removed, so re-running
+    never duplicates rows nor leaves temporaries.
 
     ``size_bytes`` sums the real sizes of the four final files; pass
     ``size_provider`` (called without arguments) to override it, e.g. a
@@ -707,15 +769,15 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
     for name, df in tables.items():
         temp_uri = f"{dest_uri}/__tmp_{name}"
         final_uri = f"{dest_uri}/{name}.parquet"
-        _hadoop_delete(spark, final_uri)
-        _hadoop_delete(spark, temp_uri, recursive=True)
+        _fs_delete(spark, final_uri)
+        _fs_delete(spark, temp_uri, recursive=True)
         try:
             _write_parquet(df, temp_uri)
             part_path = _single_part_file(spark, temp_uri)
-            _hadoop_rename(spark, part_path, final_uri)
+            _fs_rename(spark, part_path, final_uri)
             _delete_checksum(spark, final_uri)
         finally:
-            _hadoop_delete(spark, temp_uri, recursive=True)
+            _fs_delete(spark, temp_uri, recursive=True)
 
     if meta is None:
         return None
@@ -723,12 +785,12 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
     if size_provider is not None:
         size_bytes = int(size_provider())
     else:
-        size_bytes = sum(_file_size(spark, f"{dest_uri}/{name}.parquet")
+        size_bytes = sum(_fs_size(spark, f"{dest_uri}/{name}.parquet")
                          for name in tables)
 
     updated = dict(meta)
     updated["size_bytes"] = size_bytes
     updated["mode"] = ("aggregated" if export_exceeds_limit(size_bytes)
                        else "full")
-    _write_text(spark, f"{dest_uri}/meta.json", meta_json(updated))
+    _fs_write_text(spark, f"{dest_uri}/meta.json", meta_json(updated))
     return updated

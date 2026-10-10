@@ -1,10 +1,13 @@
 """Tests for the web export module: pure geography and Spark projections.
 
 The pure tests cover ``geo_country``/``geo_region`` and the TMDL fidelity of
-``REGION_MAP`` without Spark. The integration tests (pyspark, same fixture
-pattern as ``test_integration_spark.py``) lock the public column contract of
-every exported table and the geographic parity between ``project_fact_offers``
-and the pure functions. If pyspark is not installed, only the Spark tests skip.
+``REGION_MAP`` without Spark. The file-operation routing tests use a fake
+``dbutils`` and a fake Hadoop FileSystem (via the ``_get_dbutils`` seam), so
+they also run without Spark: ``dbutils.fs`` on Databricks, Hadoop locally.
+The integration tests (pyspark, same fixture pattern as
+``test_integration_spark.py``) lock the public column contract of every
+exported table and the geographic parity between ``project_fact_offers`` and
+the pure functions. If pyspark is not installed, only the Spark tests skip.
 """
 import datetime as dt
 import json
@@ -14,6 +17,7 @@ import shutil
 import sys
 import tempfile
 import time
+import types
 from pathlib import Path
 
 import pytest
@@ -210,6 +214,273 @@ def test_meta_json_is_deterministic_and_keeps_utf8():
 
 
 # ---------------------------------------------------------------------------
+# File operation routing: dbutils.fs on Databricks, Hadoop FileSystem locally
+# ---------------------------------------------------------------------------
+
+
+class _FakeFileInfo:
+    """Databricks ``FileInfo`` stand-in (only path/name/size are used)."""
+
+    def __init__(self, path, size=0):
+        self.path = path
+        self.name = path.rstrip("/").rsplit("/", 1)[-1]
+        self.size = size
+
+
+class _FakeFs:
+    """Records ``dbutils.fs`` calls and can be told to raise on ``rm``."""
+
+    def __init__(self, entries=()):
+        self.calls = []
+        self.entries = list(entries)
+        self.rm_error = None
+
+    def rm(self, path, recurse=False):
+        self.calls.append(("rm", path, recurse))
+        if self.rm_error is not None:
+            raise self.rm_error
+        return True
+
+    def mv(self, source, target):
+        self.calls.append(("mv", source, target))
+        return True
+
+    def ls(self, directory):
+        self.calls.append(("ls", directory))
+        return list(self.entries)
+
+    def put(self, path, text, overwrite=False):
+        self.calls.append(("put", path, text, overwrite))
+        return True
+
+
+class _FakeDbutils:
+    def __init__(self, fs):
+        self.fs = fs
+
+
+def _use_fake_dbutils(monkeypatch, fs):
+    """Route the module's file operations through a fake ``dbutils``."""
+    fake = _FakeDbutils(fs)
+    monkeypatch.setattr(w, "_get_dbutils", lambda spark: fake)
+    return fake
+
+
+class _FakeJPath:
+    """Minimal Hadoop ``Path``: resolves its FileSystem from the conf."""
+
+    def __init__(self, path):
+        self.path = str(path)
+
+    def getFileSystem(self, conf):
+        return conf.fs
+
+    def toString(self):
+        return self.path
+
+    def getName(self):
+        return self.path.rstrip("/").rsplit("/", 1)[-1]
+
+
+class _FakeHadoopStream:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def write(self, data):
+        self.calls.append(("write", bytes(data)))
+
+    def close(self):
+        self.calls.append(("close",))
+
+
+class _FakeHadoopFs:
+    """Records the Hadoop FileSystem calls of the local branch."""
+
+    def __init__(self, statuses=(), size=0):
+        self.calls = []
+        self.statuses = list(statuses)
+        self.size = size
+
+    def delete(self, jpath, recursive):
+        self.calls.append(("delete", jpath.toString(), recursive))
+        return True
+
+    def rename(self, source, target):
+        self.calls.append(("rename", source.toString(), target.toString()))
+        return True
+
+    def listStatus(self, directory):
+        return [types.SimpleNamespace(
+                    getPath=lambda path=status: _FakeJPath(path))
+                for status in self.statuses]
+
+    def getFileStatus(self, jpath):
+        return types.SimpleNamespace(getLen=lambda: self.size)
+
+    def create(self, jpath, overwrite):
+        self.calls.append(("create", jpath.toString(), overwrite))
+        return _FakeHadoopStream(self.calls)
+
+
+def _fake_spark(hadoop_fs):
+    """Spark stand-in exposing only the JVM/conf access the module uses."""
+    jvm = types.SimpleNamespace(org=types.SimpleNamespace(
+        apache=types.SimpleNamespace(hadoop=types.SimpleNamespace(
+            fs=types.SimpleNamespace(Path=_FakeJPath)))))
+    conf = types.SimpleNamespace(fs=hadoop_fs)
+    jsc = types.SimpleNamespace(hadoopConfiguration=lambda: conf)
+    return types.SimpleNamespace(_jvm=jvm, _jsc=jsc)
+
+
+def test_get_dbutils_returns_none_without_databricks_runtime(monkeypatch):
+    monkeypatch.delenv("DATABRICKS_RUNTIME_VERSION", raising=False)
+    assert w._get_dbutils(object()) is None
+
+
+def test_get_dbutils_returns_db_utils_on_databricks(monkeypatch):
+    monkeypatch.setenv("DATABRICKS_RUNTIME_VERSION", "15.4")
+    sentinel = object()
+    fake_module = types.ModuleType("pyspark.dbutils")
+    fake_module.DBUtils = lambda spark: (spark, "dbutils")
+    monkeypatch.setitem(sys.modules, "pyspark.dbutils", fake_module)
+    assert w._get_dbutils(sentinel) == (sentinel, "dbutils")
+
+
+def test_get_dbutils_falls_back_to_none_on_any_failure(monkeypatch):
+    monkeypatch.setenv("DATABRICKS_RUNTIME_VERSION", "15.4")
+    # ``DBUtils`` cannot be imported (no dbutils on the runtime).
+    monkeypatch.setitem(sys.modules, "pyspark.dbutils", None)
+    assert w._get_dbutils(object()) is None
+
+    # ``DBUtils`` exists but building it fails.
+    fake_module = types.ModuleType("pyspark.dbutils")
+
+    def _boom(spark):
+        raise RuntimeError("dbutils unavailable")
+
+    fake_module.DBUtils = _boom
+    monkeypatch.setitem(sys.modules, "pyspark.dbutils", fake_module)
+    assert w._get_dbutils(object()) is None
+
+
+def test_fs_delete_uses_dbutils_rm(monkeypatch):
+    fs = _FakeFs()
+    _use_fake_dbutils(monkeypatch, fs)
+
+    w._fs_delete(None, "abfss://landing@acct.dfs.core.windows.net/gold/x")
+    w._fs_delete(None, "abfss://landing@acct.dfs.core.windows.net/gold/__tmp",
+                 recursive=True)
+
+    assert fs.calls == [
+        ("rm", "abfss://landing@acct.dfs.core.windows.net/gold/x", False),
+        ("rm", "abfss://landing@acct.dfs.core.windows.net/gold/__tmp", True),
+    ]
+
+
+def test_fs_delete_tolerates_only_not_found_errors(monkeypatch):
+    fs = _FakeFs()
+    _use_fake_dbutils(monkeypatch, fs)
+    path = "abfss://landing@acct.dfs.core.windows.net/gold/x.parquet"
+
+    # First run: the final file does not exist yet and rm raises.
+    fs.rm_error = Exception(
+        "java.io.FileNotFoundException: Path does not exist: " + path)
+    w._fs_delete(None, path)  # must not raise
+
+    # Real failures (missing storage credential) must propagate.
+    fs.rm_error = Exception(
+        "Invalid configuration value detected for fs.azure.account.key")
+    with pytest.raises(Exception, match="fs.azure.account.key"):
+        w._fs_delete(None, path)
+
+
+def test_single_part_file_selects_part_via_dbutils(monkeypatch):
+    base = "abfss://landing@acct.dfs.core.windows.net/gold/__tmp_fact_offers"
+    fs = _FakeFs(entries=[
+        _FakeFileInfo(f"{base}/_SUCCESS"),
+        _FakeFileInfo(f"{base}/part-00000-abc-c000.snappy.parquet", size=10),
+    ])
+    _use_fake_dbutils(monkeypatch, fs)
+
+    assert (w._single_part_file(None, base)
+            == f"{base}/part-00000-abc-c000.snappy.parquet")
+    assert fs.calls == [("ls", base)]
+
+
+def test_single_part_file_requires_exactly_one_part(monkeypatch):
+    fs = _FakeFs(entries=[_FakeFileInfo("/tmp/__tmp_x/_SUCCESS")])
+    _use_fake_dbutils(monkeypatch, fs)
+
+    with pytest.raises(RuntimeError, match="encontrados 0"):
+        w._single_part_file(None, "/tmp/__tmp_x")
+
+    fs.entries = [_FakeFileInfo("/tmp/__tmp_x/part-a"),
+                  _FakeFileInfo("/tmp/__tmp_x/part-b")]
+    with pytest.raises(RuntimeError, match="encontrados 2"):
+        w._single_part_file(None, "/tmp/__tmp_x")
+
+
+def test_fs_rename_uses_dbutils_mv(monkeypatch):
+    fs = _FakeFs()
+    _use_fake_dbutils(monkeypatch, fs)
+
+    w._fs_rename(None, "/tmp/__tmp_x/part-00000.parquet", "/tmp/x.parquet")
+
+    assert fs.calls == [
+        ("mv", "/tmp/__tmp_x/part-00000.parquet", "/tmp/x.parquet")]
+
+
+def test_fs_size_reads_size_via_dbutils(monkeypatch):
+    fs = _FakeFs(entries=[_FakeFileInfo("/tmp/x.parquet", size=123456)])
+    _use_fake_dbutils(monkeypatch, fs)
+
+    assert w._fs_size(None, "/tmp/x.parquet") == 123456
+    assert fs.calls == [("ls", "/tmp/x.parquet")]
+
+
+def test_fs_write_text_uses_dbutils_put(monkeypatch):
+    fs = _FakeFs()
+    _use_fake_dbutils(monkeypatch, fs)
+
+    w._fs_write_text(None, "/tmp/meta.json", '{"a": 1}')
+
+    assert fs.calls == [("put", "/tmp/meta.json", '{"a": 1}', True)]
+
+
+def test_delete_checksum_is_noop_with_dbutils(monkeypatch):
+    fs = _FakeFs()
+    _use_fake_dbutils(monkeypatch, fs)
+
+    w._delete_checksum(None, "/tmp/meta.json")
+
+    assert fs.calls == []
+
+
+def test_file_operations_use_hadoop_when_dbutils_is_none(monkeypatch):
+    monkeypatch.setattr(w, "_get_dbutils", lambda spark: None)
+    hadoop_fs = _FakeHadoopFs(
+        statuses=["/tmp/__tmp_x/part-00000.parquet"], size=7)
+    spark = _fake_spark(hadoop_fs)
+
+    w._fs_delete(spark, "/tmp/x.parquet")
+    w._fs_delete(spark, "/tmp/__tmp_x", recursive=True)
+    assert (w._single_part_file(spark, "/tmp/__tmp_x")
+            == "/tmp/__tmp_x/part-00000.parquet")
+    w._fs_rename(spark, "/tmp/__tmp_x/part-00000.parquet", "/tmp/x.parquet")
+    assert w._fs_size(spark, "/tmp/x.parquet") == 7
+    w._fs_write_text(spark, "/tmp/meta.json", "{}")
+
+    assert hadoop_fs.calls[:3] == [
+        ("delete", "/tmp/x.parquet", False),
+        ("delete", "/tmp/__tmp_x", True),
+        ("rename", "/tmp/__tmp_x/part-00000.parquet", "/tmp/x.parquet"),
+    ]
+    assert ("write", b"{}") in hadoop_fs.calls
+    # The Hadoop branch removes the local .crc of the rewritten file.
+    assert hadoop_fs.calls[-1] == ("delete", "/tmp/.meta.json.crc", False)
+
+
+# ---------------------------------------------------------------------------
 # Spark integration: column contract and geographic parity
 # ---------------------------------------------------------------------------
 
@@ -366,8 +637,8 @@ def local_export_io(monkeypatch):
     Spark's writer needs ``winutils.exe`` (HADOOP_HOME) to chmod output
     directories, and Hadoop's local FileSystem metadata raises
     ``UnsatisfiedLinkError`` without the native library. On such hosts the
-    low-level writer and the Hadoop FS helpers are replaced with os/pyarrow
-    equivalents, so the export layout (one file per table), rename,
+    low-level writer and the file-operation helpers are replaced with
+    os/pyarrow equivalents, so the export layout (one file per table), rename,
     idempotency, size and meta.json logic stay under test. Linux, Databricks
     and Windows with HADOOP_HOME run the real Spark + Hadoop path (T-06 runs
     it for real on a cluster).
@@ -428,11 +699,11 @@ def local_export_io(monkeypatch):
             handle.write(text)
 
     monkeypatch.setattr(w, "_write_parquet", _write_parquet)
-    monkeypatch.setattr(w, "_hadoop_delete", _delete)
+    monkeypatch.setattr(w, "_fs_delete", _delete)
     monkeypatch.setattr(w, "_single_part_file", _single_part)
-    monkeypatch.setattr(w, "_hadoop_rename", _rename)
-    monkeypatch.setattr(w, "_file_size", _size)
-    monkeypatch.setattr(w, "_write_text", _write_text)
+    monkeypatch.setattr(w, "_fs_rename", _rename)
+    monkeypatch.setattr(w, "_fs_size", _size)
+    monkeypatch.setattr(w, "_fs_write_text", _write_text)
 
 
 GEO_SAMPLES = [
