@@ -333,7 +333,9 @@ el proyecto, enlaza al dashboard y a la evidencia de Power BI.
    `gold/web_export`, rotación documentada; nunca la SAS de la landing ni
    permisos de escritura.
 2. En Settings → Pages, elegir **GitHub Actions** como origen.
-3. En Databricks, añadir la tarea del export al final del job (una vez).
+3. En Databricks, añadir la tarea `web_export_build` al final del job (una vez):
+   mismo job compute que las demás tareas, `depends on` la última (Gold) y el
+   parámetro `storage_account` con la cuenta del contenedor del landing.
 
 ### Instantánea local (`export_web_snapshot.ps1`)
 

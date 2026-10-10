@@ -80,7 +80,7 @@ comprobación. El trabajo vive en el worktree de la rama
     tablas, tipos, recuentos, fichero único por tabla y reejecución sin
     duplicados.
 
-- [ ] **T-06 — Notebook fino, tarea al final del job y ejecución real** (~25 min)
+- [x] **T-06 — Notebook fino, tarea al final del job y ejecución real** (~25 min)
   - **RF:** RF-1, RF-3, RF-4.
   - **Depende de:** T-05.
   - **Hecho cuando:** `web_export_build.ipynb` resuelve widgets
