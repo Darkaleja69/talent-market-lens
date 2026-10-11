@@ -211,8 +211,16 @@ _RE_WM_REMOTE_STRONG = re.compile(
     r"work\s+from\s+home|home\s+office)",
     re.IGNORECASE,
 )
-_RE_WM_HYBRID = re.compile(r"(h[ií]brido|\bhybrid\b)", re.IGNORECASE)
-_RE_WM_REMOTE = re.compile(r"(\bremoto\b|\bremote\b|\bteletrabajo\b)", re.IGNORECASE)
+# Variantes multilingues: es/en "hybrid", fr/nl "hybride", de "Hybrides
+# Arbeitsmodell" (T-33). El plural/atajo se limita con \b para no matchear
+# palabras que solo lo contienen.
+_RE_WM_HYBRID = re.compile(r"(h[ií]brido|\bhybrid(?:e|es)?\b)", re.IGNORECASE)
+# "thuiswerk(en)" (nl) = trabajar desde casa: senal de remoto, no de hibrido;
+# \b evita falsos positivos en compuestos como "thuiswerkvergoeding".
+_RE_WM_REMOTE = re.compile(
+    r"(\bremoto\b|\bremote\b|\bteletrabajo\b|\bthuiswerk(?:en)?\b)",
+    re.IGNORECASE,
+)
 _RE_WM_ONSITE = re.compile(r"(\bpresencial\b|on-?site)", re.IGNORECASE)
 
 
@@ -492,6 +500,11 @@ def _collect_company(page) -> tuple[str, str, str]:
     return company_url, industry, size
 
 
+def _has_digit(value: str | None) -> bool:
+    """True si el texto tiene al menos un digito (importe real)."""
+    return bool(value) and any(ch.isdigit() for ch in value)
+
+
 def _extract_salary_from_description(desc: str) -> tuple[str, Optional[float],
                                                           Optional[float], str, str]:
     """Intenta extraer salario del texto de la descripcion (best-effort).
@@ -500,6 +513,9 @@ def _extract_salary_from_description(desc: str) -> tuple[str, Optional[float],
       A: simbolo de moneda precede al rango (grupos cur1/n1A/n2A/perA).
       B: rango seguido de palabra de moneda (grupos n1B/n2B/currB/perB).
     Solo una variante tiene grupos rellenos; la otra es None.
+    La captura numerica [\\d.,]+ tambien casa con separadores sueltos
+    (", libra", ". €", "., Euro"); sin al menos un digito no hay importe y se
+    devuelve sin salario (T-33).
     """
     if not desc:
         return "", None, None, "", ""
@@ -527,6 +543,9 @@ def _extract_salary_from_description(desc: str) -> tuple[str, Optional[float],
             currency = "GBP"
         else:
             currency = cur_word.upper()
+    if not (_has_digit(n1) or _has_digit(n2)):
+        # Separadores sueltos sin importe: no es un salario.
+        return "", None, None, "", ""
 
     def _to_float(s):
         """Heuristica numerica: distingue separador de miles de decimal segun
