@@ -263,6 +263,6 @@ tarjetas), con obligatorios al 100 % y puerta de calidad OK, sin regresión
 salary 17,8 → 14,7 %, dentro de tolerancia). Histórico de 954 filas sin
 descripción: sin backfill, justificación registrada (robots.txt/TOS).
 - **Ofertas verificadas:** 34
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->

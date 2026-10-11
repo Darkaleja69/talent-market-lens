@@ -263,6 +263,6 @@ ninguno por debajo; `description` pasa de 0 % a **100 %**.
 
 - **Resultado:** Reparación probada: 11 ofertas en la prueba acotada (umbral 1); descripción al 100 % (11/11: 1 embebida + 10 de panel) y puerta de calidad OK, sin regresión.
 - **Ofertas verificadas:** 11
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->

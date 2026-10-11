@@ -178,6 +178,6 @@ Veredicto de `quality.py`: **OK**.
 
 - **Resultado:** 4 ofertas verificadas (umbral 1) en la prueba acotada; modo CDP validado: Chrome lanzado directo + conexión del scraper sin challenge
 - **Ofertas verificadas:** 4
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->
