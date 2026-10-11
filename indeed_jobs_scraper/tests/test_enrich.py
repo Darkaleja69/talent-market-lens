@@ -18,6 +18,12 @@ _ACTIVE_SELECTOR = (
     'div.vjs-highlight a[data-jk="{jk}"], a[data-jk="{jk}"].vjs-highlight'
 )
 
+# Testids del layout two-pane actual (iteracion 3, 2026-10-11).
+_NEW_TITLE_SELECTOR = '[data-testid="vj-job-title"]'
+_NEW_DESC_SELECTOR = '[data-testid="viewjob-job-content"]'
+_NEW_HEADING_SELECTOR = '[data-testid="vj-job-description-heading"]'
+_NEW_COND_SELECTOR = '[data-testid="structured-job-summary"]'
+
 
 class FakeLocator:
     def __init__(self, page, selector: str):
@@ -120,7 +126,11 @@ def test_enrich_does_not_abort_offer_when_panel_wait_times_out(monkeypatch, capl
     assert offer.description_html == ""
     # Cadena completa de esperas: encabezado 4 s -> descripcion 8 s.
     assert page.timeouts == [4000, 8000]
-    assert page.waits[0] == '[data-testid="jobsearch-JobInfoHeader-title"]'
+    # Los testids nuevos van primero y los antiguos se conservan de respaldo.
+    assert page.waits[0].startswith(_NEW_TITLE_SELECTOR)
+    assert '[data-testid="jobsearch-JobInfoHeader-title"]' in page.waits[0]
+    assert page.waits[1].startswith(_NEW_DESC_SELECTOR)
+    assert _NEW_HEADING_SELECTOR in page.waits[1]
     assert "jobDescriptionText" in page.waits[1]
     # La oferta se registro como fallida (no hay exito silencioso).
     assert any(
@@ -154,6 +164,62 @@ def test_enrich_fills_description_and_conditions_when_panel_responds(monkeypatch
     assert offer.snippet
     assert offer.contract_type == "Jornada completa"
     assert "Seguro" in offer.benefits
+
+
+def test_enrich_reads_new_two_pane_layout_without_old_selectors(monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+    page = FakePage()
+    _card(page, "jk1", active=True)
+    desc = "<p>" + ("Descripcion del puesto en la UI nueva " * 4) + "</p>"
+    page.counts[_NEW_DESC_SELECTOR] = 1
+    page.texts[_NEW_DESC_SELECTOR] = desc
+    page.counts[_NEW_COND_SELECTOR] = 1
+    page.texts[_NEW_COND_SELECTOR] = "Jornada completa\nSeguro medico"
+    offer = _offer("jk1")
+
+    attempted, success = enrich_offers_via_right_panel(page, [offer], rate=1.0)
+
+    assert (attempted, success) == (1, 1)
+    assert offer.description_html == desc
+    assert offer.description_text
+    assert offer.snippet
+    assert offer.contract_type == "Jornada completa"
+    assert "Seguro" in offer.benefits
+    # Los selectores del layout antiguo no hicieron falta (count 0).
+    assert "#jobDescriptionText" not in page.counts
+
+
+def test_enrich_reads_parent_of_new_description_heading(monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+    page = FakePage()
+    _card(page, "jk1", active=True)
+    # Solo existe el marcador del heading; su contenedor padre lleva el HTML.
+    page.counts[_NEW_HEADING_SELECTOR] = 1
+    page.texts[_NEW_HEADING_SELECTOR] = "Volledige vacaturetekst"
+    desc = "<p>" + ("Descripcion bajo el heading " * 6) + "</p>"
+    page.counts["xpath=ancestor::div[1]"] = 1
+    page.texts["xpath=ancestor::div[1]"] = desc
+    offer = _offer("jk1")
+
+    attempted, success = enrich_offers_via_right_panel(page, [offer], rate=1.0)
+
+    assert (attempted, success) == (1, 1)
+    assert offer.description_html == desc
+
+
+def test_enrich_still_reads_legacy_layout(monkeypatch):
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+    page = FakePage()
+    _card(page, "jk1", active=True)
+    desc = "<p>" + ("Descripcion del layout antiguo " * 4) + "</p>"
+    page.counts['[data-testid="jobDescriptionText"]'] = 1
+    page.texts['[data-testid="jobDescriptionText"]'] = desc
+    offer = _offer("jk1")
+
+    attempted, success = enrich_offers_via_right_panel(page, [offer], rate=1.0)
+
+    assert (attempted, success) == (1, 1)
+    assert offer.description_html == desc
 
 
 def test_enrich_records_failure_after_card_without_highlight(monkeypatch, caplog):

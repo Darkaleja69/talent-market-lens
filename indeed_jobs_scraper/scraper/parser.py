@@ -188,7 +188,14 @@ def _descriptions_from_auto_open(response: dict) -> dict[str, str]:
     """Extrae ``job.key -> description.html`` de la respuesta auto-open (T-32).
 
     El ``body`` de la respuesta puede ser un objeto JSON o una cadena JSON
-    codificada. Devuelve {} cuando la ruta esperada no existe; nunca lanza.
+    codificada. Acepta dos formas:
+
+    - ruta actual (layout two-pane 2026-10): ``body.jobKey`` +
+      ``body.jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription`` (HTML);
+    - ruta antigua (fallback): ``body.hostQueryExecutionResult.data.jobData.
+      results[].job.key`` + ``job.description.html``.
+
+    Devuelve {} cuando ninguna ruta existe; nunca lanza.
     """
     if not isinstance(response, dict):
         return {}
@@ -203,6 +210,18 @@ def _descriptions_from_auto_open(response: dict) -> dict[str, str]:
     if not isinstance(body, dict):
         return {}
 
+    # Ruta nueva (2026-10): la descripcion embebida vive en
+    # jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription (HTML) y la
+    # clave del job en body.jobKey.
+    try:
+        new_jk = body["jobKey"]
+        new_desc = body["jobInfoWrapperModel"]["jobInfoModel"]["sanitizedJobDescription"]
+    except (KeyError, TypeError):
+        new_jk, new_desc = "", ""
+    if isinstance(new_jk, str) and new_jk and isinstance(new_desc, str) and new_desc:
+        return {new_jk: unescape(new_desc)}
+
+    # Ruta antigua (fallback): hostQueryExecutionResult.data.jobData.results[].
     try:
         results = body["hostQueryExecutionResult"]["data"]["jobData"]["results"]
     except (KeyError, TypeError):
@@ -260,12 +279,13 @@ def _iter_auto_open_responses(html: str):
 def _extract_initial_data_descriptions(html: str) -> dict[str, str]:
     """Extrae la descripcion del job auto-abierto en el panel derecho (two-pane).
 
-    Indeed ya no publica ``window._initialData =`` de forma estable (los runs
-    de octubre no extrajeron nada por esa via), pero el contenedor
-    ``autoOpenTwoPaneViewjobResponse`` sigue embebido en los ``<script>``; se
-    busca de forma tolerante por su clave y se navega
-    ``body.hostQueryExecutionResult.data.jobData.results[]`` (``body`` como
-    objeto o como cadena JSON).
+    Indeed ya no publica ``window._initialData =`` de forma estable, pero el
+    contenedor ``autoOpenTwoPaneViewjobResponse`` sigue embebido en los
+    ``<script>``; se busca de forma tolerante por su clave y se acepta tanto la
+    ruta actual (``body.jobInfoWrapperModel.jobInfoModel.
+    sanitizedJobDescription`` con la clave en ``body.jobKey``) como la antigua
+    (``body.hostQueryExecutionResult.data.jobData.results[]``); ``body`` puede
+    ser un objeto o una cadena JSON.
 
     Solo devuelve 1 descripcion (la del job auto-seleccionado), no todas.
     Para obtener todas las descripciones, usar --enrich (panel derecho por
@@ -354,7 +374,7 @@ def _map_item_to_offer(
         job_type=job_type,
         workplace_type=workplace_type,
         snippet=_clean_html(item.get("snippet", "") or ""),
-        description_html="",  # se llena desde _initialData (hostQueryExecutionResult)
+        description_html="",  # se llena desde el JSON auto-open (ver _extract_initial_data_descriptions)
         posted_relative=item.get("formattedRelativeTime", "") or "",
         posted_date=_epoch_ms_to_iso(item.get("pubDate") or item.get("createDate")),
         is_sponsored=bool(item.get("sponsored")),
@@ -480,20 +500,29 @@ def _map_conditions_to_offer(offer, conditions_text: str) -> None:
         offer.benefits = "; ".join(benefits_lines)
 
 
-# Cadena de esperas del panel derecho (T-32): primero el encabezado (el panel
-# empieza a montarse), despues el cuerpo de la descripcion. Un timeout ya no
-# aborta la oferta; solo tras agotar la cadena se registra como fallida.
-_PANEL_HEADER_SELECTOR = '[data-testid="jobsearch-JobInfoHeader-title"]'
-_PANEL_DESC_SELECTOR = (
-    '#jobDescriptionText, [data-testid="jobDescriptionText"], '
-    'div[class*="jobDescriptionText"], div[id*="jobDescription"]'
+# Cadena de esperas del panel derecho (T-32; iteracion 3): la UI two-pane
+# actual usa testids `vj-*`/`viewjob-*`; los selectores del layout antiguo
+# (`jobsearch-*`, `#jobDescriptionText`) se conservan al final como respaldo.
+# El encabezado nuevo (`vj-job-title`) va primero; un timeout ya no aborta la
+# oferta, solo tras agotar la cadena se registra como fallida.
+_PANEL_HEADER_SELECTOR = (
+    '[data-testid="vj-job-title"], '
+    '[data-testid="jobsearch-JobInfoHeader-title"]'
 )
+# El marcador `vj-job-description-heading` identifica el contenedor de la
+# descripcion: `_read_panel_description` lee su contenedor padre (el heading
+# solo es el titulo visible).
+_PANEL_DESC_HEADING_SELECTOR = '[data-testid="vj-job-description-heading"]'
 _PANEL_DESC_SELECTORS = (
+    '[data-testid="viewjob-job-content"]',
+    _PANEL_DESC_HEADING_SELECTOR,
     "#jobDescriptionText",
     '[data-testid="jobDescriptionText"]',
     'div[class*="jobDescriptionText"]',
     'div[id*="jobDescription"]',
 )
+_PANEL_DESC_SELECTOR = ", ".join(_PANEL_DESC_SELECTORS)
+_PANEL_DESC_PARENT_XPATH = "xpath=ancestor::div[1]"
 _PANEL_WAIT_STEPS = (
     (_PANEL_HEADER_SELECTOR, 4000),
     (_PANEL_DESC_SELECTOR, 8000),
@@ -517,14 +546,33 @@ def _wait_for_selector_safe(page, selector: str, timeout_ms: int) -> bool:
         return False
 
 
+def _parent_of_heading(locator):
+    """Contenedor padre del marcador de descripcion; el marcador si falla."""
+    try:
+        parent = locator.locator(_PANEL_DESC_PARENT_XPATH)
+        if parent.count() > 0:
+            return parent
+    except Exception:
+        pass
+    return locator
+
+
 def _read_panel_description(page) -> str:
-    """Lee el HTML/texto de la descripcion del panel derecho, si ya esta."""
+    """Lee el HTML/texto de la descripcion del panel derecho, si ya esta.
+
+    Orden (T-32, iteracion 3): contenedor actual `viewjob-job-content`, marcador
+    `vj-job-description-heading` (se lee el contenedor padre del marcador) y,
+    al final, los selectores del layout antiguo (`#jobDescriptionText`,
+    `jobDescriptionText`, clases `jobDescriptionText`/`jobDescription`).
+    """
     for sel in _PANEL_DESC_SELECTORS:
         try:
             el = page.locator(sel).first
         except Exception:
             continue
         if el.count() > 0:
+            if sel == _PANEL_DESC_HEADING_SELECTOR:
+                el = _parent_of_heading(el)
             try:
                 desc_html = el.inner_html() or el.inner_text() or ""
             except Exception:
@@ -549,10 +597,12 @@ def _is_card_active(page, jk: str) -> bool:
 def _wait_for_right_panel(page, jk: str) -> tuple[str, bool]:
     """Espera la descripcion del panel derecho con selectores encadenados.
 
-    Encadena `jobsearch-JobInfoHeader-title` (4 s) y `#jobDescriptionText` y
-    variantes (8 s), comprobando ademas si la tarjeta quedo activa
-    (`vjs-highlight`). Nunca aborta la oferta: si la cadena se agota devuelve
-    ("", card_active) y el llamante registra el fallo y sigue.
+    Encadena el encabezado (`vj-job-title` y respaldo
+    `jobsearch-JobInfoHeader-title`, 4 s) y los contenedores de descripcion
+    (`viewjob-job-content`/`vj-job-description-heading` y respaldos antiguos,
+    8 s), comprobando ademas si la tarjeta quedo activa (`vjs-highlight`).
+    Nunca aborta la oferta: si la cadena se agota devuelve ("", card_active) y
+    el llamante registra el fallo y sigue.
     """
     card_active = False
     for selector, timeout_ms in _PANEL_WAIT_STEPS:
@@ -650,6 +700,7 @@ def enrich_offers_via_right_panel(
         )
 
     cond_selectors = [
+        '[data-testid="structured-job-summary"]',
         '[data-testid="jobsearch-OtherJobDetailsContainer"]',
         '[data-testid="jobDetailsSection"]',
         'div[class*="jobDetails"]',

@@ -160,6 +160,24 @@ locales de usuario se escriben como <HOME>.
   `start_chrome_cdp.ps1`. No se añaden latidos PROGRESS artificiales: la fase
   CDP queda acotada (~1 min si los intentos agotan su timeout) y el watchdog
   sigue matando runs realmente atascados.
+- **Iteración 3 — rutas/selectores del portal (2026-10-11):** la prueba en vivo
+  de la iteración 2 pasó el recuento (11 ofertas) pero falló la calidad:
+  `description` al 0 % porque el portal cambió de layout y el parser fallaba en
+  silencio — en `autoOpenTwoPaneViewjobResponse` la ruta
+  `hostQueryExecutionResult...` ya no existe (la descripción vive en
+  `body.jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription`, con la clave
+  en `body.jobKey`) y el panel derecho pasó a los testids `vj-*`/`viewjob-*`
+  (el `snippet` vacío, en cambio, es del portal: no publica extracto en esta
+  variante de SERP). Cambios (detalle y evidencia en
+  `repairs/20261010-indeed/evidence/investigation-addendum.md`):
+  `scraper/parser.py` · `_descriptions_from_auto_open` acepta la ruta nueva y
+  conserva la antigua como respaldo; `_PANEL_HEADER_SELECTOR`/
+  `_PANEL_DESC_SELECTORS` priorizan `vj-job-title`, `viewjob-job-content` y el
+  contenedor padre de `vj-job-description-heading`, con los selectores antiguos
+  al final; `cond_selectors` añade `structured-job-summary`. Decisión de la
+  persona (RF-6): se mantiene el recorrido de UI por clic en el panel (el fetch
+  interno a `/viewjob` lo dispara la propia página) y el fallback directo
+  `/viewjob` sigue desactivado por defecto (`allow_viewjob_fallback=False`).
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
@@ -167,7 +185,7 @@ locales de usuario se escriben como <HOME>.
 
 Desde `indeed_jobs_scraper/`:
 
-- `python -m pytest tests -q` → **91 passed**. Incluye los tests nuevos
+- `python -m pytest tests -q` → **98 passed**. Incluye los tests nuevos
   `tests/test_browser_cdp.py` (probe del handshake, reintentos de
   `open_cdp_browser`, timeouts normales que siguen reintentando, aborto
   inmediato ante driver muerto detectado por excepción o por el detalle del
@@ -178,7 +196,16 @@ Desde `indeed_jobs_scraper/`:
   latido de progreso y `/viewjob` desactivado por defecto) y
   `tests/test_config.py` (URL de paginación por `start=` y texto de
   `--limit`), además de los casos de extracción tolerante del JSON embebido en
-  `tests/test_parser.py`.
+  `tests/test_parser.py`. Iteración 3 (2026-10-11): `tests/test_parser.py`
+  añade la ruta nueva del autoOpen
+  (`jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription` + `jobKey`,
+  también con `body` como cadena JSON), la ausencia de ambas rutas (`{}`) y la
+  ruta antigua conservada como respaldo; `tests/test_enrich.py` añade el layout
+  nuevo (cabecera `vj-job-title` + contenedor `viewjob-job-content`, sin
+  selectores antiguos), la lectura del contenedor padre del marcador
+  `vj-job-description-heading`, las condiciones vía `structured-job-summary` y
+  la regresión del layout antiguo; el caso de timeout comprueba que los testids
+  nuevos van primero en la cadena y los antiguos se conservan de respaldo.
 - El scraper no usa Ruff/mypy: `requirements.txt` no los declara y la carpeta no
   tiene configuración de lint.
 
@@ -187,8 +214,10 @@ Desde la raíz del repositorio:
 - `python -m pytest scrapers-pipeline/tests -q` → **1126 passed** (incluye la
   auditoría de higiene de `repairs/`).
 
-Todo offline, sin red ni navegador. La prueba en vivo queda pendiente del
-desbloqueo del challenge (ver sección de prueba en vivo).
+Todo offline, sin red ni navegador. La prueba en vivo de la iteración 2 ya se
+ejecutó (11 ofertas ≥ umbral 1, sin challenge) y falló la puerta de calidad por
+`description` (ver `evidence/indeed-20261011-live-test-run.txt`); la prueba de
+esta iteración 3 queda pendiente (sección de prueba en vivo).
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->

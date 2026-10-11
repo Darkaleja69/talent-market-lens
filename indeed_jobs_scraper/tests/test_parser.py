@@ -309,3 +309,64 @@ class TestExtractInitialDataDescriptions:
         )
         descriptions = _extract_initial_data_descriptions(html)
         assert descriptions == {}
+
+    def test_extracts_from_job_info_wrapper_model_path(self):
+        # Iteracion 3 (layout 2026-10): la descripcion embebida vive en
+        # body.jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription (HTML)
+        # y la clave del job en body.jobKey.
+        payload = {
+            "jobKey": "jk20",
+            "jobInfoWrapperModel": {
+                "jobInfoModel": {
+                    "sanitizedJobDescription": (
+                        "&#x26; <p>Descripcion nueva &amp; completa</p>"
+                    )
+                }
+            },
+        }
+        container = {"autoOpenTwoPaneViewjobResponse": {"body": payload}}
+        html = "<script>window.x = " + json.dumps(container) + ";</script>"
+        descriptions = _extract_initial_data_descriptions(html)
+        assert descriptions == {"jk20": "& <p>Descripcion nueva & completa</p>"}
+
+    def test_extracts_new_path_when_body_is_an_encoded_json_string(self):
+        payload = {
+            "jobKey": "jk21",
+            "jobInfoWrapperModel": {
+                "jobInfoModel": {"sanitizedJobDescription": "<b>ruta nueva string</b>"}
+            },
+        }
+        container = {"autoOpenTwoPaneViewjobResponse": {"body": json.dumps(payload)}}
+        html = "<script>window.y = " + json.dumps(container) + ";</script>"
+        descriptions = _extract_initial_data_descriptions(html)
+        assert descriptions == {"jk21": "<b>ruta nueva string</b>"}
+
+    def test_returns_empty_when_new_and_old_paths_are_missing(self):
+        payload = {
+            "jobKey": "jk22",
+            "jobInfoWrapperModel": {"jobInfoModel": {"title": "sin descripcion"}},
+        }
+        container = {"autoOpenTwoPaneViewjobResponse": {"body": payload}}
+        html = "<script>window.z = " + json.dumps(container) + ";</script>"
+        assert _extract_initial_data_descriptions(html) == {}
+
+    def test_old_path_still_works_after_adding_new_path(self):
+        payload = {
+            "hostQueryExecutionResult": {
+                "data": {
+                    "jobData": {
+                        "results": [
+                            {
+                                "job": {
+                                    "key": "jk23",
+                                    "description": {"html": "<i>ruta antigua</i>"},
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        container = {"autoOpenTwoPaneViewjobResponse": {"body": payload}}
+        html = "<script>window.w = " + json.dumps(container) + ";</script>"
+        assert _extract_initial_data_descriptions(html) == {"jk23": "<i>ruta antigua</i>"}
