@@ -31,6 +31,7 @@ import logging.handlers
 import sys
 import time
 import traceback
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,14 @@ log = logging.getLogger("linkedin_scraper")
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# Reintento acotado de detalles sin descripcion (T-33, solo guest): una oferta
+# solo se reintenta mientras su ventana (date_filter de su ciudad) siga abierta
+# y como maximo _MAX_PENDING_DETAIL_ATTEMPTS veces por run.
+_MAX_PENDING_DETAIL_ATTEMPTS = 3
+_PENDING_WINDOW_DAYS_BY_FILTER = {"r604800": 7, "r2592000": 30}
+_DEFAULT_PENDING_WINDOW_DAYS = 7
+_MAX_PENDING_WINDOW_DAYS = 30
+
 
 def _emit_progress(progress: RunProgressCounter, parsed_delta: int,
                    new_delta: int = 0) -> str:
@@ -61,6 +70,147 @@ def _emit_progress(progress: RunProgressCounter, parsed_delta: int,
     line = progress.line(at=now_utc_iso())
     log.info("%s", line)
     return line
+
+
+def _pending_window_days(config: dict[str, Any], city_name: str) -> int:
+    """Ventana de reintento (dias) de una ciudad: su date_filter, por defecto
+    7 dias y con tope de 30."""
+    cities = config.get("cities") or {}
+    city_cfg = cities.get(city_name) or {}
+    date_filter = city_cfg.get("date_filter", config.get("date_filter", ""))
+    days = _PENDING_WINDOW_DAYS_BY_FILTER.get(
+        str(date_filter), _DEFAULT_PENDING_WINDOW_DAYS)
+    return min(days, _MAX_PENDING_WINDOW_DAYS)
+
+
+def _parse_iso_utc(value: Any) -> datetime | None:
+    """ISO timestamp -> datetime UTC con tz, o None si no es parseable."""
+    if not isinstance(value, str) or not value:
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _select_pending_for_retry(
+    offers: list[JobOffer],
+    config: dict[str, Any],
+    attempts_map: dict[str, dict[str, Any]],
+    now: datetime,
+    budget: int,
+) -> list[JobOffer]:
+    """Selecciona (pura) las ofertas cuyo detalle se puede reintentar.
+
+    Candidatas: ofertas sin ``description_full``, dentro de la ventana de su
+    ``search_city`` (``date_filter``), con menos de
+    ``_MAX_PENDING_DETAIL_ATTEMPTS`` intentos. La edad se toma de
+    ``scraped_at`` (o del ``first_seen`` registrado en el estado de
+    reintentos). Orden: mas antigua primero (job_id desempata) y presupuesto
+    maximo ``budget``.
+    """
+    if budget <= 0:
+        return []
+    selected: list[tuple[datetime, str, JobOffer]] = []
+    for offer in offers:
+        if (offer.description_full or "").strip():
+            continue
+        entry = (attempts_map or {}).get(offer.job_id) or {}
+        try:
+            attempts = int(entry.get("attempts") or 0)
+        except (TypeError, ValueError):
+            attempts = 0
+        if attempts >= _MAX_PENDING_DETAIL_ATTEMPTS:
+            continue
+        reference = (_parse_iso_utc(offer.scraped_at)
+                     or _parse_iso_utc(entry.get("first_seen")))
+        if reference is None:
+            continue
+        window_days = _pending_window_days(config, offer.search_city)
+        if now - reference > timedelta(days=window_days):
+            continue
+        selected.append((reference, offer.job_id, offer))
+    selected.sort(key=lambda item: (item[0], item[1]))
+    return [offer for _, _, offer in selected[:budget]]
+
+
+def _retry_pending_details(page, store: Store, config: dict[str, Any],
+                           progress: RunProgressCounter) -> int:
+    """Reintenta detalles pendientes dentro de su ventana (solo guest, T-33).
+
+    Usa el mismo endpoint guest que el flujo normal (``parse_detail`` muta la
+    oferta en sitio). Exito -> se olvida el pendiente, se registra la
+    recuperacion y se emite PROGRESS (latido anti-watchdog). Fallo -> se
+    incrementa ``attempts`` con WARNING. Presupuesto acotado por run
+    (``pending_detail_retry_max``).
+    """
+    # Limpieza inicial: un pendiente cuyo job ya tiene descripcion en el store
+    # (recuperado por el SERP u otra via) se olvida sin gastar peticiones.
+    cleaned = 0
+    for job_id in list(store.detail_pending):
+        existing = store.get(job_id)
+        if existing is not None and (existing.description_full or "").strip():
+            store.pending_detail_remove(job_id)
+            cleaned += 1
+    if cleaned:
+        log.info("Pendientes limpiados (ya con descripcion): %d", cleaned)
+        store.checkpoint(tag=f"pending_cleanup_{cleaned}")
+
+    budget = int(config.get("pending_detail_retry_max", 25) or 0)
+    candidates = _select_pending_for_retry(
+        store.all(), config, store.detail_pending,
+        datetime.now(timezone.utc), budget)
+    if not candidates:
+        return 0
+    log.info("Reintento de %d detalles pendientes (ventana abierta).",
+             len(candidates))
+    delays = config.get("delays", {})
+    recovered = 0
+    for i, offer in enumerate(candidates):
+        try:
+            _ = page.title()
+        except Exception:  # noqa: BLE001
+            log.warning("Pagina cerrada: se abortan los reintentos pendientes.")
+            break
+        log.info("Reintento %d/%d: %s", i + 1, len(candidates), offer.job_id)
+        try:
+            parse_detail(page, offer, config)
+        except BlockedException as e:
+            # Challenge durante el reintento: no es culpa del dato, no se
+            # incrementa attempts; la fase se aborta sin relanzar (el run ya
+            # termino sus combos y no debe morir por esto).
+            log.warning(
+                "Bloqueo en reintento de detalle %s: %s. Se aborta la fase "
+                "de reintentos pendientes (recuperados %d).",
+                offer.job_id, e, recovered)
+            store.checkpoint(tag=f"pending_retry_{recovered}ok_blocked")
+            return recovered
+        except Exception as e:  # noqa: BLE001
+            log.warning("Reintento de detalle %s fallo: %s", offer.job_id, e)
+            store.pending_detail_increment(offer.job_id)
+            store.warning_inc("pending_detail_retry_error")
+        else:
+            if (offer.description_full or "").strip():
+                store.pending_detail_remove(offer.job_id)
+                recovered += 1
+                log.info("Detalle recuperado: %s", offer.job_id)
+            else:
+                store.pending_detail_increment(offer.job_id)
+                store.warning_inc("pending_detail_retry_empty")
+                log.warning("Reintento sin descripcion: %s", offer.job_id)
+            _emit_progress(progress, 1, 0)
+        delay(tuple(delays.get("guest_between_details", [1.5, 4.0])),
+              "pending-between-details")
+    store.checkpoint(tag=f"pending_retry_{recovered}ok")
+    log.info("Reintento de pendientes: %d/%d recuperados.",
+             recovered, len(candidates))
+    return recovered
 
 
 class _WarningCounterHandler(logging.Handler):
@@ -183,12 +333,12 @@ def _scrape_one_local(context, page, role: str, city_name: str,
                       city_cfg: dict[str, str],
                       config: dict[str, Any], store: Store,
                       progress: RunProgressCounter, do_detail: bool
-                      ) -> tuple[int, Any, str]:
+                      ) -> tuple[int, Any, str, int]:
     """Nucleo local para UNA combinacion (role, ciudad).
 
-    Devuelve (numero de ofertas nuevas anadidas, page_actual, estado).
-    estado: "ok" (hay tarjetas), "empty" (0 resultados), "unknown" (layout
-    indetectable: posible authwall/crash).
+    Devuelve (numero de ofertas nuevas anadidas, page_actual, estado,
+    detalles sin descripcion). estado: "ok" (hay tarjetas), "empty" (0
+    resultados), "unknown" (layout indetectable: posible authwall/crash).
     La page_actual puede ser DISTINTA a la de entrada si se recreo por
     cierre/bloqueo; el llamador debe reasignar su referencia para evitar
     operar sobre una page muerta en la siguiente combinacion (fix F3-18).
@@ -208,11 +358,11 @@ def _scrape_one_local(context, page, role: str, city_name: str,
     if layout == "unknown":
         log.error("Layout indetectable para '%s' en %s (authwall/crash?).",
                   role, city_name)
-        return 0, page, "unknown"
+        return 0, page, "unknown", 0
     if not cards:
         log.warning("Sin tarjetas para '%s' en %s (resultado vacio).",
                     role, city_name)
-        return 0, page, "empty"
+        return 0, page, "empty", 0
 
     # Convertir tarjetas a JobOffer y anadir al store
     base_offers: list[JobOffer] = []
@@ -227,13 +377,14 @@ def _scrape_one_local(context, page, role: str, city_name: str,
 
     if not do_detail:
         store.checkpoint(tag=f"{role}_{city_name}_serp")
-        return len(base_offers), page, "ok"
+        return len(base_offers), page, "ok", 0
 
     # Detalle: visitar cada oferta, saltando ya procesados.
     # detail_max_jobs <= 0 = ilimitado (detallar TODAS las ofertas encontradas).
     max_detail = config.get("detail_max_jobs", 25)
     target_offers = base_offers if max_detail <= 0 else base_offers[:max_detail]
     n_detail_ok = 0
+    n_desc_empty = 0
     # Saltar las que YA tienen descripcion en el store: las base_offers vienen
     # recien creadas del SERP (sin detalle), asi que hay que consultar el store.
     pending: list[JobOffer] = []
@@ -263,6 +414,13 @@ def _scrape_one_local(context, page, role: str, city_name: str,
             # escribia en un objeto huerfano y se perdia.
             store.add(offer)
             n_detail_ok += 1
+            if not (offer.description_full or "").strip():
+                # Cero fallos silenciosos (T-33): un detalle sin descripcion
+                # queda en WARNING, en la telemetria y pendiente de reintento.
+                log.warning("Detalle sin descripcion: %s", offer.job_id)
+                store.warning_inc("detail_desc_empty")
+                store.pending_detail_add(offer.job_id)
+                n_desc_empty += 1
             # A visited detail is work for the run even if the offer was known.
             _emit_progress(progress, 1, 0)
         except BlockedException:
@@ -293,9 +451,9 @@ def _scrape_one_local(context, page, role: str, city_name: str,
             store.checkpoint(tag=f"{role}_{city_name}_{i+1}det")
 
     store.checkpoint(tag=f"{role}_{city_name}_done")
-    log.info("[%s/%s] %d/%d detalles completados.",
-             role, city_name, n_detail_ok, len(pending))
-    return n_detail_ok, page, "ok"
+    log.info("[%s/%s] %d/%d detalles completados (%d sin descripcion).",
+             role, city_name, n_detail_ok, len(pending), n_desc_empty)
+    return n_detail_ok, page, "ok", n_desc_empty
 
 
 def _scrape_one_apify(role: str, city_name: str, city_cfg: dict[str, str],
@@ -425,6 +583,7 @@ def main() -> int:
     overall_apify = 0
     overall_empty = 0
     overall_unknown = 0
+    overall_desc_empty = 0
     combo_stats: list[dict[str, Any]] = []
     started = time.time()
 
@@ -498,10 +657,11 @@ def main() -> int:
                         block_retries = max_block_retries  # skip while loop -> Apify
                     while block_retries < max_block_retries and not done:
                         try:
-                            n, page, combo_state = _scrape_one_local(
+                            n, page, combo_state, desc_empty = _scrape_one_local(
                                 context, page, role, city_name, city_cfg,
                                 config, store, progress, do_detail)
                             overall_ok += n
+                            overall_desc_empty += desc_empty
                             if combo_state == "empty":
                                 overall_empty += 1
                             elif combo_state == "unknown":
@@ -576,6 +736,11 @@ def main() -> int:
                         else:
                             delay(tuple(config["delays"].get("between_searches", [8, 20])),
                                   "between-searches")
+                # Reintento acotado de detalles pendientes (solo guest): tras
+                # el barrido de combos, se rescatan descripciones vacias cuya
+                # ventana sigue abierta (T-33).
+                if config.get("_guest") and do_detail:
+                    _retry_pending_details(page, store, config, progress)
             finally:
                 try:
                     page.close()
@@ -601,7 +766,8 @@ def main() -> int:
     _print_summary(overall_ok, overall_blocked, overall_apify,
                    len(store), started, combo_stats,
                    overall_empty, overall_unknown,
-                   offers=store.all())
+                   offers=store.all(),
+                   desc_empty=overall_desc_empty)
     if len(store) == 0 and overall_blocked == 0 and overall_apify == 0:
         log.error("Run completo fallido: 0 ofertas, 0 bloqueos, 0 via Apify "
                   "(posible fallo sistematico de login/parser). Exit != 0.")
@@ -612,7 +778,8 @@ def main() -> int:
 def _print_summary(ok: int, blocked: int, apify: int, total: int,
                    started: float, combo_stats: list[dict[str, Any]] | None = None,
                    empty: int = 0, unknown: int = 0,
-                   offers: list[JobOffer] | None = None) -> None:
+                   offers: list[JobOffer] | None = None,
+                   desc_empty: int = 0) -> None:
     elapsed = time.time() - started
     log.info("=== RESUMEN ===")
     log.info("Ofertas locales OK:  %d", ok)
@@ -620,6 +787,7 @@ def _print_summary(ok: int, blocked: int, apify: int, total: int,
     log.info("Ofertas via Apify:   %d", apify)
     log.info("Combos sin resultados: %d (layout indetectable: %d)",
              empty, unknown)
+    log.info("Detalles sin descripcion (telemetria): %d", desc_empty)
     log.info("Total unico en store: %d", total)
     if offers:
         n = len(offers)
