@@ -8,7 +8,9 @@
  * smoke query and render the hash-routed shell with visible freshness. View
  * contents arrive view by view (T-10–T-14): Market Pulse is implemented in
  * T-10 (KPIs + ECharts), Roles & Skills in T-11 (benchmark table + bubble +
- * category donut), the rest keep a localised placeholder. The SQL itself
+ * category donut) and Salary Insights in T-12 (KPIs 15-18, averages by role
+ * and work mode, top paying skills and the Europe choropleth with the
+ * versioned GeoJSON); the rest keep a localised placeholder. The SQL itself
  * lives in `queries.js` (T-07) and the ECharts options in `charts.js` (T-10,
  * T-11).
  *
@@ -48,6 +50,7 @@ import * as queries from './queries.js';
 import {
   barChart,
   bubbleChart,
+  choroplethOption,
   donutChart,
   lineChart,
 } from './charts.js';
@@ -110,6 +113,7 @@ const DEFAULT_VIEW = VIEWS[0];
 const VIEW_RENDERERS = {
   'market-pulse': renderMarketPulse,
   'roles-skills': renderRolesSkills,
+  'salary-insights': renderSalaryInsights,
 };
 
 /* ========================================================================== *
@@ -873,9 +877,9 @@ const EMPTY_VALUE = '—';
 /** Localised KPI value: shares arrive as 0-1 ratios, counts as integers. */
 function formatKpiValue(value, format) {
   if (value == null) return EMPTY_VALUE;
-  return format === 'percent'
-    ? formatPercent(value, state.language)
-    : formatCount(value, state.language);
+  if (format === 'percent') return formatPercent(value, state.language);
+  if (format === 'salary') return formatSalary(value, state.language);
+  return formatCount(value, state.language);
 }
 
 function renderKpiList(kpis) {
@@ -1228,6 +1232,285 @@ async function renderRolesSkills({ requestId, body }) {
     }));
   }
   appendBenchmarkCard(grid, benchmark);
+  content.append(grid);
+  body.replaceChildren(content);
+  for (const mount of mounts.filter(Boolean)) mount();
+}
+
+/* ========================================================================== *
+ * Salary Insights (T-12, RF-7/RF-8/RF-16): KPIs 15-18, averages by role and
+ * work mode, top paying skills and the country choropleth
+ * ========================================================================== */
+
+/** Salary Insights KPI cards mapped to measures 15-18 of §7 of the plan. */
+const SALARY_INSIGHTS_KPIS = [
+  { id: 'avg', labelKey: 'kpi.avgMidSalary', builder: 'avgMidSalary', alias: 'avg_mid_salary_eur', format: 'salary' },
+  { id: 'median', labelKey: 'kpi.medianMidSalary', builder: 'medianMidSalary', alias: 'median_mid_salary_eur', format: 'salary' },
+  { id: 'p25', labelKey: 'kpi.p25MidSalary', builder: 'p25MidSalary', alias: 'p25_mid_salary_eur', format: 'salary' },
+  { id: 'p75', labelKey: 'kpi.p75MidSalary', builder: 'p75MidSalary', alias: 'p75_mid_salary_eur', format: 'salary' },
+];
+
+/**
+ * Versioned Europe GeoJSON (Natural Earth 110m, public domain): loaded once
+ * per visit and registered in ECharts by name. Region names are the English
+ * `properties.name` values, which is what `offersByCountry` returns.
+ */
+const EUROPE_GEOJSON_URL = './assets/europe.geojson';
+const EUROPE_MAP_NAME = 'europe';
+let europeGeojsonPromise = null;
+let europeMapNames = null;
+
+/**
+ * Loads (once) and registers the Europe GeoJSON, resolving to the set of
+ * region names the map can draw, or null when the fetch fails. A failure is
+ * reported inside the map card and the rest of the view keeps rendering.
+ */
+async function prepareEuropeMap() {
+  if (!state.echarts) return null;
+  if (europeMapNames) return europeMapNames;
+  if (!europeGeojsonPromise) europeGeojsonPromise = fetchJson(EUROPE_GEOJSON_URL);
+  try {
+    const geojson = await europeGeojsonPromise;
+    state.echarts.registerMap(EUROPE_MAP_NAME, geojson);
+    europeMapNames = new Set(
+      (geojson.features || [])
+        .map((feature) => feature.properties && feature.properties.name)
+        .filter(Boolean),
+    );
+    return europeMapNames;
+  } catch (error) {
+    europeGeojsonPromise = null; // allow a retry on the next render
+    console.warn('[tml] could not load the Europe GeoJSON:', error);
+    return null;
+  }
+}
+
+/**
+ * Small localised table for the Salary Insights cards (top paying skills and
+ * countries outside the map). Cells arrive already formatted; `numeric`
+ * right-aligns them and every header/caption key comes from i18n.js.
+ */
+function buildInsightsTable({ columns, rows, captionKey }) {
+  const table = document.createElement('table');
+  table.className = 'benchmark-table benchmark-table--compact';
+
+  const caption = document.createElement('caption');
+  caption.className = 'benchmark-table__caption';
+  caption.textContent = t(captionKey);
+  table.append(caption);
+
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const column of columns) {
+    const th = document.createElement('th');
+    th.setAttribute('scope', 'col');
+    if (column.numeric) th.className = 'benchmark-table__number';
+    th.textContent = t(column.labelKey);
+    headRow.append(th);
+  }
+  head.append(headRow);
+
+  const tbody = document.createElement('tbody');
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    for (const column of columns) {
+      const td = document.createElement('td');
+      if (column.numeric) td.className = 'benchmark-table__number';
+      const value = row[column.key];
+      td.textContent = value == null ? t('view.salaryInsights.notAvailable') : value;
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(head, tbody);
+  return table;
+}
+
+const TOP_SKILLS_COLUMNS = [
+  { key: 'skill', labelKey: 'view.salaryInsights.topSkills.skill' },
+  { key: 'category', labelKey: 'view.salaryInsights.topSkills.category' },
+  { key: 'median', labelKey: 'view.salaryInsights.topSkills.medianSalary', numeric: true },
+  { key: 'demand', labelKey: 'view.salaryInsights.topSkills.demand', numeric: true },
+];
+
+/** Scrollable top-paying-skills card; plain DOM, so it survives without ECharts. */
+function appendTopSkillsCard(grid, rows) {
+  const figure = document.createElement('figure');
+  figure.className = 'chart-card chart-card--table';
+
+  const title = document.createElement('h3');
+  title.className = 'chart-card__title';
+  title.textContent = t('view.salaryInsights.topSkills.title');
+  figure.append(title);
+
+  if (rows.length === 0) {
+    figure.append(noteElement('view.salaryInsights.noData', 'chart-empty'));
+    grid.append(figure);
+    return;
+  }
+
+  const scroll = document.createElement('div');
+  scroll.className = 'table-scroll';
+  scroll.tabIndex = 0;
+  scroll.setAttribute('role', 'region');
+  scroll.setAttribute('aria-label', t('view.salaryInsights.topSkills.title'));
+  scroll.append(buildInsightsTable({
+    columns: TOP_SKILLS_COLUMNS,
+    rows: rows.map((row) => ({
+      skill: row.skill,
+      category: row.skill_category,
+      median: formatSalary(row.skill_median_salary_eur, state.language),
+      demand: formatCount(row.skill_demand, state.language),
+    })),
+    captionKey: 'view.salaryInsights.topSkills.caption',
+  }));
+  figure.append(scroll);
+  grid.append(figure);
+}
+
+/** Choropleth card: no-data countries in grey, values outside the map listed. */
+function appendMapCard(grid, { rows, regionNames, mounts }) {
+  const figure = document.createElement('figure');
+  figure.className = 'chart-card chart-card--map';
+
+  const title = document.createElement('h3');
+  title.className = 'chart-card__title';
+  title.textContent = t('view.salaryInsights.map.title');
+  figure.append(title);
+
+  const body = document.createElement('div');
+  body.className = 'chart-card__body';
+  body.setAttribute('role', 'img');
+  body.setAttribute('aria-label', `${t('view.salaryInsights.map.title')}. ${t('view.salaryInsights.map.caption')}`);
+  figure.append(body);
+
+  const caption = document.createElement('figcaption');
+  caption.className = 'chart-card__caption';
+  caption.textContent = t('view.salaryInsights.map.caption');
+  figure.append(caption);
+
+  if (!regionNames) {
+    body.replaceWith(noteElement('view.salaryInsights.mapUnavailable', 'chart-empty'));
+    grid.append(figure);
+    return;
+  }
+
+  const mapped = rows.filter((row) => regionNames.has(row.country));
+  const outside = rows.filter((row) => !regionNames.has(row.country));
+  if (rows.length === 0) {
+    body.replaceWith(noteElement('view.salaryInsights.noData', 'chart-empty'));
+  } else {
+    const option = choroplethOption({
+      mapName: EUROPE_MAP_NAME,
+      rows: mapped,
+      seriesName: t('view.salaryInsights.map.title'),
+      formatValue: formatCountCallback,
+      formatTooltip: (country, value) => t('view.salaryInsights.map.tooltip', {
+        country,
+        offers: formatCount(value, state.language),
+      }),
+      formatNoData: (country) => t('view.salaryInsights.map.noDataTooltip', { country }),
+      moreLabel: t('view.salaryInsights.map.more'),
+      lessLabel: t('view.salaryInsights.map.less'),
+    });
+    mounts.push(() => mountChart(body, option));
+  }
+
+  // Labels without geometry on the European map (e.g. "United States",
+  // "Europe", "(Not specified)") stay visible in a small transparent table.
+  if (outside.length > 0) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'map-outside';
+    wrapper.append(buildInsightsTable({
+      columns: [
+        { key: 'country', labelKey: 'view.salaryInsights.map.outsideCountry' },
+        { key: 'offers', labelKey: 'view.salaryInsights.map.outsideOffers', numeric: true },
+      ],
+      rows: outside.map((row) => ({
+        country: row.country,
+        offers: formatCount(row.job_offers, state.language),
+      })),
+      captionKey: 'view.salaryInsights.map.outsideCaption',
+    }));
+    figure.append(wrapper);
+  }
+  grid.append(figure);
+}
+
+/**
+ * Data of the view with the current global filters (RF-9). All builders come
+ * from queries.js; this function only orchestrates calls.
+ */
+async function fetchSalaryInsightsData(options) {
+  const [kpis, byRole, byWorkMode, topSkills, byCountry] = await Promise.all([
+    Promise.all(SALARY_INSIGHTS_KPIS.map(async (kpi) => {
+      const rows = await runQuery(queries[kpi.builder](options));
+      return { ...kpi, value: rows.length > 0 ? rows[0][kpi.alias] : null };
+    })),
+    runQuery(queries.avgMidSalaryByRole(options)),
+    runQuery(queries.avgMidSalaryByWorkMode(options)),
+    runQuery(queries.topPayingSkills(options)),
+    runQuery(queries.offersByCountry(options)),
+  ]);
+  return { kpis, byRole, byWorkMode, topSkills, byCountry };
+}
+
+/** Horizontal bars of an average salary per category (role, work mode). */
+function buildAverageSalaryOption(rows, nameField, seriesNameKey) {
+  return barChart({
+    categories: rows.map((row) => row[nameField]),
+    values: rows.map((row) => Number(row.avg_mid_salary_eur) || 0),
+    seriesName: t(seriesNameKey),
+    horizontal: true,
+    formatValue: formatSalaryCallback,
+  });
+}
+
+/**
+ * Salary Insights renderer (RF-7): KPI cards 15-18, average salary by role
+ * category and work mode, top paying skills table and the European
+ * choropleth. The GeoJSON loads once and its failure only replaces the map
+ * with a localised note; the table is plain DOM and survives without ECharts.
+ */
+async function renderSalaryInsights({ requestId, body }) {
+  const options = buildQueryOptions(state.filters);
+  const [data, regionNames] = await Promise.all([
+    fetchSalaryInsightsData(options),
+    state.echarts ? prepareEuropeMap() : Promise.resolve(null),
+  ]);
+  if (requestId !== viewRenderId) return;
+
+  const content = document.createDocumentFragment();
+  content.append(renderKpiList(data.kpis));
+
+  const grid = document.createElement('div');
+  grid.className = 'chart-grid';
+  const mounts = [];
+
+  if (!state.echarts) {
+    content.append(noteElement('view.salaryInsights.chartsUnavailable', 'chart-unavailable'));
+    appendTopSkillsCard(grid, data.topSkills);
+  } else {
+    mounts.push(appendChartCard(grid, {
+      titleKey: 'view.salaryInsights.avgByRole.title',
+      captionKey: 'view.salaryInsights.avgByRole.caption',
+      noDataKey: 'view.salaryInsights.noData',
+      option: data.byRole.length > 0
+        ? buildAverageSalaryOption(data.byRole, 'role_category', 'view.salaryInsights.avgByRole.title')
+        : null,
+    }));
+    mounts.push(appendChartCard(grid, {
+      titleKey: 'view.salaryInsights.avgByWorkMode.title',
+      captionKey: 'view.salaryInsights.avgByWorkMode.caption',
+      noDataKey: 'view.salaryInsights.noData',
+      option: data.byWorkMode.length > 0
+        ? buildAverageSalaryOption(data.byWorkMode, 'work_mode', 'view.salaryInsights.avgByWorkMode.title')
+        : null,
+    }));
+    appendTopSkillsCard(grid, data.topSkills);
+    appendMapCard(grid, { rows: data.byCountry, regionNames, mounts });
+  }
+
   content.append(grid);
   body.replaceChildren(content);
   for (const mount of mounts.filter(Boolean)) mount();

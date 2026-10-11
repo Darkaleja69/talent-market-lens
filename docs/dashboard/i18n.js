@@ -72,6 +72,36 @@ export const MESSAGES = {
     'view.rolesSkills.noData': 'Sin datos para esta vista con los filtros actuales.',
     'view.rolesSkills.chartsUnavailable':
       'Los gráficos no están disponibles porque ECharts no se pudo cargar desde el CDN; la tabla sigue calculada con los datos cargados.',
+    'view.salaryInsights.avgByRole.title': 'Salario medio por categoría de rol',
+    'view.salaryInsights.avgByRole.caption':
+      'Media del salario mid anual en EUR de las ofertas con salario válido, por categoría de rol.',
+    'view.salaryInsights.avgByWorkMode.title': 'Salario medio por modalidad',
+    'view.salaryInsights.avgByWorkMode.caption':
+      'Media del salario mid anual en EUR de las ofertas con salario válido, por modalidad de trabajo.',
+    'view.salaryInsights.topSkills.title': 'Skills mejor pagadas',
+    'view.salaryInsights.topSkills.caption':
+      'Top 15 skills por mediana del salario mid (mínimo 5 ofertas). La demanda cuenta todas las ofertas de cada skill.',
+    'view.salaryInsights.topSkills.skill': 'Skill',
+    'view.salaryInsights.topSkills.category': 'Categoría',
+    'view.salaryInsights.topSkills.medianSalary': 'Salario mediano (EUR)',
+    'view.salaryInsights.topSkills.demand': 'Demanda (ofertas)',
+    'view.salaryInsights.map.title': 'Ofertas por país',
+    'view.salaryInsights.map.caption':
+      'Ofertas por país (GeoCountry). Los países en gris claro no tienen ofertas con los filtros actuales; pasa el cursor por encima para ver el detalle.',
+    'view.salaryInsights.map.tooltip': '{country}: {offers} ofertas',
+    'view.salaryInsights.map.noDataTooltip': '{country}: sin datos con los filtros actuales',
+    'view.salaryInsights.map.more': 'Más',
+    'view.salaryInsights.map.less': 'Menos',
+    'view.salaryInsights.map.outsideCaption':
+      'Valores fuera del mapa europeo, sin geometría en el GeoJSON; se listan para no perder información:',
+    'view.salaryInsights.map.outsideCountry': 'País o etiqueta',
+    'view.salaryInsights.map.outsideOffers': 'Ofertas',
+    'view.salaryInsights.mapUnavailable':
+      'No se pudo cargar el GeoJSON del mapa europeo; el resto de la vista sigue disponible.',
+    'view.salaryInsights.noData': 'Sin datos para esta vista con los filtros actuales.',
+    'view.salaryInsights.notAvailable': 'N/D',
+    'view.salaryInsights.chartsUnavailable':
+      'Los gráficos y el mapa no están disponibles porque ECharts no se pudo cargar desde el CDN; la tabla de skills sigue calculada con los datos cargados.',
     'status.initializing': 'Iniciando…',
     'status.loadingMeta': 'Cargando metadatos…',
     'status.loadingCdn': 'Cargando librerías…',
@@ -150,6 +180,10 @@ export const MESSAGES = {
     'kpi.onSiteShare': 'Cuota de trabajo presencial',
     'kpi.remoteFriendlyShare': 'Cuota remoto o híbrido',
     'kpi.salaryDisclosureRate': 'Tasa de salario publicado',
+    'kpi.avgMidSalary': 'Salario medio (mid)',
+    'kpi.medianMidSalary': 'Salario mediano (mid)',
+    'kpi.p25MidSalary': 'P25 salarial (mid)',
+    'kpi.p75MidSalary': 'P75 salarial (mid)',
     'footer.note': 'Datos de ofertas públicas; sin datos personales ni credenciales.',
   },
   en: {
@@ -207,6 +241,36 @@ export const MESSAGES = {
     'view.rolesSkills.noData': 'No data for this view with the current filters.',
     'view.rolesSkills.chartsUnavailable':
       'Charts are unavailable because ECharts could not be loaded from the CDN; the table is still computed from the loaded data.',
+    'view.salaryInsights.avgByRole.title': 'Average Salary by Role Category',
+    'view.salaryInsights.avgByRole.caption':
+      'Average annual mid salary in EUR of postings with a valid salary, by role category.',
+    'view.salaryInsights.avgByWorkMode.title': 'Average Salary by Work Mode',
+    'view.salaryInsights.avgByWorkMode.caption':
+      'Average annual mid salary in EUR of postings with a valid salary, by work mode.',
+    'view.salaryInsights.topSkills.title': 'Top Paying Skills',
+    'view.salaryInsights.topSkills.caption':
+      'Top 15 skills by median mid salary (at least 5 postings). Demand counts every posting of each skill.',
+    'view.salaryInsights.topSkills.skill': 'Skill',
+    'view.salaryInsights.topSkills.category': 'Category',
+    'view.salaryInsights.topSkills.medianSalary': 'Median salary (EUR)',
+    'view.salaryInsights.topSkills.demand': 'Demand (postings)',
+    'view.salaryInsights.map.title': 'Postings by Country',
+    'view.salaryInsights.map.caption':
+      'Postings per country (GeoCountry). Light grey countries have no postings under the current filters; hover for details.',
+    'view.salaryInsights.map.tooltip': '{country}: {offers} postings',
+    'view.salaryInsights.map.noDataTooltip': '{country}: no data with the current filters',
+    'view.salaryInsights.map.more': 'More',
+    'view.salaryInsights.map.less': 'Fewer',
+    'view.salaryInsights.map.outsideCaption':
+      'Values outside the European map (no geometry in the GeoJSON), listed so no information is lost:',
+    'view.salaryInsights.map.outsideCountry': 'Country or label',
+    'view.salaryInsights.map.outsideOffers': 'Postings',
+    'view.salaryInsights.mapUnavailable':
+      'The European map GeoJSON could not be loaded; the rest of the view keeps working.',
+    'view.salaryInsights.noData': 'No data for this view with the current filters.',
+    'view.salaryInsights.notAvailable': 'N/A',
+    'view.salaryInsights.chartsUnavailable':
+      'Charts and the map are unavailable because ECharts could not be loaded from the CDN; the skills table is still computed from the loaded data.',
     'status.initializing': 'Starting…',
     'status.loadingMeta': 'Loading metadata…',
     'status.loadingCdn': 'Loading libraries…',
@@ -285,6 +349,10 @@ export const MESSAGES = {
     'kpi.onSiteShare': 'On-site Share',
     'kpi.remoteFriendlyShare': 'Remote-Friendly Share',
     'kpi.salaryDisclosureRate': 'Salary Disclosure Rate',
+    'kpi.avgMidSalary': 'Avg Mid Salary EUR',
+    'kpi.medianMidSalary': 'Median Mid Salary EUR',
+    'kpi.p25MidSalary': 'P25 Mid Salary EUR',
+    'kpi.p75MidSalary': 'P75 Mid Salary EUR',
     'footer.note': 'Public job posting data; no personal data and no credentials.',
   },
 };

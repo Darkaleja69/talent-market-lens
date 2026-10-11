@@ -462,6 +462,34 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Compact variant of the Salary Insights tables: four columns must fit the
+   half column of the grid without horizontal scrolling. */
+.benchmark-table--compact {
+  font-size: 0.8rem;
+}
+
+.benchmark-table--compact th,
+.benchmark-table--compact td {
+  padding: 0.3rem 0.4rem;
+  white-space: normal;
+}
+
+/* --------------------------------------------- salary insights (map) --- */
+
+/* The choropleth needs a taller canvas than the ranking charts. */
+.chart-card--map .chart-card__body {
+  height: 22rem;
+}
+
+/* Values without geometry on the European map, kept visible below it. */
+.map-outside {
+  margin-top: 0.6rem;
+}
+
+.map-outside .benchmark-table {
+  font-size: 0.85rem;
+}
+
 /* --------------------------------------------------------------- filters --- */
 
 .filters,
@@ -741,5 +769,9 @@ body {
   .chart-card__body,
   .chart-card--wide .chart-card__body {
     height: 14rem;
+  }
+
+  .chart-card--map .chart-card__body {
+    height: 18rem;
   }
 }

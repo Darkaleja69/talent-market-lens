@@ -86,7 +86,7 @@ export function barChart({
   const valueAxis = {
     type: 'value',
     minInterval: 1,
-    axisLabel: { formatter: (value) => formatValue(value) },
+    axisLabel: { hideOverlap: true, formatter: (value) => formatValue(value) },
   };
   const categoryAxis = {
     type: 'category',
@@ -151,6 +151,89 @@ export function donutChart({
       labelLayout: { hideOverlap: true },
       itemStyle: { borderColor: '#ffffff', borderWidth: 2 },
       data: items.map(({ name, value }) => ({ name, value })),
+    }],
+  };
+}
+
+/**
+ * Builds a choropleth (map series) option over a GeoJSON the caller has
+ * already registered by name (`echarts.registerMap` needs the loaded GeoJSON,
+ * so it stays in app.js and this module keeps being pure). Regions without a
+ * row keep the base `itemStyle.areaColor` (light grey) and their tooltip
+ * reports "no data"; only the rows present in `rows` go through the visualMap.
+ * @param {Object} params
+ * @param {string} params.mapName - name used with `echarts.registerMap`.
+ * @param {Array<{country: string, job_offers: number}>} [params.rows] - mapped
+ *   values; the caller must exclude labels without geometry from the map.
+ * @param {string} [params.seriesName] - series name (used by tooltips/legend).
+ * @param {(value: number) => string} [params.formatValue] - visualMap labels.
+ * @param {(country: string, value: number) => string} [params.formatTooltip]
+ *   - localised tooltip for regions with data.
+ * @param {(country: string) => string} [params.formatNoData] - localised
+ *   tooltip for regions without data.
+ * @param {string} [params.moreLabel] - visualMap upper text (already localised).
+ * @param {string} [params.lessLabel] - visualMap lower text (already localised).
+ * @param {string} [params.noDataColor] - fill of regions without data.
+ * @param {string[]} [params.colors] - visualMap ramp (low → high).
+ * @returns {Object} ECharts option.
+ */
+export function choroplethOption({
+  mapName,
+  rows = [],
+  seriesName = '',
+  formatValue = defaultFormat,
+  formatTooltip = null,
+  formatNoData = null,
+  moreLabel = '',
+  lessLabel = '',
+  noDataColor = '#e6e9ed',
+  colors = ['#e3edf8', '#a8c8e8', '#5b93c9', '#1f5f9e'],
+}) {
+  const values = rows
+    .map((row) => Number(row.job_offers))
+    .filter((value) => Number.isFinite(value));
+  const max = Math.max(1, ...values);
+  return {
+    animationDuration: 250,
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) => {
+        const value = Number(params.value);
+        if (Number.isFinite(value)) {
+          return formatTooltip
+            ? formatTooltip(params.name, value)
+            : `${params.name}: ${formatValue(value)}`;
+        }
+        return formatNoData ? formatNoData(params.name) : params.name;
+      },
+    },
+    visualMap: {
+      min: 0,
+      max,
+      precision: 0,
+      text: [moreLabel, lessLabel],
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      inRange: { color: colors },
+      textStyle: { fontSize: 11 },
+    },
+    series: [{
+      name: seriesName,
+      type: 'map',
+      map: mapName,
+      nameProperty: 'name',
+      selectedMode: false,
+      roam: false,
+      label: { show: false },
+      itemStyle: {
+        areaColor: noDataColor,
+        borderColor: '#ffffff',
+        borderWidth: 0.6,
+      },
+      emphasis: { label: { show: true, fontSize: 10 } },
+      data: rows.map((row) => ({ name: row.country, value: Number(row.job_offers) || 0 })),
     }],
   };
 }

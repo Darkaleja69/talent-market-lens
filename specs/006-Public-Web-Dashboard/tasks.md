@@ -141,7 +141,7 @@ comprobación. El trabajo vive en el worktree de la rama
     benchmark, coherentes con el modelo, resistentes a skills sin salario y con
     textos ES/EN.
 
-- [ ] **T-12 — Vista Salary Insights** (~25 min)
+- [x] **T-12 — Vista Salary Insights** (~25 min)
   - **RF:** RF-7, RF-8, RF-16.
   - **Depende de:** T-09.
   - **Hecho cuando:** la vista muestra media, mediana, P25 y P75, medias por
