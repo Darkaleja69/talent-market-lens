@@ -1,0 +1,85 @@
+﻿=== VOLUMEN ===
+filas_snapshot = 9686
+state.json: total=9686 job_ids=9686 updated_at=2026-10-10T22:51:10+00:00
+
+=== DESCRIPTION ===
+sin_descripcion (vacio o URL) = 954
+desc_len>100 = 8730
+sin_descripcion por fecha de primera captura (scraped_at):
+date
+2026-09-09    107
+2026-09-10     30
+2026-09-17    813
+2026-09-18      1
+2026-09-29      1
+2026-10-10      2
+de las 954: <=2026-09-17 = 950 | >=2026-09-18 = 4
+por search_city:
+search_city
+Madrid         253
+Barcelona      193
+Amsterdam      189
+Zurich         168
+Dublin         134
+Bilbao          15
+Netherlands      1
+Ireland          1
+las 4 recientes (>=2026-09-18):
+          job_id                                         title    search_role  search_city                 scraped_at
+5171  4464863105              Software Engineer, Data and Java  Data Engineer  Netherlands  2026-09-18T15:07:09+00:00
+7560  4473211351                                 Data Engineer  Data Engineer    Barcelona  2026-09-29T22:07:48+00:00
+9670  4478026529  Sr. Data Analyst - User Acquisition (Remote)   Data Analyst       Madrid  2026-10-10T22:20:14+00:00
+9682  4477822505               Senior AI Engineer | Ç650/Daily    AI Engineer      Ireland  2026-10-10T22:49:09+00:00
+
+=== 2026-09-17: horas UTC y missing (run diurno 08-10Z) ===
+            present  missing
+scraped_at                  
+8               332      199
+9               320      418
+10              148      196
+21               73        0
+22               44        0
+23              101        0
+
+=== SALARY (aliases: salary_raw, salary_min, salary_max) ===
+salary_raw no vacio = 1803 | invalido (sin importe) = 123
+ejemplos invalidos: [', libra', ', Euro', ', Ç', '. Ç', '. ú', ', euro', '.eur', '. EUR', ', Eur', '. Euro', '. USD', ', USD']
+valido por cualquier alias = 1680 ( 17.34 % )
+salary_min no vacio = 1669 | salary_max no vacio = 426
+sin salary_raw pero la descripcion menciona moneda = 4331 de 7883 sin raw (techo bruto, incluye falsos positivos)
+(diagnostico oficial 2026-10-11: 1722/9686 = 17.78%; local difiere ligeramente por momento de medicion/dedup)
+
+=== WORK_MODE ===
+work_mode
+(vacio)       5557
+Remoto        2132
+Hibrido       1721
+Presencial     276
+vacio con senal remoto = 38 | hibrido = 586 | presencial = 13
+(las senales ES con tilde 'hibrido' no se cuentan aqui; la inferencia actual no cubre variantes NL/DE: hybride, Hybrides Arbeitsmodell, thuiswerk)
+
+=== SKILLS ===
+skills no vacio = 7954
+con descripcion: 7954 / 8732 = 91.09 %
+sin descripcion: 0 / 954
+
+=== POSTED_DATE (posted_datetime) ===
+posted_datetime vacio = 350
+por fecha:
+date
+2026-09-09    206
+2026-09-10    144
+con posted_relative no vacio = 213
+
+=== OTROS ===
+job_id vacio = 0
+title vacio = 0
+company_name vacio = 0
+location_raw vacio = 0
+salary_raw vacio = 7883
+work_mode vacio = 5557
+company_url vacio = 957
+company_industry vacio = 7165
+company_size vacio = 7133
+employment_type vacio = 1022
+experience_level vacio = 1167

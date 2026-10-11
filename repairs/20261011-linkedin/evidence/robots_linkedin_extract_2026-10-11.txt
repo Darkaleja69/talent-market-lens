@@ -1,0 +1,39 @@
+﻿LinkedIn robots.txt - extracto de rutas relevantes
+Consultado: 2026-10-11 con Chrome real del usuario (CDP 9222) en https://www.linkedin.com/robots.txt
+Texto completo: repairs/20261011-linkedin/evidence/robots_linkedin_2026-10-11.txt
+
+[1] AVISO EN CABECERA
+# Notice: The use of robots or other automated means to access LinkedIn without
+# the express permission of LinkedIn is strictly prohibited.
+# See https://www.linkedin.com/legal/user-agreement.
+# If you would like to apply for permission to crawl LinkedIn, please email whitelist-crawl@linkedin.com.
+# Any and all permitted crawling of LinkedIn is subject to LinkedIn's Crawling Terms and Conditions.
+# See http://www.linkedin.com/legal/crawling-terms.
+
+[2] UNICO BLOQUE GENERICO (al final del fichero)
+User-agent: *
+Disallow: /
+
+# Notice: If you would like to crawl LinkedIn,
+# please email whitelist-crawl@linkedin.com to apply
+# for white listing.
+
+[3] RESTRICCIONES REPETIDAS EN LOS BLOQUES DE BOTS CONOCIDOS (Googlebot, Bingbot,
+redditbot, OAI-SearchBot, Claude-SearchBot, etc.). Todas incluyen:
+  Disallow: /jobs-guest/
+  Disallow: /api/jobPostings/jobs*
+  Disallow: /jobs?runSearch*
+  Disallow: /jobs/view/externalApply/
+  Disallow: /voyager/api
+(dependiendo del bot, algunas tambien /search*, /salary-explorer/api, etc.)
+
+[4] CONSECUENCIA PARA EL SCRAPER
+- Para cualquier user-agent generico (*), robots.txt deshabilita TODO linkedin.com.
+- Las rutas de datos que usa el scraper quedan por tanto deshabilitadas:
+  /jobs-guest/jobs/api/seeMoreJobPostings/search  (SERP guest)
+  /jobs-guest/jobs/api/jobPosting/<id>            (detalle guest)
+  /jobs/search, /jobs/view/<id>, /voyager/api (SDUI)
+- /jobs-guest/, /api/jobPostings/jobs*, /jobs?runSearch* y
+  /jobs/view/externalApply/ estan ademas deshabilitadas en los bloques de los
+  bots de buscadores con permiso.
+- Unica via declarada para obtener permiso: whitelist-crawl@linkedin.com.

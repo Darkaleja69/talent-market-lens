@@ -1,0 +1,38 @@
+﻿LinkedIn - extractos legales relevantes
+Consultados: 2026-10-11 con el Chrome real del usuario (CDP 9222). Sin acciones de cuenta.
+
+[1] User Agreement - https://www.linkedin.com/legal/user-agreement
+Seccion 8.2 "Don'ts" (texto original en ingles):
+"...Develop, support or use software, devices, scripts, robots or any other means or
+processes (such as crawlers, browser plugins and add-ons or any other technology) to
+scrape or copy the Services, including profiles and other data from the Services;
+Override any security feature or bypass or circumvent any access controls or use limits
+of the Services (such as search results, profiles, or videos); ..."
+
+[2] Crawling Terms and Conditions - https://www.linkedin.com/legal/crawling-terms
+(version 25/05/2017; texto original en ingles):
+"...through automated means, such as through bots, robots, spiders, crawlers, or
+scrapers ("Automated Crawling & Indexing") ... Automated Crawling & Indexing without the
+express permission of LinkedIn is strictly prohibited. By engaging in permitted
+Automated Crawling & Indexing you agree to abide by these Terms and Conditions. You
+agree to engage in Automated Crawling & Indexing only of the data, paths, and
+directories authorized by LinkedIn. You agree: that you will not violate the
+restrictions in any robot exclusion header; ... your use of data you collect through
+Automated Crawling & Indexing will be confined solely to search indexing for display in
+a publicly available search engine on the Internet unless granted separate approval by
+LinkedIn for alternative usage and display on the Internet. You agree that you will not
+rent, lease, loan, trade, or sell any data collected through Automated Crawling &
+Indexing ..."
+
+[3] CONCLUSION OPERATIVA
+- robots.txt (User-agent: *) prohibe todo el dominio; los TOS prohiben el acceso
+  automatizado sin permiso expreso y limitan el uso permitido a indexacion de
+  buscadores publicos, que NO es el caso de este proyecto (analitica interna).
+- La via declarada de permiso es whitelist-crawl@linkedin.com (Crawling Terms).
+- Cualquier backfill o ampliacion del scraping queda, por tanto, fuera de lo que
+  robots.txt/TOS permiten y requiere decision explicita de la persona (RF-6).
+
+Capturas:
+- .opencode/.agent-screenshots/20261011-195241-user-agreement-linkedin.png
+- .opencode/.agent-screenshots/20261011-195251-crawling-terms-linkedin.png
+(copias tambien en evidence/)
