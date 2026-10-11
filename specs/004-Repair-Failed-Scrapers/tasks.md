@@ -402,7 +402,7 @@ reparaciones posteriores usan el proceso ya fusionado en `main`.
     persona) el comando del módulo de reparaciones, la convención de ramas
     `repair/` y la ubicación de los registros (`repairs/`).
 
-- [ ] **T-40 — Ejecutar la suite completa y registrar la comprobación real** (~20 min)
+- [x] **T-40 — Ejecutar la suite completa y registrar la comprobación real** (~20 min)
   - **RF:** RF-1–RF-16.
   - **Depende de:** T-26–T-31, T-39.
   - **Hecho cuando:** `python -m pytest scrapers-pipeline/tests -q` pasa y el
