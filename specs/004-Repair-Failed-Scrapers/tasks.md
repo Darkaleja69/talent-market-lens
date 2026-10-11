@@ -395,7 +395,7 @@ mismas puertas que el grupo 8.
 Este grupo se ejecuta **antes** que los grupos 8 y 9: cierra la 004; las
 reparaciones posteriores usan el proceso ya fusionado en `main`.
 
-- [ ] **T-39 — Documentar el comando de tests y las convenciones en AGENTS.md** (~15 min)
+- [x] **T-39 — Documentar el comando de tests y las convenciones en AGENTS.md** (~15 min)
   - **RF:** RF-13.
   - **Depende de:** T-25.
   - **Hecho cuando:** `AGENTS.md` refleja (con el visto bueno previo de la
