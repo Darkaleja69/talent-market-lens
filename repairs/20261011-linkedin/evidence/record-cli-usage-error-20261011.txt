@@ -1,0 +1,12 @@
+Evidencia: el subcomando record --record exige --status y --result (repair/cli.py); sin ellos argparse corta con error de uso (exit 2).
+
+Comando: python -m repair.cli record --record ../repairs/20261011-linkedin --changes <texto de cambios>
+usage: python -m repair.cli [-h] {targets,brief,threshold,quality,record} ...
+python -m repair.cli: error: para completar un registro hacen falta --status y --result
+exit=2
+
+Comando: python -m repair.cli record --record ../repairs/20261011-linkedin --tests <texto de tests>
+usage: python -m repair.cli [-h] {targets,brief,threshold,quality,record} ...
+python -m repair.cli: error: para completar un registro hacen falta --status y --result
+exit=2
+
