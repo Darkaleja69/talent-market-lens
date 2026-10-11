@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import random
 import re
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,112 @@ if TYPE_CHECKING:
     from patchright.sync_api import Browser, BrowserContext, Page, Playwright
 
 log = logging.getLogger(__name__)
+
+# --- Handshake CDP (T-32) ---------------------------------------------------
+# El pre-flight del wrapper solo comprueba GET /json: prueba que el endpoint
+# HTTP de DevTools responde, no que un cliente real complete el handshake. El
+# run del 2026-10-10 murio en connect_over_cdp (patchright 1.60.1 contra Chrome
+# 154: "Network.setCacheDisabled ... session closed" / timeout 180s) con /json
+# respondiendo y agent-browser operando contra ese mismo Chrome. Por eso aqui
+# la conexion se verifica con una operacion real minima y se reintenta con
+# backoff corto; si no se logra, el run degrada al navegador propio headed.
+CDP_ATTEMPTS = 3
+CDP_CONNECT_TIMEOUT_MS = 20000
+CDP_RETRY_BACKOFF_S = (2.0, 5.0)
+
+
+def probe_cdp_handshake(browser: "Browser") -> tuple[bool, str]:
+    """Verifica una conexion CDP con una operacion real minima (T-32).
+
+    Abrir (y cerrar) una pagina en el navegador conectado es la operacion que
+    fallaba con el handshake roto ("session closed"); leer solo
+    ``browser.contexts`` no lo detecta. No navega a ningun sitio, no toca
+    pestanas existentes y nunca lanza excepciones: devuelve ``(ok, detalle)``.
+    """
+    try:
+        contexts = list(browser.contexts)
+    except Exception as e:
+        return False, f"no se pudieron listar los contextos: {e}"
+
+    context = None
+    created_context = False
+    try:
+        if contexts:
+            context = contexts[0]
+        else:
+            context = browser.new_context()
+            created_context = True
+        page = context.new_page()
+        try:
+            page.close()
+        except Exception:
+            pass
+        return True, f"{len(contexts)} contexto(s); pagina de prueba abierta y cerrada"
+    except Exception as e:
+        return False, f"la operacion minima fallo: {e}"
+    finally:
+        if created_context and context is not None:
+            try:
+                context.close()
+            except Exception:
+                pass
+
+
+def open_cdp_browser(
+    pw: "Playwright",
+    port: int,
+    *,
+    attempts: int = CDP_ATTEMPTS,
+    timeout_ms: int = CDP_CONNECT_TIMEOUT_MS,
+    backoff_s: tuple[float, float] = CDP_RETRY_BACKOFF_S,
+    sleep_fn=time.sleep,
+    log_fn=None,
+) -> "Browser | None":
+    """Conecta al endpoint CDP y verifica el handshake, con reintentos (T-32).
+
+    Devuelve el ``Browser`` conectado o ``None`` cuando todos los intentos
+    fallan. Un navegador que conecta pero no supera la operacion minima se
+    desconecta antes del siguiente intento; el Chrome vivo del usuario no se
+    toca mas alla de las paginas de prueba (que se cierran). ``sleep_fn`` se
+    inyecta en los tests para no esperar de verdad.
+    """
+    logger = log_fn if log_fn is not None else log
+    endpoint = f"http://localhost:{port}"
+
+    for attempt in range(1, attempts + 1):
+        browser = None
+        try:
+            browser = pw.chromium.connect_over_cdp(endpoint, timeout=timeout_ms)
+        except Exception as e:
+            logger.warning(
+                "CDP intento %d/%d: connect_over_cdp fallo en %s: %s",
+                attempt, attempts, endpoint, e,
+            )
+
+        if browser is not None:
+            ok, detail = probe_cdp_handshake(browser)
+            if ok:
+                logger.info(
+                    "CDP intento %d/%d: handshake verificado (%s)",
+                    attempt, attempts, detail,
+                )
+                return browser
+            logger.warning(
+                "CDP intento %d/%d: handshake no verificado (%s)",
+                attempt, attempts, detail,
+            )
+            try:
+                browser.close()
+            except Exception:
+                pass
+
+        if attempt < attempts:
+            delay = random.uniform(*backoff_s) if backoff_s else 0.0
+            if delay > 0:
+                logger.info("CDP: fallo el intento %d/%d; reintentando en %.1fs", attempt, attempts, delay)
+                sleep_fn(delay)
+
+    return None
 
 # User-Agents reales de Chrome estable (Windows). Rotamos entre varios.
 # Mantenemos una lista corta y estable para no llamar la atencion cambiando UA
@@ -61,6 +168,10 @@ class BrowserSession:
         self.session_path = output_dir / SESSION_STATE_FILE
         self.use_chrome_profile = use_chrome_profile
         self.cdp_port = cdp_port  # >0 => conectar a Chrome existente via CDP
+        # Estado real de la sesion (T-32): `cdp_port > 0` es solo la peticion;
+        # `connected_via_cdp` confirma que el handshake se verifico.
+        self.connected_via_cdp = False
+        self.cdp_fallback = False
         self._pw: "Playwright | None" = None
         self._browser: "Browser | None" = None
         self._context: "BrowserContext | None" = None
@@ -89,28 +200,39 @@ class BrowserSession:
         # no hay flags de automatizacion y Google/Indeed no bloquean los botones.
         if self.cdp_port > 0:
             log.info("conectando a Chrome existente via CDP en puerto %d...", self.cdp_port)
-            try:
-                self._browser = self._pw.chromium.connect_over_cdp(
-                    f"http://localhost:{self.cdp_port}"
-                )
-            except Exception as e:
-                raise RuntimeError(
-                    f"No se pudo conectar a Chrome en localhost:{self.cdp_port}. "
-                    f"Lanza Chrome primero con:\n"
-                    f'  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" '
-                    f'--remote-debugging-port={self.cdp_port} '
-                    f'--user-data-dir="{self.output_dir / "chrome_profile"}"\n'
-                    f"Error: {e}"
-                ) from e
-            # usar el contexto existente del navegador conectado
-            contexts = self._browser.contexts
-            if contexts:
-                self._context = contexts[0]
-                log.info("conectado al contexto existente de Chrome (%d pestañas abiertas)", len(self._context.pages))
-            else:
-                self._context = self._browser.new_context()
-            return
+            browser = open_cdp_browser(self._pw, self.cdp_port)
+            if browser is not None:
+                self._browser = browser
+                # usar el contexto existente del navegador conectado
+                contexts = self._browser.contexts
+                if contexts:
+                    self._context = contexts[0]
+                    log.info("conectado al contexto existente de Chrome (%d pestañas abiertas)", len(self._context.pages))
+                else:
+                    self._context = self._browser.new_context()
+                self.connected_via_cdp = True
+                return
 
+            # Fallback documentado (T-32): /json responde pero el handshake CDP
+            # no se verifica. No morimos en seco: navegador propio headed (sin
+            # sesion CDP), suficiente para la pagina 1; el runner limita pages a 1.
+            self.cdp_fallback = True
+            log.warning(
+                "CDP: handshake no verificado tras %d intentos en localhost:%d; "
+                "continuando con navegador propio headed (sin sesion de Chrome). "
+                "Para el flujo con sesion, relanza Chrome (start_chrome_cdp.ps1) y "
+                "vuelve a intentarlo.",
+                CDP_ATTEMPTS, self.cdp_port,
+            )
+
+        self._launch_owned()
+
+    def _launch_owned(self) -> None:
+        """Lanza un Chrome propio de patchright (headed), con o sin perfil.
+
+        Es el modo por defecto y tambien el fallback documentado del modo CDP
+        (T-32): no toca ningun Chrome vivo del usuario.
+        """
         launch_args = [
             "--disable-blink-features=AutomationControlled",
             "--disable-features=IsolateOrigins,site-per-process",
@@ -222,7 +344,9 @@ class BrowserSession:
 
     def _close(self) -> None:
         # En modo CDP NO cerramos el Chrome del usuario, solo nos desconectamos.
-        if self.cdp_port > 0:
+        # Con el fallback (cdp_fallback=True) el navegador es nuestro y si se
+        # cierra, porque nadie mas lo usa.
+        if self.cdp_port > 0 and self.connected_via_cdp:
             try:
                 if self._browser is not None:
                     # disconnect en vez de close: no mata el navegador del usuario

@@ -74,7 +74,7 @@ def parse_args() -> argparse.Namespace:
         "--limit",
         type=int,
         default=0,
-        help="Resultados por pagina (parametro limit de Indeed). >0 pide mas resultados en una sola pagina y evita el login que Indeed exige para paginar (ej: --limit 50). 0 = no anadir parametro.",
+        help="Resultados por pagina (parametro limit de Indeed). 0 = no anadir parametro (valor recomendado y unico que usa el nightly). ATENCION: limit>0 dispara el challenge de Cloudflare de Indeed ('Security Check - Additional Verification Required') y NO evita el login de la paginacion. Para mas resultados por SERP usa la paginacion permitida con sesion real (start=N).",
     )
     p.add_argument(
         "--fromage",

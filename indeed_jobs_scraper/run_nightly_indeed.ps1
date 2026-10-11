@@ -157,6 +157,24 @@ function Test-CdpAlive {
     }
 }
 
+function Test-CdpHandshake {
+    # Probe REAL del handshake CDP (T-32): GET /json solo prueba que el endpoint
+    # HTTP de DevTools responde; patchright puede no completar el handshake
+    # aunque /json conteste (paso en el run 2026-10-10). La logica vive en
+    # scraper/cdp_probe.py y reutiliza el probe del propio scraper.
+    param([int]$Port = 9222)
+    $probe = "import sys; sys.path.insert(0, r'$ProjectRoot'); from scraper.cdp_probe import main; sys.exit(main(['--port', '$Port']))"
+    try {
+        $out = & python -c $probe 2>&1
+        $code = $LASTEXITCODE
+        if ($out) { foreach ($line in $out) { Write-NLog "CDP probe: $line" } }
+        return ($code -eq 0)
+    } catch {
+        Write-NLog "CDP probe: no se pudo ejecutar: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 # ----------------------- Main -----------------------
 $TargetsDesc = ($Targets | ForEach-Object { "$($_.Country)($($_.Cities))" }) -join " "
 Write-NLog "=== INICIO RUN NOCTURNA INDEED ==="
@@ -175,6 +193,16 @@ if (-not (Test-CdpAlive)) {
     exit 3
 }
 Write-NLog "CDP pre-flight OK. Chrome responde en puerto $CdpPort."
+
+if (Test-CdpHandshake -Port $CdpPort) {
+    Write-NLog "CDP handshake OK: patchright conecta y verifica contra el Chrome real."
+} else {
+    # No se aborta: el scraper hara el fallback documentado (navegador propio
+    # headed, 1 pagina, sin sesion) y el run sigue con lo que pueda capturar.
+    Write-NLog "WARN: el handshake CDP real falla (patchright <-> Chrome) pese a que /json responde."
+    Write-NLog "WARN: el scraper continuara con navegador propio headed y limitara la ejecucion a 1 pagina."
+    Write-NLog "WARN: revisa la version de Chrome/patchright y relanza Chrome con start_chrome_cdp.ps1."
+}
 
 $overallExit = 0
 $abortedChallenge = $false
