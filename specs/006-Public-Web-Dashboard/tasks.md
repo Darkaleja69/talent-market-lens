@@ -103,7 +103,7 @@ comprobación. El trabajo vive en el worktree de la rama
     adelantarse con una descarga manual) los valores ejecutados coinciden con
     el informe o sus capturas, y las diferencias conocidas quedan anotadas.
 
-- [ ] **T-08 — Shell, carga con DuckDB-WASM e i18n** (~25 min)
+- [x] **T-08 — Shell, carga con DuckDB-WASM e i18n** (~25 min)
   - **RF:** RF-3, RF-6, RF-14, RF-16.
   - **Depende de:** T-06.
   - **Hecho cuando:** `docs/dashboard/index.html`, `styles.css` y `app.js`
