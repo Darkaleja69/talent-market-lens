@@ -14,6 +14,9 @@ Flujo por (role, ciudad):
 from __future__ import annotations
 
 import logging
+import random
+import time
+import urllib.error
 import urllib.request
 from typing import Any
 from urllib.parse import urlencode
@@ -64,10 +67,57 @@ def _city_setting(config: dict[str, Any], city_cfg: dict[str, Any],
     return config.get(key, default)
 
 
+# 429 handling of the guest search API (T-33): bounded retries honoring the
+# Retry-After header, without raising the request rate (the pause is always
+# equal to or longer than what LinkedIn asked for).
+_GUEST_429_RETRIES = 2
+_GUEST_429_MAX_WAIT_S = 60.0
+_GUEST_429_JITTER_S = 1.0
+
+
+def _retry_after_seconds(error: urllib.error.HTTPError) -> float | None:
+    """Seconds requested by the Retry-After header (capped), or None.
+
+    Only the numeric (seconds) form is honored; an HTTP-date or a missing
+    header returns None so the caller falls back to its own backoff.
+    """
+    headers = getattr(error, "headers", None)
+    if headers is None:
+        return None
+    raw = headers.get("Retry-After")
+    if raw is None:
+        return None
+    try:
+        seconds = float(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if seconds < 0:
+        return None
+    return min(seconds, _GUEST_429_MAX_WAIT_S)
+
+
+def _guest_429_wait(error: urllib.error.HTTPError, attempt: int) -> float:
+    """Wait before retrying a 429: Retry-After when valid, backoff otherwise.
+
+    A small jitter avoids retrying in lockstep; the total wait never exceeds
+    the cap, so the fetch can never sleep unbounded.
+    """
+    wait = _retry_after_seconds(error)
+    if wait is None:
+        wait = min(2.0 ** attempt, _GUEST_429_MAX_WAIT_S)
+    return min(wait + random.uniform(0.0, _GUEST_429_JITTER_S),
+               _GUEST_429_MAX_WAIT_S)
+
+
 def _fetch_guest_search_html(role: str, city_cfg: dict[str, str],
                              date_filter: str, start: int,
                              timeout: int = 30) -> str:
-    """Descarga un fragmento HTML (10 tarjetas) del SERP guest. "" si falla."""
+    """Descarga un fragmento HTML (10 tarjetas) del SERP guest. "" si falla.
+
+    Ante HTTP 429 se honra Retry-After (con tope) y se reintenta de forma
+    acotada con backoff + jitter; agotados los reintentos se devuelve "" (el
+    comportamiento previo) para que la paginacion corte sin morir.
+    """
     params: dict[str, str] = {
         "keywords": role,
         "location": city_cfg["text"],
@@ -84,12 +134,30 @@ def _fetch_guest_search_html(role: str, city_cfg: dict[str, str],
         "Accept-Language": "es-ES,es;q=0.9,en;q=0.6",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     })
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read().decode("utf-8", "replace")
-    except Exception as e:  # noqa: BLE001
-        log.warning("Guest API search fallo (start=%d): %s", start, e)
-        return ""
+    attempts = 0
+    while True:
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempts < _GUEST_429_RETRIES:
+                wait = _guest_429_wait(e, attempts)
+                attempts += 1
+                log.warning(
+                    "Guest API search 429 (start=%d): reintento %d/%d en %.1fs.",
+                    start, attempts, _GUEST_429_RETRIES, wait)
+                time.sleep(wait)
+                continue
+            if e.code == 429:
+                log.warning(
+                    "Guest API search 429 (start=%d): reintentos agotados "
+                    "(%d); se corta la paginacion.", start, _GUEST_429_RETRIES)
+            else:
+                log.warning("Guest API search fallo (start=%d): %s", start, e)
+            return ""
+        except Exception as e:  # noqa: BLE001
+            log.warning("Guest API search fallo (start=%d): %s", start, e)
+            return ""
 
 
 def _run_search_guest_http(page, role: str, city_name: str,
