@@ -93,7 +93,8 @@ docs/
   index.html                       # portada pública del portfolio
   dashboard/
     index.html                     # shell de la app
-    app.js                         # bootstrap, estado y render
+    app.js                         # bootstrap, controles de filtros y render
+    filters.js                     # estado de filtros globales y compositor del WHERE (módulo puro)
     queries.js                     # SQL DuckDB de las medidas y vistas
     charts.js                      # configuración ECharts
     i18n.js                        # diccionario ES/EN y preferencia de idioma
@@ -293,14 +294,18 @@ por `role_category` y por `WorkModeBucket`; top skills pagadas y ofertas por
 `experience_level`; rol → `role_category`; modalidad → `WorkModeBucket`;
 empresa → `company_name`; skill → existencia en `fact_offer_skills` para el
 `job_id`; fuente → `source_scraper`; rango salarial → `SalaryMaxAnnual_EUR`
-como en el modelo. `queries.js` compone el `WHERE` común y cada vista re-renderiza.
+como en el modelo. `filters.js` compone el `WHERE` común (fragmento sobre el
+alias `f`, con el filtro de skill como `EXISTS` y el rango salarial aparte,
+fuera del `where`) y `queries.js` lo inyecta en su único punto (`applyWhere`);
+cada vista re-renderiza.
 
 ## 8. Aplicación web
 
 | Fichero | Responsabilidad |
 |---|---|
 | `index.html` | Metadatos, cabecera con frescura, navegación de vistas, contenedores, import map del CDN |
-| `app.js` | Estado de filtros, arranque (carga de Parquet + `meta.json`), mensajes de error/degradación, render de la vista activa |
+| `app.js` | Arranque (carga de Parquet + `meta.json`), controles de filtros, mensajes de error/degradación, render de la vista activa |
+| `filters.js` | Estado de filtros globales y compositor único del `WHERE` y del rango salarial (módulo puro, sin DOM) |
 | `queries.js` | SQL de cada medida y agregación, documentado con la medida DAX de origen; sin reglas propias de negocio |
 | `charts.js` | Configuración ECharts (líneas, barras, burbuja, donut, mapa coroplético con GeoJSON) |
 | `i18n.js` | Diccionario español/inglés, selección y persistencia del idioma |
@@ -387,8 +392,10 @@ nombres y rutas que en Pages (RF-11). No sube nada ni publica.
 
 La app no tiene framework de tests (stack simple): cada tarea de vista se
 comprueba en local con la instantánea y una lista de verificación documentada
-(la vista carga, los filtros se aplican, los valores son coherentes). Las
-cifras se cotejan con el informe o sus capturas en la comprobación real.
+(la vista carga, los filtros se aplican, los valores son coherentes). El
+compositor de filtros (`filters.js`) es un módulo puro sin DOM, así que además
+puede cotejarse con Node y la instantánea al margen del navegador. Las cifras
+se cotejan con el informe o sus capturas en la comprobación real.
 
 ### Regresión
 
