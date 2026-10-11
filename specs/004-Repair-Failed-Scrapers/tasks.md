@@ -326,7 +326,7 @@ La lista de fuentes se recalcula con `targets` sobre el último diagnóstico; si
 el run cambia antes de ejecutarlas, los objetivos y playbooks se ajustan. Una
 reparación descartada o escalada se registra y no bloquea a las demás.
 
-- [ ] **T-32 — Reparar Indeed (playbook §6.2)** (ciclo completo)
+- [X] **T-32 — Reparar Indeed (playbook §6.2)** (ciclo completo)
   - **RF:** RF-1–RF-12.
   - **Hecho cuando:** el registro de `repair/indeed-<fecha>` queda probado (o
     escalado/descartado con justificación y opciones); la descripción alcanza el
