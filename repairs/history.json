@@ -14,6 +14,13 @@
       "last_run_date": "2026-10-05",
       "quality_delta_pp": null,
       "quality_ok": true
+    },
+    "linkedin": {
+      "best_verified_offers": 34,
+      "last_result": "probado",
+      "last_run_date": "2026-10-11",
+      "quality_delta_pp": -3.072354277246726,
+      "quality_ok": true
     }
   }
 }

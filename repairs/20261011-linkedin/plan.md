@@ -168,7 +168,8 @@ locales de usuario se escriben como <HOME>.
 
 Desde `linkedin_jobs_scraper/`:
 
-- `python -m pytest tests -q` → **152 passed** (104 antes de T-33). Tests
+- `python -m pytest tests -q` → **156 passed** (104 antes de T-33; +52
+  nuevos). Tests
   nuevos: `tests/test_store_pending.py` (helpers `detail_pending`,
   persistencia en `state.json` y carga retrocompatible con la clave ausente o
   entradas rotas), `tests/test_main_pending_retry.py` (ventana por ciudad
@@ -181,55 +182,87 @@ Desde `linkedin_jobs_scraper/`:
   sin descripción y `skills` intactas, flujo completo con copias y recuento
   invariante). En `tests/test_parse_detail.py`: capturas sin dígito
   (`", libra"`, `". €"`, `"., Euro"`) no generan salario y la modalidad cubre
-  ES/EN/NL/DE sin falsos positivos graves.
+  ES/EN/NL/DE sin falsos positivos graves. Añadido
+  `tests/test_guest_detail_live_fixture.py` (2 tests sobre la fixture guest
+  real `tests/fixtures/guest_detail_live_20261011.html`: descripción >1.000
+  caracteres, los 3 criterios leídos y `work_mode` vacío sin señal de
+  modalidad).
 
 Desde la raíz del repositorio:
 
 - `python -m pytest scrapers-pipeline/tests -q` → **1126 passed** (incluye la
   auditoría de higiene de `repairs/`).
 
-Todo offline, sin red ni navegador. La prueba en vivo (1 rol × 1 ciudad guest)
-la coordina el orquestador después; quedan pendientes el umbral y la puerta de
-calidad.
+Todo offline, sin red ni navegador. La prueba en vivo (1 rol × 1 ciudad × 50
+tarjetas, guest) se completó con la puerta de calidad en OK (ver «Pruebas:
+prueba en vivo»).
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+Alcance definitivo y comparable (§9): **1 rol × 1 ciudad × 50 tarjetas** en modo
+guest (volumen por defecto del config para Madrid); sin sesión navegada ni CDP
+(no aplica en guest). Umbral exigido: **1** (sin historial de `linkedin`).
+
+- **Comando:** `python -m src.main --guest --role "AI Engineer" --city Madrid --max-jobs-per-search 50 --no-apify --append` (desde `linkedin_jobs_scraper/`).
+- **Iteración de medición:** la ronda 1 (10 tarjetas, muestra n=9) dio puerta NO
+  OK por regresión de `work_mode` (-9,3 pp); la sonda de detalle
+  (`evidence/live-sample-detail-probe-20261011.txt`) demostró que el portal no
+  publica modalidad en esas filas (0 señales, 0 JSON-LD), así que el problema
+  era el tamaño de muestra. La ronda 2 usa el alcance definitivo (50 tarjetas,
+  muestra n=34).
+- **Recuento (ronda 2):** inicio `2026-10-11T20:01:01+00:00`, fin ~`20:05:50Z`
+  (4,7 min), **exit 0**; 50 tarjetas (5 páginas × 10), 50 ofertas base (34
+  nuevas; 15 detalles saltados por ya procesados), **35/35 detalles
+  completados**, 0 descripciones vacías, fase de reintento de pendientes sin
+  candidatos, 0 bloqueos, 0 desafíos y 0 HTTP 429; store total 9729.
+- **Muestra y puerta:** 34 ofertas únicas
+  (`evidence/live-test-sample-20261011b.parquet`) ≥ umbral 1; `quality.py` →
+  **OK** (exit 0): obligatorios al 100 %; `description` 90,2 → 100 %,
+  `work_mode` 42,6 → 61,8 %, `skills` 82,1 → 97,1 %, `salary` 17,8 → 14,7 %
+  (dentro de tolerancia); sin regresión. Veredicto en `quality_after.json`;
+  ronda 1 conservada en `evidence/quality-after-run1-20261011.json`.
+- **Restricciones:** sin subida a Azure, sin landing, sin merge; sin `--limit`;
+  perfil guest del scraper intacto; ninguna acción de cuenta.
+- **Evidencia:** `evidence/linkedin-20261011-live-test.txt` (extracto de ambas
+  rondas), `evidence/linkedin-20261011-quality-gate.txt` (rondas 2 y 1),
+  fixture saneada
+  `linkedin_jobs_scraper/tests/fixtures/guest_detail_live_20261011.html` y
+  captura completa `linkedin_jobs_scraper/data/live_test_20261011b.log` (fuera
+  de git).
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | 90.2 % | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | 17.8 % | pendiente | pendiente | sin meta | pendiente |
-| skills | no | 82.1 % | pendiente | pendiente | sin meta | pendiente |
-| work_mode | no | 42.6 % | pendiente | pendiente | sin meta | pendiente |
-| location | no | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | 96.4 % | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| title | sí | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| company | sí | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| description | sí | 90.2 % | 100.0 % | +9.8 pp | 100.0 % | cumple |
+| salary | no | 17.8 % | 14.7 % | -3.1 pp | sin meta | no aplica |
+| skills | no | 82.1 % | 97.1 % | +14.9 pp | sin meta | no aplica |
+| work_mode | no | 42.6 % | 61.8 % | +19.1 pp | sin meta | no aplica |
+| location | no | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| posted_date | no | 96.4 % | 100.0 % | +3.6 pp | 100.0 % | cumple |
 
-`quality_before.json` reconciliado (precedente de Indeed): `salary`,
-`work_mode` y `skills` sin meta (`target_pct: null`) porque el portal no los
-publica de forma fiable; la ausencia no es fallo y su cobertura se comparará
-sin regresión (tolerancia 5 pp). `description` mantiene meta 100 %.
-
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** Reparación probada: 34 ofertas verificadas (muestra ≥ umbral 1) en la prueba en
+vivo acotada (AI Engineer × Madrid, modo guest, 1 rol × 1 ciudad × 50
+tarjetas), con obligatorios al 100 % y puerta de calidad OK, sin regresión
+(description 90,2 → 100 %, work_mode 42,6 → 61,8 %, skills 82,1 → 97,1 %;
+salary 17,8 → 14,7 %, dentro de tolerancia). Histórico de 954 filas sin
+descripción: sin backfill, justificación registrada (robots.txt/TOS).
+- **Ofertas verificadas:** 34
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->

@@ -1,6 +1,7 @@
 Desde `linkedin_jobs_scraper/`:
 
-- `python -m pytest tests -q` → **152 passed** (104 antes de T-33). Tests
+- `python -m pytest tests -q` → **156 passed** (104 antes de T-33; +52
+  nuevos). Tests
   nuevos: `tests/test_store_pending.py` (helpers `detail_pending`,
   persistencia en `state.json` y carga retrocompatible con la clave ausente o
   entradas rotas), `tests/test_main_pending_retry.py` (ventana por ciudad
@@ -13,13 +14,17 @@ Desde `linkedin_jobs_scraper/`:
   sin descripción y `skills` intactas, flujo completo con copias y recuento
   invariante). En `tests/test_parse_detail.py`: capturas sin dígito
   (`", libra"`, `". €"`, `"., Euro"`) no generan salario y la modalidad cubre
-  ES/EN/NL/DE sin falsos positivos graves.
+  ES/EN/NL/DE sin falsos positivos graves. Añadido
+  `tests/test_guest_detail_live_fixture.py` (2 tests sobre la fixture guest
+  real `tests/fixtures/guest_detail_live_20261011.html`: descripción >1.000
+  caracteres, los 3 criterios leídos y `work_mode` vacío sin señal de
+  modalidad).
 
 Desde la raíz del repositorio:
 
 - `python -m pytest scrapers-pipeline/tests -q` → **1126 passed** (incluye la
   auditoría de higiene de `repairs/`).
 
-Todo offline, sin red ni navegador. La prueba en vivo (1 rol × 1 ciudad guest)
-la coordina el orquestador después; quedan pendientes el umbral y la puerta de
-calidad.
+Todo offline, sin red ni navegador. La prueba en vivo (1 rol × 1 ciudad × 50
+tarjetas, guest) se completó con la puerta de calidad en OK (ver «Pruebas:
+prueba en vivo»).

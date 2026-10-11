@@ -1,0 +1,126 @@
+Sonda de detalle guest de las 6 filas del sample con work_mode vacio
+(T-33 LinkedIn, post-prueba en vivo; solo lectura + 1 peticion guest por fila).
+Rutas: GET https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/<id>
+(misma ruta que usa el scraper en modo guest). Total: 6 peticiones,
+con pausa de 1.5-3.5 s entre ellas. Extractos saneados: sin cookies ni
+tokens; rutas de usuario como <HOME>.
+==============================================================================
+
+## 4475564054 | AI Engineer - Machine Learning LLM @ Client Server
+   peticion: 2026-10-11T19:55:40Z | bytes HTML: 55695
+   JSON-LD scripts: 0 | tipos: ninguno
+   JobPosting: NO
+   criterios guest (subheader -> texto):
+     - Nivel de antigüedad -> Intermedio
+     - Tipo de empleo -> Jornada completa
+     - Sectores -> Desarrollo de software, Tecnología, información y medios de comunicación y Servicios financieros
+   marcadores de modalidad FUERA de la descripcion: 1
+     · dQ9CV4FUCgYd6SA==" data-tracking-control-name="public_jobs_apply-link-onsite"> Solicitar </button>
+   marcadores de salario estructurado fuera de la descripcion: 0
+   descripcion re-extraida del HTML: 2283 chars | _infer_work_mode -> (ninguna)
+   artefactos de sesion detectados: ['Csrf']
+
+## 4474284221 | AI Engineer - Machine Learning LLM @ Client Server
+   peticion: 2026-10-11T19:55:42Z | bytes HTML: 39774
+   JSON-LD scripts: 0 | tipos: ninguno
+   JobPosting: NO
+   criterios guest (subheader -> texto):
+     - Nivel de antigüedad -> No corresponde
+     - Tipo de empleo -> Jornada completa
+     - Sectores -> Dotación y selección de personal
+   marcadores de modalidad FUERA de la descripcion: 0
+   marcadores de salario estructurado fuera de la descripcion: 0
+   descripcion re-extraida del HTML: 2263 chars | _infer_work_mode -> (ninguna)
+   artefactos de sesion detectados: ['Csrf']
+
+## 4471292917 | Ingeniero/a de IA Generativa @ Palatin
+   peticion: 2026-10-11T19:55:45Z | bytes HTML: 64530
+   JSON-LD scripts: 0 | tipos: ninguno
+   JobPosting: NO
+   criterios guest (subheader -> texto):
+     - Nivel de antigüedad -> Intermedio
+     - Tipo de empleo -> Jornada completa
+     - Sectores -> Desarrollo de software
+   marcadores de modalidad FUERA de la descripcion: 1
+     · KR2GWwmwWs4A4lg==" data-tracking-control-name="public_jobs_apply-link-onsite"> Solicitar </button>
+   marcadores de salario estructurado fuera de la descripcion: 0
+   descripcion re-extraida del HTML: 1362 chars | _infer_work_mode -> (ninguna)
+   artefactos de sesion detectados: ['Csrf']
+
+## 4476744605 | AI Engineer @ Winning
+   peticion: 2026-10-11T19:55:47Z | bytes HTML: 62826
+   JSON-LD scripts: 0 | tipos: ninguno
+   JobPosting: NO
+   criterios guest (subheader -> texto):
+     - Nivel de antigüedad -> Intermedio
+     - Tipo de empleo -> Jornada completa
+     - Sectores -> Publicaciones en línea
+   marcadores de modalidad FUERA de la descripcion: 0
+   marcadores de salario estructurado fuera de la descripcion: 0
+   descripcion re-extraida del HTML: 2423 chars | _infer_work_mode -> (ninguna)
+   artefactos de sesion detectados: ['Csrf']
+
+## 4474698472 | AI Engineer (Agentes IA, LLMs, RAG y Python) @ NTT DATA
+   peticion: 2026-10-11T19:55:50Z | bytes HTML: 57400
+   JSON-LD scripts: 0 | tipos: ninguno
+   JobPosting: NO
+   criterios guest (subheader -> texto):
+     - Nivel de antigüedad -> Algo de responsabilidad
+     - Tipo de empleo -> Jornada completa
+     - Sectores -> Servicios y consultoría de TI
+   marcadores de modalidad FUERA de la descripcion: 1
+     · dSpSrREu2vc4KIQ==" data-tracking-control-name="public_jobs_apply-link-onsite"> Solicitar </button>
+   marcadores de salario estructurado fuera de la descripcion: 0
+   descripcion re-extraida del HTML: 5142 chars | _infer_work_mode -> (ninguna)
+   artefactos de sesion detectados: ['Csrf']
+
+## 4476564639 | AI Engineer - Insurance Sector @ Winning
+   peticion: 2026-10-11T19:55:52Z | bytes HTML: 30869
+   JSON-LD scripts: 0 | tipos: ninguno
+   JobPosting: NO
+   criterios guest (subheader -> texto):
+     - Nivel de antigüedad -> Intermedio
+     - Tipo de empleo -> Jornada completa
+     - Sectores -> Servicios y consultoría de TI y Seguros
+   marcadores de modalidad FUERA de la descripcion: 1
+     · cGY3DyUg==" data-tracking-control-name="public_jobs_apply-link-simple_onsite"> Solicitar </button>
+   marcadores de salario estructurado fuera de la descripcion: 0
+   descripcion re-extraida del HTML: 2409 chars | _infer_work_mode -> (ninguna)
+   artefactos de sesion detectados: ['Csrf']
+
+==============================================================================
+Fixture guardada: linkedin_jobs_scraper/tests/fixtures/guest_detail_live_20261011.html
+  fila elegida: 4475564054 (AI Engineer - Machine Learning LLM @ Client Server) | score=2
+  Saneado: las 6 paginas traen `loginCsrfParam` (token publico del modal
+  de login guest, no vinculado a sesion autenticada); en la fixture su
+  valor se sustituye por <REDACTED>. No hay cookies, `li_at`, `JSESSIONID`
+  ni otros artefactos de sesion en ninguno de los 6 HTML.
+
+==============================================================================
+Conclusiones de la sonda
+==============================================================================
+- Filas 4475564054, 4474284221, 4471292917, 4476744605, 4474698472 y
+  4476564639: SIN senal de modalidad. No hay scripts JSON-LD (0 scripts en las
+  6), no existe el criterio "Workplace type"/"Modalidad" (solo Nivel de
+  antiguedad, Tipo de empleo y Sectores) y fuera de la descripcion no hay
+  ningun marcador de modalidad real: los 1-2 hits de `on-site` por pagina son
+  el atributo de tracking `public_jobs_apply-link-onsite`, no modalidad. Sus
+  descripciones tampoco contienen ninguna variante (remoto/remote/hibrido/
+  hybrid/presencial/teletrabajo/thuiswerk/home office/telecommute). El portal
+  no publica la modalidad para estos postings.
+- Control (filas con work_mode): 4476849178, 4475140666 y 4475712816 tienen
+  "Remoto" y sus descripciones contienen senales fuertes (`remoto`,
+  `teletrabajo`, `trabajo 100% remoto`) que `_infer_work_mode` captura. El
+  valor es explicable por inferencia de descripcion (y, si existiera criterio,
+  tambien por `_collect_chips`).
+- JSON-LD: 0 scripts `application/ld+json` en los 6 HTML; la cadena
+  "JobPosting" solo aparece como URN interna
+  (`data-semaphore-content-urn="urn:li:jobPosting:<id>"`) y en
+  `id="decoratedJobPostingId"`. No hay `baseSalary`, `employmentType`,
+  `jobLocationType` ni `datePosted` estructurados.
+- Salario estructurado: 0 marcadores (`baseSalary`/`monetaryAmount`/`salary`)
+  fuera de la descripcion. El salario disponible llega por prosa (2 de las 6
+  filas ya lo extraen: `£120,000` de Client Server).
+- Recomendacion: no hay extraccion implementable sobre este HTML guest que
+  suba la cobertura real de `work_mode`; la brecha es ausencia del dato en el
+  portal (varianza por posting), no del scraper.

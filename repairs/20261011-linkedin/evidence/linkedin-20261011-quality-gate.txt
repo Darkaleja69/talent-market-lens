@@ -1,0 +1,41 @@
+Puerta de calidad de la prueba en vivo de T-33 (LinkedIn) - dos rondas.
+
+=== Ronda 2 (alcance definitivo: 1 rol x 1 ciudad x 50 tarjetas) - 2026-10-11 ===
+
+Calidad de la prueba en vivo — fuente: linkedin
+Veredicto: OK
+Ofertas únicas medidas: 34
+Bloqueos: ninguno
+
+  Campo       | Obligatorio | Antes   | Después | Delta    | Meta     | Estado   
+  ------------+-------------+---------+---------+----------+----------+----------
+  id          | no          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple   
+  title       | sí          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple   
+  company     | sí          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple   
+  description | sí          | 90.2 %  | 100.0 % | +9.8 pp  | 100.0 %  | cumple   
+  salary      | no          | 17.8 %  | 14.7 %  | -3.1 pp  | sin meta | no aplica
+  skills      | no          | 82.1 %  | 97.1 %  | +14.9 pp | sin meta | no aplica
+  work_mode   | no          | 42.6 %  | 61.8 %  | +19.1 pp | sin meta | no aplica
+  location    | no          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple   
+  posted_date | no          | 96.4 %  | 100.0 % | +3.6 pp  | 100.0 %  | cumple   
+Calidad escrita en <HOME>\Documents\projects\repairs\20261011-linkedin\quality_after.json
+
+=== Ronda 1 (piloto de 10 tarjetas, n=9; NO OK por work_mode) - conservada para trazabilidad ===
+
+Calidad de la prueba en vivo — fuente: linkedin
+Veredicto: NO OK
+Ofertas únicas medidas: 9
+Bloqueos: regresión superior a 5.0 pp
+
+  Campo       | Obligatorio | Antes   | Después | Delta    | Meta     | Estado                                 
+  ------------+-------------+---------+---------+----------+----------+----------------------------------------
+  id          | no          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple                                 
+  title       | sí          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple                                 
+  company     | sí          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple                                 
+  description | sí          | 90.2 %  | 100.0 % | +9.8 pp  | 100.0 %  | cumple                                 
+  salary      | no          | 17.8 %  | 22.2 %  | +4.4 pp  | sin meta | no aplica                              
+  skills      | no          | 82.1 %  | 100.0 % | +17.9 pp | sin meta | no aplica                              
+  work_mode   | no          | 42.6 %  | 33.3 %  | -9.3 pp  | sin meta | no cumple (regresión superior a 5.0 pp)
+  location    | no          | 100.0 % | 100.0 % | +0.0 pp  | 100.0 %  | cumple                                 
+  posted_date | no          | 96.4 %  | 100.0 % | +3.6 pp  | 100.0 %  | cumple                                 
+Calidad escrita en <HOME>\Documents\projects\repairs\20261011-linkedin\quality_after.json

@@ -1,0 +1,105 @@
+{
+  "blockers": [
+    "regression_beyond_tolerance"
+  ],
+  "fields": [
+    {
+      "after_pct": 100.0,
+      "before_pct": 100.0,
+      "delta_pp": 0.0,
+      "field": "id",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": 100.0,
+      "delta_pp": 0.0,
+      "field": "title",
+      "reasons": [],
+      "required": true,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": 100.0,
+      "delta_pp": 0.0,
+      "field": "company",
+      "reasons": [],
+      "required": true,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": 90.15073301672517,
+      "delta_pp": 9.84926698327483,
+      "field": "description",
+      "reasons": [],
+      "required": true,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 22.22222222222222,
+      "before_pct": 17.7782366301879,
+      "delta_pp": 4.44398559203432,
+      "field": "salary",
+      "reasons": [],
+      "required": false,
+      "status": "not_applicable",
+      "target_pct": null
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": 82.11852157753458,
+      "delta_pp": 17.88147842246542,
+      "field": "skills",
+      "reasons": [],
+      "required": false,
+      "status": "not_applicable",
+      "target_pct": null
+    },
+    {
+      "after_pct": 33.333333333333336,
+      "before_pct": 42.62853603138551,
+      "delta_pp": -9.295202698052172,
+      "field": "work_mode",
+      "reasons": [
+        "regression_beyond_tolerance"
+      ],
+      "required": false,
+      "status": "fail",
+      "target_pct": null
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": 100.0,
+      "delta_pp": 0.0,
+      "field": "location",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    },
+    {
+      "after_pct": 100.0,
+      "before_pct": 96.38653727028701,
+      "delta_pp": 3.6134627297129924,
+      "field": "posted_date",
+      "reasons": [],
+      "required": false,
+      "status": "pass",
+      "target_pct": 100.0
+    }
+  ],
+  "missing_columns": [],
+  "ok": false,
+  "read_error": null,
+  "regression_tolerance_pp": 5.0,
+  "source": "linkedin",
+  "total_offers": 9
+}
