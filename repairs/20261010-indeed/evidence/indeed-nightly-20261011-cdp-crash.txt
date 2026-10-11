@@ -5,7 +5,7 @@ Extracto saneado del run nocturno 2026-10-11 (codigo nuevo T-32 presente en el a
 {
   "source": "indeed",
   "pid": 8296,
-  "stream": "C:\\Users\\aleja\\Documents\\projects\\indeed_jobs_scraper\\output\\nightly_stdout_IE_attempt1.log",
+  "stream": "<HOME>\\Documents\\projects\\indeed_jobs_scraper\\output\\nightly_stdout_IE_attempt1.log",
   "started_at": "2026-10-11T00:46:03.338267",
   "last_parsed": 0,
   "last_progress_at": "2026-10-11T00:46:03.338267",

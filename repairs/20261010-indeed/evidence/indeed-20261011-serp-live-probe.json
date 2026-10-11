@@ -1,0 +1,59 @@
+{
+  "date_local": "2026-10-11",
+  "window_local": "15:11-15:24 (aprox.)",
+  "tool": "agent-browser --cdp 9222 contra el Chrome real de la persona (sesion iniciada); sin close ni reinicio",
+  "tabs": {
+    "t1_persona": "https://es.indeed.com/?vjk=cc36ed5addc6e793 (intacta; no se navego con open en ella)",
+    "t2_probe": "https://nl.indeed.com/jobs?q=data&l=Rotterdam&radius=25&fromage=7 (pestana nueva creada solo para el diagnostico)"
+  },
+  "url_requested": "https://nl.indeed.com/jobs?q=data&l=Rotterdam&radius=25&fromage=7",
+  "url_final": "https://nl.indeed.com/jobs?q=data&l=Rotterdam&radius=25&fromage=7&vjk=c74ad662adfe7b9f",
+  "page_title": "Data - vacatures in Rotterdam - 11 oktober 2026 | Indeed",
+  "challenge": "ninguno visible (sin Security Check/Turnstile); errors de pagina: 0",
+  "navigation_redirect_count": 0,
+  "serp_dom": {
+    "div.cardOutline": 12,
+    "a_data_jk": 12,
+    "jk_placeholder_extra": "a1b2c3d4e5f67890 (no esta en mosaic-data; placeholder/skeleton)",
+    "old_selectors_counts": {
+      "#jobDescriptionText": 0,
+      "[data-testid=jobDescriptionText]": 0,
+      "[data-testid=jobsearch-JobInfoHeader-title]": 0,
+      "[data-testid=belowJobSnippet]": 0
+    }
+  },
+  "mosaic_json": {
+    "script_id": "mosaic-data",
+    "script_len": 187102,
+    "results": 11,
+    "snippet_key_present": true,
+    "snippet_empty_count": 11,
+    "jobSnippet_key_present": false
+  },
+  "autoopen_embedded": {
+    "present_in_html_today": true,
+    "where": "bundle inline (script sin id, 206313 chars) del HTML SSR (redirectCount 0)",
+    "candidates_found": 2,
+    "jobKey": "c74ad662adfe7b9f",
+    "title": "Fullstack BI-Specialist",
+    "status": "success",
+    "body_keys_count": 138,
+    "old_expected_path": "body.hostQueryExecutionResult.data.jobData.results[].job.description.html",
+    "old_expected_path_present": false,
+    "hostQueryExecutionResult_in_page": false,
+    "description_path_today": "body.jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription",
+    "description_html_len": 3037
+  },
+  "panel_after_click": {
+    "wrapper_testid": "viewjob-main-content",
+    "title_testid": "vj-job-title (compacta: vj-job-title-compact)",
+    "description_heading_testid": "vj-job-description-heading",
+    "description_container_testid": "viewjob-job-content",
+    "clicks": [
+      {"jk": "b7041f40c1315659", "panel_title": "Product data specialist/PIM Specialist", "content_text_len": 4266, "card_vjs_highlight": true, "old_selectors_after_click": 0},
+      {"jk": "c74ad662adfe7b9f", "panel_title": "Fullstack BI-Specialist", "content_text_len": 2880, "card_vjs_highlight": true, "old_selectors_after_click": 0}
+    ],
+    "reload_behavior": "identico: autoOpen presente, panel nuevo presente, selectores viejos 0, snippet vacio"
+  },
+  "sanitization": "sin cookies, tokens ni credenciales; rutas locales como HOME/TEMP"
+}

@@ -1,0 +1,23 @@
+Claves de texto del JSON de tarjetas (mosaic-data) - Q1
+=======================================================
+Extraido offline de <TEMP>\indeed-serp-20261011.html con
+scraper.parser._extract_jobcards_results (11 resultados; 11/11 con snippet vacio).
+
+Item 0 (c74ad662adfe7b9f, "Fullstack BI-Specialist", Data-First):
+  Claves de texto con valor: company, displayTitle, formattedLocation (Zuid-Holland),
+  formattedRelativeTime (4 dagen geleden), jobLocationState, jobkey, normTitle,
+  title, truncatedCompany, country... (mas ids/urls).
+  snippet (raw repr): ''
+  NO existe clave `jobSnippet` (0 apariciones en toda la pagina).
+Item 1 (b7041f40c1315659, "Product data specialist/PIM Specialist", Lincks Personal Recruitment):
+  Claves de texto con valor: company, displayTitle, formattedLocation (3336 Zwijndrecht),
+  jobLocationCity, jobLocationPostal, jobLocationState, normTitle, title, truncatedCompany...
+  snippet (raw repr): ''
+
+Notas:
+- Claves con tokens (adBlob, blobKey, link, viewJobLink, mobtk, searchUID,
+  encryptedResultData, thirdPartyApplyUrl) omitidas/recortadas en esta evidencia.
+- translatedAttributes / taxonomyAttributes / enhancedAttributesModel / enticers
+  solo llevan atributos o van vacios: no hay extracto de descripcion alternativo.
+- Conclusion Q1: hoy la SERP no publica extracto (`snippet` "" en 11/11 y 0
+  elementos [data-testid=belowJobSnippet]); no es un fallo del scraper.
