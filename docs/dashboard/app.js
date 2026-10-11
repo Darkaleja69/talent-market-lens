@@ -1576,8 +1576,13 @@ const safeJobUrl = (value) => {
 };
 
 /**
- * Maps a raw DuckDB row to display fields. A missing salary (null or ≤ 0, the
- * same quality rule as the salary measures) becomes null → localised N/D.
+ * Maps a raw DuckDB row to display fields. A missing salary (null, blank or
+ * ≤ 0) is not a disclosed salary and becomes null → localised N/D. The full
+ * measure quality rule (≤ €1,000,000 and min ≤ max, RF-8) belongs to the
+ * aggregate salary measures; this per-offer public field (RF-10) shows the
+ * exported mid value as-is because `queries.explorerOffers` projects only
+ * `SalaryMidAnnual_EUR`, so the min/max part of the rule cannot be checked
+ * without changing the SQL (out of scope).
  */
 function explorerRecord(row) {
   const salary = Number(row.SalaryMidAnnual_EUR);

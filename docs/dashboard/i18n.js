@@ -648,7 +648,12 @@ export function persistLanguage(storage, language) {
 
 const localeTag = (language) => (language === 'es' ? 'es-ES' : 'en-US');
 
+/**
+ * Null/blank values never become a date: `new Date(null)` is the Unix epoch,
+ * which used to format as "1 January 1970" (T-21).
+ */
 const toDate = (value) => {
+  if (value == null || value === '') return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 };
@@ -681,18 +686,21 @@ export function formatDateTime(value, language) {
  * keeping KPI cards coherent with the Power BI report.
  */
 export function formatCount(value, language) {
+  if (value == null || value === '') return '';
   const number = Number(value);
-  if (!Number.isFinite(number)) return String(value ?? '');
+  if (!Number.isFinite(number)) return String(value);
   return new Intl.NumberFormat(localeTag(language), { useGrouping: true }).format(number);
 }
 
 /**
  * Localised size of a byte count with one decimal (`2,9 MB` / `2.9 MB`).
- * Values below 1 MB keep two decimals; non-finite input passes through.
+ * Values below 1 MB keep two decimals; null/blank returns empty (it used to
+ * invent "0.0 MB") and non-finite input passes through as text (T-21).
  */
 export function formatBytes(value, language) {
+  if (value == null || value === '') return '';
   const bytes = Number(value);
-  if (!Number.isFinite(bytes) || bytes < 0) return String(value ?? '');
+  if (!Number.isFinite(bytes) || bytes < 0) return String(value);
   const megabytes = bytes / (1024 * 1024);
   const digits = megabytes < 1 && megabytes > 0 ? 2 : 1;
   const number = new Intl.NumberFormat(localeTag(language), {
@@ -704,8 +712,9 @@ export function formatBytes(value, language) {
 
 /** Localised annual EUR amount without decimals (`30.000 €` / `€30,000`). */
 export function formatSalary(value, language) {
+  if (value == null || value === '') return '';
   const number = Number(value);
-  if (!Number.isFinite(number)) return String(value ?? '');
+  if (!Number.isFinite(number)) return String(value);
   return new Intl.NumberFormat(localeTag(language), {
     style: 'currency',
     currency: 'EUR',

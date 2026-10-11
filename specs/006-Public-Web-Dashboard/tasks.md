@@ -166,6 +166,63 @@ comprobación. El trabajo vive en el worktree de la rama
     recuento por fuente desde `meta.json`), limitaciones conocidas y aviso
     legal, en español e inglés.
 
+## 4.1 Refinamiento visual y de UX (revisión de la persona, 2026-10-11)
+
+Se ejecuta tras T-14 y antes de la sección 5. La persona revisó las vistas y
+pidió: estética más cuidada y compacta, filtros colapsables, los KPIs del
+informe original en Market Pulse (tendencia a 6 meses), el gráfico de mediana
+por categoría en Roles & Skills, el selector de país con mapa por regiones en
+Salary Insights y tooltips siempre dentro de la pantalla. El código y la
+spec/plan se actualizan junto con estas tareas.
+
+- [x] **T-21 — Rediseño visual y tooltips contenidos** (~30 min)
+  - **RF:** RF-7, RF-16.
+  - **Depende de:** T-10–T-14.
+  - **Hecho cuando:** el sitio usa un sistema visual más pulido y compacto
+    (paleta, tipografía, tarjetas, sombras y grids revisados; gráficos y KPIs
+    más pequeños, legibles de un vistazo), los tooltips de todos los gráficos
+    quedan dentro del área visible (`confine`), la burbuja de Roles & Skills
+    no solapa el nombre del eje Y con su escala y los hallazgos MENOR del
+    grupo anterior quedan resueltos; las 5 vistas se revisan en local (ES/EN,
+    escritorio y móvil) sin regresiones y con las suites en verde.
+
+- [ ] **T-22 — Filtros colapsables y retirada del resumen provisional** (~20 min)
+  - **RF:** RF-9.
+  - **Depende de:** T-21.
+  - **Hecho cuando:** el panel de filtros se oculta tras un botón visible
+    (con un texto breve que explica su uso), los filtros activos y su limpieza
+    siguen accesibles con el panel cerrado, y el bloque provisional de
+    «Resumen con los filtros actuales» (T-09) se retira; comprobado en local
+    en ES/EN y móvil.
+
+- [ ] **T-23 — Market Pulse: KPIs del informe y tendencia a 6 meses** (~20 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-21.
+  - **Hecho cuando:** Market Pulse muestra los 4 KPIs del informe original
+    (ofertas únicas, empresas contratando, cuota remoto o híbrido y tasa de
+    publicación de salario), la tendencia mensual se limita a los últimos 6
+    meses del contexto y los gráficos quedan compactos y a la vista;
+    cotejado en local con la captura del informe.
+
+- [ ] **T-24 — Roles & Skills: mediana por categoría y burbuja pulida** (~20 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-21.
+  - **Hecho cuando:** la vista añade el gráfico de salario mediano por
+    categoría de skill (agregación directa con el filtro de calidad salarial),
+    coherente con la captura del informe, y la burbuja mantiene tooltips
+    contenidos y etiquetas legibles; ES/EN.
+
+- [ ] **T-25 — Salary Insights: selector de país y mapa por regiones** (~35 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-21.
+  - **Hecho cuando:** sobre el mapa aparecen los botones de país del informe
+    (Europa, Irlanda, Países Bajos, España, Suiza y Estados Unidos); al elegir
+    un país la vista se filtra y el mapa se centra en sus regiones (ofertas
+    por `GeoRegion` con el `regions.geojson` versionado), al elegir Europa se
+    ve el continente por países, los botones activos se distinguen, las
+    regiones sin dato quedan diferenciadas y el resultado se comprueba en
+    local en ES/EN y móvil.
+
 ## 5. Publicación y documentación
 
 - [ ] **T-15 — Portada y READMEs** (~20 min)

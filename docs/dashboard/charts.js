@@ -15,9 +15,14 @@ const defaultFormat = (value) => String(value ?? '');
 /** Shared grid with room for axis labels on every side. */
 const chartGrid = { left: 8, right: 16, top: 16, bottom: 8, containLabel: true };
 
-/** Axis-trigger tooltip whose values go through the caller's formatter. */
+/**
+ * Axis-trigger tooltip whose values go through the caller's formatter.
+ * `confine: true` keeps long tooltips inside the chart canvas (T-21): they are
+ * never clipped by the viewport edge.
+ */
 const axisTooltip = (formatValue) => ({
   trigger: 'axis',
+  confine: true,
   valueFormatter: (value) => formatValue(value),
 });
 
@@ -129,6 +134,7 @@ export function donutChart({
     animationDuration: 250,
     tooltip: {
       trigger: 'item',
+      confine: true,
       formatter: (params) => {
         const ratio = Number.isFinite(params.percent) ? params.percent / 100 : 0;
         return `${params.name}: ${formatValue(params.value)} (${formatPercent(ratio)})`;
@@ -197,8 +203,12 @@ export function choroplethOption({
     animationDuration: 250,
     tooltip: {
       trigger: 'item',
+      confine: true,
       formatter: (params) => {
-        const value = Number(params.value);
+        // Null/blank/absent values must take the "no data" branch too:
+        // `Number(null)` is 0 and would print an invented "0 postings" (T-21).
+        const raw = params.value;
+        const value = raw == null || raw === '' ? NaN : Number(raw);
         if (Number.isFinite(value)) {
           return formatTooltip
             ? formatTooltip(params.name, value)
@@ -233,7 +243,14 @@ export function choroplethOption({
         borderWidth: 0.6,
       },
       emphasis: { label: { show: true, fontSize: 10 } },
-      data: rows.map((row) => ({ name: row.country, value: Number(row.job_offers) || 0 })),
+      // A row without a numeric value keeps no `value` at all, so its tooltip
+      // takes the "no data" branch instead of showing a fabricated zero
+      // (`Number(null)` would be 0).
+      data: rows.map((row) => {
+        const raw = row.job_offers;
+        const value = raw == null || raw === '' ? NaN : Number(raw);
+        return Number.isFinite(value) ? { name: row.country, value } : { name: row.country };
+      }),
     }],
   };
 }
@@ -293,12 +310,25 @@ export function bubbleChart({
   };
   return {
     animationDuration: 250,
-    grid: { ...chartGrid, top: 36, bottom: 40 },
+    // Vertical room for the legend, the y-axis name at the top of the axis and
+    // the x-axis name below it; without it the y-axis name overlapped its own
+    // scale when the salary labels grew wide (T-21).
+    grid: { ...chartGrid, top: 46, bottom: 44 },
     legend: categories.length > 1
       ? { type: 'scroll', top: 0, data: categories }
       : { show: false },
     tooltip: {
       trigger: 'item',
+      confine: true,
+      // ECharts pins `white-space: nowrap` on the tooltip, so on narrow
+      // screens a long label overflowed the canvas and left the page
+      // horizontally scrollable (`confine` only moves the box, it does not
+      // shrink it). `width: max-content` keeps the natural single line and
+      // the viewport-relative cap (80px reserves page/card padding and the
+      // scrollbar, so on phones it lands on the chart container itself)
+      // plus wrapping brings it back inside the page.
+      extraCssText:
+        'width: max-content; max-width: max(100%, calc(100vw - 80px)); white-space: normal; overflow-wrap: break-word;',
       formatter: (params) =>
         (formatTooltip ? formatTooltip(params.data) : fallbackTooltip(params.data)),
     },
@@ -312,8 +342,11 @@ export function bubbleChart({
     yAxis: {
       type: 'value',
       name: yName,
-      nameLocation: 'middle',
-      nameGap: 52,
+      // `end` places the name above the axis, left-aligned with its first
+      // tick, so it never sits on top of the salary scale.
+      nameLocation: 'end',
+      nameGap: 16,
+      nameTextStyle: { align: 'left' },
       axisLabel: { formatter: (value) => formatY(value) },
     },
     series,
