@@ -337,7 +337,7 @@ reparación descartada o escalada se registra y no bloquea a las demás.
     (`salary` y `work_mode` si el sitio los expone; `skills` no se exige como
     campo: se derivan de la descripción en Databricks); tests en verde.
 
-- [ ] **T-33 — Reparar LinkedIn (playbook §6.3)** (ciclo completo)
+- [X] **T-33 — Reparar LinkedIn (playbook §6.3)** (ciclo completo)
   - **RF:** RF-1–RF-12.
   - **Hecho cuando:** el registro de `repair/linkedin-<fecha>` queda probado;
     la descripción agregada alcanza el 100 % (backfill del histórico o
