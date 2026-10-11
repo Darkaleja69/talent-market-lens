@@ -69,88 +69,91 @@
 
     <section id="filters-panel" class="filters" aria-labelledby="filters-title">
       <div class="filters__header">
-        <h2 id="filters-title" class="filters__title" data-i18n="filters.title">Global filters</h2>
+        <div class="filters__heading">
+          <h2 id="filters-title" class="filters__title" data-i18n="filters.title">Global filters</h2>
+          <button id="filters-toggle" class="filters__toggle" type="button"
+                  aria-expanded="false" aria-controls="filters-body" aria-describedby="filters-help"
+                  data-i18n-aria-label="filters.toggleAria">
+            <span class="filters__toggle-icon" aria-hidden="true"></span>
+            <span data-i18n="filters.toggle">Filters</span>
+          </button>
+          <p id="filters-help" class="filters__help" data-i18n="filters.help">These filters narrow all views at once.</p>
+        </div>
         <button id="clear-filters" class="filters__clear" type="button" data-i18n="filters.clearAll" disabled>Clear all</button>
       </div>
-      <div class="filters__grid">
-        <label class="filter" for="filter-country">
-          <span class="filter__label" data-i18n="filter.field.country">Country</span>
-          <select id="filter-country" class="filter__control" data-filter-key="country" disabled>
-            <option value="" data-i18n="filter.any">All</option>
-          </select>
-        </label>
+      <div id="filters-body" class="filters__body" hidden>
+        <div class="filters__grid">
+          <label class="filter" for="filter-country">
+            <span class="filter__label" data-i18n="filter.field.country">Country</span>
+            <select id="filter-country" class="filter__control" data-filter-key="country" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
 
-        <label class="filter" for="filter-experience">
-          <span class="filter__label" data-i18n="filter.field.experience">Experience</span>
-          <select id="filter-experience" class="filter__control" data-filter-key="experience" disabled>
-            <option value="" data-i18n="filter.any">All</option>
-          </select>
-        </label>
+          <label class="filter" for="filter-experience">
+            <span class="filter__label" data-i18n="filter.field.experience">Experience</span>
+            <select id="filter-experience" class="filter__control" data-filter-key="experience" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
 
-        <label class="filter" for="filter-role">
-          <span class="filter__label" data-i18n="filter.field.role">Role</span>
-          <select id="filter-role" class="filter__control" data-filter-key="role" disabled>
-            <option value="" data-i18n="filter.any">All</option>
-          </select>
-        </label>
+          <label class="filter" for="filter-role">
+            <span class="filter__label" data-i18n="filter.field.role">Role</span>
+            <select id="filter-role" class="filter__control" data-filter-key="role" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
 
-        <label class="filter" for="filter-work-mode">
-          <span class="filter__label" data-i18n="filter.field.workMode">Work mode</span>
-          <select id="filter-work-mode" class="filter__control" data-filter-key="workMode" disabled>
-            <option value="" data-i18n="filter.any">All</option>
-          </select>
-        </label>
+          <label class="filter" for="filter-work-mode">
+            <span class="filter__label" data-i18n="filter.field.workMode">Work mode</span>
+            <select id="filter-work-mode" class="filter__control" data-filter-key="workMode" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
 
-        <label class="filter" for="filter-company">
-          <span class="filter__label" data-i18n="filter.field.company">Company</span>
-          <input id="filter-company" class="filter__control" data-filter-key="company" type="text"
-                 list="filter-company-options" autocomplete="off" disabled>
-          <datalist id="filter-company-options"></datalist>
-        </label>
+          <label class="filter" for="filter-company">
+            <span class="filter__label" data-i18n="filter.field.company">Company</span>
+            <input id="filter-company" class="filter__control" data-filter-key="company" type="text"
+                   list="filter-company-options" autocomplete="off" disabled>
+            <datalist id="filter-company-options"></datalist>
+          </label>
 
-        <label class="filter" for="filter-skill">
-          <span class="filter__label" data-i18n="filter.field.skill">Skill</span>
-          <select id="filter-skill" class="filter__control" data-filter-key="skill" disabled>
-            <option value="" data-i18n="filter.any">All</option>
-          </select>
-        </label>
+          <label class="filter" for="filter-skill">
+            <span class="filter__label" data-i18n="filter.field.skill">Skill</span>
+            <select id="filter-skill" class="filter__control" data-filter-key="skill" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
 
-        <label class="filter" for="filter-source">
-          <span class="filter__label" data-i18n="filter.field.source">Source</span>
-          <select id="filter-source" class="filter__control" data-filter-key="source" disabled>
-            <option value="" data-i18n="filter.any">All</option>
-          </select>
-        </label>
+          <label class="filter" for="filter-source">
+            <span class="filter__label" data-i18n="filter.field.source">Source</span>
+            <select id="filter-source" class="filter__control" data-filter-key="source" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
 
-        <div class="filter filter--salary" role="group" data-i18n-aria-label="filter.field.salary">
-          <span class="filter__label" data-i18n="filter.field.salary">Salary</span>
-          <div class="filter__salary-row">
-            <label class="filter__salary" for="filter-salary-min">
-              <span class="visually-hidden" data-i18n="filter.field.salaryMin">Minimum salary (annual)</span>
-              <input id="filter-salary-min" class="filter__control" data-filter-key="salaryMin" type="number"
-                     min="0" step="1000" data-i18n-placeholder="filter.salary.placeholder"
-                     data-i18n-title="filter.salary.hint" disabled>
-            </label>
-            <span class="filter__salary-sep" aria-hidden="true">–</span>
-            <label class="filter__salary" for="filter-salary-max">
-              <span class="visually-hidden" data-i18n="filter.field.salaryMax">Maximum salary (annual)</span>
-              <input id="filter-salary-max" class="filter__control" data-filter-key="salaryMax" type="number"
-                     min="0" step="1000" data-i18n-placeholder="filter.salary.placeholder"
-                     data-i18n-title="filter.salary.hint" disabled>
-            </label>
+          <div class="filter filter--salary" role="group" data-i18n-aria-label="filter.field.salary">
+            <span class="filter__label" data-i18n="filter.field.salary">Salary</span>
+            <div class="filter__salary-row">
+              <label class="filter__salary" for="filter-salary-min">
+                <span class="visually-hidden" data-i18n="filter.field.salaryMin">Minimum salary (annual)</span>
+                <input id="filter-salary-min" class="filter__control" data-filter-key="salaryMin" type="number"
+                       min="0" step="1000" data-i18n-placeholder="filter.salary.placeholder"
+                       data-i18n-title="filter.salary.hint" disabled>
+              </label>
+              <span class="filter__salary-sep" aria-hidden="true">–</span>
+              <label class="filter__salary" for="filter-salary-max">
+                <span class="visually-hidden" data-i18n="filter.field.salaryMax">Maximum salary (annual)</span>
+                <input id="filter-salary-max" class="filter__control" data-filter-key="salaryMax" type="number"
+                       min="0" step="1000" data-i18n-placeholder="filter.salary.placeholder"
+                       data-i18n-title="filter.salary.hint" disabled>
+              </label>
+            </div>
           </div>
         </div>
       </div>
       <div id="filter-chips" class="filters__chips" role="group" data-i18n-aria-label="filters.active">
         <p class="filters__hint" data-i18n="filters.none">No active filters</p>
-      </div>
-    </section>
-
-    <section id="filter-summary" class="summary" aria-labelledby="summary-title">
-      <h2 id="summary-title" class="summary__title" data-i18n="filters.summary.title">Summary with the current filters</h2>
-      <p class="summary__note" data-i18n="filters.summary.note">Temporary check: these figures run the same queries as the views.</p>
-      <div id="summary-body" class="summary__body">
-        <p class="summary__pending" data-i18n="filters.summary.pending">Waiting for the data…</p>
       </div>
     </section>
 

@@ -104,6 +104,7 @@ body {
   .kpi,
   .chart-card,
   .view-nav__link,
+  .filters__toggle,
   .filters__clear,
   .explorer-search__clear,
   .explorer__page-button,
@@ -780,8 +781,7 @@ body {
 
 /* --------------------------------------------------------------- filters --- */
 
-.filters,
-.summary {
+.filters {
   padding: 0.9rem 1.1rem;
   margin-bottom: 0.9rem;
   border: 1px solid var(--color-border);
@@ -798,10 +798,71 @@ body {
   gap: 0.4rem 1rem;
 }
 
-.filters__title,
-.summary__title {
+.filters__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.6rem;
+  min-width: 0;
+}
+
+.filters__title {
   margin: 0;
   font-size: clamp(0.98rem, 1.4vw, 1.1rem);
+}
+
+/* Visible toggle of the collapsible control grid (T-22); the glyph flips with
+   the expanded state and `hidden` collapses the panel itself. */
+.filters__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.filters__toggle[aria-expanded="false"]:hover {
+  background: var(--color-accent-soft);
+}
+
+.filters__toggle[aria-expanded="true"] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.filters__toggle-icon {
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+.filters__toggle-icon::before {
+  content: "▸";
+}
+
+.filters__toggle[aria-expanded="true"] .filters__toggle-icon::before {
+  content: "▾";
+}
+
+.filters__help {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.filters__body {
+  margin-top: 0.75rem;
+}
+
+.filters__body .filters__grid {
+  margin-top: 0;
 }
 
 .filters__clear {
@@ -943,63 +1004,6 @@ body {
   background: #d3e2f5;
 }
 
-/* --------------------------------------------------------------- summary --- */
-
-.summary__note {
-  margin: 0.2rem 0 0.7rem;
-  color: var(--color-muted);
-  font-size: 0.85rem;
-}
-
-.summary__list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.6rem 0.9rem;
-  margin: 0;
-}
-
-.summary__list dt {
-  margin: 0;
-  color: var(--color-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.summary__list dd {
-  margin: 0.1rem 0 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.summary__pending,
-.summary__unavailable {
-  margin: 0;
-  color: var(--color-muted);
-}
-
-.summary__empty {
-  margin: 0;
-  padding: 0.5rem 0.8rem;
-  border-radius: var(--radius-sm);
-  background: var(--color-pending-bg);
-  color: var(--color-pending-text);
-  font-weight: 600;
-  font-size: 0.88rem;
-}
-
-.summary__error {
-  margin: 0;
-  padding: 0.5rem 0.8rem;
-  border-radius: var(--radius-sm);
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
-  font-weight: 600;
-  font-size: 0.88rem;
-}
-
 [hidden] {
   display: none !important;
 }
@@ -1042,6 +1046,10 @@ body {
   .view-nav__link {
     padding: 0.3rem 0.6rem;
     font-size: 0.82rem;
+  }
+
+  .filters__help {
+    flex-basis: 100%;
   }
 
   .kpi-grid {

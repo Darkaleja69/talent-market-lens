@@ -186,7 +186,7 @@ spec/plan se actualizan junto con estas tareas.
     grupo anterior quedan resueltos; las 5 vistas se revisan en local (ES/EN,
     escritorio y móvil) sin regresiones y con las suites en verde.
 
-- [ ] **T-22 — Filtros colapsables y retirada del resumen provisional** (~20 min)
+- [x] **T-22 — Filtros colapsables y retirada del resumen provisional** (~20 min)
   - **RF:** RF-9.
   - **Depende de:** T-21.
   - **Hecho cuando:** el panel de filtros se oculta tras un botón visible

@@ -20,11 +20,13 @@
  *
  * T-09 (RF-9): the global filter state lives here and is composed into one
  * WHERE fragment by `filters.js`; the categorical controls are populated once
- * with SELECT DISTINCT, the active filters are shown as removable chips and a
- * small coherence summary runs `queries.js` with the current state. T-10 adds
- * the Market Pulse renderer: a filter change re-renders the active view (same
- * debounce), every render disposes the previous ECharts instances and a
- * missing ECharts leaves the KPIs with a localised note where charts would be.
+ * with SELECT DISTINCT and the active filters are shown as removable chips.
+ * T-22 collapses the control grid behind a visible toggle button (with a short
+ * help text) while the chips and "clear all" stay reachable with the panel
+ * closed. T-10 adds the Market Pulse renderer: a filter change re-renders the
+ * active view (same debounce), every render disposes the previous ECharts
+ * instances and a missing ECharts leaves the KPIs with a localised note where
+ * charts would be.
  *
  * Degradation (RF-14): missing files, unsupported WASM, CDN failures and a
  * non-`full` export mode never leave a blank page; each case raises a visible
@@ -152,7 +154,6 @@ const state = {
   activeViewId: DEFAULT_VIEW.id,
   filters: createFilters(),
   filtersReady: false,
-  summary: { status: 'pending', values: null },
 };
 
 const elements = {
@@ -165,7 +166,8 @@ const elements = {
   filterControls: {},
   filterChips: null,
   clearFilters: null,
-  summaryBody: null,
+  filtersToggle: null,
+  filtersBody: null,
   companyOptions: null,
 };
 
@@ -372,7 +374,6 @@ function renderAll() {
   renderNotices();
   renderActiveView();
   renderFilterChips();
-  renderSummary();
 }
 
 /* ========================================================================== *
@@ -507,7 +508,7 @@ function bindLanguageSelector() {
 }
 
 /* ========================================================================== *
- * Global filters (RF-9): one compositor, visible chips, coherence summary
+ * Global filters (RF-9): one compositor, visible chips, collapsible panel
  * ========================================================================== */
 
 const FILTER_CONTROL_IDS = {
@@ -563,16 +564,8 @@ FROM fact_offers AS f
 WHERE TRIM(COALESCE(f.company_name, '')) <> ''
 ORDER BY value`;
 
-const SUMMARY_MESSAGE_KEYS = {
-  pending: 'filters.summary.pending',
-  unavailable: 'filters.summary.unavailable',
-  empty: 'filters.summary.empty',
-  error: 'filters.summary.error',
-};
-
 let filterInputTimer = null;
 const pendingFilterPatches = new Map();
-let summaryRequestId = 0;
 
 function newOptionElement(value) {
   const option = document.createElement('option');
@@ -669,77 +662,6 @@ function renderFilterChips() {
   elements.filterChips.replaceChildren(list);
 }
 
-function renderSummary() {
-  if (!elements.summaryBody) return;
-  const { status, values } = state.summary;
-  if (status === 'ready') {
-    const rows = [
-      [t('filters.summary.total'), formatCount(values.total, state.language)],
-      [t('filters.summary.monthly'), formatCount(values.monthly, state.language)],
-    ];
-    if (values.skillDemand != null) {
-      rows.push([
-        t('filters.summary.skillDemand', { skill: state.filters.skill }),
-        formatCount(values.skillDemand, state.language),
-      ]);
-    }
-    const list = document.createElement('dl');
-    list.className = 'summary__list';
-    for (const [term, value] of rows) {
-      const dt = document.createElement('dt');
-      dt.textContent = term;
-      const dd = document.createElement('dd');
-      dd.textContent = value;
-      list.append(dt, dd);
-    }
-    elements.summaryBody.replaceChildren(list);
-    return;
-  }
-  const message = document.createElement('p');
-  message.className = `summary__${status}`;
-  message.textContent = t(SUMMARY_MESSAGE_KEYS[status] || 'filters.summary.error');
-  elements.summaryBody.replaceChildren(message);
-}
-
-/**
- * Runs the real queries of queries.js with the current state: the total
- * (measure 1) plus the monthly trend sum, which must agree with the total. A
- * skill filter adds the bridge demand of the selected skill. This is the
- * temporary coherence surface until T-10–T-14 render the view KPIs.
- */
-async function refreshSummary() {
-  if (!state.filtersReady) {
-    state.summary = { status: 'pending', values: null };
-    renderSummary();
-    return;
-  }
-  const requestId = ++summaryRequestId;
-  const options = buildQueryOptions(state.filters);
-  try {
-    const [totalRows, trendRows] = await Promise.all([
-      runQuery(queries.totalJobOffers(options)),
-      runQuery(queries.monthlyTrend(options)),
-    ]);
-    let skillDemand = null;
-    if (!isBlank(state.filters.skill)) {
-      const rows = await runQuery(queries.skillDemand(options));
-      const match = rows.find((row) => row.skill === state.filters.skill);
-      skillDemand = match ? match.skill_demand : 0;
-    }
-    if (requestId !== summaryRequestId) return;
-    const total = totalRows.length > 0 ? totalRows[0].total_job_offers : 0;
-    const monthly = trendRows.reduce((sum, row) => sum + (Number(row.job_offers) || 0), 0);
-    state.summary = total === 0
-      ? { status: 'empty', values: null }
-      : { status: 'ready', values: { total, monthly, skillDemand } };
-  } catch (error) {
-    if (requestId !== summaryRequestId) return;
-    console.error('[tml] filter summary query failed:', error);
-    state.summary = { status: 'error', values: null };
-  }
-  renderSummary();
-}
-
 function syncFilterControls() {
   for (const [key, control] of Object.entries(elements.filterControls)) {
     if (control) control.value = state.filters[key] ?? '';
@@ -754,9 +676,9 @@ function applyFilterChange(filters) {
   syncFilterControls();
   renderFilterChips();
   if (!state.filtersReady) return Promise.resolve();
-  // The coherence summary and the active view share the same filter state;
-  // awaiting both keeps `window.tml.setFilters()` truthful for local checks.
-  return Promise.all([refreshSummary(), renderActiveView()]);
+  // Awaiting the active view keeps `window.tml.setFilters()` truthful for
+  // local checks: when the promise resolves, the render reflects the new state.
+  return renderActiveView();
 }
 
 function setFilters(patch) {
@@ -810,13 +732,32 @@ function bindFilterControls() {
   }
 }
 
+/**
+ * Shows/hides the collapsible control grid. The panel starts closed (the
+ * `hidden` attribute in index.html) and `aria-expanded` stays in sync.
+ */
+function setFiltersPanelOpen(open) {
+  if (!elements.filtersToggle || !elements.filtersBody) return;
+  elements.filtersBody.hidden = !open;
+  elements.filtersToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+/**
+ * The toggle is a native `type="button"`: Enter/Space fire `click` without
+ * extra key handling, and `aria-expanded`/`aria-controls` expose the state.
+ */
+function bindFiltersToggle() {
+  if (!elements.filtersToggle) return;
+  elements.filtersToggle.addEventListener('click', () => {
+    setFiltersPanelOpen(elements.filtersToggle.getAttribute('aria-expanded') !== 'true');
+  });
+}
+
 /** Marks the whole filter surface as unavailable (degraded boot paths). */
 function markFiltersUnavailable() {
   state.filtersReady = false;
-  state.summary = { status: 'unavailable', values: null };
   setFilterControlsEnabled(false);
   renderFilterChips();
-  renderSummary();
 }
 
 async function initializeFilters() {
@@ -830,7 +771,6 @@ async function initializeFilters() {
   state.filtersReady = true;
   setFilterControlsEnabled(true);
   renderFilterChips();
-  await refreshSummary();
   await renderActiveView();
 }
 
@@ -2153,7 +2093,8 @@ async function boot() {
   elements.languageSelect = document.getElementById('language-select');
   elements.filterChips = document.getElementById('filter-chips');
   elements.clearFilters = document.getElementById('clear-filters');
-  elements.summaryBody = document.getElementById('summary-body');
+  elements.filtersToggle = document.getElementById('filters-toggle');
+  elements.filtersBody = document.getElementById('filters-body');
   elements.companyOptions = document.getElementById('filter-company-options');
   elements.filterControls = Object.fromEntries(
     Object.entries(FILTER_CONTROL_IDS).map(([key, id]) => [key, document.getElementById(id)]),
@@ -2166,6 +2107,7 @@ async function boot() {
   applyDocumentTranslations(document, state.language);
   bindLanguageSelector();
   bindFilterControls();
+  bindFiltersToggle();
   window.addEventListener('hashchange', applyRoute);
   window.addEventListener('resize', resizeCharts);
   applyRoute();
