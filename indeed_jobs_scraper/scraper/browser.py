@@ -40,6 +40,64 @@ CDP_ATTEMPTS = 3
 CDP_CONNECT_TIMEOUT_MS = 20000
 CDP_RETRY_BACKOFF_S = (2.0, 5.0)
 
+# Un driver de patchright caido no se recupera: reintentar connect_over_cdp
+# contra la misma instancia es inutil y el intento siguiente puede no volver
+# nunca. En el run nocturno 2026-10-11, tras el crash del driver node
+# ("Connection closed while reading from the driver"), el intento 3 se quedo
+# colgado ~40 min hasta que el watchdog mato la run (exit=75). Al detectar el
+# driver muerto se aborta la fase CDP sin mas intentos y BrowserSession
+# descarta la instancia Playwright antes del fallback.
+DRIVER_DEAD_EXCEPTION_NAMES = frozenset({"TargetClosedError", "ProtocolError"})
+DRIVER_DEAD_MESSAGE_MARKERS = (
+    "connection closed while reading from the driver",
+    "targetclosederror",
+    "target closed",
+    "target page, context or browser has been closed",
+    "browser has been closed",
+    "protocol error",
+    "protocolerror",
+    "driver is closed",
+    "driver stopped",
+)
+
+
+def is_driver_dead_error(exc: BaseException) -> bool:
+    """True si la excepcion indica que el driver de patchright murio (T-32).
+
+    Un timeout de ``connect_over_cdp`` es un fallo normal y se reintenta; un
+    cierre del driver no: la instancia Playwright queda inservible y hay que
+    descartarla en vez de seguir usandola.
+    """
+    if type(exc).__name__ in DRIVER_DEAD_EXCEPTION_NAMES:
+        return True
+    return has_driver_dead_marker(str(exc))
+
+
+def has_driver_dead_marker(text: str) -> bool:
+    """True si un texto de error/detalle contiene una marca de driver muerto."""
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in DRIVER_DEAD_MESSAGE_MARKERS)
+
+
+# Descarte de la instancia Playwright que ya no sirve. La API sync de
+# patchright usa greenlets y no admite ``stop()`` desde otro hilo
+# ("greenlet.error: Cannot switch to a different thread"; ademas deja la
+# instancia inutilizable para el siguiente ``sync_playwright()``), asi que la
+# parada se hace en el hilo propietario y protegida con ``try``: con el driver
+# muerto termina al instante (el subproceso node ya no existe).
+def discard_playwright(pw: "Playwright | None") -> None:
+    """Descarta una instancia Playwright que ya no sirve (T-32).
+
+    Se llama en el hilo propietario y nunca deja escapar la excepcion: si el
+    driver murio, ``stop()`` puede fallar, pero no debe impedir el fallback.
+    """
+    if pw is None:
+        return
+    try:
+        pw.stop()
+    except Exception as e:
+        log.debug("pw.stop() fallo al descartar la instancia (driver muerto?): %s", e)
+
 
 def probe_cdp_handshake(browser: "Browser") -> tuple[bool, str]:
     """Verifica una conexion CDP con una operacion real minima (T-32).
@@ -91,7 +149,10 @@ def open_cdp_browser(
     """Conecta al endpoint CDP y verifica el handshake, con reintentos (T-32).
 
     Devuelve el ``Browser`` conectado o ``None`` cuando todos los intentos
-    fallan. Un navegador que conecta pero no supera la operacion minima se
+    fallan o cuando el driver de patchright muere: en ese caso se aborta la
+    fase CDP de inmediato (sin mas intentos), porque la instancia Playwright
+    ya no sirve y el siguiente ``connect_over_cdp`` podria no volver nunca.
+    Un navegador que conecta pero no supera la operacion minima se
     desconecta antes del siguiente intento; el Chrome vivo del usuario no se
     toca mas alla de las paginas de prueba (que se cierran). ``sleep_fn`` se
     inyecta en los tests para no esperar de verdad.
@@ -108,6 +169,13 @@ def open_cdp_browser(
                 "CDP intento %d/%d: connect_over_cdp fallo en %s: %s",
                 attempt, attempts, endpoint, e,
             )
+            if is_driver_dead_error(e):
+                logger.warning(
+                    "CDP: el driver de patchright cayo (intento %d/%d); se aborta "
+                    "la fase CDP sin mas intentos y se descarta la instancia.",
+                    attempt, attempts,
+                )
+                return None
 
         if browser is not None:
             ok, detail = probe_cdp_handshake(browser)
@@ -123,8 +191,15 @@ def open_cdp_browser(
             )
             try:
                 browser.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("no se pudo cerrar el browser CDP: %s", e)
+            if has_driver_dead_marker(detail):
+                logger.warning(
+                    "CDP: el handshake indico un driver caido (intento %d/%d: %s); "
+                    "se aborta la fase CDP sin mas intentos y se descarta la instancia.",
+                    attempt, attempts, detail,
+                )
+                return None
 
         if attempt < attempts:
             delay = random.uniform(*backoff_s) if backoff_s else 0.0
@@ -218,14 +293,27 @@ class BrowserSession:
             # sesion CDP), suficiente para la pagina 1; el runner limita pages a 1.
             self.cdp_fallback = True
             log.warning(
-                "CDP: handshake no verificado tras %d intentos en localhost:%d; "
-                "continuando con navegador propio headed (sin sesion de Chrome). "
-                "Para el flujo con sesion, relanza Chrome (start_chrome_cdp.ps1) y "
-                "vuelve a intentarlo.",
-                CDP_ATTEMPTS, self.cdp_port,
+                "CDP: sin handshake verificado en localhost:%d (el driver puede "
+                "haber caido); continuando con navegador propio headed (sin sesion "
+                "de Chrome). Para el flujo con sesion, relanza Chrome "
+                "(start_chrome_cdp.ps1) y vuelve a intentarlo.",
+                self.cdp_port,
             )
+            # La instancia usada para CDP puede estar muerta o colgada: se
+            # descarta (stop protegido, en el hilo propietario) y el fallback
+            # arranca una NUEVA instancia de sync_playwright().
+            discard_playwright(self._pw)
+            self._pw = sync_playwright().start()
 
-        self._launch_owned()
+        try:
+            self._launch_owned()
+        except Exception as e:
+            # Fallback (o modo propio) sin reintentos: error claro y cierre del
+            # driver para no dejar subprocesos colgados.
+            log.error("no se pudo lanzar el navegador propio: %s", e)
+            discard_playwright(self._pw)
+            self._pw = None
+            raise
 
     def _launch_owned(self) -> None:
         """Lanza un Chrome propio de patchright (headed), con o sin perfil.

@@ -2,8 +2,14 @@
 
 Sin navegador ni red: ``open_cdp_browser`` se ejercita con un patchright falso
 inyectado (conexiones que fallan, conectan pero no responden, o responden) y
-``BrowserSession`` se prueba monkeypatcheando ``scraper.browser.open_cdp_browser``.
-El fallback degrada a navegador propio headed y el runner limita a 1 pagina.
+``BrowserSession`` se prueba monkeypatcheando ``scraper.browser.open_cdp_browser``
+o con una secuencia de instancias Playwright falsas. El fallback degrada a
+navegador propio headed y el runner limita a 1 pagina.
+
+Iteracion 2 (run 2026-10-11): si el driver de patchright muere, la fase CDP se
+aborta sin mas intentos (un connect contra el driver muerto puede colgarse) y
+``BrowserSession`` descarta la instancia Playwright y arranca una nueva para el
+fallback; los timeouts normales siguen reintentando.
 """
 from __future__ import annotations
 
@@ -12,8 +18,17 @@ import sys
 import types
 from types import SimpleNamespace
 
+import pytest
+
 from scraper import browser as browser_mod
-from scraper.browser import BrowserSession, open_cdp_browser, probe_cdp_handshake
+from scraper.browser import (
+    BrowserSession,
+    discard_playwright,
+    has_driver_dead_marker,
+    is_driver_dead_error,
+    open_cdp_browser,
+    probe_cdp_handshake,
+)
 from scraper.config import COUNTRIES
 from scraper.runner import ScraperRunner
 
@@ -39,12 +54,15 @@ class FakePage:
 
 
 class FakeContext:
-    def __init__(self, fail_new_page: bool = False):
+    def __init__(self, fail_new_page: bool = False, new_page_error: Exception | None = None):
         self.fail_new_page = fail_new_page
+        self.new_page_error = new_page_error
         self.pages: list[FakePage] = []
         self.closed = False
 
     def new_page(self) -> FakePage:
+        if self.new_page_error is not None:
+            raise self.new_page_error
         if self.fail_new_page:
             raise RuntimeError("Network.setCacheDisabled ... session closed")
         page = FakePage()
@@ -100,7 +118,10 @@ class FakePlaywright:
     def launch(self, **kwargs):
         self.launch_calls.append(kwargs)
         if self.launch_results:
-            return self.launch_results.pop(0)
+            result = self.launch_results.pop(0)
+            if isinstance(result, Exception):
+                raise result
+            return result
         return FakeOwnedBrowser()
 
     def launch_persistent_context(self, **kwargs):  # pragma: no cover - no usado
@@ -133,6 +154,26 @@ class FakeStarter:
 
     def start(self):
         return self._playwright
+
+
+class FakeSyncPlaywrightFactory:
+    """Doble de ``sync_playwright``: una instancia nueva por cada llamada.
+
+    Cada ``sync_playwright()`` devuelve un starter que entrega la siguiente
+    instancia de la lista. Si el codigo pide mas instancias que las previstas,
+    el doble falla (senal de que no se creo exactamente una instancia nueva).
+    """
+
+    def __init__(self, playwrights):
+        self._pending = list(playwrights)
+        self.starters: list[FakeStarter] = []
+
+    def __call__(self) -> FakeStarter:
+        if not self._pending:
+            raise AssertionError("el doble no tiene mas instancias de Playwright")
+        starter = FakeStarter(self._pending.pop(0))
+        self.starters.append(starter)
+        return starter
 
 
 # --- probe_cdp_handshake ----------------------------------------------------
@@ -235,6 +276,112 @@ def test_open_cdp_browser_does_not_sleep_after_the_last_attempt():
     assert slept == []
 
 
+def test_is_driver_dead_error_matches_crash_signals():
+    class TargetClosedError(RuntimeError):
+        pass
+
+    class ProtocolError(RuntimeError):
+        pass
+
+    assert is_driver_dead_error(
+        RuntimeError(
+            "BrowserType.connect_over_cdp: Connection closed while reading "
+            "from the driver"
+        )
+    )
+    assert is_driver_dead_error(TargetClosedError("target closed"))
+    assert is_driver_dead_error(ProtocolError("Network.setCacheDisabled failed"))
+
+
+def test_is_driver_dead_error_ignores_normal_timeouts():
+    assert (
+        is_driver_dead_error(
+            RuntimeError("BrowserType.connect_over_cdp: Timeout 20000ms exceeded.")
+        )
+        is False
+    )
+    assert has_driver_dead_marker("la operacion minima fallo: timeout de pagina") is False
+
+
+def test_open_cdp_browser_aborts_immediately_when_driver_dies():
+    pw = FakePlaywright(
+        [
+            RuntimeError(
+                "BrowserType.connect_over_cdp: Connection closed while reading "
+                "from the driver"
+            )
+        ]
+    )
+    slept, sleep_fn = _sleep_recorder()
+
+    browser = open_cdp_browser(pw, 9222, attempts=3, sleep_fn=sleep_fn)
+
+    assert browser is None
+    assert len(pw.chromium.calls) == 1  # sin mas intentos CDP
+    assert slept == []  # ni backoff: la instancia ya no sirve
+
+
+def test_open_cdp_browser_aborts_when_probe_reports_a_dead_driver():
+    dead = FakeBrowser(
+        [
+            FakeContext(
+                new_page_error=RuntimeError(
+                    "Target page, context or browser has been closed"
+                )
+            )
+        ]
+    )
+    pw = FakePlaywright([dead])
+    slept, sleep_fn = _sleep_recorder()
+
+    browser = open_cdp_browser(pw, 9222, attempts=3, sleep_fn=sleep_fn)
+
+    assert browser is None
+    assert dead.closed is True  # desconectado antes de abortar
+    assert len(pw.chromium.calls) == 1
+    assert slept == []
+
+
+def test_open_cdp_browser_keeps_retrying_on_connect_timeouts():
+    pw = FakePlaywright(
+        [
+            RuntimeError("BrowserType.connect_over_cdp: Timeout 20000ms exceeded."),
+            RuntimeError("BrowserType.connect_over_cdp: Timeout 20000ms exceeded."),
+            RuntimeError("BrowserType.connect_over_cdp: Timeout 20000ms exceeded."),
+        ]
+    )
+    slept, sleep_fn = _sleep_recorder()
+
+    browser = open_cdp_browser(pw, 9222, attempts=3, backoff_s=(2.0, 2.0), sleep_fn=sleep_fn)
+
+    assert browser is None
+    assert len(pw.chromium.calls) == 3
+    assert slept == [2.0, 2.0]
+
+
+# --- discard_playwright: descarte de la instancia muerta ---------------------
+
+
+def test_discard_playwright_stops_a_healthy_instance():
+    pw = FakePlaywright([])
+
+    discard_playwright(pw)
+
+    assert pw.stopped is True
+
+
+def test_discard_playwright_never_raises_when_the_driver_died():
+    class DeadPlaywright:
+        def stop(self):
+            raise RuntimeError("Connection closed while reading from the driver")
+
+    discard_playwright(DeadPlaywright())  # no debe propagar la excepcion
+
+
+def test_discard_playwright_accepts_none():
+    discard_playwright(None)
+
+
 # --- BrowserSession: fallback a navegador propio ----------------------------
 
 
@@ -243,9 +390,16 @@ def _install_fake_patchright(monkeypatch, pw):
     monkeypatch.setitem(sys.modules, "patchright.sync_api", module)
 
 
+def _install_fake_patchright_factory(monkeypatch, factory):
+    module = types.SimpleNamespace(sync_playwright=factory)
+    monkeypatch.setitem(sys.modules, "patchright.sync_api", module)
+
+
 def test_browser_session_falls_back_to_owned_browser(monkeypatch, tmp_path, caplog):
-    pw = FakePlaywright([])
-    _install_fake_patchright(monkeypatch, pw)
+    discarded_pw = FakePlaywright([])
+    owned_pw = FakePlaywright([])
+    factory = FakeSyncPlaywrightFactory([discarded_pw, owned_pw])
+    _install_fake_patchright_factory(monkeypatch, factory)
     monkeypatch.setattr(browser_mod, "open_cdp_browser", lambda *a, **k: None)
 
     session = BrowserSession(COUNTRIES["ES"], tmp_path, cdp_port=9222)
@@ -254,10 +408,79 @@ def test_browser_session_falls_back_to_owned_browser(monkeypatch, tmp_path, capl
 
     assert session.cdp_fallback is True
     assert session.connected_via_cdp is False
-    assert len(pw.launch_calls) == 1
-    assert pw.launch_calls[0]["headless"] is False
+    assert len(factory.starters) == 2  # el fallback usa una instancia nueva
+    assert discarded_pw.stopped is True
+    assert len(owned_pw.launch_calls) == 1
+    assert owned_pw.launch_calls[0]["headless"] is False
+    assert session._pw is owned_pw
     assert session._context is not None
     assert any("navegador propio headed" in r.getMessage() for r in caplog.records)
+
+
+def test_browser_session_uses_new_playwright_instance_after_driver_death(
+    monkeypatch, tmp_path, caplog
+):
+    dead_pw = FakePlaywright(
+        [
+            RuntimeError(
+                "BrowserType.connect_over_cdp: Connection closed while reading "
+                "from the driver"
+            )
+        ]
+    )
+    fresh_pw = FakePlaywright([])
+    factory = FakeSyncPlaywrightFactory([dead_pw, fresh_pw])
+    _install_fake_patchright_factory(monkeypatch, factory)
+
+    session = BrowserSession(COUNTRIES["ES"], tmp_path, cdp_port=9222)
+    with caplog.at_level(logging.WARNING):
+        session._start()
+
+    assert session.cdp_fallback is True
+    assert session.connected_via_cdp is False
+    assert len(dead_pw.chromium.calls) == 1  # no se reintenta contra el driver muerto
+    assert dead_pw.stopped is True  # la instancia muerta se descarta
+    assert len(factory.starters) == 2
+    assert len(fresh_pw.launch_calls) == 1
+    assert session._pw is fresh_pw
+    assert any("se aborta" in r.getMessage() for r in caplog.records)
+
+
+def test_browser_session_fallback_failure_is_fast_and_releases_playwright(
+    monkeypatch, tmp_path
+):
+    dead_pw = FakePlaywright(
+        [RuntimeError("Connection closed while reading from the driver")]
+    )
+    broken_pw = FakePlaywright([], launch_results=[RuntimeError("no hay Chrome")])
+    factory = FakeSyncPlaywrightFactory([dead_pw, broken_pw])
+    _install_fake_patchright_factory(monkeypatch, factory)
+
+    session = BrowserSession(COUNTRIES["ES"], tmp_path, cdp_port=9222)
+
+    with pytest.raises(RuntimeError, match="no hay Chrome"):
+        session._start()
+
+    assert dead_pw.stopped is True
+    assert broken_pw.stopped is True
+    assert session._pw is None
+
+
+def test_browser_session_without_cdp_uses_a_single_playwright_instance(
+    monkeypatch, tmp_path
+):
+    pw = FakePlaywright([])
+    factory = FakeSyncPlaywrightFactory([pw])
+    _install_fake_patchright_factory(monkeypatch, factory)
+
+    session = BrowserSession(COUNTRIES["ES"], tmp_path, cdp_port=0)
+    session._start()
+
+    assert len(factory.starters) == 1  # sin CDP no se descarta ninguna instancia
+    assert session.connected_via_cdp is False
+    assert session.cdp_fallback is False
+    assert len(pw.launch_calls) == 1
+    assert session._context is not None
 
 
 def test_browser_session_uses_cdp_context_when_handshake_ok(monkeypatch, tmp_path):
@@ -304,6 +527,16 @@ def test_runner_without_cdp_is_unaffected(tmp_path):
     runner._apply_session_mode(SimpleNamespace(connected_via_cdp=False))
 
     assert runner.pages == 2
+    assert runner._cdp_connected is False
+
+
+def test_runner_without_cdp_single_page_is_unaffected(tmp_path):
+    # Modo propio del nightly sin handshake CDP: --pages 1 debe quedar intacto.
+    runner = ScraperRunner("ES", ["Madrid"], ["data"], 1, tmp_path, cdp_port=0)
+
+    runner._apply_session_mode(SimpleNamespace(connected_via_cdp=False))
+
+    assert runner.pages == 1
     assert runner._cdp_connected is False
 
 

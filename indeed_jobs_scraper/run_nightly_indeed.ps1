@@ -194,13 +194,23 @@ if (-not (Test-CdpAlive)) {
 }
 Write-NLog "CDP pre-flight OK. Chrome responde en puerto $CdpPort."
 
+# Si el handshake CDP real no se verifica, se OMITE --cdp: el scraper arranca
+# directamente el navegador propio headed (sin fase CDP que pueda colgarse por
+# el driver de patchright) y se limita a 1 pagina. Si el handshake pasa, los
+# args y el volumen del nightly quedan intactos.
+$cdpArgs = @("--cdp", "$CdpPort")
+$pagesForRun = $Pages
+
 if (Test-CdpHandshake -Port $CdpPort) {
     Write-NLog "CDP handshake OK: patchright conecta y verifica contra el Chrome real."
 } else {
-    # No se aborta: el scraper hara el fallback documentado (navegador propio
-    # headed, 1 pagina, sin sesion) y el run sigue con lo que pueda capturar.
+    # No se aborta: el scraper continua con navegador propio headed (1 pagina,
+    # sin sesion) y el run sigue con lo que pueda capturar.
+    $cdpArgs = @()
+    $pagesForRun = 1
     Write-NLog "WARN: el handshake CDP real falla (patchright <-> Chrome) pese a que /json responde."
-    Write-NLog "WARN: el scraper continuara con navegador propio headed y limitara la ejecucion a 1 pagina."
+    Write-NLog "WARN: motivo: Chrome $CdpPort no completa el handshake (driver/instancia degradados); se omite --cdp."
+    Write-NLog "WARN: se ejecuta en modo navegador propio headed con --pages 1, sin sesion de Chrome."
     Write-NLog "WARN: revisa la version de Chrome/patchright y relanza Chrome con start_chrome_cdp.ps1."
 }
 
@@ -232,11 +242,13 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
         $pythonArgs = @(
             "-u",
             "main.py",
-            "--country", "$country",
-            "--cdp", "$CdpPort",
+            "--country", "$country"
+        )
+        $pythonArgs += $cdpArgs
+        $pythonArgs += @(
             "--terms=`"$SearchTerms`"",
             "--cities=`"$cities`"",
-            "--pages", "$Pages",
+            "--pages", "$pagesForRun",
             "--fromage", "$Fromage",
             "--enrich-rate", "$EnrichRate",
             "--enrich-max", "$EnrichMax",
@@ -378,7 +390,7 @@ $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $countries = ($Targets | ForEach-Object { $_.Country }) -join ","
 $marker = Join-Path $ProjectRoot "output\last_nightly_run_indeed.txt"
 $watchdogField = if ($watchdogReason) { "watchdog=$watchdogReason" } else { "watchdog=none" }
-"last_run=$ts exit=$overallExit terms=$SearchTerms countries=$countries pages=$Pages $watchdogField" | `
+"last_run=$ts exit=$overallExit terms=$SearchTerms countries=$countries pages=$pagesForRun $watchdogField" | `
     Set-Content -LiteralPath $marker -Encoding UTF8
 if ($abortedChallenge) {
     Write-NLog "=== FIN RUN NOCTURNA INDEED exit=$overallExit (challenge anti-bot: espera 24h) ==="

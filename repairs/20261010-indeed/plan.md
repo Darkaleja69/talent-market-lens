@@ -135,6 +135,31 @@ locales de usuario se escriben como <HOME>.
   `context.json` conserva el brief original (metas teóricas al 100 % en
   `salary`/`work_mode`); el perfil efectivo de la puerta es este
   `quality_before.json` reconciliado.
+- **Iteración 2 — run nocturno 2026-10-11 (T-32):** el pre-flight del wrapper
+  detectó `CDP_HANDSHAKE_FAIL` a las 00:00:53 y, aun así, el run siguió con
+  `--cdp 9222`; en la fase CDP el intento 1 agotó 20 s, el intento 2 murió con
+  `Connection closed while reading from the driver` (el driver node de
+  patchright crasheó con `ProtocolError: Network.setCacheDisabled ... session
+  closed`). Las dos fases del run (NL 00:01→00:41 e IE 00:46→01:26) quedaron
+  colgadas ~40 min cada una sin progreso hasta que el watchdog las mató
+  (marcador `watchdog=none`; detalle `watchdog_no_progress` en
+  `.watchdog_IE_attempt1.json`; `exit=75` en el marcador del run); el fallback a
+  navegador propio nunca llegó a ejecutarse. Evidencia:
+  `repairs/20261010-indeed/evidence/indeed-nightly-20261011-cdp-crash.txt`.
+  Cambios: `open_cdp_browser()` detecta el driver muerto
+  (`TargetClosedError`/`ProtocolError`/«Connection closed while reading from
+  the driver») y aborta la fase CDP sin más intentos; `BrowserSession._start()`
+  descarta la instancia Playwright usada para CDP (`stop()` protegido en el
+  hilo propietario; la API sync no admite `stop()` desde otro hilo) y arranca
+  una instancia NUEVA para el fallback, con error rápido si el fallback también
+  falla; `run_nightly_indeed.ps1` omite `--cdp`
+  (y usa `--pages 1`) cuando `Test-CdpHandshake` falla, registrando el motivo
+  en `nightly.log`. La sonda con Chrome fresco (puerto 9224) confirma que
+  patchright 1.60.1 sí conecta: el fallo es del estado de la instancia/perfil
+  del 9222, cuyo remedio operativo sigue siendo reiniciarlo con
+  `start_chrome_cdp.ps1`. No se añaden latidos PROGRESS artificiales: la fase
+  CDP queda acotada (~1 min si los intentos agotan su timeout) y el watchdog
+  sigue matando runs realmente atascados.
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
@@ -142,14 +167,18 @@ locales de usuario se escriben como <HOME>.
 
 Desde `indeed_jobs_scraper/`:
 
-- `python -m pytest tests -q` → **79 passed**. Incluye los tests nuevos
+- `python -m pytest tests -q` → **91 passed**. Incluye los tests nuevos
   `tests/test_browser_cdp.py` (probe del handshake, reintentos de
-  `open_cdp_browser`, fallback de `BrowserSession` y tope de páginas del
-  runner), `tests/test_enrich.py` (timeout del panel que ya no abandona la
-  oferta, cadena de esperas, `vjs-highlight`, latido de progreso y `/viewjob`
-  desactivado por defecto) y `tests/test_config.py` (URL de paginación por
-  `start=` y texto de `--limit`), además de los casos de extracción tolerante
-  del JSON embebido en `tests/test_parser.py`.
+  `open_cdp_browser`, timeouts normales que siguen reintentando, aborto
+  inmediato ante driver muerto detectado por excepción o por el detalle del
+  probe, descarte seguro de la instancia Playwright (stop protegido), fallback
+  de `BrowserSession` con instancia nueva tras el driver muerto, fallo rápido
+  del fallback y modo sin CDP/1 página), `tests/test_enrich.py` (timeout del
+  panel que ya no abandona la oferta, cadena de esperas, `vjs-highlight`,
+  latido de progreso y `/viewjob` desactivado por defecto) y
+  `tests/test_config.py` (URL de paginación por `start=` y texto de
+  `--limit`), además de los casos de extracción tolerante del JSON embebido en
+  `tests/test_parser.py`.
 - El scraper no usa Ruff/mypy: `requirements.txt` no los declara y la carpeta no
   tiene configuración de lint.
 
