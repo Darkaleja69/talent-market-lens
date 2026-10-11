@@ -490,6 +490,127 @@ body {
   font-size: 0.85rem;
 }
 
+/* --------------------------------------- opportunity explorer (T-13) --- */
+
+.explorer-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.explorer-search__label {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.explorer-search__input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: 28rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.explorer-search__clear {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.explorer-search__clear:not(:disabled):hover {
+  background: #e7eff9;
+}
+
+.explorer-search__clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.explorer__status {
+  margin: 0.75rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+/* The table may be wider than a phone screen: it scrolls inside this region
+   (keyboard reachable) so the page itself never overflows. */
+.explorer__table-scroll {
+  margin-top: 0.6rem;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Title, company and location wrap instead of forcing a scroll bar on
+   desktop; on narrow screens the region still scrolls horizontally. */
+.explorer-table th:nth-child(-n + 3),
+.explorer-table td:nth-child(-n + 3) {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.explorer-table a {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.explorer__empty {
+  margin: 0.75rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-muted);
+}
+
+.explorer__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.9rem;
+}
+
+.explorer__page-button {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.explorer__page-button:not(:disabled):hover {
+  background: #e7eff9;
+}
+
+.explorer__page-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.explorer__page-label {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
 /* --------------------------------------------------------------- filters --- */
 
 .filters,

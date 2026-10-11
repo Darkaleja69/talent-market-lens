@@ -149,7 +149,7 @@ comprobación. El trabajo vive en el worktree de la rama
     país con el GeoJSON versionado; los países sin dato se distinguen, con
     textos ES/EN y la vista funciona en móvil.
 
-- [ ] **T-13 — Vista Opportunity Explorer** (~25 min)
+- [x] **T-13 — Vista Opportunity Explorer** (~25 min)
   - **RF:** RF-7, RF-10, RF-16.
   - **Depende de:** T-09.
   - **Hecho cuando:** la tabla permite buscar y filtrar, muestra los campos

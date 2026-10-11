@@ -114,6 +114,7 @@ const VIEW_RENDERERS = {
   'market-pulse': renderMarketPulse,
   'roles-skills': renderRolesSkills,
   'salary-insights': renderSalaryInsights,
+  'opportunity-explorer': renderOpportunityExplorer,
 };
 
 /* ========================================================================== *
@@ -733,6 +734,9 @@ function syncFilterControls() {
 
 function applyFilterChange(filters) {
   state.filters = filters;
+  // A new global context restarts the explorer pagination; its local search
+  // term is view state and survives (see the Opportunity Explorer section).
+  explorerState.page = 1;
   syncFilterControls();
   renderFilterChips();
   if (!state.filtersReady) return Promise.resolve();
@@ -1514,6 +1518,319 @@ async function renderSalaryInsights({ requestId, body }) {
   content.append(grid);
   body.replaceChildren(content);
   for (const mount of mounts.filter(Boolean)) mount();
+}
+
+/* ========================================================================== *
+ * Opportunity Explorer (T-13, RF-7/RF-10/RF-16): searchable, paginated table
+ * of individual offers with public fields only
+ * ========================================================================== */
+
+/** Fixed page size (RF-10 volume limit: one page is ever rendered). */
+const EXPLORER_PAGE_SIZE = 25;
+
+/**
+ * Local view state: the global filters live in `state.filters`, while the
+ * explorer keeps its own search term and page so they survive re-renders. A
+ * global filter change resets the page (see `applyFilterChange`) but never the
+ * term; a language change keeps both.
+ */
+const explorerState = { search: '', page: 1 };
+
+/** Table columns, matching the public projection of `queries.explorerOffers`. */
+const EXPLORER_COLUMNS = [
+  { key: 'title', labelKey: 'view.opportunityExplorer.table.jobTitle' },
+  { key: 'company', labelKey: 'view.opportunityExplorer.table.company' },
+  { key: 'location', labelKey: 'view.opportunityExplorer.table.location' },
+  { key: 'workMode', labelKey: 'view.opportunityExplorer.table.workMode' },
+  { key: 'role', labelKey: 'view.opportunityExplorer.table.role' },
+  { key: 'salary', labelKey: 'view.opportunityExplorer.table.medianSalary', numeric: true },
+  { key: 'date', labelKey: 'view.opportunityExplorer.table.postedDate' },
+  { key: 'source', labelKey: 'view.opportunityExplorer.table.source' },
+];
+
+/** Trimmed text or null; drives the localised N/D fallback of every cell. */
+const textOrNull = (value) => {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text === '' ? null : text;
+};
+
+/** Only http(s) URLs become links; anything else stays plain text. */
+const safeJobUrl = (value) => {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  return /^https?:\/\//i.test(raw) ? raw : null;
+};
+
+/**
+ * Maps a raw DuckDB row to display fields. A missing salary (null or ≤ 0, the
+ * same quality rule as the salary measures) becomes null → localised N/D.
+ */
+function explorerRecord(row) {
+  const salary = Number(row.SalaryMidAnnual_EUR);
+  return {
+    title: textOrNull(row.title),
+    url: safeJobUrl(row.job_url),
+    company: textOrNull(row.company_name),
+    location: [row.location_city, row.location_country]
+      .map(textOrNull)
+      .filter(Boolean)
+      .join(' · ') || null,
+    workMode: textOrNull(row.WorkModeBucket),
+    role: textOrNull(row.role_category),
+    salary: Number.isFinite(salary) && salary > 0 ? salary : null,
+    date: row.posted_date ?? null,
+    source: textOrNull(row.source_scraper),
+  };
+}
+
+/** Localised cell text (N/D when the offer has no value for the column). */
+function explorerCellText(record, key) {
+  const value = record[key];
+  if (value == null) return t('view.opportunityExplorer.notAvailable');
+  if (key === 'salary') return formatSalary(value, state.language);
+  if (key === 'date') return formatDate(value, state.language);
+  return String(value);
+}
+
+/** Title cell: a real link when the offer has an http(s) URL, text otherwise. */
+function appendExplorerTitle(cell, record) {
+  const label = record.title ?? t('view.opportunityExplorer.notAvailable');
+  if (!record.url) {
+    cell.textContent = label;
+    return;
+  }
+  const link = document.createElement('a');
+  link.href = record.url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = label;
+  link.setAttribute('aria-label', t('view.opportunityExplorer.openLink', { title: label }));
+  cell.append(link);
+}
+
+/** Explorer table: localised caption, `th scope="col"` and one row per offer. */
+function buildExplorerTable(rows) {
+  const table = document.createElement('table');
+  table.className = 'benchmark-table explorer-table';
+
+  const caption = document.createElement('caption');
+  caption.className = 'benchmark-table__caption';
+  caption.textContent = t('view.opportunityExplorer.table.caption');
+  table.append(caption);
+
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const column of EXPLORER_COLUMNS) {
+    const th = document.createElement('th');
+    th.setAttribute('scope', 'col');
+    if (column.numeric) th.className = 'benchmark-table__number';
+    th.textContent = t(column.labelKey);
+    headRow.append(th);
+  }
+  head.append(headRow);
+
+  const tbody = document.createElement('tbody');
+  for (const row of rows) {
+    const record = explorerRecord(row);
+    const tr = document.createElement('tr');
+    for (const column of EXPLORER_COLUMNS) {
+      const td = document.createElement('td');
+      if (column.numeric) td.className = 'benchmark-table__number';
+      if (column.key === 'title') appendExplorerTitle(td, record);
+      else td.textContent = explorerCellText(record, column.key);
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(head, tbody);
+  return table;
+}
+
+/**
+ * Previous/next controls and the page indicator. Both buttons are disabled at
+ * their bound; a click delegates to `onNavigate(page)`, which re-renders only
+ * the results region so the search box keeps working.
+ */
+function buildExplorerPagination({ page, pageCount, onNavigate }) {
+  const nav = document.createElement('nav');
+  nav.className = 'explorer__pagination';
+  nav.setAttribute('aria-label', t('view.opportunityExplorer.pagination.label'));
+
+  const previous = document.createElement('button');
+  previous.type = 'button';
+  previous.className = 'explorer__page-button';
+  previous.textContent = t('view.opportunityExplorer.pagination.previous');
+  previous.disabled = page <= 1;
+  previous.addEventListener('click', () => onNavigate(page - 1));
+
+  const label = document.createElement('p');
+  label.className = 'explorer__page-label';
+  label.textContent = t('view.opportunityExplorer.pagination.page', { page, pages: pageCount });
+
+  const next = document.createElement('button');
+  next.type = 'button';
+  next.className = 'explorer__page-button';
+  next.textContent = t('view.opportunityExplorer.pagination.next');
+  next.disabled = page >= pageCount;
+  next.addEventListener('click', () => onNavigate(page + 1));
+
+  nav.append(previous, label, next);
+  return nav;
+}
+
+/**
+ * Counter (aria-live polite, with the active term) plus the results region:
+ * the table inside a horizontal scroll area and the page controls. Only the
+ * current page is in the DOM; `total` comes from `explorerOffersCount` under
+ * the same context as the rows.
+ */
+function renderExplorerResults({ status, results, data, onNavigate }) {
+  const { rows, total, page, pageCount } = data;
+  const term = explorerState.search;
+  const from = total === 0 ? 0 : (page - 1) * EXPLORER_PAGE_SIZE + 1;
+  const to = total === 0 ? 0 : from + rows.length - 1;
+
+  const parts = [];
+  if (term) parts.push(t('view.opportunityExplorer.search.active', { term }));
+  parts.push(total === 0
+    ? t('view.opportunityExplorer.noData')
+    : t('view.opportunityExplorer.count', {
+        from: formatCount(from, state.language),
+        to: formatCount(to, state.language),
+        total: formatCount(total, state.language),
+      }));
+  status.textContent = parts.join(' · ');
+
+  if (rows.length === 0) {
+    results.replaceChildren(noteElement('view.opportunityExplorer.noData', 'explorer__empty'));
+    return;
+  }
+
+  const scroll = document.createElement('div');
+  scroll.className = 'explorer__table-scroll';
+  scroll.tabIndex = 0;
+  scroll.setAttribute('role', 'region');
+  scroll.setAttribute('aria-label', t('nav.opportunityExplorer'));
+  scroll.append(buildExplorerTable(rows));
+
+  results.replaceChildren(scroll, buildExplorerPagination({ page, pageCount, onNavigate }));
+}
+
+/**
+ * One page of the explorer: the count first (to clamp the requested page
+ * against the current context), then the page rows. Both queries share
+ * `buildQueryOptions` (global filters) plus the local search term.
+ */
+async function fetchExplorerPage() {
+  const options = buildQueryOptions(state.filters);
+  const countRows = await runQuery(queries.explorerOffersCount({
+    ...options,
+    search: explorerState.search,
+  }));
+  const total = countRows.length > 0 ? Number(countRows[0].total_offers) || 0 : 0;
+  const pageCount = Math.max(1, Math.ceil(total / EXPLORER_PAGE_SIZE));
+  const page = Math.min(Math.max(1, explorerState.page), pageCount);
+  explorerState.page = page;
+  const rows = total === 0 ? [] : await runQuery(queries.explorerOffers({
+    ...options,
+    search: explorerState.search,
+    limit: EXPLORER_PAGE_SIZE,
+    offset: (page - 1) * EXPLORER_PAGE_SIZE,
+  }));
+  return { rows, total, page, pageCount };
+}
+
+/**
+ * Opportunity Explorer renderer (RF-10): local search box (debounced 250 ms,
+ * title/company), one paginated table of the public fields and a visible
+ * counter. The global filters apply to table and counter through
+ * `buildQueryOptions`. A search keystroke re-renders only the results region,
+ * so the input keeps focus; request tokens discard stale async renders and a
+ * navigation away abandons the pending search.
+ */
+async function renderOpportunityExplorer({ requestId, body }) {
+  const searchId = 'explorer-search';
+
+  const searchBox = document.createElement('div');
+  searchBox.className = 'explorer-search';
+
+  const label = document.createElement('label');
+  label.className = 'explorer-search__label';
+  label.setAttribute('for', searchId);
+  label.textContent = t('view.opportunityExplorer.search.label');
+
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.id = searchId;
+  input.className = 'explorer-search__input';
+  input.value = explorerState.search;
+  input.placeholder = t('view.opportunityExplorer.search.placeholder');
+  input.autocomplete = 'off';
+
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'explorer-search__clear';
+  clear.textContent = t('view.opportunityExplorer.search.clear');
+  clear.disabled = explorerState.search === '';
+
+  searchBox.append(label, input, clear);
+
+  const status = document.createElement('p');
+  status.className = 'explorer__status';
+  status.setAttribute('aria-live', 'polite');
+  status.textContent = t('view.opportunityExplorer.loading');
+
+  const results = document.createElement('div');
+  results.className = 'explorer__results';
+  results.tabIndex = -1;
+
+  body.append(searchBox, status, results);
+
+  let refreshId = 0;
+
+  async function refresh({ focusResults = false } = {}) {
+    const id = ++refreshId;
+    try {
+      const data = await fetchExplorerPage();
+      if (requestId !== viewRenderId || id !== refreshId) return;
+      renderExplorerResults({ status, results, data, onNavigate });
+      if (focusResults) results.focus();
+    } catch (error) {
+      if (requestId !== viewRenderId || id !== refreshId) return;
+      console.error('[tml] opportunity explorer query failed:', error);
+      status.textContent = '';
+      results.replaceChildren(noteElement('view.error', 'view__error'));
+    }
+  }
+
+  async function onNavigate(targetPage) {
+    explorerState.page = targetPage;
+    await refresh({ focusResults: true });
+  }
+
+  let searchTimer = null;
+  input.addEventListener('input', () => {
+    clear.disabled = input.value.trim() === '';
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      if (requestId !== viewRenderId) return;
+      explorerState.search = input.value.trim();
+      explorerState.page = 1;
+      refresh();
+    }, FILTER_INPUT_DEBOUNCE_MS);
+  });
+
+  clear.addEventListener('click', () => {
+    clearTimeout(searchTimer);
+    input.value = '';
+    clear.disabled = true;
+    explorerState.search = '';
+    explorerState.page = 1;
+    input.focus();
+    refresh();
+  });
+
+  await refresh();
 }
 
 /* ========================================================================== *

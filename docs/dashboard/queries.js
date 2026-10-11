@@ -500,3 +500,100 @@ WHERE ${applyWhere(where)}
 GROUP BY s.SkillCategory
 ORDER BY skill_demand DESC, skill_category`;
 }
+
+/* ========================================================================== *
+ * Opportunity Explorer (T-13, RF-10): public-column table, search + paging
+ * ========================================================================== */
+
+/**
+ * Case-insensitive substring search over the job title and the company name.
+ * Single quotes are doubled and the LIKE metacharacters (`\`, `%`, `_`) are
+ * escaped with an explicit `ESCAPE '\'`, so a typed `%` matches a literal
+ * percent sign instead of every row. Empty/blank terms add no predicate.
+ */
+const explorerSearchFilter = (search) => {
+  const term = String(search ?? '').trim();
+  if (!term) return '';
+  const escaped = term
+    .replace(/[\\%_]/g, (character) => `\\${character}`)
+    .replace(/'/g, "''");
+  const pattern = `'%${escaped}%'`;
+  return `(f.title ILIKE ${pattern} ESCAPE '\\' OR f.company_name ILIKE ${pattern} ESCAPE '\\')`;
+};
+
+/**
+ * Whitelisted sorts of the explorer (callers never inject raw SQL). Every
+ * option keeps `job_id` as a stable tie-breaker so paging is deterministic.
+ */
+const EXPLORER_ORDER_BY = {
+  posted_date: 'f.posted_date DESC NULLS LAST, f.job_id',
+  title: 'f.title ASC NULLS LAST, f.job_id',
+  company_name: 'f.company_name ASC NULLS LAST, f.job_id',
+  salary: 'f.SalaryMidAnnual_EUR DESC NULLS LAST, f.job_id',
+};
+
+/**
+ * One page of the Opportunity Explorer table (RF-10), the public projection
+ * the Power BI page shows (docs/images/powerbi_opportunity_explorer.png):
+ * title, company, location, work mode, role category, annual median salary,
+ * posted date and source, plus `job_id`/`job_url`/`location_region` as keys.
+ * No description, quality or provenance column is ever selected.
+ *
+ * Newest postings first by default. `limit`/`offset` accept only non-negative
+ * integers (`null` limit → no LIMIT, `0` offset → no OFFSET); the app always
+ * passes a fixed page size, so a single query never returns more than one
+ * page. The global filters arrive through `where` (T-09) and the salary range
+ * as `minSalary`/`maxSalary`, exactly like the measures.
+ */
+export function explorerOffers(options = {}) {
+  const {
+    where = '',
+    search = '',
+    limit = null,
+    offset = 0,
+    orderBy = 'posted_date',
+    minSalary = DEFAULT_SALARY_MIN,
+    maxSalary = DEFAULT_SALARY_MAX,
+  } = options;
+  const searchFilter = explorerSearchFilter(search);
+  const order = EXPLORER_ORDER_BY[orderBy] || EXPLORER_ORDER_BY.posted_date;
+  const limitValue = limit == null ? null : Math.max(0, asCount(limit, 0));
+  const offsetValue = Math.max(0, asCount(offset, 0));
+  const lines = [
+    'SELECT f.job_id, f.job_url, f.title, f.company_name,',
+    '       f.location_city, f.location_region, f.location_country,',
+    '       f.WorkModeBucket, f.role_category, f.SalaryMidAnnual_EUR,',
+    '       f.posted_date, f.source_scraper',
+    'FROM fact_offers AS f',
+    `WHERE ${salaryRangeFilter(minSalary, maxSalary)}`,
+    `  AND ${applyWhere(where)}`,
+  ];
+  if (searchFilter) lines.push(`  AND ${searchFilter}`);
+  lines.push(`ORDER BY ${order}`);
+  if (limitValue != null) lines.push(`LIMIT ${limitValue}`);
+  if (offsetValue > 0) lines.push(`OFFSET ${offsetValue}`);
+  return lines.join('\n');
+}
+
+/**
+ * Total rows of the explorer under the same context as `explorerOffers`
+ * (global filters, salary range and search term), so the visible counter and
+ * the page clamp share one source of truth.
+ */
+export function explorerOffersCount(options = {}) {
+  const {
+    where = '',
+    search = '',
+    minSalary = DEFAULT_SALARY_MIN,
+    maxSalary = DEFAULT_SALARY_MAX,
+  } = options;
+  const searchFilter = explorerSearchFilter(search);
+  const lines = [
+    'SELECT COUNT(*) AS total_offers',
+    'FROM fact_offers AS f',
+    `WHERE ${salaryRangeFilter(minSalary, maxSalary)}`,
+    `  AND ${applyWhere(where)}`,
+  ];
+  if (searchFilter) lines.push(`  AND ${searchFilter}`);
+  return lines.join('\n');
+}
