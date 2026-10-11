@@ -310,6 +310,225 @@ body {
   color: var(--color-muted);
 }
 
+/* --------------------------------------------------------------- filters --- */
+
+.filters,
+.summary {
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+
+.filters__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.filters__title,
+.summary__title {
+  margin: 0;
+  font-size: clamp(1.05rem, 1.8vw, 1.25rem);
+}
+
+.filters__clear {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filters__clear:not(:disabled):hover {
+  background: #e7eff9;
+}
+
+.filters__clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.filters__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem 1rem;
+  margin-top: 0.9rem;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.filter__label {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.filter__control {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.filter__control:disabled {
+  background: var(--color-pending-bg);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.filter__salary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.filter__salary {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+
+.filter__salary-sep {
+  color: var(--color-muted);
+}
+
+.filters__chips {
+  margin-top: 1rem;
+}
+
+.filters__hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.25rem 0.35rem 0.25rem 0.7rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: #e7eff9;
+  color: var(--color-text);
+  font-size: 0.85rem;
+}
+
+.chip__label {
+  font-weight: 600;
+}
+
+.chip__value {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-accent);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip__remove:hover {
+  background: #d3e2f5;
+}
+
+/* --------------------------------------------------------------- summary --- */
+
+.summary__note {
+  margin: 0.25rem 0 0.9rem;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.summary__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem 1rem;
+  margin: 0;
+}
+
+.summary__list dt {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.summary__list dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.summary__pending,
+.summary__unavailable {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.summary__empty {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--color-pending-bg);
+  color: var(--color-pending-text);
+  font-weight: 600;
+}
+
+.summary__error {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  font-weight: 600;
+}
+
+[hidden] {
+  display: none !important;
+}
+
 /* ---------------------------------------------------------------- footer --- */
 
 .site-footer {
@@ -352,5 +571,14 @@ body {
 
   .view {
     padding: 1.1rem;
+  }
+
+  .filters,
+  .summary {
+    padding: 1.1rem;
+  }
+
+  .chip__value {
+    max-width: 10rem;
   }
 }

@@ -115,7 +115,7 @@ comprobación. El trabajo vive en el worktree de la rama
     y la preferencia recordada, y todas las vistas consumen sus textos;
     comprobado en local con la instantánea.
 
-- [ ] **T-09 — Filtros globales coherentes** (~25 min)
+- [x] **T-09 — Filtros globales coherentes** (~25 min)
   - **RF:** RF-9.
   - **Depende de:** T-08.
   - **Hecho cuando:** el estado de filtros (país, experiencia, rol, modalidad,

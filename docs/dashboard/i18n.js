@@ -74,6 +74,37 @@ export const MESSAGES = {
     'notice.fileUnreadable.title': 'Fichero de datos ilegible',
     'notice.fileUnreadable.message':
       'No se pudo leer {file}. Se muestra la fecha del último dato disponible: {date}.',
+    'filters.title': 'Filtros globales',
+    'filters.active': 'Filtros activos',
+    'filters.clearAll': 'Limpiar todo',
+    'filters.none': 'Sin filtros activos',
+    'filters.remove': 'Quitar filtro: {field}',
+    'filter.any': 'Todos',
+    'filter.field.country': 'País',
+    'filter.field.experience': 'Experiencia',
+    'filter.field.role': 'Rol',
+    'filter.field.workMode': 'Modalidad',
+    'filter.field.company': 'Empresa',
+    'filter.field.skill': 'Skill',
+    'filter.field.source': 'Fuente',
+    'filter.field.salary': 'Salario',
+    'filter.field.salaryMin': 'Salario mínimo (anual)',
+    'filter.field.salaryMax': 'Salario máximo (anual)',
+    'filter.salary.hint': 'Rango sobre el salario máximo anual de la oferta. Vacío = sin límite.',
+    'filter.salary.placeholder': 'Sin límite',
+    'filter.salary.from': 'Desde {value}',
+    'filter.salary.upTo': 'Hasta {value}',
+    'filter.salary.between': '{min} – {max}',
+    'filters.summary.title': 'Resumen con los filtros actuales',
+    'filters.summary.note':
+      'Comprobación provisional: estas cifras usan las mismas consultas que las vistas.',
+    'filters.summary.pending': 'Esperando los datos…',
+    'filters.summary.unavailable': 'Resumen no disponible: datos incompletos.',
+    'filters.summary.error': 'No se pudo calcular el resumen.',
+    'filters.summary.empty': 'Sin resultados con los filtros actuales.',
+    'filters.summary.total': 'Ofertas (total)',
+    'filters.summary.monthly': 'Ofertas con mes de publicación',
+    'filters.summary.skillDemand': 'Ofertas con la skill «{skill}»',
     'footer.note': 'Datos de ofertas públicas; sin datos personales ni credenciales.',
   },
   en: {
@@ -133,6 +164,37 @@ export const MESSAGES = {
     'notice.fileUnreadable.title': 'Unreadable data file',
     'notice.fileUnreadable.message':
       'Could not read {file}. Showing the last available data date: {date}.',
+    'filters.title': 'Global filters',
+    'filters.active': 'Active filters',
+    'filters.clearAll': 'Clear all',
+    'filters.none': 'No active filters',
+    'filters.remove': 'Remove filter: {field}',
+    'filter.any': 'All',
+    'filter.field.country': 'Country',
+    'filter.field.experience': 'Experience',
+    'filter.field.role': 'Role',
+    'filter.field.workMode': 'Work mode',
+    'filter.field.company': 'Company',
+    'filter.field.skill': 'Skill',
+    'filter.field.source': 'Source',
+    'filter.field.salary': 'Salary',
+    'filter.field.salaryMin': 'Minimum salary (annual)',
+    'filter.field.salaryMax': 'Maximum salary (annual)',
+    'filter.salary.hint': "Range over the posting's annual maximum salary. Empty = no limit.",
+    'filter.salary.placeholder': 'No limit',
+    'filter.salary.from': 'From {value}',
+    'filter.salary.upTo': 'Up to {value}',
+    'filter.salary.between': '{min} – {max}',
+    'filters.summary.title': 'Summary with the current filters',
+    'filters.summary.note':
+      'Temporary check: these figures run the same queries as the views.',
+    'filters.summary.pending': 'Waiting for the data…',
+    'filters.summary.unavailable': 'Summary unavailable: incomplete data.',
+    'filters.summary.error': 'Could not compute the summary.',
+    'filters.summary.empty': 'No results with the current filters.',
+    'filters.summary.total': 'Postings (total)',
+    'filters.summary.monthly': 'Postings with a publication month',
+    'filters.summary.skillDemand': 'Postings with the “{skill}” skill',
     'footer.note': 'Public job posting data; no personal data and no credentials.',
   },
 };
@@ -223,9 +285,21 @@ export function formatCount(value, language) {
   return new Intl.NumberFormat(localeTag(language)).format(number);
 }
 
+/** Localised annual EUR amount without decimals (`30.000 €` / `€30,000`). */
+export function formatSalary(value, language) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value ?? '');
+  return new Intl.NumberFormat(localeTag(language), {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(number);
+}
+
 /**
  * Applies the dictionary to the static shell: `<html lang>`, `[data-i18n]`
- * text content and `[data-i18n-aria-label]` / `[data-i18n-title]` attributes.
+ * text content and `[data-i18n-aria-label]` / `[data-i18n-title]` /
+ * `[data-i18n-placeholder]` attributes.
  */
 export function applyDocumentTranslations(doc, language) {
   if (!doc || !LANGUAGES.includes(language)) return;
@@ -238,5 +312,8 @@ export function applyDocumentTranslations(doc, language) {
   });
   doc.querySelectorAll('[data-i18n-title]').forEach((element) => {
     element.setAttribute('title', translate(language, element.getAttribute('data-i18n-title')));
+  });
+  doc.querySelectorAll('[data-i18n-placeholder]').forEach((element) => {
+    element.setAttribute('placeholder', translate(language, element.getAttribute('data-i18n-placeholder')));
   });
 }

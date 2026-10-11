@@ -9,9 +9,16 @@
  * contents (KPIs and charts) arrive in T-10–T-14; the shell only shows a
  * localised placeholder. The SQL itself lives in `queries.js` (T-07).
  *
+ * T-09 (RF-9): the global filter state lives here and is composed into one
+ * WHERE fragment by `filters.js`; the categorical controls are populated once
+ * with SELECT DISTINCT, the active filters are shown as removable chips and a
+ * small coherence summary runs `queries.js` with the current state until the
+ * views (T-10–T-14) render the real KPIs.
+ *
  * Degradation (RF-14): missing files, unsupported WASM, CDN failures and a
  * non-`full` export mode never leave a blank page; each case raises a visible
- * notice with the last known data date, and the status bar reflects the state.
+ * notice with the last known data date, the status bar reflects the state and
+ * the filter controls stay disabled.
  *
  * CDN dependencies are pinned through the import map in `index.html`
  * (DuckDB-WASM 1.32.0, ECharts 6.1.0). Both are imported dynamically so a CDN
@@ -22,11 +29,24 @@
  */
 
 import {
+  FILTER_KEYS,
+  buildQueryOptions,
+  buildWhere,
+  createFilters,
+  hasActiveFilters,
+  hasSalaryFilter,
+  isBlank,
+  mergeFilters,
+  salaryBounds,
+} from './filters.js';
+import * as queries from './queries.js';
+import {
   LANGUAGES,
   applyDocumentTranslations,
   formatCount,
   formatDate,
   formatDateTime,
+  formatSalary,
   persistLanguage,
   resolveInitialLanguage,
   translate,
@@ -93,6 +113,9 @@ const state = {
   statusVars: {},
   notices: [],
   activeViewId: DEFAULT_VIEW.id,
+  filters: createFilters(),
+  filtersReady: false,
+  summary: { status: 'pending', values: null },
 };
 
 const elements = {
@@ -102,6 +125,11 @@ const elements = {
   view: null,
   navLinks: [],
   languageSelect: null,
+  filterControls: {},
+  filterChips: null,
+  clearFilters: null,
+  summaryBody: null,
+  companyOptions: null,
 };
 
 const t = (key, vars) => translate(state.language, key, vars);
@@ -253,6 +281,8 @@ function renderAll() {
   renderStatus();
   renderNotices();
   renderActiveView();
+  renderFilterChips();
+  renderSummary();
 }
 
 /* ========================================================================== *
@@ -387,6 +417,328 @@ function bindLanguageSelector() {
 }
 
 /* ========================================================================== *
+ * Global filters (RF-9): one compositor, visible chips, coherence summary
+ * ========================================================================== */
+
+const FILTER_CONTROL_IDS = {
+  country: 'filter-country',
+  experience: 'filter-experience',
+  role: 'filter-role',
+  workMode: 'filter-work-mode',
+  company: 'filter-company',
+  skill: 'filter-skill',
+  source: 'filter-source',
+  salaryMin: 'filter-salary-min',
+  salaryMax: 'filter-salary-max',
+};
+
+const FILTER_INPUT_DEBOUNCE_MS = 250;
+
+/**
+ * One-time SELECT DISTINCT population of the categorical controls (RF-9).
+ * Skills come from the catalogue joined to the bridge — the same row set the
+ * views display (header of queries.js) — and companies have thousands of
+ * values, so they feed an input + datalist instead of a select.
+ */
+const FILTER_OPTION_QUERIES = {
+  country: `SELECT DISTINCT f.GeoCountry AS value
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.GeoCountry, '')) <> ''
+ORDER BY value`,
+  experience: `SELECT DISTINCT f.experience_level AS value
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.experience_level, '')) <> ''
+ORDER BY value`,
+  role: `SELECT DISTINCT f.role_category AS value
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.role_category, '')) <> ''
+ORDER BY value`,
+  workMode: `SELECT DISTINCT f.WorkModeBucket AS value
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.WorkModeBucket, '')) <> ''
+ORDER BY value`,
+  source: `SELECT DISTINCT f.source_scraper AS value
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.source_scraper, '')) <> ''
+ORDER BY value`,
+  skill: `SELECT DISTINCT fs.Skill AS value
+FROM fact_offer_skills AS fs
+JOIN dim_skill_list AS s ON s.SkillName = fs.Skill
+WHERE TRIM(COALESCE(fs.Skill, '')) <> ''
+ORDER BY value`,
+};
+
+const COMPANY_OPTIONS_QUERY = `SELECT DISTINCT f.company_name AS value
+FROM fact_offers AS f
+WHERE TRIM(COALESCE(f.company_name, '')) <> ''
+ORDER BY value`;
+
+const SUMMARY_MESSAGE_KEYS = {
+  pending: 'filters.summary.pending',
+  unavailable: 'filters.summary.unavailable',
+  empty: 'filters.summary.empty',
+  error: 'filters.summary.error',
+};
+
+let filterInputTimer = null;
+const pendingFilterPatches = new Map();
+let summaryRequestId = 0;
+
+function newOptionElement(value) {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = value;
+  return option;
+}
+
+/** Runs the one-time DISTINCT population of every categorical control. */
+async function populateFilterOptions() {
+  await Promise.all(Object.entries(FILTER_OPTION_QUERIES).map(async ([key, sql]) => {
+    const control = elements.filterControls[key];
+    if (!control) return;
+    const rows = await runQuery(sql);
+    control.append(...rows.map((row) => newOptionElement(row.value)));
+  }));
+  if (elements.companyOptions) {
+    const rows = await runQuery(COMPANY_OPTIONS_QUERY);
+    elements.companyOptions.append(...rows.map((row) => newOptionElement(row.value)));
+  }
+}
+
+function setFilterControlsEnabled(enabled) {
+  for (const control of Object.values(elements.filterControls)) {
+    if (control) control.disabled = !enabled;
+  }
+  if (elements.clearFilters) {
+    elements.clearFilters.disabled = !enabled || !hasActiveFilters(state.filters);
+  }
+}
+
+/** Localised chip value for the non-default salary range. */
+function formatSalaryChip() {
+  const { minSalary, maxSalary } = salaryBounds(state.filters);
+  const hasMin = minSalary > queries.DEFAULT_SALARY_MIN;
+  const hasMax = maxSalary < queries.DEFAULT_SALARY_MAX;
+  const format = (value) => formatSalary(value, state.language);
+  if (hasMin && hasMax) {
+    return t('filter.salary.between', { min: format(minSalary), max: format(maxSalary) });
+  }
+  if (hasMin) return t('filter.salary.from', { value: format(minSalary) });
+  return t('filter.salary.upTo', { value: format(maxSalary) });
+}
+
+function activeFilterChips() {
+  const chips = [];
+  for (const key of FILTER_KEYS) {
+    if (isBlank(state.filters[key])) continue;
+    chips.push({ key, field: t(`filter.field.${key}`), value: state.filters[key] });
+  }
+  if (hasSalaryFilter(state.filters)) {
+    chips.push({ key: 'salary', field: t('filter.field.salary'), value: formatSalaryChip() });
+  }
+  return chips;
+}
+
+function renderFilterChips() {
+  if (!elements.filterChips) return;
+  const chips = activeFilterChips();
+  if (elements.clearFilters) {
+    elements.clearFilters.disabled = !state.filtersReady || chips.length === 0;
+  }
+  if (chips.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'filters__hint';
+    hint.textContent = t('filters.none');
+    elements.filterChips.replaceChildren(hint);
+    return;
+  }
+  const list = document.createElement('ul');
+  list.className = 'chips';
+  for (const chip of chips) {
+    const item = document.createElement('li');
+    item.className = 'chip';
+
+    const label = document.createElement('span');
+    label.className = 'chip__label';
+    label.textContent = `${chip.field}:`;
+
+    const value = document.createElement('span');
+    value.className = 'chip__value';
+    value.textContent = chip.value;
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'chip__remove';
+    remove.dataset.filterKey = chip.key;
+    remove.setAttribute('aria-label', t('filters.remove', { field: chip.field }));
+    remove.textContent = '×';
+
+    item.append(label, value, remove);
+    list.append(item);
+  }
+  elements.filterChips.replaceChildren(list);
+}
+
+function renderSummary() {
+  if (!elements.summaryBody) return;
+  const { status, values } = state.summary;
+  if (status === 'ready') {
+    const rows = [
+      [t('filters.summary.total'), formatCount(values.total, state.language)],
+      [t('filters.summary.monthly'), formatCount(values.monthly, state.language)],
+    ];
+    if (values.skillDemand != null) {
+      rows.push([
+        t('filters.summary.skillDemand', { skill: state.filters.skill }),
+        formatCount(values.skillDemand, state.language),
+      ]);
+    }
+    const list = document.createElement('dl');
+    list.className = 'summary__list';
+    for (const [term, value] of rows) {
+      const dt = document.createElement('dt');
+      dt.textContent = term;
+      const dd = document.createElement('dd');
+      dd.textContent = value;
+      list.append(dt, dd);
+    }
+    elements.summaryBody.replaceChildren(list);
+    return;
+  }
+  const message = document.createElement('p');
+  message.className = `summary__${status}`;
+  message.textContent = t(SUMMARY_MESSAGE_KEYS[status] || 'filters.summary.error');
+  elements.summaryBody.replaceChildren(message);
+}
+
+/**
+ * Runs the real queries of queries.js with the current state: the total
+ * (measure 1) plus the monthly trend sum, which must agree with the total. A
+ * skill filter adds the bridge demand of the selected skill. This is the
+ * temporary coherence surface until T-10–T-14 render the view KPIs.
+ */
+async function refreshSummary() {
+  if (!state.filtersReady) {
+    state.summary = { status: 'pending', values: null };
+    renderSummary();
+    return;
+  }
+  const requestId = ++summaryRequestId;
+  const options = buildQueryOptions(state.filters);
+  try {
+    const [totalRows, trendRows] = await Promise.all([
+      runQuery(queries.totalJobOffers(options)),
+      runQuery(queries.monthlyTrend(options)),
+    ]);
+    let skillDemand = null;
+    if (!isBlank(state.filters.skill)) {
+      const rows = await runQuery(queries.skillDemand(options));
+      const match = rows.find((row) => row.skill === state.filters.skill);
+      skillDemand = match ? match.skill_demand : 0;
+    }
+    if (requestId !== summaryRequestId) return;
+    const total = totalRows.length > 0 ? totalRows[0].total_job_offers : 0;
+    const monthly = trendRows.reduce((sum, row) => sum + (Number(row.job_offers) || 0), 0);
+    state.summary = total === 0
+      ? { status: 'empty', values: null }
+      : { status: 'ready', values: { total, monthly, skillDemand } };
+  } catch (error) {
+    if (requestId !== summaryRequestId) return;
+    console.error('[tml] filter summary query failed:', error);
+    state.summary = { status: 'error', values: null };
+  }
+  renderSummary();
+}
+
+function syncFilterControls() {
+  for (const [key, control] of Object.entries(elements.filterControls)) {
+    if (control) control.value = state.filters[key] ?? '';
+  }
+}
+
+function applyFilterChange(filters) {
+  state.filters = filters;
+  syncFilterControls();
+  renderFilterChips();
+  if (state.filtersReady) return refreshSummary();
+  return Promise.resolve();
+}
+
+function setFilters(patch) {
+  return applyFilterChange(mergeFilters(state.filters, patch));
+}
+
+function clearFilters() {
+  return applyFilterChange(createFilters());
+}
+
+/**
+ * Debounces free-text inputs (company, salary bounds) without losing patches:
+ * each control records its own pending patch and the timer fires them merged,
+ * so two fields changed inside the same window both apply.
+ */
+function queueFilterPatch(key, value, immediate) {
+  if (immediate) {
+    pendingFilterPatches.clear();
+    clearTimeout(filterInputTimer);
+    setFilters({ [key]: value });
+    return;
+  }
+  pendingFilterPatches.set(key, value);
+  clearTimeout(filterInputTimer);
+  filterInputTimer = setTimeout(() => {
+    const patch = Object.fromEntries(pendingFilterPatches);
+    pendingFilterPatches.clear();
+    setFilters(patch);
+  }, FILTER_INPUT_DEBOUNCE_MS);
+}
+
+function bindFilterControls() {
+  for (const [key, control] of Object.entries(elements.filterControls)) {
+    if (!control) continue;
+    const immediate = control.tagName === 'SELECT';
+    control.addEventListener(immediate ? 'change' : 'input', () => {
+      queueFilterPatch(key, control.value, immediate);
+    });
+  }
+  if (elements.clearFilters) {
+    elements.clearFilters.addEventListener('click', () => clearFilters());
+  }
+  if (elements.filterChips) {
+    elements.filterChips.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-filter-key]');
+      if (!button) return;
+      const key = button.dataset.filterKey;
+      const patch = key === 'salary' ? { salaryMin: '', salaryMax: '' } : { [key]: '' };
+      setFilters(patch);
+    });
+  }
+}
+
+/** Marks the whole filter surface as unavailable (degraded boot paths). */
+function markFiltersUnavailable() {
+  state.filtersReady = false;
+  state.summary = { status: 'unavailable', values: null };
+  setFilterControlsEnabled(false);
+  renderFilterChips();
+  renderSummary();
+}
+
+async function initializeFilters() {
+  try {
+    await populateFilterOptions();
+  } catch (error) {
+    console.error('[tml] could not populate the filter controls:', error);
+    markFiltersUnavailable();
+    return;
+  }
+  state.filtersReady = true;
+  setFilterControlsEnabled(true);
+  renderFilterChips();
+  await refreshSummary();
+}
+
+/* ========================================================================== *
  * Degradation helpers
  * ========================================================================== */
 
@@ -429,6 +781,13 @@ async function boot() {
   elements.view = document.getElementById('view-content');
   elements.navLinks = Array.from(document.querySelectorAll('[data-view-link]'));
   elements.languageSelect = document.getElementById('language-select');
+  elements.filterChips = document.getElementById('filter-chips');
+  elements.clearFilters = document.getElementById('clear-filters');
+  elements.summaryBody = document.getElementById('summary-body');
+  elements.companyOptions = document.getElementById('filter-company-options');
+  elements.filterControls = Object.fromEntries(
+    Object.entries(FILTER_CONTROL_IDS).map(([key, id]) => [key, document.getElementById(id)]),
+  );
 
   state.language = resolveInitialLanguage({
     storage: safeStorage(),
@@ -436,10 +795,10 @@ async function boot() {
   });
   applyDocumentTranslations(document, state.language);
   bindLanguageSelector();
+  bindFilterControls();
   window.addEventListener('hashchange', applyRoute);
   applyRoute();
-  renderFreshness();
-  renderStatus();
+  renderAll();
 
   // 1. Freshness metadata (also the first degradation check).
   setStatus('status.loadingMeta', 'pending');
@@ -454,6 +813,7 @@ async function boot() {
       messageKey: 'notice.metaMissing.message',
     });
     setStatus('status.unavailable', 'error');
+    markFiltersUnavailable();
     renderFreshness();
     return;
   }
@@ -470,6 +830,7 @@ async function boot() {
       rawDate: state.meta.data_date,
     });
     setStatus('status.unavailable', 'error');
+    markFiltersUnavailable();
     return;
   }
 
@@ -482,6 +843,7 @@ async function boot() {
       messageKey: 'notice.noWasm.message',
     });
     setStatus('status.unavailable', 'error');
+    markFiltersUnavailable();
     return;
   }
   setStatus('status.loadingCdn', 'pending');
@@ -496,6 +858,7 @@ async function boot() {
       messageKey: 'notice.cdnFailed.message',
     });
     setStatus('status.unavailable', 'error');
+    markFiltersUnavailable();
     return;
   }
   try {
@@ -516,6 +879,7 @@ async function boot() {
   reportMissingFiles();
   if (state.loadedTables.length === 0) {
     setStatus('status.unavailable', 'error');
+    markFiltersUnavailable();
     return;
   }
 
@@ -534,6 +898,7 @@ async function boot() {
       messageKey: 'notice.cdnFailed.message',
     });
     setStatus('status.unavailable', 'error');
+    markFiltersUnavailable();
     return;
   }
 
@@ -542,20 +907,34 @@ async function boot() {
     state.smokeCount == null;
   if (degraded) {
     setStatus('status.degraded', 'warn');
+    markFiltersUnavailable();
   } else {
     setStatus('status.ready', 'ok');
+    await initializeFilters();
   }
 }
 
 /**
- * Small read-only surface for local verification and the next tasks
- * (T-09 composes the global filters on top of `query`). Browser console:
- * `await tml.query('SELECT COUNT(*) FROM fact_offers')`.
+ * Read-only surface for local verification and T-10–T-14. Browser console:
+ * `await tml.query('SELECT COUNT(*) FROM fact_offers')`,
+ * `await tml.setFilters({ country: 'Spain' })`,
+ * `await tml.runBuilder('monthlyTrend')`.
  */
 window.tml = {
   getState: () => state,
   query: (sql) => runQuery(sql),
   translate: (key, vars) => t(key, vars),
+  getFilters: () => ({ ...state.filters }),
+  setFilters: (patch) => setFilters(patch),
+  clearFilters: () => clearFilters(),
+  getWhere: () => buildWhere(state.filters),
+  runBuilder: (name, overrides = {}, options = {}) => {
+    const builder = queries[name];
+    if (typeof builder !== 'function') {
+      return Promise.reject(new Error(`Unknown query builder: ${name}`));
+    }
+    return runQuery(builder({ ...buildQueryOptions(state.filters, options), ...overrides }));
+  },
 };
 
 boot();
