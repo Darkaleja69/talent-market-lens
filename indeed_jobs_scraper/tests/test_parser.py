@@ -1,4 +1,6 @@
 """Tests unitarios del parser de Indeed."""
+import json
+
 import pytest
 
 from scraper.parser import (
@@ -259,5 +261,51 @@ class TestExtractInitialDataDescriptions:
 
     def test_missing_auto_open_returns_empty(self):
         html = 'window._initialData={"hostQueryExecutionResult":{"data":{"jobData":{"results":[{"job":{"key":"x","description":{"html":"d"}}}]}}}}'
+        descriptions = _extract_initial_data_descriptions(html)
+        assert descriptions == {}
+
+    def test_extracts_from_auto_open_key_without_initial_data(self):
+        # T-32: Indeed ya no publica `window._initialData =`; el contenedor
+        # sigue embebido en un <script> y se localiza por su clave.
+        html = (
+            '<html><script type="text/javascript">\n'
+            'window.mosaic.providerData["modules"] = {'
+            '"autoOpenTwoPaneViewjobResponse":{"body":{"hostQueryExecutionResult":'
+            '{"data":{"jobData":{"results":['
+            '{"job":{"key":"jk9","description":{"html":"<p>Descripcion embebida</p>"}}}'
+            ']}}}}}};\n</script></html>'
+        )
+        descriptions = _extract_initial_data_descriptions(html)
+        assert descriptions == {"jk9": "<p>Descripcion embebida</p>"}
+
+    def test_extracts_when_body_is_an_encoded_json_string(self):
+        payload = {
+            "hostQueryExecutionResult": {
+                "data": {
+                    "jobData": {
+                        "results": [
+                            {
+                                "job": {
+                                    "key": "jk10",
+                                    "description": {"html": "<b>cuerpo string</b>"},
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        container = {
+            "autoOpenTwoPaneViewjobResponse": {"body": json.dumps(payload)}
+        }
+        html = "<script>window.x = " + json.dumps(container) + ";</script>"
+        descriptions = _extract_initial_data_descriptions(html)
+        assert descriptions == {"jk10": "<b>cuerpo string</b>"}
+
+    def test_tolerates_unrelated_scripts_and_missing_key(self):
+        html = (
+            "<script>var autoOpenTwoPaneViewjobResponseInfo = 1;</script>"
+            '<script id="mosaic-data">window.mosaic.providerData["x"] = {}</script>'
+        )
         descriptions = _extract_initial_data_descriptions(html)
         assert descriptions == {}
