@@ -6,14 +6,17 @@
  * `registerFileBuffer` (no range requests), create the contract views
  * (`fact_offers`, `fact_offer_skills`, `dim_skill_list`, `dim_calendar`), run a
  * smoke query and render the hash-routed shell with visible freshness. View
- * contents (KPIs and charts) arrive in T-10–T-14; the shell only shows a
- * localised placeholder. The SQL itself lives in `queries.js` (T-07).
+ * contents arrive view by view (T-10–T-14): Market Pulse is implemented in
+ * T-10 (KPIs + ECharts), the rest keep a localised placeholder. The SQL itself
+ * lives in `queries.js` (T-07) and the ECharts options in `charts.js` (T-10).
  *
  * T-09 (RF-9): the global filter state lives here and is composed into one
  * WHERE fragment by `filters.js`; the categorical controls are populated once
  * with SELECT DISTINCT, the active filters are shown as removable chips and a
- * small coherence summary runs `queries.js` with the current state until the
- * views (T-10–T-14) render the real KPIs.
+ * small coherence summary runs `queries.js` with the current state. T-10 adds
+ * the Market Pulse renderer: a filter change re-renders the active view (same
+ * debounce), every render disposes the previous ECharts instances and a
+ * missing ECharts leaves the KPIs with a localised note where charts would be.
  *
  * Degradation (RF-14): missing files, unsupported WASM, CDN failures and a
  * non-`full` export mode never leave a blank page; each case raises a visible
@@ -41,11 +44,18 @@ import {
 } from './filters.js';
 import * as queries from './queries.js';
 import {
+  barChart,
+  donutChart,
+  lineChart,
+} from './charts.js';
+import {
   LANGUAGES,
   applyDocumentTranslations,
   formatCount,
   formatDate,
   formatDateTime,
+  formatMonth,
+  formatPercent,
   formatSalary,
   persistLanguage,
   resolveInitialLanguage,
@@ -92,6 +102,11 @@ const VIEWS = [
   { id: 'methodology', titleKey: 'nav.methodology', descriptionKey: 'view.methodology.description' },
 ];
 const DEFAULT_VIEW = VIEWS[0];
+
+/** Views with a real renderer; the rest keep the localised placeholder. */
+const VIEW_RENDERERS = {
+  'market-pulse': renderMarketPulse,
+};
 
 /* ========================================================================== *
  * State
@@ -222,32 +237,52 @@ function activeView() {
   return VIEWS.find((view) => view.id === state.activeViewId) || DEFAULT_VIEW;
 }
 
-function renderActiveView() {
-  const view = activeView();
-  if (elements.view) {
-    elements.view.dataset.view = view.id;
+/** Token of the latest view render; stale async renders discard themselves. */
+let viewRenderId = 0;
 
-    const title = document.createElement('h2');
-    title.className = 'view__title';
-    title.id = 'view-title';
-    title.textContent = t(view.titleKey);
+function buildViewHeader(view, { pending = false } = {}) {
+  const title = document.createElement('h2');
+  title.className = 'view__title';
+  title.id = 'view-title';
+  title.textContent = t(view.titleKey);
 
+  const header = document.createElement('div');
+  header.className = 'view__header';
+  header.append(title);
+  if (pending) {
     const badge = document.createElement('span');
     badge.className = 'view__badge';
     badge.textContent = t('view.pending');
-
-    const header = document.createElement('div');
-    header.className = 'view__header';
-    header.append(title, badge);
-
-    // The localised description doubles as placeholder until T-10–T-14 fill
-    // the view with KPIs and charts; no figures are shown meanwhile.
-    const placeholder = document.createElement('p');
-    placeholder.className = 'view__placeholder';
-    placeholder.textContent = t(view.descriptionKey);
-
-    elements.view.replaceChildren(header, placeholder);
+    header.append(badge);
   }
+  return header;
+}
+
+/** Small localised paragraph (empty states, degradation notices, errors). */
+function noteElement(key, className) {
+  const note = document.createElement('p');
+  note.className = className;
+  note.textContent = t(key);
+  return note;
+}
+
+/** True while the data layer can answer view queries (filters + DuckDB ready). */
+function viewDataReady() {
+  return state.filtersReady && state.conn != null && state.loadedTables.includes('fact_offers');
+}
+
+/** Badge + description shown while a view has no renderer or cannot query. */
+function renderViewPlaceholder(view, { pending }) {
+  if (!elements.view) return;
+  // The localised description doubles as placeholder; no figures are shown
+  // until the renderer can run with ready filters and a live DuckDB connection.
+  const placeholder = document.createElement('p');
+  placeholder.className = 'view__placeholder';
+  placeholder.textContent = t(view.descriptionKey);
+  elements.view.replaceChildren(buildViewHeader(view, { pending }), placeholder);
+}
+
+function updateNavigation(view) {
   if (elements.navLinks.length > 0) {
     const activeHash = `#/${view.id}`;
     elements.navLinks.forEach((link) => {
@@ -256,6 +291,38 @@ function renderActiveView() {
     });
   }
   document.title = `${t(view.titleKey)} · ${t('app.title')}`;
+}
+
+/**
+ * Renders the active view: localised header plus either the real view
+ * renderer (T-10–T-14) or the placeholder. Charts of the previous render are
+ * disposed first; the request token discards stale async renders so rapid
+ * navigation or filter changes never mix contents.
+ */
+async function renderActiveView() {
+  const view = activeView();
+  const requestId = ++viewRenderId;
+  disposeCharts();
+  updateNavigation(view);
+  if (!elements.view) return;
+  elements.view.dataset.view = view.id;
+
+  const renderer = VIEW_RENDERERS[view.id];
+  if (!renderer || !viewDataReady()) {
+    renderViewPlaceholder(view, { pending: !renderer });
+    return;
+  }
+
+  const body = document.createElement('div');
+  body.className = 'view__body';
+  elements.view.replaceChildren(buildViewHeader(view), body);
+  try {
+    await renderer({ requestId, body });
+  } catch (error) {
+    if (requestId !== viewRenderId) return;
+    console.error(`[tml] view "${view.id}" render failed:`, error);
+    body.replaceChildren(noteElement('view.error', 'view__error'));
+  }
 }
 
 function viewFromHash(hash) {
@@ -660,8 +727,10 @@ function applyFilterChange(filters) {
   state.filters = filters;
   syncFilterControls();
   renderFilterChips();
-  if (state.filtersReady) return refreshSummary();
-  return Promise.resolve();
+  if (!state.filtersReady) return Promise.resolve();
+  // The coherence summary and the active view share the same filter state;
+  // awaiting both keeps `window.tml.setFilters()` truthful for local checks.
+  return Promise.all([refreshSummary(), renderActiveView()]);
 }
 
 function setFilters(patch) {
@@ -736,6 +805,233 @@ async function initializeFilters() {
   setFilterControlsEnabled(true);
   renderFilterChips();
   await refreshSummary();
+  await renderActiveView();
+}
+
+/* ========================================================================== *
+ * Charts (T-10): instance lifecycle
+ * ========================================================================== */
+
+/** Live ECharts instances of the active view; disposed on every re-render. */
+const activeCharts = [];
+
+function disposeCharts() {
+  for (const chart of activeCharts) {
+    try {
+      chart.dispose();
+    } catch (error) {
+      console.warn('[tml] could not dispose a chart:', error);
+    }
+  }
+  activeCharts.length = 0;
+}
+
+/** Initialises one ECharts instance on `container`; no-op without ECharts. */
+function mountChart(container, option) {
+  if (!state.echarts || !container) return false;
+  const chart = state.echarts.init(container);
+  chart.setOption(option);
+  activeCharts.push(chart);
+  return true;
+}
+
+function resizeCharts() {
+  for (const chart of activeCharts) {
+    try {
+      chart.resize();
+    } catch (error) {
+      console.warn('[tml] could not resize a chart:', error);
+    }
+  }
+}
+
+/* ========================================================================== *
+ * Market Pulse (T-10, RF-7/RF-8/RF-16): KPIs 1-11 and executive charts
+ * ========================================================================== */
+
+/** Market Pulse KPI cards mapped to measures 1-11 of §7 of the plan. */
+const MARKET_PULSE_KPIS = [
+  { id: 'total', labelKey: 'kpi.totalJobOffers', builder: 'totalJobOffers', alias: 'total_job_offers', format: 'count' },
+  { id: 'companies', labelKey: 'kpi.companiesHiring', builder: 'companiesHiring', alias: 'companies_hiring', format: 'count' },
+  { id: 'countries', labelKey: 'kpi.countriesHiring', builder: 'countriesHiring', alias: 'countries_hiring', format: 'count' },
+  { id: 'cities', labelKey: 'kpi.citiesHiring', builder: 'citiesHiring', alias: 'cities_hiring', format: 'count' },
+  { id: 'last7', labelKey: 'kpi.offersLast7Days', builder: 'offersLast7Days', alias: 'offers_last_7_days', format: 'count' },
+  { id: 'last30', labelKey: 'kpi.offersLast30Days', builder: 'offersLast30Days', alias: 'offers_last_30_days', format: 'count' },
+  { id: 'remote', labelKey: 'kpi.remoteShare', builder: 'remoteShare', alias: 'remote_share', format: 'percent' },
+  { id: 'hybrid', labelKey: 'kpi.hybridShare', builder: 'hybridShare', alias: 'hybrid_share', format: 'percent' },
+  { id: 'onsite', labelKey: 'kpi.onSiteShare', builder: 'onSiteShare', alias: 'on_site_share', format: 'percent' },
+  { id: 'remoteFriendly', labelKey: 'kpi.remoteFriendlyShare', builder: 'remoteFriendlyShare', alias: 'remote_friendly_share', format: 'percent' },
+  { id: 'disclosure', labelKey: 'kpi.salaryDisclosureRate', builder: 'salaryDisclosureRate', alias: 'salary_disclosure_rate', format: 'percent' },
+];
+
+const EMPTY_VALUE = '—';
+
+/** Localised KPI value: shares arrive as 0-1 ratios, counts as integers. */
+function formatKpiValue(value, format) {
+  if (value == null) return EMPTY_VALUE;
+  return format === 'percent'
+    ? formatPercent(value, state.language)
+    : formatCount(value, state.language);
+}
+
+function renderKpiList(kpis) {
+  const list = document.createElement('ul');
+  list.className = 'kpi-grid';
+  for (const kpi of kpis) {
+    const item = document.createElement('li');
+    item.className = 'kpi';
+    const label = document.createElement('p');
+    label.className = 'kpi__label';
+    label.textContent = t(kpi.labelKey);
+    const value = document.createElement('p');
+    value.className = 'kpi__value';
+    value.textContent = formatKpiValue(kpi.value, kpi.format);
+    item.append(label, value);
+    list.append(item);
+  }
+  return list;
+}
+
+/**
+ * Runs the eleven KPI builders plus the four chart aggregations in one batch
+ * with the current global filters (RF-9). Every builder comes from
+ * `queries.js`; this module only orchestrates calls and formats results.
+ */
+async function fetchMarketPulseData(options) {
+  const [kpis, trend, topRoles, topCompanies, experience] = await Promise.all([
+    Promise.all(MARKET_PULSE_KPIS.map(async (kpi) => {
+      const rows = await runQuery(queries[kpi.builder](options));
+      return { ...kpi, value: rows.length > 0 ? rows[0][kpi.alias] : null };
+    })),
+    runQuery(queries.monthlyTrend(options)),
+    runQuery(queries.topRoles(options)),
+    runQuery(queries.topCompanies(options)),
+    runQuery(queries.experienceBreakdown(options)),
+  ]);
+  return { kpis, trend, topRoles, topCompanies, experience };
+}
+
+const formatCountCallback = (value) => formatCount(value, state.language);
+const formatPercentCallback = (value) => formatPercent(value, state.language);
+
+function buildTrendOption(rows) {
+  const categories = rows.map((row) => formatMonth(row.year_month, state.language));
+  return lineChart({
+    categories,
+    values: rows.map((row) => Number(row.job_offers) || 0),
+    seriesName: t('view.marketPulse.trend.title'),
+    formatValue: formatCountCallback,
+    rotateLabels: categories.length > 12,
+  });
+}
+
+function buildRankingOption(rows, nameField, seriesNameKey) {
+  return barChart({
+    categories: rows.map((row) => row[nameField]),
+    values: rows.map((row) => Number(row.job_offers) || 0),
+    seriesName: t(seriesNameKey),
+    horizontal: true,
+    formatValue: formatCountCallback,
+  });
+}
+
+function buildExperienceOption(rows) {
+  return donutChart({
+    items: rows.map((row) => ({ name: row.experience_level, value: Number(row.job_offers) || 0 })),
+    seriesName: t('view.marketPulse.experience.title'),
+    formatValue: formatCountCallback,
+    formatPercent: formatPercentCallback,
+  });
+}
+
+/**
+ * Figure with a localised title, accessible chart container and visible
+ * caption. Returns a mount callback (or null without data): ECharts measures
+ * the container at `init` time, so the caller must run it once the card is
+ * attached to the document. Without data the canvas is replaced by a
+ * localised empty note, so the card never shows a blank axes frame.
+ */
+function appendChartCard(grid, { titleKey, captionKey, wide = false, option }) {
+  const figure = document.createElement('figure');
+  figure.className = `chart-card${wide ? ' chart-card--wide' : ''}`;
+
+  const title = document.createElement('h3');
+  title.className = 'chart-card__title';
+  title.textContent = t(titleKey);
+
+  const body = document.createElement('div');
+  body.className = 'chart-card__body';
+  body.setAttribute('role', 'img');
+  body.setAttribute('aria-label', `${t(titleKey)}. ${t(captionKey)}`);
+
+  const caption = document.createElement('figcaption');
+  caption.className = 'chart-card__caption';
+  caption.textContent = t(captionKey);
+
+  figure.append(title, body, caption);
+  grid.append(figure);
+
+  if (!option) {
+    body.replaceWith(noteElement('view.marketPulse.noData', 'chart-empty'));
+    return null;
+  }
+  return () => mountChart(body, option);
+}
+
+/**
+ * Market Pulse renderer (RF-7): KPI cards 1-11, monthly trend by
+ * `PostedYearMonth`, top 10 roles, top 10 companies and the experience
+ * breakdown. Data, labels and formats come from the current language and the
+ * global filters; this function only assembles DOM and mounts charts.
+ */
+async function renderMarketPulse({ requestId, body }) {
+  const options = buildQueryOptions(state.filters);
+  const data = await fetchMarketPulseData(options);
+  if (requestId !== viewRenderId) return;
+
+  const content = document.createDocumentFragment();
+  content.append(renderKpiList(data.kpis));
+
+  if (!state.echarts) {
+    content.append(noteElement('view.marketPulse.chartsUnavailable', 'chart-unavailable'));
+    body.replaceChildren(content);
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'chart-grid';
+  const mounts = [
+    appendChartCard(grid, {
+      titleKey: 'view.marketPulse.trend.title',
+      captionKey: 'view.marketPulse.trend.caption',
+      wide: true,
+      option: data.trend.length > 0 ? buildTrendOption(data.trend) : null,
+    }),
+    appendChartCard(grid, {
+      titleKey: 'view.marketPulse.topRoles.title',
+      captionKey: 'view.marketPulse.topRoles.caption',
+      option: data.topRoles.length > 0
+        ? buildRankingOption(data.topRoles, 'role_category', 'view.marketPulse.topRoles.title')
+        : null,
+    }),
+    appendChartCard(grid, {
+      titleKey: 'view.marketPulse.topCompanies.title',
+      captionKey: 'view.marketPulse.topCompanies.caption',
+      option: data.topCompanies.length > 0
+        ? buildRankingOption(data.topCompanies, 'company_name', 'view.marketPulse.topCompanies.title')
+        : null,
+    }),
+    appendChartCard(grid, {
+      titleKey: 'view.marketPulse.experience.title',
+      captionKey: 'view.marketPulse.experience.caption',
+      option: data.experience.length > 0 ? buildExperienceOption(data.experience) : null,
+    }),
+  ].filter(Boolean);
+  content.append(grid);
+  body.replaceChildren(content);
+  // Mount only once the cards are attached: ECharts measures its container
+  // at init time and a detached node would be measured as 0×0.
+  for (const mount of mounts) mount();
 }
 
 /* ========================================================================== *
@@ -797,6 +1093,7 @@ async function boot() {
   bindLanguageSelector();
   bindFilterControls();
   window.addEventListener('hashchange', applyRoute);
+  window.addEventListener('resize', resizeCharts);
   applyRoute();
   renderAll();
 

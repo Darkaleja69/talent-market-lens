@@ -125,7 +125,7 @@ comprobación. El trabajo vive en el worktree de la rama
 
 ## 4. Vistas
 
-- [ ] **T-10 — Vista Market Pulse** (~25 min)
+- [x] **T-10 — Vista Market Pulse** (~25 min)
   - **RF:** RF-7, RF-8, RF-16.
   - **Depende de:** T-09.
   - **Hecho cuando:** la vista muestra los KPIs 1–11, la tendencia por

@@ -38,6 +38,18 @@ export const MESSAGES = {
     'view.methodology.description':
       'Fuentes, proceso de datos, normalización salarial, frescura y limitaciones.',
     'view.pending': 'Próximamente',
+    'view.error': 'No se pudieron calcular los datos de esta vista. Inténtalo de nuevo.',
+    'view.marketPulse.trend.title': 'Ofertas por mes',
+    'view.marketPulse.trend.caption': 'Ofertas por mes de publicación (PostedYearMonth).',
+    'view.marketPulse.topRoles.title': 'Roles con más ofertas',
+    'view.marketPulse.topRoles.caption': 'Top 10 categorías de rol por número de ofertas.',
+    'view.marketPulse.topCompanies.title': 'Empresas con más ofertas',
+    'view.marketPulse.topCompanies.caption': 'Top 10 empresas por número de ofertas.',
+    'view.marketPulse.experience.title': 'Reparto por experiencia',
+    'view.marketPulse.experience.caption': 'Reparto de ofertas por nivel de experiencia.',
+    'view.marketPulse.noData': 'Sin datos para este gráfico con los filtros actuales.',
+    'view.marketPulse.chartsUnavailable':
+      'Los gráficos no están disponibles porque ECharts no se pudo cargar desde el CDN; los indicadores superiores siguen calculados con los datos cargados.',
     'status.initializing': 'Iniciando…',
     'status.loadingMeta': 'Cargando metadatos…',
     'status.loadingCdn': 'Cargando librerías…',
@@ -105,6 +117,17 @@ export const MESSAGES = {
     'filters.summary.total': 'Ofertas (total)',
     'filters.summary.monthly': 'Ofertas con mes de publicación',
     'filters.summary.skillDemand': 'Ofertas con la skill «{skill}»',
+    'kpi.totalJobOffers': 'Total de ofertas',
+    'kpi.companiesHiring': 'Empresas contratando',
+    'kpi.countriesHiring': 'Países contratando',
+    'kpi.citiesHiring': 'Ciudades contratando',
+    'kpi.offersLast7Days': 'Ofertas últimos 7 días',
+    'kpi.offersLast30Days': 'Ofertas últimos 30 días',
+    'kpi.remoteShare': 'Cuota de trabajo remoto',
+    'kpi.hybridShare': 'Cuota de trabajo híbrido',
+    'kpi.onSiteShare': 'Cuota de trabajo presencial',
+    'kpi.remoteFriendlyShare': 'Cuota remoto o híbrido',
+    'kpi.salaryDisclosureRate': 'Tasa de salario publicado',
     'footer.note': 'Datos de ofertas públicas; sin datos personales ni credenciales.',
   },
   en: {
@@ -128,6 +151,18 @@ export const MESSAGES = {
     'view.methodology.description':
       'Sources, data process, salary normalisation, freshness and limitations.',
     'view.pending': 'Coming soon',
+    'view.error': 'Could not compute the data for this view. Please try again.',
+    'view.marketPulse.trend.title': 'Job Postings by Month',
+    'view.marketPulse.trend.caption': 'Postings per publication month (PostedYearMonth).',
+    'view.marketPulse.topRoles.title': 'Top Roles',
+    'view.marketPulse.topRoles.caption': 'Top 10 role categories by number of postings.',
+    'view.marketPulse.topCompanies.title': 'Top Companies',
+    'view.marketPulse.topCompanies.caption': 'Top 10 companies by number of postings.',
+    'view.marketPulse.experience.title': 'Experience Level',
+    'view.marketPulse.experience.caption': 'Share of postings by experience level.',
+    'view.marketPulse.noData': 'No data for this chart with the current filters.',
+    'view.marketPulse.chartsUnavailable':
+      'Charts are unavailable because ECharts could not be loaded from the CDN; the indicators above are still computed from the loaded data.',
     'status.initializing': 'Starting…',
     'status.loadingMeta': 'Loading metadata…',
     'status.loadingCdn': 'Loading libraries…',
@@ -195,6 +230,17 @@ export const MESSAGES = {
     'filters.summary.total': 'Postings (total)',
     'filters.summary.monthly': 'Postings with a publication month',
     'filters.summary.skillDemand': 'Postings with the “{skill}” skill',
+    'kpi.totalJobOffers': 'Total Job Offers',
+    'kpi.companiesHiring': 'Companies Hiring',
+    'kpi.countriesHiring': 'Countries Hiring',
+    'kpi.citiesHiring': 'Cities Hiring',
+    'kpi.offersLast7Days': 'Offers Last 7 Days',
+    'kpi.offersLast30Days': 'Offers Last 30 Days',
+    'kpi.remoteShare': 'Remote Share',
+    'kpi.hybridShare': 'Hybrid Share',
+    'kpi.onSiteShare': 'On-site Share',
+    'kpi.remoteFriendlyShare': 'Remote-Friendly Share',
+    'kpi.salaryDisclosureRate': 'Salary Disclosure Rate',
     'footer.note': 'Public job posting data; no personal data and no credentials.',
   },
 };
@@ -278,11 +324,16 @@ export function formatDateTime(value, language) {
   }).format(date);
 }
 
-/** Localised integer/quantity (thousands separator per language). */
+/**
+ * Localised integer/quantity with thousands separators in both languages
+ * (`22.973` / `22,973`). `useGrouping: true` forces grouping of 4-digit
+ * Spanish counts (`9.100`), which `es-ES` would otherwise leave as `9100`,
+ * keeping KPI cards coherent with the Power BI report.
+ */
 export function formatCount(value, language) {
   const number = Number(value);
   if (!Number.isFinite(number)) return String(value ?? '');
-  return new Intl.NumberFormat(localeTag(language)).format(number);
+  return new Intl.NumberFormat(localeTag(language), { useGrouping: true }).format(number);
 }
 
 /** Localised annual EUR amount without decimals (`30.000 €` / `€30,000`). */
@@ -294,6 +345,39 @@ export function formatSalary(value, language) {
     currency: 'EUR',
     maximumFractionDigits: 0,
   }).format(number);
+}
+
+/**
+ * Localised percentage with exactly one decimal from a 0–1 ratio
+ * (`33,5 %` in Spanish, `33.5%` in English). Null/blank passes through empty.
+ */
+export function formatPercent(value, language) {
+  if (value == null || value === '') return '';
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value);
+  return new Intl.NumberFormat(localeTag(language), {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(number);
+}
+
+/**
+ * Localised short month for a `YYYY-MM` key (`abr 2026` / `Apr 2026`).
+ * Anything that does not match the `YYYY-MM` shape is returned as-is so
+ * malformed data stays visible instead of becoming an invented date.
+ */
+export function formatMonth(value, language) {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(value ?? '').trim());
+  if (!match) return String(value ?? '');
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return String(value);
+  const date = new Date(Date.UTC(Number(match[1]), month - 1, 1));
+  return new Intl.DateTimeFormat(localeTag(language), {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
 }
 
 /**
