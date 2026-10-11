@@ -99,7 +99,8 @@ docs/
     charts.js                      # configuración ECharts
     i18n.js                        # diccionario ES/EN y preferencia de idioma
     styles.css                     # estilos responsive
-    assets/europe.geojson          # mapa coroplético versionado (licencia libre)
+    assets/europe.geojson          # mapa coroplético de Europa (licencia libre)
+    assets/regions.geojson         # regiones de los países del selector (licencia libre)
     README.md                      # versiones CDN, licencias y contrato de datos
 docs/data/                         # instantánea local (gitignored; no versionar)
 .github/workflows/dashboard.yml
@@ -279,11 +280,17 @@ por `role_category` y por `WorkModeBucket`; top skills pagadas y ofertas por
 
 **Vistas:**
 
-- **Market Pulse:** medidas 1–11 + agregaciones ejecutivas.
+- **Market Pulse:** medidas 1–4 y 10–11 como KPIs del informe, tendencia por
+  `PostedYearMonth` de los últimos 6 meses, top roles, top empresas y reparto
+  por experiencia, con gráficos compactos.
 - **Roles & Skills:** medidas 12–14 + burbuja demanda vs. salario, donut por
-  categoría y tabla benchmark.
+  categoría, mediana salarial por categoría de skill (agregación directa) y
+  tabla benchmark.
 - **Salary Insights:** medidas 15–18 + medias por rol/modalidad + top paying
-  skills + mapa por país.
+  skills + mapa con selector de país (Europa, Irlanda, Países Bajos, España,
+  Suiza, Estados Unidos): el selector filtra la vista y centra el mapa en el
+  continente (países) o en las regiones del país (ofertas por `GeoRegion`),
+  con las regiones sin dato distinguidas.
 - **Opportunity Explorer:** tabla de ofertas con búsqueda y filtros, campos
   públicos y enlaces reales (RF-10), con paginación/tope.
 - **Metodología:** texto (sin SQL) con fuentes, pipeline, normalización,
@@ -297,7 +304,9 @@ empresa → `company_name`; skill → existencia en `fact_offer_skills` para el
 como en el modelo. `filters.js` compone el `WHERE` común (fragmento sobre el
 alias `f`, con el filtro de skill como `EXISTS` y el rango salarial aparte,
 fuera del `where`) y `queries.js` lo inyecta en su único punto (`applyWhere`);
-cada vista re-renderiza.
+cada vista re-renderiza. El panel de filtros se colapsa tras un botón con
+ayuda breve y los chips de filtros activos siguen visibles con el panel
+cerrado.
 
 ## 8. Aplicación web
 
@@ -307,7 +316,7 @@ cada vista re-renderiza.
 | `app.js` | Arranque (carga de Parquet + `meta.json`), controles de filtros, mensajes de error/degradación, render de la vista activa |
 | `filters.js` | Estado de filtros globales y compositor único del `WHERE` y del rango salarial (módulo puro, sin DOM) |
 | `queries.js` | SQL de cada medida y agregación, documentado con la medida DAX de origen; sin reglas propias de negocio |
-| `charts.js` | Configuración ECharts (líneas, barras, burbuja, donut, mapa coroplético con GeoJSON) |
+| `charts.js` | Configuración ECharts (líneas, barras, burbuja, donut, mapa coroplético con GeoJSON), con tooltips contenidos en el área visible |
 | `i18n.js` | Diccionario español/inglés, selección y persistencia del idioma |
 | `styles.css` | Layout responsive, accesible y sin dependencia de hover |
 

@@ -104,15 +104,19 @@ SQL en el navegador sobre los Parquet del export.
 ### RF-7 — Vistas del dashboard
 
 **Criterio de aceptación (EARS):** La web deberá ofrecer, al menos, estas
-vistas navegables y enlazables:
-- **Market Pulse:** KPIs de total de ofertas, empresas, países y ciudades
-  contratando, ofertas de los últimos 7 y 30 días, reparto remoto/híbrido/
-  presencial, tasa de publicación de salario, tendencia mensual, top roles,
-  top empresas y reparto por experiencia.
+vistas navegables y enlazables, con gráficos compactos y legibles:
+- **Market Pulse:** los KPIs del informe original (ofertas únicas, empresas
+  contratando, cuota remoto o híbrido y tasa de publicación de salario),
+  tendencia mensual de los últimos 6 meses, top roles, top empresas y reparto
+  por experiencia.
 - **Roles & Skills:** demanda y cuota por skill, salario mediano por skill,
-  burbuja demanda vs. salario, donut por categoría y tabla de benchmark.
+  burbuja demanda vs. salario, donut por categoría, salario mediano por
+  categoría de skill y tabla de benchmark.
 - **Salary Insights:** salario medio, mediano, P25 y P75, medias por categoría
-  de rol y modalidad, top skills pagadas y mapa por país.
+  de rol y modalidad, top skills pagadas y mapa con selector de país
+  (Europa, Irlanda, Países Bajos, España, Suiza y Estados Unidos) que filtra
+  la vista y centra el mapa en el continente o en las regiones del país
+  seleccionado, mostrando dónde se concentran las ofertas.
 - **Opportunity Explorer:** tabla consultable de ofertas individuales.
 - **Metodología:** texto de fuentes, proceso, frescura y limitaciones.
 
@@ -134,7 +138,8 @@ documentarán en la metodología.
 **Criterio de aceptación (EARS):** El sitio deberá aplicar los filtros globales
 —país, experiencia, rol, modalidad, empresa, skill, fuente y rango salarial— de
 forma coherente a todas las vistas, mostrando los filtros activos y
-permitiendo limpiarlos.
+permitiendo limpiarlos. El panel de filtros permanecerá colapsado tras un botón
+visible, acompañado de un texto breve que explique su funcionamiento.
 
 ### RF-10 — Explorador de ofertas
 
@@ -218,7 +223,8 @@ compartibles.
   interactivas (< ~1 s) con el export de tamaño típico; los Parquet se cargan
   una vez por visita.
 - **Accesibilidad y móvil:** diseño responsive, navegable con teclado,
-  contraste suficiente y sin depender de hover.
+  contraste suficiente, sin depender de hover y con los tooltips y elementos
+  emergentes siempre dentro del área visible.
 - **Reproducibilidad:** la misma fecha de datos produce el mismo sitio; las
   versiones del CDN quedan fijadas y `meta.json` identifica la versión del
   export.
