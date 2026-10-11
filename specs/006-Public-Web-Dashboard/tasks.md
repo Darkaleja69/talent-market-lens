@@ -158,7 +158,7 @@ comprobación. El trabajo vive en el worktree de la rama
     volumen, no incluye descripciones ni columnas internas y sus textos salen
     del diccionario ES/EN.
 
-- [ ] **T-14 — Vista Metodología** (~20 min)
+- [x] **T-14 — Vista Metodología** (~20 min)
   - **RF:** RF-7, RF-13, RF-16.
   - **Depende de:** T-08.
   - **Hecho cuando:** la vista explica fuentes, traza del pipeline,

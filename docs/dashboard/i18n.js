@@ -127,6 +127,100 @@ export const MESSAGES = {
     'view.opportunityExplorer.pagination.previous': 'Anterior',
     'view.opportunityExplorer.pagination.next': 'Siguiente',
     'view.opportunityExplorer.pagination.page': 'Página {page} de {pages}',
+    'view.methodology.sources.title': 'Fuentes de datos',
+    'view.methodology.sources.lead':
+      'Los datos proceden de ofertas de empleo publicadas en portales y agregadores, recopiladas a diario por scrapers propios. Cada oferta conserva la fuente de la que se descargó (campo source_scraper).',
+    'view.methodology.sources.caption': 'Ofertas por fuente en el export publicado.',
+    'view.methodology.sources.source': 'Fuente',
+    'view.methodology.sources.postings': 'Ofertas',
+    'view.methodology.sources.total': 'Total',
+    'view.methodology.sources.rawNote':
+      'Las ofertas se muestran tal cual llegan de los portales, sin traducir: títulos, empresas y ubicaciones conservan el idioma original (normalmente inglés).',
+    'view.methodology.pipeline.title': 'Traza del pipeline',
+    'view.methodology.pipeline.lead':
+      'Así viaja cada oferta desde el portal hasta tu navegador:',
+    'view.methodology.pipeline.step1':
+      'Cada noche, los scrapers recorren los portales de empleo y descargan las ofertas publicadas.',
+    'view.methodology.pipeline.step2':
+      'Las ofertas crudas se guardan en Azure Data Lake Storage (ADLS), la zona de aterrizaje del proyecto, sin transformar.',
+    'view.methodology.pipeline.step3':
+      'Databricks limpia, normaliza y modela los datos en las tablas Delta de la capa Gold, la misma fuente que usa el informe de Power BI.',
+    'view.methodology.pipeline.step4':
+      'Una tarea final del job genera el export Parquet y un fichero meta.json con la frescura, los recuentos y la versión del export.',
+    'view.methodology.pipeline.step5':
+      'GitHub Actions descarga ese export cada día con una credencial de solo lectura.',
+    'view.methodology.pipeline.step6':
+      'El sitio se despliega como web estática en GitHub Pages; los datos no se guardan en el repositorio.',
+    'view.methodology.pipeline.step7':
+      'Tu navegador descarga el export y ejecuta las consultas en local con DuckDB-WASM: no hay servidor y tus consultas no salen de tu equipo.',
+    'view.methodology.pipeline.note':
+      'El sitio solo conoce el contrato de ficheros del export; no depende de Databricks ni de Power BI para funcionar.',
+    'view.methodology.salary.title': 'Normalización salarial',
+    'view.methodology.salary.lead':
+      'Las ofertas llegan con formatos, monedas y periodicidades distintos. El pipeline las normaliza a valores anuales en euros:',
+    'view.methodology.salary.point1':
+      'Salario mínimo y máximo anualizados (SalaryMinAnnual_EUR y SalaryMaxAnnual_EUR), con las conversiones de moneda y periodo que correspondan.',
+    'view.methodology.salary.point2':
+      'El dashboard usa el punto medio del rango (SalaryMidAnnual_EUR): es la base de la media, la mediana y los percentiles.',
+    'view.methodology.salary.point3':
+      'Solo cuentan los salarios mayores que cero, menores o iguales a 1.000.000 € y con mínimo ≤ máximo; el resto se descarta por no ser fiable.',
+    'view.methodology.salary.point4':
+      'La tasa de salario publicado mide cuántas ofertas del contexto traen un salario válido.',
+    'view.methodology.salary.point5':
+      'Las ofertas sin salario quedan fuera de las métricas salariales, igual que en el modelo de Power BI; la tasa de publicación lo refleja.',
+    'view.methodology.dates.title': 'Procedencia de fechas',
+    'view.methodology.dates.lead':
+      'Las fechas del dashboard proceden de la fecha de publicación de cada oferta:',
+    'view.methodology.dates.point1':
+      'posted_date es la fecha en la que la oferta se publicó en su portal.',
+    'view.methodology.dates.point2':
+      'No todas las ofertas traen una fecha fiable: el pipeline conserva un indicador interno de validez (IsValidPostingDate) para auditar esta limitación.',
+    'view.methodology.dates.point3':
+      'La frescura usa la fecha de publicación máxima del export; es la fecha de datos que aparece en la cabecera.',
+    'view.methodology.freshness.title': 'Frescura del export',
+    'view.methodology.freshness.lead':
+      'Todo lo que sigue viene del fichero meta.json que acompaña al export, no de cálculos de la web:',
+    'view.methodology.freshness.dataDate': 'Fecha de datos',
+    'view.methodology.freshness.generatedAt': 'Export generado',
+    'view.methodology.freshness.mode': 'Modo',
+    'view.methodology.freshness.modeFull':
+      'Export completo: las vistas consultan todas las tablas publicadas.',
+    'view.methodology.freshness.modeAggregated':
+      'Export con agregados: para mantener el sitio ligero, las vistas usan tablas agregadas y el explorador queda limitado a un alcance documentado.',
+    'view.methodology.freshness.exportVersion': 'Versión del export',
+    'view.methodology.freshness.size': 'Tamaño total',
+    'view.methodology.freshness.tablesTitle': 'Recuento por tabla',
+    'view.methodology.freshness.sourcesTitle': 'Recuento por fuente',
+    'view.methodology.metaMissing':
+      'No se pudo cargar meta.json: la fecha de datos, la versión, el tamaño y los recuentos del export no están disponibles ahora mismo. El resto de la metodología sigue visible.',
+    'view.methodology.limitations.title': 'Limitaciones conocidas',
+    'view.methodology.limitations.lead':
+      'Estas cifras son una foto realista, no una verdad absoluta; conviene leerlas con estas cautelas:',
+    'view.methodology.limitations.point1':
+      'El dashboard refleja solo las ofertas publicadas en los portales seguidos, no todo el mercado laboral.',
+    'view.methodology.limitations.point2':
+      'Solo se muestran skills del catálogo del proyecto; las skills de texto libre que no entran en el catálogo quedan fuera de las vistas, igual que en el informe.',
+    'view.methodology.limitations.point3':
+      'Las cifras del sitio pueden no coincidir con capturas del informe Power BI de otra fecha: los datos se rellenan hacia atrás y se corrigen con el tiempo.',
+    'view.methodology.limitations.point4':
+      'El filtro de país usa GeoCountry, un campo normalizado del pipeline; es una aproximación al mapeo geográfico del informe, que agrupa por región.',
+    'view.methodology.limitations.point5':
+      'Las medianas de skills con pocas ofertas con salario pueden ser inestables y moverse entre actualizaciones.',
+    'view.methodology.limitations.point6':
+      'La tendencia mensual agrupa por mes de publicación; el informe Power BI pinta la evolución por día.',
+    'view.methodology.limitations.detail':
+      'El detalle completo de estas diferencias (fechas, muestras pequeñas y aproximaciones de texto) está documentado en la cabecera del módulo de consultas (queries.js) del proyecto.',
+    'view.methodology.legal.title': 'Aviso legal',
+    'view.methodology.legal.point1':
+      'El dashboard muestra ofertas de empleo públicas recopiladas de portales y agregadores de empleo.',
+    'view.methodology.legal.point2':
+      'Solo se publican campos públicos de cada oferta: no hay descripciones completas ni datos personales.',
+    'view.methodology.legal.point3':
+      'Cada fila enlaza a la oferta original; la oferta puede haber caducado, pero era real en su fecha.',
+    'view.methodology.legal.point4':
+      'Los datos se ofrecen sin garantía de exactitud ni de disponibilidad; úsalos como orientación.',
+    'view.methodology.legal.point5':
+      'Las marcas y portales mencionados pertenecen a sus titulares; este proyecto no está afiliado a ellos.',
     'status.initializing': 'Iniciando…',
     'status.loadingMeta': 'Cargando metadatos…',
     'status.loadingCdn': 'Cargando librerías…',
@@ -321,6 +415,100 @@ export const MESSAGES = {
     'view.opportunityExplorer.pagination.previous': 'Previous',
     'view.opportunityExplorer.pagination.next': 'Next',
     'view.opportunityExplorer.pagination.page': 'Page {page} of {pages}',
+    'view.methodology.sources.title': 'Data sources',
+    'view.methodology.sources.lead':
+      'The data comes from job postings published on job boards and aggregators, collected daily by our own scrapers. Every posting keeps the source it was downloaded from (source_scraper column).',
+    'view.methodology.sources.caption': 'Postings per source in the published export.',
+    'view.methodology.sources.source': 'Source',
+    'view.methodology.sources.postings': 'Postings',
+    'view.methodology.sources.total': 'Total',
+    'view.methodology.sources.rawNote':
+      'Postings are shown exactly as they arrive from the portals, without translation: titles, companies and locations keep their original language (usually English).',
+    'view.methodology.pipeline.title': 'Pipeline trace',
+    'view.methodology.pipeline.lead':
+      'This is how every posting travels from the portal to your browser:',
+    'view.methodology.pipeline.step1':
+      'Every night the scrapers crawl the job boards and download the published postings.',
+    'view.methodology.pipeline.step2':
+      'The raw postings are stored untransformed in Azure Data Lake Storage (ADLS), the project landing zone.',
+    'view.methodology.pipeline.step3':
+      'Databricks cleans, normalises and models the data into the Delta tables of the Gold layer, the same source used by the Power BI report.',
+    'view.methodology.pipeline.step4':
+      'A final job task produces the Parquet export and a meta.json file with freshness, row counts and the export version.',
+    'view.methodology.pipeline.step5':
+      'GitHub Actions downloads that export every day with a read-only credential.',
+    'view.methodology.pipeline.step6':
+      'The site is deployed as a static website on GitHub Pages; the data is never stored in the repository.',
+    'view.methodology.pipeline.step7':
+      'Your browser downloads the export and runs the queries locally with DuckDB-WASM: there is no server and your queries never leave your device.',
+    'view.methodology.pipeline.note':
+      'The site only knows the export file contract; it does not depend on Databricks or Power BI to work.',
+    'view.methodology.salary.title': 'Salary normalisation',
+    'view.methodology.salary.lead':
+      'Postings arrive in different formats, currencies and periods. The pipeline normalises them into annual values in euros:',
+    'view.methodology.salary.point1':
+      'Annualised minimum and maximum salary (SalaryMinAnnual_EUR and SalaryMaxAnnual_EUR), with the applicable currency and period conversions.',
+    'view.methodology.salary.point2':
+      'The dashboard uses the midpoint of the range (SalaryMidAnnual_EUR): it is the base of the average, median and percentiles.',
+    'view.methodology.salary.point3':
+      'Only salaries above zero, at or below €1,000,000 and with minimum ≤ maximum count; the rest are discarded as unreliable.',
+    'view.methodology.salary.point4':
+      'The salary disclosure rate measures how many postings in the context carry a valid salary.',
+    'view.methodology.salary.point5':
+      'Postings without a salary stay out of the salary metrics, exactly as in the Power BI model; the disclosure rate reflects it.',
+    'view.methodology.dates.title': 'Date provenance',
+    'view.methodology.dates.lead':
+      'The dashboard dates come from each posting publication date:',
+    'view.methodology.dates.point1':
+      'posted_date is the date the posting was published on its portal.',
+    'view.methodology.dates.point2':
+      'Not every posting carries a reliable date: the pipeline keeps an internal validity indicator (IsValidPostingDate) to audit this limitation.',
+    'view.methodology.dates.point3':
+      'Freshness uses the export maximum publication date; it is the data date shown in the header.',
+    'view.methodology.freshness.title': 'Export freshness',
+    'view.methodology.freshness.lead':
+      'Everything below comes from the meta.json file shipped with the export, not from calculations in the web:',
+    'view.methodology.freshness.dataDate': 'Data date',
+    'view.methodology.freshness.generatedAt': 'Export generated',
+    'view.methodology.freshness.mode': 'Mode',
+    'view.methodology.freshness.modeFull':
+      'Full export: the views query every published table.',
+    'view.methodology.freshness.modeAggregated':
+      'Aggregated export: to keep the site light, the views use aggregate tables and the explorer is limited to a documented scope.',
+    'view.methodology.freshness.exportVersion': 'Export version',
+    'view.methodology.freshness.size': 'Total size',
+    'view.methodology.freshness.tablesTitle': 'Row count by table',
+    'view.methodology.freshness.sourcesTitle': 'Row count by source',
+    'view.methodology.metaMissing':
+      'Could not load meta.json: the data date, version, size and export row counts are unavailable right now. The rest of the methodology stays visible.',
+    'view.methodology.limitations.title': 'Known limitations',
+    'view.methodology.limitations.lead':
+      'These figures are a realistic snapshot, not absolute truth; read them with these caveats:',
+    'view.methodology.limitations.point1':
+      'The dashboard reflects only the postings published on the tracked job boards, not the whole job market.',
+    'view.methodology.limitations.point2':
+      'Only skills from the project catalogue are shown; free-text skills outside the catalogue stay out of the views, exactly as in the report.',
+    'view.methodology.limitations.point3':
+      'Figures on the site may not match Power BI report captures from another date: data is backfilled and corrected over time.',
+    'view.methodology.limitations.point4':
+      'The country filter uses GeoCountry, a normalised pipeline column; it approximates the report geographical mapping, which groups by region.',
+    'view.methodology.limitations.point5':
+      'Medians for skills with few salaried postings can be unstable and move between refreshes.',
+    'view.methodology.limitations.point6':
+      'The monthly trend groups by publication month; the Power BI report plots the day-by-day evolution.',
+    'view.methodology.limitations.detail':
+      'The full detail of these differences (dates, small samples and text approximations) is documented in the header of the project queries module (queries.js).',
+    'view.methodology.legal.title': 'Legal notice',
+    'view.methodology.legal.point1':
+      'The dashboard shows public job postings collected from job boards and aggregators.',
+    'view.methodology.legal.point2':
+      'Only public fields of each posting are published: no full descriptions and no personal data.',
+    'view.methodology.legal.point3':
+      'Every row links to the original posting; it may have expired, but it was real on its date.',
+    'view.methodology.legal.point4':
+      'The data is provided with no guarantee of accuracy or availability; use it as guidance.',
+    'view.methodology.legal.point5':
+      'The brands and portals mentioned belong to their owners; this project is not affiliated with them.',
     'status.initializing': 'Starting…',
     'status.loadingMeta': 'Loading metadata…',
     'status.loadingCdn': 'Loading libraries…',
@@ -496,6 +684,22 @@ export function formatCount(value, language) {
   const number = Number(value);
   if (!Number.isFinite(number)) return String(value ?? '');
   return new Intl.NumberFormat(localeTag(language), { useGrouping: true }).format(number);
+}
+
+/**
+ * Localised size of a byte count with one decimal (`2,9 MB` / `2.9 MB`).
+ * Values below 1 MB keep two decimals; non-finite input passes through.
+ */
+export function formatBytes(value, language) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return String(value ?? '');
+  const megabytes = bytes / (1024 * 1024);
+  const digits = megabytes < 1 && megabytes > 0 ? 2 : 1;
+  const number = new Intl.NumberFormat(localeTag(language), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(megabytes);
+  return `${number} MB`;
 }
 
 /** Localised annual EUR amount without decimals (`30.000 €` / `€30,000`). */

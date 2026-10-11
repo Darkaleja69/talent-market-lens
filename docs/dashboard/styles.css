@@ -611,6 +611,88 @@ body {
   font-size: 0.9rem;
 }
 
+/* ------------------------------------------------ methodology (T-14) --- */
+
+.methodology__section {
+  margin-top: 1.6rem;
+}
+
+.methodology__title {
+  margin: 0;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 1.05rem;
+}
+
+.methodology__lead {
+  margin: 0.7rem 0 0;
+  max-width: 78ch;
+}
+
+.methodology__subtitle {
+  margin: 1.1rem 0 0;
+  font-size: 0.9rem;
+}
+
+.methodology__points,
+.methodology__steps {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.7rem 0 0;
+  padding-left: 1.3rem;
+  max-width: 78ch;
+}
+
+.methodology__note {
+  margin: 0.7rem 0 0;
+  max-width: 78ch;
+  color: var(--color-muted);
+  font-size: 0.88rem;
+}
+
+.methodology__table {
+  margin-top: 0.7rem;
+  max-width: 34rem;
+}
+
+.methodology__meta,
+.methodology__counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0.8rem 0 0;
+}
+
+.methodology__meta dt,
+.methodology__counts dt {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.methodology__meta dd,
+.methodology__counts dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.methodology__counts dd {
+  font-variant-numeric: tabular-nums;
+}
+
+.methodology__missing {
+  margin: 0.8rem 0 0;
+  max-width: 78ch;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius);
+  background: var(--color-warn-bg);
+  color: var(--color-warn-text);
+  font-weight: 600;
+}
+
 /* --------------------------------------------------------------- filters --- */
 
 .filters,

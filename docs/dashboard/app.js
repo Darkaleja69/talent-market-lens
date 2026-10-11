@@ -8,9 +8,13 @@
  * smoke query and render the hash-routed shell with visible freshness. View
  * contents arrive view by view (T-10–T-14): Market Pulse is implemented in
  * T-10 (KPIs + ECharts), Roles & Skills in T-11 (benchmark table + bubble +
- * category donut) and Salary Insights in T-12 (KPIs 15-18, averages by role
+ * category donut), Salary Insights in T-12 (KPIs 15-18, averages by role
  * and work mode, top paying skills and the Europe choropleth with the
- * versioned GeoJSON); the rest keep a localised placeholder. The SQL itself
+ * versioned GeoJSON), the Opportunity Explorer in T-13 (searchable paginated
+ * table) and the Methodology in T-14 (sources, pipeline trace, salary
+ * normalisation, dates, freshness from `meta.json`, limitations and legal
+ * notice; no SQL and no charts). Every view now has a renderer; the localised
+ * placeholder only shows while the data layer is unavailable. The SQL itself
  * lives in `queries.js` (T-07) and the ECharts options in `charts.js` (T-10,
  * T-11).
  *
@@ -57,6 +61,7 @@ import {
 import {
   LANGUAGES,
   applyDocumentTranslations,
+  formatBytes,
   formatCount,
   formatDate,
   formatDateTime,
@@ -115,7 +120,15 @@ const VIEW_RENDERERS = {
   'roles-skills': renderRolesSkills,
   'salary-insights': renderSalaryInsights,
   'opportunity-explorer': renderOpportunityExplorer,
+  'methodology': renderMethodology,
 };
+
+/**
+ * Views rendered from `meta.json` and local text only (no DuckDB). They must
+ * stay readable while the data layer is degraded (RF-13/RF-14), so
+ * `renderActiveView` does not gate them behind `viewDataReady()`.
+ */
+const DATA_FREE_VIEWS = new Set(['methodology']);
 
 /* ========================================================================== *
  * State
@@ -317,7 +330,8 @@ async function renderActiveView() {
   elements.view.dataset.view = view.id;
 
   const renderer = VIEW_RENDERERS[view.id];
-  if (!renderer || !viewDataReady()) {
+  const needsData = !DATA_FREE_VIEWS.has(view.id);
+  if (!renderer || (needsData && !viewDataReady())) {
     renderViewPlaceholder(view, { pending: !renderer });
     return;
   }
@@ -1834,6 +1848,262 @@ async function renderOpportunityExplorer({ requestId, body }) {
 }
 
 /* ========================================================================== *
+ * Methodology (T-14, RF-7/RF-13/RF-16): sources, pipeline trace, salary
+ * normalisation, date provenance, freshness from meta.json, known limitations
+ * and legal notice. Plain text and meta.json values only: no SQL, no charts
+ * and no dependency on the data layer.
+ * ========================================================================== */
+
+/**
+ * `[source, count]` pairs of `meta.sources`, descending by count (name as
+ * tie-breaker). Non-finite counts are dropped so the view never shows an
+ * invented figure (RF-14).
+ */
+function sortedSourceCounts(sources) {
+  return Object.entries(sources || {})
+    .map(([name, count]) => [name, Number(count)])
+    .filter(([, count]) => Number.isFinite(count))
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/**
+ * `[name, count]` pairs of `meta.tables` with the four contract tables first
+ * (the order of the export contract) and any extra table after them.
+ */
+function orderedTableCounts(tables) {
+  const values = tables || {};
+  const extra = Object.keys(values).filter((name) => !DATA_FILES.includes(name)).sort();
+  return [...DATA_FILES, ...extra]
+    .filter((name) => name in values)
+    .map((name) => [name, Number(values[name])])
+    .filter(([, count]) => Number.isFinite(count));
+}
+
+/** Section of the view with a localised `h3` title and a unique anchor id. */
+function appendMethodologySection(body, id, titleKey) {
+  const section = document.createElement('section');
+  section.className = 'methodology__section';
+  section.setAttribute('aria-labelledby', id);
+
+  const title = document.createElement('h3');
+  title.className = 'methodology__title';
+  title.id = id;
+  title.textContent = t(titleKey);
+
+  section.append(title);
+  body.append(section);
+  return section;
+}
+
+/** Localised paragraph (same helper the views use for notes). */
+function appendParagraph(parent, key, className = 'methodology__lead') {
+  parent.append(noteElement(key, className));
+}
+
+/** List where every item is one i18n key; ordered for step-by-step traces. */
+function appendKeyList(parent, keys, { className = 'methodology__points', ordered = false } = {}) {
+  const list = document.createElement(ordered ? 'ol' : 'ul');
+  list.className = className;
+  for (const key of keys) {
+    const item = document.createElement('li');
+    item.textContent = t(key);
+    list.append(item);
+  }
+  parent.append(list);
+}
+
+/** Definition list of already-localised `[term, value]` pairs. */
+function buildDefinitionList(entries, className) {
+  const list = document.createElement('dl');
+  list.className = className;
+  for (const [term, value] of entries) {
+    const dt = document.createElement('dt');
+    dt.textContent = term;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    list.append(dt, dd);
+  }
+  return list;
+}
+
+/** Sources table of the view: descending counts plus a total row. */
+function buildSourcesTable(entries) {
+  const table = document.createElement('table');
+  table.className = 'benchmark-table methodology__table';
+
+  const caption = document.createElement('caption');
+  caption.className = 'benchmark-table__caption';
+  caption.textContent = t('view.methodology.sources.caption');
+  table.append(caption);
+
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const [labelKey, numeric] of [
+    ['view.methodology.sources.source', false],
+    ['view.methodology.sources.postings', true],
+  ]) {
+    const th = document.createElement('th');
+    th.setAttribute('scope', 'col');
+    if (numeric) th.className = 'benchmark-table__number';
+    th.textContent = t(labelKey);
+    headRow.append(th);
+  }
+  head.append(headRow);
+
+  const body = document.createElement('tbody');
+  for (const [name, count] of entries) {
+    const row = document.createElement('tr');
+    const nameCell = document.createElement('td');
+    nameCell.textContent = name;
+    const countCell = document.createElement('td');
+    countCell.className = 'benchmark-table__number';
+    countCell.textContent = formatCount(count, state.language);
+    row.append(nameCell, countCell);
+    body.append(row);
+  }
+
+  const foot = document.createElement('tfoot');
+  const footRow = document.createElement('tr');
+  const totalLabel = document.createElement('th');
+  totalLabel.setAttribute('scope', 'row');
+  totalLabel.textContent = t('view.methodology.sources.total');
+  const totalValue = document.createElement('td');
+  totalValue.className = 'benchmark-table__number';
+  totalValue.textContent = formatCount(
+    entries.reduce((sum, [, count]) => sum + count, 0),
+    state.language,
+  );
+  footRow.append(totalLabel, totalValue);
+  foot.append(footRow);
+
+  table.append(head, body, foot);
+  return table;
+}
+
+/**
+ * Freshness block: meta.json fields, the mode explanation, the row count per
+ * contract table and per source. Without `meta` (meta.json failed to load) a
+ * localised warning replaces the block — never an empty section (RF-14).
+ */
+function appendFreshnessBlock(section) {
+  const meta = state.meta;
+  if (!meta) {
+    section.append(noteElement('view.methodology.metaMissing', 'methodology__missing'));
+    return;
+  }
+  appendParagraph(section, 'view.methodology.freshness.lead');
+
+  const mode = meta.mode == null ? '' : String(meta.mode);
+  const modeExplanationKey = mode === 'full'
+    ? 'view.methodology.freshness.modeFull'
+    : 'view.methodology.freshness.modeAggregated';
+  section.append(buildDefinitionList([
+    [t('view.methodology.freshness.dataDate'), formatDate(meta.data_date, state.language)],
+    [t('view.methodology.freshness.generatedAt'), `${formatDateTime(meta.generated_at, state.language)} UTC`],
+    [t('view.methodology.freshness.mode'), mode],
+    [t('view.methodology.freshness.exportVersion'), formatCount(meta.export_version, state.language)],
+    [t('view.methodology.freshness.size'), formatBytes(meta.size_bytes, state.language)],
+  ], 'methodology__meta'));
+
+  // A non-full export is not part of the site contract yet (see boot): the
+  // mode explanation stays visible here even when the data layer is disabled.
+  appendParagraph(section, modeExplanationKey, 'methodology__note');
+
+  const tables = orderedTableCounts(meta.tables);
+  if (tables.length > 0) {
+    const subtitle = document.createElement('h4');
+    subtitle.className = 'methodology__subtitle';
+    subtitle.textContent = t('view.methodology.freshness.tablesTitle');
+    section.append(subtitle, buildDefinitionList(
+      tables.map(([name, count]) => [name, formatCount(count, state.language)]),
+      'methodology__counts',
+    ));
+  }
+
+  const sources = sortedSourceCounts(meta.sources);
+  if (sources.length > 0) {
+    const subtitle = document.createElement('h4');
+    subtitle.className = 'methodology__subtitle';
+    subtitle.textContent = t('view.methodology.freshness.sourcesTitle');
+    section.append(subtitle, buildDefinitionList(
+      sources.map(([name, count]) => [name, formatCount(count, state.language)]),
+      'methodology__counts',
+    ));
+  }
+}
+
+/**
+ * Methodology renderer (RF-13): the seven sections — sources, pipeline trace,
+ * salary normalisation, date provenance, freshness, known limitations and
+ * legal notice — assembled from i18n.js keys and the loaded `meta.json`. The
+ * per-source table comes from `meta.sources`; without `meta` the section shows
+ * a localised warning instead.
+ */
+function renderMethodology({ body }) {
+  const sources = sortedSourceCounts(state.meta && state.meta.sources);
+
+  const sourcesSection = appendMethodologySection(body, 'methodology-sources', 'view.methodology.sources.title');
+  appendParagraph(sourcesSection, 'view.methodology.sources.lead');
+  if (sources.length > 0) sourcesSection.append(buildSourcesTable(sources));
+  appendParagraph(sourcesSection, 'view.methodology.sources.rawNote', 'methodology__note');
+
+  const pipelineSection = appendMethodologySection(body, 'methodology-pipeline', 'view.methodology.pipeline.title');
+  appendParagraph(pipelineSection, 'view.methodology.pipeline.lead');
+  appendKeyList(pipelineSection, [
+    'view.methodology.pipeline.step1',
+    'view.methodology.pipeline.step2',
+    'view.methodology.pipeline.step3',
+    'view.methodology.pipeline.step4',
+    'view.methodology.pipeline.step5',
+    'view.methodology.pipeline.step6',
+    'view.methodology.pipeline.step7',
+  ], { className: 'methodology__steps', ordered: true });
+  appendParagraph(pipelineSection, 'view.methodology.pipeline.note', 'methodology__note');
+
+  const salarySection = appendMethodologySection(body, 'methodology-salary', 'view.methodology.salary.title');
+  appendParagraph(salarySection, 'view.methodology.salary.lead');
+  appendKeyList(salarySection, [
+    'view.methodology.salary.point1',
+    'view.methodology.salary.point2',
+    'view.methodology.salary.point3',
+    'view.methodology.salary.point4',
+    'view.methodology.salary.point5',
+  ]);
+
+  const datesSection = appendMethodologySection(body, 'methodology-dates', 'view.methodology.dates.title');
+  appendParagraph(datesSection, 'view.methodology.dates.lead');
+  appendKeyList(datesSection, [
+    'view.methodology.dates.point1',
+    'view.methodology.dates.point2',
+    'view.methodology.dates.point3',
+  ]);
+
+  const freshnessSection = appendMethodologySection(body, 'methodology-freshness', 'view.methodology.freshness.title');
+  appendFreshnessBlock(freshnessSection);
+
+  const limitationsSection = appendMethodologySection(body, 'methodology-limitations', 'view.methodology.limitations.title');
+  appendParagraph(limitationsSection, 'view.methodology.limitations.lead');
+  appendKeyList(limitationsSection, [
+    'view.methodology.limitations.point1',
+    'view.methodology.limitations.point2',
+    'view.methodology.limitations.point3',
+    'view.methodology.limitations.point4',
+    'view.methodology.limitations.point5',
+    'view.methodology.limitations.point6',
+  ]);
+  appendParagraph(limitationsSection, 'view.methodology.limitations.detail', 'methodology__note');
+
+  const legalSection = appendMethodologySection(body, 'methodology-legal', 'view.methodology.legal.title');
+  appendKeyList(legalSection, [
+    'view.methodology.legal.point1',
+    'view.methodology.legal.point2',
+    'view.methodology.legal.point3',
+    'view.methodology.legal.point4',
+    'view.methodology.legal.point5',
+  ]);
+}
+
+/* ========================================================================== *
  * Degradation helpers
  * ========================================================================== */
 
@@ -1914,6 +2184,11 @@ async function boot() {
     return;
   }
   renderFreshness();
+
+  // The methodology view renders from meta.json without DuckDB: refresh it now
+  // that freshness is known. Other views wait for the data layer instead of
+  // re-rendering twice.
+  if (state.activeViewId === 'methodology') await renderActiveView();
 
   // 2. Aggregated exports are not part of the site contract yet (RF-4/T-19).
   if (state.meta.mode !== 'full') {
