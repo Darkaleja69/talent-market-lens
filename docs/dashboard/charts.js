@@ -154,3 +154,85 @@ export function donutChart({
     }],
   };
 }
+
+/**
+ * Builds a bubble (scatter) chart option: one series per category so the
+ * ECharts legend lists/toggles categories, with the bubble diameter growing
+ * with `size` on a square-root scale (bubble area roughly proportional to the
+ * value). Items without a numeric y must be filtered by the caller: points
+ * without a median salary are not representable and never reach this builder.
+ * @param {Object} params
+ * @param {Array<{name: string, category: string, x: number, y: number, size: number}>} params.items
+ *   - points to plot; `name` is the series data label (tooltip only).
+ * @param {string} [params.xName] - x-axis name (already localised).
+ * @param {string} [params.yName] - y-axis name (already localised).
+ * @param {(value: number) => string} [params.formatX] - x-axis/tooltip formatter.
+ * @param {(value: number) => string} [params.formatY] - y-axis formatter.
+ * @param {(item: {name: string, category: string, value: number[], size: number}) => string}
+ *   [params.formatTooltip] - full localised tooltip; a plain fallback is used
+ *   when omitted.
+ * @param {number} [params.minSymbolSize] - diameter of the smallest bubble.
+ * @param {number} [params.maxSymbolSize] - diameter of the largest bubble.
+ * @returns {Object} ECharts option.
+ */
+export function bubbleChart({
+  items = [],
+  xName = '',
+  yName = '',
+  formatX = defaultFormat,
+  formatY = defaultFormat,
+  formatTooltip = null,
+  minSymbolSize = 10,
+  maxSymbolSize = 42,
+}) {
+  const maxSize = Math.max(1, ...items.map((item) => Number(item.size) || 0));
+  const symbolSize = (size) => {
+    const ratio = Math.sqrt(Math.max(Number(size) || 0, 0) / maxSize);
+    return minSymbolSize + ratio * (maxSymbolSize - minSymbolSize);
+  };
+  const categories = [...new Set(items.map((item) => item.category || ''))];
+  const series = categories.map((category) => ({
+    name: category,
+    type: 'scatter',
+    data: items
+      .filter((item) => (item.category || '') === category)
+      .map((item) => ({
+        name: item.name,
+        category,
+        value: [item.x, item.y],
+        size: item.size,
+      })),
+    symbolSize: (value, params) => symbolSize(params.data.size),
+  }));
+  const fallbackTooltip = (item) => {
+    const [x, y] = Array.isArray(item.value) ? item.value : [item.value, ''];
+    return `${item.name}: ${formatX(x)} · ${formatY(y)}`;
+  };
+  return {
+    animationDuration: 250,
+    grid: { ...chartGrid, top: 36, bottom: 40 },
+    legend: categories.length > 1
+      ? { type: 'scroll', top: 0, data: categories }
+      : { show: false },
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) =>
+        (formatTooltip ? formatTooltip(params.data) : fallbackTooltip(params.data)),
+    },
+    xAxis: {
+      type: 'value',
+      name: xName,
+      nameLocation: 'middle',
+      nameGap: 30,
+      axisLabel: { formatter: (value) => formatX(value) },
+    },
+    yAxis: {
+      type: 'value',
+      name: yName,
+      nameLocation: 'middle',
+      nameGap: 52,
+      axisLabel: { formatter: (value) => formatY(value) },
+    },
+    series,
+  };
+}

@@ -7,8 +7,10 @@
  * (`fact_offers`, `fact_offer_skills`, `dim_skill_list`, `dim_calendar`), run a
  * smoke query and render the hash-routed shell with visible freshness. View
  * contents arrive view by view (T-10–T-14): Market Pulse is implemented in
- * T-10 (KPIs + ECharts), the rest keep a localised placeholder. The SQL itself
- * lives in `queries.js` (T-07) and the ECharts options in `charts.js` (T-10).
+ * T-10 (KPIs + ECharts), Roles & Skills in T-11 (benchmark table + bubble +
+ * category donut), the rest keep a localised placeholder. The SQL itself
+ * lives in `queries.js` (T-07) and the ECharts options in `charts.js` (T-10,
+ * T-11).
  *
  * T-09 (RF-9): the global filter state lives here and is composed into one
  * WHERE fragment by `filters.js`; the categorical controls are populated once
@@ -45,6 +47,7 @@ import {
 import * as queries from './queries.js';
 import {
   barChart,
+  bubbleChart,
   donutChart,
   lineChart,
 } from './charts.js';
@@ -106,6 +109,7 @@ const DEFAULT_VIEW = VIEWS[0];
 /** Views with a real renderer; the rest keep the localised placeholder. */
 const VIEW_RENDERERS = {
   'market-pulse': renderMarketPulse,
+  'roles-skills': renderRolesSkills,
 };
 
 /* ========================================================================== *
@@ -913,6 +917,7 @@ async function fetchMarketPulseData(options) {
 
 const formatCountCallback = (value) => formatCount(value, state.language);
 const formatPercentCallback = (value) => formatPercent(value, state.language);
+const formatSalaryCallback = (value) => formatSalary(value, state.language);
 
 function buildTrendOption(rows) {
   const categories = rows.map((row) => formatMonth(row.year_month, state.language));
@@ -951,7 +956,7 @@ function buildExperienceOption(rows) {
  * attached to the document. Without data the canvas is replaced by a
  * localised empty note, so the card never shows a blank axes frame.
  */
-function appendChartCard(grid, { titleKey, captionKey, wide = false, option }) {
+function appendChartCard(grid, { titleKey, captionKey, wide = false, option, noDataKey = 'view.marketPulse.noData' }) {
   const figure = document.createElement('figure');
   figure.className = `chart-card${wide ? ' chart-card--wide' : ''}`;
 
@@ -972,7 +977,7 @@ function appendChartCard(grid, { titleKey, captionKey, wide = false, option }) {
   grid.append(figure);
 
   if (!option) {
-    body.replaceWith(noteElement('view.marketPulse.noData', 'chart-empty'));
+    body.replaceWith(noteElement(noDataKey, 'chart-empty'));
     return null;
   }
   return () => mountChart(body, option);
@@ -1032,6 +1037,200 @@ async function renderMarketPulse({ requestId, body }) {
   // Mount only once the cards are attached: ECharts measures its container
   // at init time and a detached node would be measured as 0×0.
   for (const mount of mounts) mount();
+}
+
+/* ========================================================================== *
+ * Roles & Skills (T-11, RF-7/RF-8/RF-16): benchmark table + bubble + donut
+ * ========================================================================== */
+
+/** Benchmark columns of the view; `numeric` right-aligns and formats values. */
+const BENCHMARK_COLUMNS = [
+  { key: 'skill', labelKey: 'view.rolesSkills.table.skill' },
+  { key: 'category', labelKey: 'view.rolesSkills.table.category' },
+  { key: 'demand', labelKey: 'view.rolesSkills.table.demand', numeric: true, format: 'count' },
+  { key: 'share', labelKey: 'view.rolesSkills.table.share', numeric: true, format: 'percent' },
+  { key: 'median', labelKey: 'view.rolesSkills.table.medianSalary', numeric: true, format: 'salary' },
+];
+
+/** Table cell text: N/D for skills without a median, localised elsewhere. */
+function formatBenchmarkValue(row, column) {
+  const value = row[column.key];
+  if (value == null) return t('view.rolesSkills.notAvailable');
+  if (column.format === 'count') return formatCount(value, state.language);
+  if (column.format === 'percent') return formatPercent(value, state.language);
+  if (column.format === 'salary') return formatSalary(value, state.language);
+  return String(value);
+}
+
+/** Benchmark table with a localised caption and `th scope="col"` headers. */
+function buildBenchmarkTable(rows) {
+  const table = document.createElement('table');
+  table.className = 'benchmark-table';
+
+  const caption = document.createElement('caption');
+  caption.className = 'benchmark-table__caption';
+  caption.textContent = t('view.rolesSkills.benchmark.caption');
+  table.append(caption);
+
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const column of BENCHMARK_COLUMNS) {
+    const th = document.createElement('th');
+    th.setAttribute('scope', 'col');
+    if (column.numeric) th.className = 'benchmark-table__number';
+    th.textContent = t(column.labelKey);
+    headRow.append(th);
+  }
+  head.append(headRow);
+
+  const tbody = document.createElement('tbody');
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    for (const column of BENCHMARK_COLUMNS) {
+      const td = document.createElement('td');
+      if (column.numeric) td.className = 'benchmark-table__number';
+      td.textContent = formatBenchmarkValue(row, column);
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(head, tbody);
+  return table;
+}
+
+/**
+ * Full-width benchmark card, the primary element of the view. Every catalogue
+ * skill with demand is rendered (46 rows in the T-06 snapshot; the catalogue
+ * lists 95): no pagination, a 24rem scroll container and sticky headers keep
+ * long lists usable. The scroll region is keyboard reachable (role+tabindex).
+ */
+function appendBenchmarkCard(grid, rows) {
+  const figure = document.createElement('figure');
+  figure.className = 'chart-card chart-card--wide chart-card--table';
+
+  const title = document.createElement('h3');
+  title.className = 'chart-card__title';
+  title.textContent = t('view.rolesSkills.benchmark.title');
+  figure.append(title);
+
+  if (rows.length === 0) {
+    figure.append(noteElement('view.rolesSkills.noData', 'chart-empty'));
+    grid.append(figure);
+    return;
+  }
+
+  const scroll = document.createElement('div');
+  scroll.className = 'table-scroll';
+  scroll.tabIndex = 0;
+  scroll.setAttribute('role', 'region');
+  scroll.setAttribute('aria-label', t('view.rolesSkills.benchmark.title'));
+  scroll.append(buildBenchmarkTable(rows));
+  figure.append(scroll);
+  grid.append(figure);
+}
+
+/**
+ * Data of the view with the current global filters. `skillShare` runs with
+ * `includeSkill: false` because its denominator excludes the skill filter by
+ * design (Metrics.tmdl L179-181); an active skill filter only restricts the
+ * displayed rows, never the share. Skills without a valid salary offer are
+ * absent from `skillMedianSalary`; the caller fills those cells with N/D.
+ */
+async function fetchRolesSkillsData() {
+  const [shareRows, medianRows, categoryRows] = await Promise.all([
+    runQuery(queries.skillShare(buildQueryOptions(state.filters, { includeSkill: false }))),
+    runQuery(queries.skillMedianSalary(buildQueryOptions(state.filters))),
+    runQuery(queries.skillDemandByCategory(buildQueryOptions(state.filters))),
+  ]);
+  const skillFilter = isBlank(state.filters.skill) ? null : state.filters.skill;
+  const visibleShares = skillFilter
+    ? shareRows.filter((row) => row.skill === skillFilter)
+    : shareRows;
+  const medianBySkill = new Map(medianRows.map((row) => [row.skill, row.skill_median_salary_eur]));
+  const benchmark = visibleShares.map((row) => ({
+    skill: row.skill,
+    category: row.skill_category,
+    demand: Number(row.skill_demand) || 0,
+    share: row.skill_share == null ? null : Number(row.skill_share),
+    median: medianBySkill.has(row.skill) ? Number(medianBySkill.get(row.skill)) : null,
+  }));
+  return { benchmark, categoryRows };
+}
+
+/** Demand (x) vs. median salary (y) bubble; only skills with a median plot. */
+function buildBubbleOption(items) {
+  return bubbleChart({
+    items,
+    xName: t('view.rolesSkills.bubble.xAxis'),
+    yName: t('view.rolesSkills.bubble.yAxis'),
+    formatX: formatCountCallback,
+    formatY: formatSalaryCallback,
+    formatTooltip: (item) => t('view.rolesSkills.bubble.tooltip', {
+      skill: item.name,
+      category: item.category,
+      demand: formatCount(item.size, state.language),
+      salary: formatSalary(item.value[1], state.language),
+    }),
+  });
+}
+
+function buildSkillCategoryOption(rows) {
+  return donutChart({
+    items: rows.map((row) => ({
+      name: row.skill_category,
+      value: Number(row.skill_demand) || 0,
+    })),
+    seriesName: t('view.rolesSkills.category.title'),
+    formatValue: formatCountCallback,
+    formatPercent: formatPercentCallback,
+  });
+}
+
+/**
+ * Roles & Skills renderer (RF-7): benchmark table of demand/share/median per
+ * skill, demand-vs-salary bubble and category donut. The table is plain DOM,
+ * so it stays visible even when ECharts is unavailable; the charts are
+ * mounted only after the cards are attached to the document.
+ */
+async function renderRolesSkills({ requestId, body }) {
+  const { benchmark, categoryRows } = await fetchRolesSkillsData();
+  if (requestId !== viewRenderId) return;
+
+  const content = document.createDocumentFragment();
+  if (!state.echarts) {
+    content.append(noteElement('view.rolesSkills.chartsUnavailable', 'chart-unavailable'));
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'chart-grid';
+  const mounts = [];
+  if (state.echarts) {
+    const bubbleItems = benchmark
+      .filter((row) => row.median != null)
+      .map((row) => ({
+        name: row.skill,
+        category: row.category,
+        x: row.demand,
+        y: row.median,
+        size: row.demand,
+      }));
+    mounts.push(appendChartCard(grid, {
+      titleKey: 'view.rolesSkills.bubble.title',
+      captionKey: 'view.rolesSkills.bubble.caption',
+      noDataKey: 'view.rolesSkills.noData',
+      option: bubbleItems.length > 0 ? buildBubbleOption(bubbleItems) : null,
+    }));
+    mounts.push(appendChartCard(grid, {
+      titleKey: 'view.rolesSkills.category.title',
+      captionKey: 'view.rolesSkills.category.caption',
+      noDataKey: 'view.rolesSkills.noData',
+      option: categoryRows.length > 0 ? buildSkillCategoryOption(categoryRows) : null,
+    }));
+  }
+  appendBenchmarkCard(grid, benchmark);
+  content.append(grid);
+  body.replaceChildren(content);
+  for (const mount of mounts.filter(Boolean)) mount();
 }
 
 /* ========================================================================== *

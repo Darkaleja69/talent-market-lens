@@ -133,7 +133,7 @@ comprobación. El trabajo vive en el worktree de la rama
     formato legible, textos ES/EN y verificada en local contra el
     informe/capturas.
 
-- [ ] **T-11 — Vista Roles & Skills** (~25 min)
+- [x] **T-11 — Vista Roles & Skills** (~25 min)
   - **RF:** RF-7, RF-8, RF-16.
   - **Depende de:** T-09.
   - **Hecho cuando:** la vista muestra demanda y cuota por skill, salario

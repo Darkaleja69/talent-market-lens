@@ -414,6 +414,54 @@ body {
   font-weight: 600;
 }
 
+/* --------------------------------------------- roles & skills (table) --- */
+
+.chart-card--table {
+  padding-bottom: 0.9rem;
+}
+
+/* Long benchmark lists scroll inside the card; headers stay visible. */
+.table-scroll {
+  margin-top: 0.6rem;
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.benchmark-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.benchmark-table__caption {
+  caption-side: top;
+  padding: 0 0 0.5rem;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.benchmark-table th,
+.benchmark-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.benchmark-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-bg);
+  font-size: 0.8rem;
+}
+
+.benchmark-table__number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* --------------------------------------------------------------- filters --- */
 
 .filters,

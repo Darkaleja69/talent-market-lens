@@ -50,6 +50,28 @@ export const MESSAGES = {
     'view.marketPulse.noData': 'Sin datos para este gráfico con los filtros actuales.',
     'view.marketPulse.chartsUnavailable':
       'Los gráficos no están disponibles porque ECharts no se pudo cargar desde el CDN; los indicadores superiores siguen calculados con los datos cargados.',
+    'view.rolesSkills.bubble.title': 'Demanda frente a salario',
+    'view.rolesSkills.bubble.caption':
+      'Cada burbuja es una skill con mediana de salario; el tamaño representa su demanda. Las skills sin salario publicado no aparecen.',
+    'view.rolesSkills.bubble.xAxis': 'Demanda (ofertas)',
+    'view.rolesSkills.bubble.yAxis': 'Salario mediano (EUR)',
+    'view.rolesSkills.bubble.tooltip':
+      '{skill} ({category}) · Demanda: {demand} · Salario mediano: {salary}',
+    'view.rolesSkills.category.title': 'Demanda de skills por categoría',
+    'view.rolesSkills.category.caption':
+      'Reparto de pares oferta-skill por categoría del catálogo (Skill Demand by Category).',
+    'view.rolesSkills.benchmark.title': 'Tabla comparativa de skills',
+    'view.rolesSkills.benchmark.caption':
+      'Todas las skills del catálogo con ofertas, ordenadas por demanda descendente. Desplázate dentro de la tabla para ver el resto.',
+    'view.rolesSkills.table.skill': 'Skill',
+    'view.rolesSkills.table.category': 'Categoría',
+    'view.rolesSkills.table.demand': 'Demanda (ofertas)',
+    'view.rolesSkills.table.share': 'Cuota',
+    'view.rolesSkills.table.medianSalary': 'Salario mediano (EUR)',
+    'view.rolesSkills.notAvailable': 'N/D',
+    'view.rolesSkills.noData': 'Sin datos para esta vista con los filtros actuales.',
+    'view.rolesSkills.chartsUnavailable':
+      'Los gráficos no están disponibles porque ECharts no se pudo cargar desde el CDN; la tabla sigue calculada con los datos cargados.',
     'status.initializing': 'Iniciando…',
     'status.loadingMeta': 'Cargando metadatos…',
     'status.loadingCdn': 'Cargando librerías…',
@@ -163,6 +185,28 @@ export const MESSAGES = {
     'view.marketPulse.noData': 'No data for this chart with the current filters.',
     'view.marketPulse.chartsUnavailable':
       'Charts are unavailable because ECharts could not be loaded from the CDN; the indicators above are still computed from the loaded data.',
+    'view.rolesSkills.bubble.title': 'Demand vs. Salary',
+    'view.rolesSkills.bubble.caption':
+      'Each bubble is a skill with a median salary; size represents its demand. Skills without a disclosed salary are not shown.',
+    'view.rolesSkills.bubble.xAxis': 'Demand (postings)',
+    'view.rolesSkills.bubble.yAxis': 'Median salary (EUR)',
+    'view.rolesSkills.bubble.tooltip':
+      '{skill} ({category}) · Demand: {demand} · Median salary: {salary}',
+    'view.rolesSkills.category.title': 'Skill Demand by Category',
+    'view.rolesSkills.category.caption':
+      'Share of offer+skill pairs per catalogue category (Skill Demand by Category).',
+    'view.rolesSkills.benchmark.title': 'Skills Benchmark',
+    'view.rolesSkills.benchmark.caption':
+      'All catalogued skills with postings, ranked by demand (highest first). Scroll inside the table to see the rest.',
+    'view.rolesSkills.table.skill': 'Skill',
+    'view.rolesSkills.table.category': 'Category',
+    'view.rolesSkills.table.demand': 'Demand (postings)',
+    'view.rolesSkills.table.share': 'Share',
+    'view.rolesSkills.table.medianSalary': 'Median salary (EUR)',
+    'view.rolesSkills.notAvailable': 'N/A',
+    'view.rolesSkills.noData': 'No data for this view with the current filters.',
+    'view.rolesSkills.chartsUnavailable':
+      'Charts are unavailable because ECharts could not be loaded from the CDN; the table is still computed from the loaded data.',
     'status.initializing': 'Starting…',
     'status.loadingMeta': 'Loading metadata…',
     'status.loadingCdn': 'Loading libraries…',
