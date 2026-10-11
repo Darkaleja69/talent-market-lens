@@ -80,15 +80,86 @@ locales de usuario se escriben como <HOME>.
 <!-- record:section:changes -->
 ## Cambios realizados
 
-_(Pendiente: módulos y ficheros modificados, diseño elegido y dependencias
-nuevas justificadas, si las hay.)_
+- **Causa raíz atendida:** el run moría en `connect_over_cdp` (handshake roto
+  entre patchright 1.60.1 y el CDP del Chrome 9222, timeout de 180 s) y la
+  `description` quedaba al 0 % porque la espera del panel derecho hacía
+  `continue` y abortaba la oferta, la extracción del JSON embebido buscaba
+  `window._initialData =` (ya inexistente) y el fallback a `/viewjob` está
+  prohibido por `robots.txt` y era inalcanzable por el orden del código.
+- **Técnica (§6.0):** sesión y fingerprint reales; nada de solvers, proxies ni
+  servicios de pago. La conexión CDP se verifica con una operación real mínima;
+  si el handshake no se logra, el run degrada a un navegador propio headed
+  (mismo patchright ya usado) y limita la ejecución a 1 página sin sesión, en
+  lugar de morir en seco. El fallback a `/viewjob`/`/graphql` (prohibidos por
+  `robots.txt` para `User-agent: *`) queda detrás de un interruptor explícito
+  desactivado por defecto, nunca activo en la ejecución normal.
+- **Módulos y funciones:**
+  - `scraper/browser.py`: `probe_cdp_handshake()` (abre y cierra una página de
+    prueba en el navegador conectado), `open_cdp_browser()` (3 intentos,
+    timeout de conexión 20 s, backoff breve, cierra la conexión fallida) y
+    `BrowserSession` (`connected_via_cdp`, `cdp_fallback`, `_launch_owned()`
+    reutilizado como fallback; `_close()` solo se desconecta cuando el
+    handshake se verificó).
+  - `scraper/cdp_probe.py` (nuevo): CLI `python -m scraper.cdp_probe --port 9222`
+    que imprime `CDP_HANDSHAKE_OK`/`CDP_HANDSHAKE_FAIL` y sale 0/1; lo usa el
+    pre-flight del nightly.
+  - `scraper/parser.py`: `_extract_initial_data_descriptions()` busca ahora de
+    forma tolerante la clave `autoOpenTwoPaneViewjobResponse` en los `<script>`
+    (respuesta como objeto o `body` como cadena JSON) con el balanceo de llaves
+    existente, sin depender de `window._initialData =`;
+    `enrich_offers_via_right_panel()` elimina el `continue` del timeout,
+    encadena esperas (encabezado 4 s → `#jobDescriptionText` y variantes 8 s),
+    comprueba `vjs-highlight`, registra la oferta como fallida solo tras agotar
+    los selectores, emite latido de progreso por oferta vía `progress_cb` y deja
+    `/viewjob` detrás de `allow_viewjob_fallback=False`.
+  - `scraper/runner.py`: `_apply_session_mode()` (si el handshake CDP falla,
+    limita `pages` a 1 y no valida la sesión de página 2),
+    `_emit_enrich_progress()` (latido PROGRESS durante el enriquecimiento) y
+    `logged_in` refleja el CDP verificado, no el puerto pedido.
+  - `main.py` / `scraper/config.py`: texto de `--limit` corregido (dispara el
+    challenge de Cloudflare y NO evita el login; el nightly no lo usa); `limit`
+    sigue en 0.
+  - `run_nightly_indeed.ps1`: `Test-CdpHandshake` ejecuta el probe real tras el
+    `/json` y, si falla, avisa y deja seguir al scraper con el fallback; args y
+    volumen del nightly sin cambios.
+- **Dependencias nuevas:** ninguna (patchright ya estaba en el stack).
+- **Página 2:** se mantiene el comportamiento actual (se omite con aviso);
+  sigue exigiendo una sesión autenticada real. Alcance de reparación:
+  1 país × 1 término × 1 página.
+- **Calidad:** `quality_before.json` reconciliado: `salary` y `work_mode`
+  quedan sin meta (`target_pct: null`) porque el portal no los publica en todas
+  las ofertas y la muestra de 1 página no permite exigir porcentajes; se
+  registrará la cobertura obtenida y se comparará a mano con el export
+  2026-10-06 (61 % / 37 %) al cerrar. `title`, `company`, `description`, `id`,
+  `location` y `posted_date` siguen a 100 %; `skills` ya estaba sin meta.
+  `context.json` conserva el brief original (metas teóricas al 100 % en
+  `salary`/`work_mode`); el perfil efectivo de la puerta es este
+  `quality_before.json` reconciliado.
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
 ## Pruebas: tests
 
-_(Pendiente: suites ejecutadas del scraper afectado y del diagnóstico, y su
-resultado.)_
+Desde `indeed_jobs_scraper/`:
+
+- `python -m pytest tests -q` → **79 passed**. Incluye los tests nuevos
+  `tests/test_browser_cdp.py` (probe del handshake, reintentos de
+  `open_cdp_browser`, fallback de `BrowserSession` y tope de páginas del
+  runner), `tests/test_enrich.py` (timeout del panel que ya no abandona la
+  oferta, cadena de esperas, `vjs-highlight`, latido de progreso y `/viewjob`
+  desactivado por defecto) y `tests/test_config.py` (URL de paginación por
+  `start=` y texto de `--limit`), además de los casos de extracción tolerante
+  del JSON embebido en `tests/test_parser.py`.
+- El scraper no usa Ruff/mypy: `requirements.txt` no los declara y la carpeta no
+  tiene configuración de lint.
+
+Desde la raíz del repositorio:
+
+- `python -m pytest scrapers-pipeline/tests -q` → **1126 passed** (incluye la
+  auditoría de higiene de `repairs/`).
+
+Todo offline, sin red ni navegador. La prueba en vivo queda pendiente del
+desbloqueo del challenge (ver sección de prueba en vivo).
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
@@ -101,7 +172,13 @@ exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json`
+pendiente de la prueba en vivo). `salary` y `work_mode` quedan sin meta (el
+portal no los publica en todas las ofertas y la muestra de 1 página no permite
+exigir porcentajes); la puerta no evalúa la regresión sin dato previo, así que
+la comparación con el export 2026-10-06 (61 % / 37 %) se registrará a mano al
+cerrar. El perfil efectivo de la puerta es `quality_before.json`, no las metas
+teóricas de `context.json`:
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
@@ -109,9 +186,9 @@ Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json
 | title | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
 | company | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
 | description | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| salary | no | sin dato | pendiente | pendiente | sin meta | pendiente |
 | skills | no | sin dato | pendiente | pendiente | sin meta | pendiente |
-| work_mode | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| work_mode | no | sin dato | pendiente | pendiente | sin meta | pendiente |
 | location | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
 | posted_date | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
 

@@ -146,7 +146,7 @@ window.mosaic.providerData["mosaic-provider-jobcards"]
 - Mitigacion implicita: enlaces orgánicos via `/rc/clk` con blobs que expiran.
 
 ## robots.txt (aviso legal)
-Indeed bloquea `/*&start=` y `/viewjob?` para bots genéricos (solo Google/Bing/etc. permitidos). El scraping tecnico viola sus TOS; el scraper de este proyecto se disena respetuoso (bajo volumen, delays largos) para uso personal. Para uso profesional: API oficial de Indeed (publisher program, hoy cerrado a nuevos) o partners.
+Verificado el 2026-10-10 (evidencia `repairs/20261010-indeed/evidence/indeed-robots-nl.txt` e `indeed-robots-ie.txt`): para `User-agent: *`, la SERP y su paginación por URL están permitidas (`Allow: /*&start=0&` … `/*&start=90&`), mientras que `/viewjob`, `/m/viewjob` y `/graphql` están prohibidas. `&limit=` dispara el challenge de Cloudflare (no usarlo). El scraper del proyecto se limita a las rutas permitidas por `robots.txt` (bajo volumen, delays largos); el scraping técnico puede incumplir sus TOS, así que para uso profesional: API oficial de Indeed (publisher program, hoy cerrado a nuevos) o partners.
 
 ## Como actualizar este skill
 Si el scraper devuelve 0 ofertas y la pagina carga:
