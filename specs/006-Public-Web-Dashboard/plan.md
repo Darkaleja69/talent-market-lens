@@ -280,7 +280,7 @@ por `role_category` y por `WorkModeBucket`; top skills pagadas y ofertas por
 
 **Vistas:**
 
-- **Market Pulse:** medidas 1–4 y 10–11 como KPIs del informe, tendencia por
+- **Market Pulse:** medidas 1–2 y 10–11 como KPIs del informe, tendencia por
   `PostedYearMonth` de los últimos 6 meses, top roles, top empresas y reparto
   por experiencia, con gráficos compactos.
 - **Roles & Skills:** medidas 12–14 + burbuja demanda vs. salario, donut por
@@ -496,9 +496,9 @@ se cotejan con el informe o sus capturas en la comprobación real.
 | RF-4 | §5.5 | T-04, T-06, T-19 |
 | RF-5 | §9 (workflow) | T-17, T-18 |
 | RF-6 | §3, §6, §8 | T-08 |
-| RF-7 | §7 | T-10–T-14 |
-| RF-8 | §7 (tabla de medidas) | T-07, T-20 |
-| RF-9 | §7 (filtros), §8 | T-09 |
+| RF-7 | §7 | T-10–T-14, T-21, T-23–T-25 |
+| RF-8 | §7 (tabla de medidas) | T-07, T-20, T-23–T-25 |
+| RF-9 | §7 (filtros), §8 | T-09, T-22 |
 | RF-10 | §7 (vista), §8 | T-13 |
 | RF-11 | §9 (instantánea) | T-16 |
 | RF-12 | §1 límites, §10 | T-01 |
