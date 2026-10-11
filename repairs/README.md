@@ -60,4 +60,5 @@ filas a mano. Convención de cada fila:
 | fecha | fuente | estado | rama | resultado | calidad |
 |---|---|---|---|---|---|
 | 2026-10-05 | infojobs | probado | repair/infojobs-20261005 | 4 ofertas verificadas (umbral 1) en la prueba acotada; modo CDP validado: Chrome lanzado directo + conexión del scraper sin challenge | OK: cumplen id, title, company, description, work_mode, location, posted_date |
+| 2026-10-10 | indeed | probado | repair/indeed-20261010 | Reparación probada: 11 ofertas en la prueba acotada (umbral 1); descripción al 100 % (11/11: 1 embebida + 10 de panel) y puerta de calidad OK, sin regresión. | OK: cumplen id, title, company, description, location, posted_date |
 <!-- repair-index:end -->

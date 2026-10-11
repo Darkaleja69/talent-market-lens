@@ -216,48 +216,53 @@ Desde la raíz del repositorio:
 
 Todo offline, sin red ni navegador. La prueba en vivo de la iteración 2 ya se
 ejecutó (11 ofertas ≥ umbral 1, sin challenge) y falló la puerta de calidad por
-`description` (ver `evidence/indeed-20261011-live-test-run.txt`); la prueba de
-esta iteración 3 queda pendiente (sección de prueba en vivo).
+`description` (ver `evidence/indeed-20261011-live-test-run.txt`); la de la
+iteración 3 se ejecutó después y pasó (ver
+`evidence/indeed-20261011-live-test-run-iter3.txt`).
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+- **Alcance:** 1 país (NL) x 1 término ("data") x 1 ciudad (Rotterdam) x 1 página (fromage=7), idéntico a la iteración 2 para comparabilidad; conexión CDP al Chrome 9222 de la persona (sesión real).
+- **Comando:** `python main.py --country NL --cities Rotterdam --term data --pages 1 --fromage 7 --cdp 9222 --enrich --enrich-rate 1.0 --enrich-max 15` (desde `indeed_jobs_scraper/`; sin `--limit`).
+- **Pre-check:** `python -m scraper.cdp_probe --port 9222` continuó con `CDP_HANDSHAKE_OK` (17:38:33). Los dos primeros sondeos dieron `CDP_HANDSHAKE_FAIL`: una pestaña en segundo plano de la persona no respondía a CDP; se reactivó con `Page.bringToFront` (sin navegar, sin cerrar ni reiniciar Chrome) y el sondeo pasó.
+- **Recuento:** 1 intento; 11 ofertas únicas ≥ umbral 1 (`repair.cli threshold --source indeed`: sin historial, umbral 1).
+- **Enriquecimiento:** autoOpen embebido 1/11; `enriquecidas 10/10 clics (con descripcion: 10, sin descripcion: 0)`; descripción final 11/11; latido PROGRESS presente; sin CAPTCHA/challenge visible.
+- **Descripción (offline):** mínimo 1.414, mediana 4.248, máximo 7.690 caracteres; 11/11 superan 50 chars; ninguna es solo el título del panel.
+- **Evidencia:** `repairs/20261010-indeed/evidence/indeed-20261011-live-test-run-iter3.txt`, `evidence/indeed-20261011-quality-gate-iter3.txt`, `quality_after.json`, `indeed_jobs_scraper/output/log_20261011_1738.log` y `output/indeed_jobs_20261011_1738.parquet`.
+- **Restricciones:** sin Azure, sin landing, sin merge; sin `--limit`; Chrome 9222/9333 no se cerraron ni reiniciaron.
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json`
-pendiente de la prueba en vivo). `salary` y `work_mode` quedan sin meta (el
-portal no los publica en todas las ofertas y la muestra de 1 página no permite
-exigir porcentajes); la puerta no evalúa la regresión sin dato previo, así que
-la comparación con el export 2026-10-06 (61 % / 37 %) se registrará a mano al
-cerrar. El perfil efectivo de la puerta es `quality_before.json`, no las metas
-teóricas de `context.json`:
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | sin dato | pendiente | pendiente | sin meta | pendiente |
-| skills | no | sin dato | pendiente | pendiente | sin meta | pendiente |
-| work_mode | no | sin dato | pendiente | pendiente | sin meta | pendiente |
-| location | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| title | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| company | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| description | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| salary | no | sin dato | 90.9 % | sin dato | sin meta | no aplica |
+| skills | no | sin dato | 0.0 % | sin dato | sin meta | no aplica |
+| work_mode | no | sin dato | 54.5 % | sin dato | sin meta | no aplica |
+| location | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| posted_date | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
 
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
+
+Comparación manual con el export 2026-10-06 (la puerta no evalúa la regresión
+sin dato previo): `salary` 61 % → **90,9 %** y `work_mode` 37 % → **54,5 %**,
+ninguno por debajo; `description` pasa de 0 % a **100 %**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** Reparación probada: 11 ofertas en la prueba acotada (umbral 1); descripción al 100 % (11/11: 1 embebida + 10 de panel) y puerta de calidad OK, sin regresión.
+- **Ofertas verificadas:** 11
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->

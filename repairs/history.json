@@ -1,6 +1,13 @@
 {
   "schema_version": 1,
   "sources": {
+    "indeed": {
+      "best_verified_offers": 11,
+      "last_result": "probado",
+      "last_run_date": "2026-10-10",
+      "quality_delta_pp": null,
+      "quality_ok": true
+    },
     "infojobs": {
       "best_verified_offers": 4,
       "last_result": "probado",

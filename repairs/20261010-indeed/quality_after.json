@@ -1,9 +1,5 @@
 {
-  "blockers": [
-    "description_missing",
-    "required_below_100",
-    "target_not_reached"
-  ],
+  "blockers": [],
   "fields": [
     {
       "after_pct": 100.0,
@@ -36,16 +32,13 @@
       "target_pct": 100.0
     },
     {
-      "after_pct": 0.0,
+      "after_pct": 100.0,
       "before_pct": null,
       "delta_pp": null,
       "field": "description",
-      "reasons": [
-        "required_below_100",
-        "target_not_reached"
-      ],
+      "reasons": [],
       "required": true,
-      "status": "fail",
+      "status": "pass",
       "target_pct": 100.0
     },
     {
@@ -100,7 +93,7 @@
     }
   ],
   "missing_columns": [],
-  "ok": false,
+  "ok": true,
   "read_error": null,
   "regression_tolerance_pp": 5.0,
   "source": "indeed",

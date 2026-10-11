@@ -1,0 +1,104 @@
+Prueba en vivo acotada — Indeed (RF-9), spec 004, tarea T-32, iteración 3
+======================================================================
+
+Fecha/hora local: 2026-10-11; inicio 17:38:49, cierre 17:42:04 (194,9 s según
+metadata).
+Alcance (acotado y repetible): 1 país (NL) x 1 término ("data") x 1 ciudad
+(Rotterdam) x 1 página (start=0, fromage=7).
+Restricciones respetadas: sin subida a Azure, sin actualización de landing,
+sin merge; sin --limit; conexión al Chrome 9222 de la persona (sesión real,
+modo CDP). Chrome 9222 (PID 26184) y Chrome 9333 (PID 8752) no se cerraron ni
+reiniciaron.
+
+Pre-check de conexión (PASO 1):
+  - 17:26:23 y 17:27:19, python -m scraper.cdp_probe --port 9222
+      -> CDP_HANDSHAKE_FAIL port=9222 en ambos sondeos. El driver de patchright
+         murió con la firma ya conocida del run nocturno:
+         "ProtocolError: Protocol error (Network.setCacheDisabled): Internal
+         server error, session closed" (idéntica a
+         evidence/indeed-nightly-20261011-cdp-crash.txt).
+  - Diagnóstico acotado, solo lectura (sin cerrar ni reiniciar Chrome): GET
+    /json respondía y listaba las 2 pestañas (SERP NL y home ES de la persona);
+    agent-browser --cdp 9222 operaba con normalidad; con CDP crudo (websockets)
+    se comprobó que la pestaña "es.indeed.com" de la persona aceptaba attach
+    pero no respondía a Network.enable / Runtime.evaluate (timeouts), mientras
+    las otras páginas respondían: una pestaña en segundo plano sin responder
+    bloquea el connect_over_cdp de Playwright/patchright.
+  - 17:37 aprox., reactivación de esa pestaña con Page.bringToFront (activar la
+    pestaña; sin navegar, sin cerrar nada, sin robar el foco de ventana: la
+    ventana no pasó a primer plano del sistema). Tras ello la pestaña respondió
+    a Runtime.evaluate.
+  - 17:38:33, python -m scraper.cdp_probe --port 9222
+      -> "CDP intento 1/1: handshake verificado (1 contexto(s); pagina de
+         prueba abierta y cerrada)" / CDP_HANDSHAKE_OK port=9222.
+
+Comando exacto (desde indeed_jobs_scraper/):
+  python main.py --country NL --cities Rotterdam --term data --pages 1
+      --fromage 7 --cdp 9222 --enrich --enrich-rate 1.0 --enrich-max 15
+
+Intentos: 1 de 1. No apareció CAPTCHA ni challenge visible (no se necesitó
+pausa asistida ni segundo intento).
+
+Extracto saneado del log (output/log_20261011_1738.log; rutas como <HOME>):
+  17:38:52 scraper.browser: conectando a Chrome existente via CDP en puerto 9222...
+  17:38:53 scraper.browser: CDP intento 1/3: handshake verificado (1 contexto(s);
+           pagina de prueba abierta y cerrada)
+  17:38:53 scraper.browser: conectado al contexto existente de Chrome (3 pestañas abiertas)
+  17:38:53 scraper.runner: modo CDP: asumiendo que el usuario ya esta logueado en Chrome
+  17:39:11 scraper.runner: navegando pagina 1 (start=0):
+           https://nl.indeed.com/jobs?q=data&l=Rotterdam&radius=25&fromage=7
+  17:39:56 scraper.parser: descripciones from _initialData (autoOpen embedded JSON):
+           1/11 ofertas                                        [LÍNEA PRESENTE]
+  17:39:56 scraper.parser: parseadas 11 ofertas (pagina 1, NL/Rotterdam) via JSON embebido
+  17:40:07..17:42:03 scraper.runner: PROGRESS source=indeed parsed=1..10 new=0
+           ts=2026-10-11T15:40:07+00:00 .. 15:42:03+00:00 enrich=1/10 .. 10/10
+           [latido de progreso presente, 10 líneas]
+  17:42:03 scraper.parser: enriquecidas 10/10 clics (con descripcion: 10,
+           sin descripcion: 0; candidatas sin descripcion: 10, rate=100%, max_enrich=15)
+  17:42:03 scraper.desc_cache: desc-cache: 11 entradas nuevas/actualizadas
+  17:42:03 scraper.runner: pagina 1: 11 ofertas (acumulado ciudad: 11)
+  17:42:03 scraper.runner: PROGRESS source=indeed parsed=21 new=11
+           ts=2026-10-11T15:42:03+00:00                                  [último latido]
+  17:42:03 scraper.browser: desconectado de Chrome CDP (el navegador del usuario
+           sigue abierto)
+  17:42:04 scraper.exporters: Parquet:
+           <HOME>\Documents\projects\indeed_jobs_scraper\output\indeed_jobs_20261011_1738.parquet
+           (11 filas, 33 cols)
+  Resumen final de consola: "Scrape completado: 11 ofertas unicas." ; EXIT_CODE=0
+  Marcadores de CAPTCHA/challenge ("CAPTCHA detectado", "Security Check",
+           "Additional Verification"): sin apariciones en el log del run.
+
+Metadata del run (scrape_metadata_20261011_1738.json):
+  run_id=ee83b5fa-66d0-494c-872f-1f6db97fc4da; country=NL; cities=[Rotterdam];
+  terms=[data]; pages=1; total_serps=1; total_offers_raw=11; total_unique=11;
+  limit=0; logged_in=true (CDP verificado); cdp_port=9222;
+  enrich_attempted=10; enrich_success=10; enrich_success_rate="10/10";
+  description_filled_rate="11/11"; enrich_rate_target=1.0;
+  started_at=2026-10-11T15:38:48.987975+00:00; finished_at=2026-10-11T15:42:03.848132+00:00;
+  duration_seconds=194.9.
+
+Recuento y umbral:
+  - Recuento obtenido: 11 ofertas únicas.
+  - Umbral exigido: 1 (repair.cli threshold --source indeed, sin historial:
+    "indeed | mejor verificado: sin dato | umbral: 1").
+  - RECUENTO >= UMBRAL: SÍ.
+  - Comparabilidad: misma SERP y mismo recuento que la iteración 2 (11 ofertas).
+
+Inspección offline del export (indeed_jobs_20261011_1738.parquet, 11 ofertas):
+  - description_text: mínimo 1.414, mediana 4.248, máximo 7.690 caracteres;
+    11/11 ofertas superan 50 chars; 0 vacías.
+  - La más corta ("Data Engineer", 1.414 chars) es texto real de la vacante
+    (empieza con el detalle del panel y sigue con el cuerpo de la descripción):
+    ninguna "descripción" es solo el título del panel.
+  - title/company/location/posted_date presentes en 11/11; salary_text en
+    10/11; workplace_type no vacío en 6/11; snippet no vacío en 11/11.
+  - Iteración 2 -> iteración 3: description_text pasa de 0/11 (0 chars) a 11/11
+    (1.414-7.690 chars).
+
+Resultado de la puerta de calidad: OK (description 100 %, resto de campos con
+meta al 100 %, sin bloqueos; exit 0). Medición en
+repairs/20261010-indeed/evidence/indeed-20261011-quality-gate-iter3.txt y
+repairs/20261010-indeed/quality_after.json.
+
+Saneado: sin cookies, sin rutas de perfil de navegador, sin credenciales; las
+rutas locales de usuario se escriben como <HOME>.
