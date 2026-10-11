@@ -433,6 +433,16 @@ body {
   grid-column: 1 / -1;
 }
 
+/* Market Pulse (T-23): on desktop the trend spans the whole row and the three
+   ranking charts share a single row, so the four report KPIs, the six-month
+   trend and the charts read at a glance. Below 64rem the base two-column
+   grid (and the single-column mobile grid) still applies. */
+@media (min-width: 64rem) {
+  .chart-grid--pulse {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .chart-card__title {
   margin: 0;
   font-size: 0.95rem;
@@ -447,6 +457,15 @@ body {
 
 .chart-card--wide .chart-card__body {
   height: 15rem;
+}
+
+/* Market Pulse (T-23): on desktop both chart rows shrink slightly (15rem →
+   13.5rem) so the four report KPIs, the six-month trend and the three ranking
+   charts fit a single glance. */
+@media (min-width: 64rem) {
+  .chart-grid--pulse .chart-card__body {
+    height: 13.5rem;
+  }
 }
 
 .chart-card__caption {

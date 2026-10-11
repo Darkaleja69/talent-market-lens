@@ -369,15 +369,38 @@ export function p75MidSalary(options = {}) {
 /**
  * Job Postings by Month (Market Pulse line chart, 'Total Job Offers' per
  * month). Ordered oldest first; months without data are absent.
+ *
+ * `months` limits the result to the last N months **with data in the current
+ * context**: the N most recent `PostedYearMonth` values that keep offers after
+ * the global filters and the salary range, so a gap inside the window does not
+ * shorten the line. The rows are picked with a descending subquery (LIMIT N)
+ * and re-ordered oldest first. Without `months` (null or non-positive) the
+ * behaviour is unchanged: every month with data.
  */
 export function monthlyTrend(options = {}) {
-  const { where = '', minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
-  return `SELECT f.PostedYearMonth AS year_month,
+  const {
+    where = '',
+    months = null,
+    minSalary = DEFAULT_SALARY_MIN,
+    maxSalary = DEFAULT_SALARY_MAX,
+  } = options;
+  const monthsCount = months == null ? null : asCount(months, 0);
+  const base = `SELECT f.PostedYearMonth AS year_month,
        COUNT(*) AS job_offers
 FROM fact_offers AS f
 WHERE f.PostedYearMonth IS NOT NULL
   AND ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
-GROUP BY f.PostedYearMonth
+GROUP BY f.PostedYearMonth`;
+  if (monthsCount == null || monthsCount <= 0) {
+    return `${base}
+ORDER BY year_month`;
+  }
+  return `SELECT year_month, job_offers
+FROM (
+  ${base}
+  ORDER BY year_month DESC
+  LIMIT ${monthsCount}
+) AS recent_months
 ORDER BY year_month`;
 }
 

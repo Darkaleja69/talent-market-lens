@@ -28,7 +28,7 @@ export const MESSAGES = {
     'nav.opportunityExplorer': 'Explorador de ofertas',
     'nav.methodology': 'Metodología',
     'view.marketPulse.description':
-      'Indicadores clave del mercado: volumen de ofertas, empresas, países, modalidad de trabajo, tendencia mensual y experiencia.',
+      'Indicadores clave del informe: ofertas únicas, empresas contratando, cuota remoto o híbrido, tasa de salario publicado, tendencia a 6 meses y tops por rol, empresa y experiencia.',
     'view.rolesSkills.description':
       'Demanda y salario por skill, categorías de skills y tabla comparativa.',
     'view.salaryInsights.description':
@@ -40,7 +40,8 @@ export const MESSAGES = {
     'view.pending': 'Próximamente',
     'view.error': 'No se pudieron calcular los datos de esta vista. Inténtalo de nuevo.',
     'view.marketPulse.trend.title': 'Ofertas por mes',
-    'view.marketPulse.trend.caption': 'Ofertas por mes de publicación (PostedYearMonth).',
+    'view.marketPulse.trend.caption':
+      'Ofertas por mes de publicación (PostedYearMonth), últimos 6 meses con datos.',
     'view.marketPulse.topRoles.title': 'Roles con más ofertas',
     'view.marketPulse.topRoles.caption': 'Top 10 categorías de rol por número de ofertas.',
     'view.marketPulse.topCompanies.title': 'Empresas con más ofertas',
@@ -283,13 +284,6 @@ export const MESSAGES = {
     'filter.salary.between': '{min} – {max}',
     'kpi.totalJobOffers': 'Total de ofertas',
     'kpi.companiesHiring': 'Empresas contratando',
-    'kpi.countriesHiring': 'Países contratando',
-    'kpi.citiesHiring': 'Ciudades contratando',
-    'kpi.offersLast7Days': 'Ofertas últimos 7 días',
-    'kpi.offersLast30Days': 'Ofertas últimos 30 días',
-    'kpi.remoteShare': 'Cuota de trabajo remoto',
-    'kpi.hybridShare': 'Cuota de trabajo híbrido',
-    'kpi.onSiteShare': 'Cuota de trabajo presencial',
     'kpi.remoteFriendlyShare': 'Cuota remoto o híbrido',
     'kpi.salaryDisclosureRate': 'Tasa de salario publicado',
     'kpi.avgMidSalary': 'Salario medio (mid)',
@@ -309,7 +303,7 @@ export const MESSAGES = {
     'nav.opportunityExplorer': 'Opportunity Explorer',
     'nav.methodology': 'Methodology',
     'view.marketPulse.description':
-      'Key market indicators: posting volume, companies, countries, work mode, monthly trend and experience.',
+      'Key report indicators: unique job postings, companies hiring, remote-friendly share, salary disclosure rate, six-month trend and top roles, companies and experience.',
     'view.rolesSkills.description':
       'Skill demand and salary, skill categories and a benchmark table.',
     'view.salaryInsights.description':
@@ -321,7 +315,8 @@ export const MESSAGES = {
     'view.pending': 'Coming soon',
     'view.error': 'Could not compute the data for this view. Please try again.',
     'view.marketPulse.trend.title': 'Job Postings by Month',
-    'view.marketPulse.trend.caption': 'Postings per publication month (PostedYearMonth).',
+    'view.marketPulse.trend.caption':
+      'Postings per publication month (PostedYearMonth), last 6 months with data.',
     'view.marketPulse.topRoles.title': 'Top Roles',
     'view.marketPulse.topRoles.caption': 'Top 10 role categories by number of postings.',
     'view.marketPulse.topCompanies.title': 'Top Companies',
@@ -564,13 +559,6 @@ export const MESSAGES = {
     'filter.salary.between': '{min} – {max}',
     'kpi.totalJobOffers': 'Total Job Offers',
     'kpi.companiesHiring': 'Companies Hiring',
-    'kpi.countriesHiring': 'Countries Hiring',
-    'kpi.citiesHiring': 'Cities Hiring',
-    'kpi.offersLast7Days': 'Offers Last 7 Days',
-    'kpi.offersLast30Days': 'Offers Last 30 Days',
-    'kpi.remoteShare': 'Remote Share',
-    'kpi.hybridShare': 'Hybrid Share',
-    'kpi.onSiteShare': 'On-site Share',
     'kpi.remoteFriendlyShare': 'Remote-Friendly Share',
     'kpi.salaryDisclosureRate': 'Salary Disclosure Rate',
     'kpi.avgMidSalary': 'Avg Mid Salary EUR',

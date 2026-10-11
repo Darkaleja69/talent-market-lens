@@ -195,7 +195,7 @@ spec/plan se actualizan junto con estas tareas.
     «Resumen con los filtros actuales» (T-09) se retira; comprobado en local
     en ES/EN y móvil.
 
-- [ ] **T-23 — Market Pulse: KPIs del informe y tendencia a 6 meses** (~20 min)
+- [x] **T-23 — Market Pulse: KPIs del informe y tendencia a 6 meses** (~20 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-21.
   - **Hecho cuando:** Market Pulse muestra los 4 KPIs del informe original

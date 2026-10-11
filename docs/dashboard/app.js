@@ -812,23 +812,24 @@ function resizeCharts() {
 }
 
 /* ========================================================================== *
- * Market Pulse (T-10, RF-7/RF-8/RF-16): KPIs 1-11 and executive charts
+ * Market Pulse (T-10, RF-7/RF-8/RF-16): report KPIs and executive charts
  * ========================================================================== */
 
-/** Market Pulse KPI cards mapped to measures 1-11 of §7 of the plan. */
+/**
+ * Market Pulse KPI cards: the four measures of the original report page
+ * (docs/images/powerbi_market_pulse.png) — measures 1, 2, 10 and 11 of §7 of
+ * the plan. The builders of the other measures stay in `queries.js` (the spec
+ * ports them), but the view no longer displays them (T-23).
+ */
 const MARKET_PULSE_KPIS = [
   { id: 'total', labelKey: 'kpi.totalJobOffers', builder: 'totalJobOffers', alias: 'total_job_offers', format: 'count' },
   { id: 'companies', labelKey: 'kpi.companiesHiring', builder: 'companiesHiring', alias: 'companies_hiring', format: 'count' },
-  { id: 'countries', labelKey: 'kpi.countriesHiring', builder: 'countriesHiring', alias: 'countries_hiring', format: 'count' },
-  { id: 'cities', labelKey: 'kpi.citiesHiring', builder: 'citiesHiring', alias: 'cities_hiring', format: 'count' },
-  { id: 'last7', labelKey: 'kpi.offersLast7Days', builder: 'offersLast7Days', alias: 'offers_last_7_days', format: 'count' },
-  { id: 'last30', labelKey: 'kpi.offersLast30Days', builder: 'offersLast30Days', alias: 'offers_last_30_days', format: 'count' },
-  { id: 'remote', labelKey: 'kpi.remoteShare', builder: 'remoteShare', alias: 'remote_share', format: 'percent' },
-  { id: 'hybrid', labelKey: 'kpi.hybridShare', builder: 'hybridShare', alias: 'hybrid_share', format: 'percent' },
-  { id: 'onsite', labelKey: 'kpi.onSiteShare', builder: 'onSiteShare', alias: 'on_site_share', format: 'percent' },
   { id: 'remoteFriendly', labelKey: 'kpi.remoteFriendlyShare', builder: 'remoteFriendlyShare', alias: 'remote_friendly_share', format: 'percent' },
   { id: 'disclosure', labelKey: 'kpi.salaryDisclosureRate', builder: 'salaryDisclosureRate', alias: 'salary_disclosure_rate', format: 'percent' },
 ];
+
+/** Monthly trend window of the report page: the last six months with data. */
+const MARKET_PULSE_TREND_MONTHS = 6;
 
 const EMPTY_VALUE = '—';
 
@@ -859,9 +860,11 @@ function renderKpiList(kpis) {
 }
 
 /**
- * Runs the eleven KPI builders plus the four chart aggregations in one batch
- * with the current global filters (RF-9). Every builder comes from
- * `queries.js`; this module only orchestrates calls and formats results.
+ * Runs the four KPI builders of the report page plus the four chart
+ * aggregations in one batch with the current global filters (RF-9). The trend
+ * is limited to the last `MARKET_PULSE_TREND_MONTHS` months. Every builder
+ * comes from `queries.js`; this module only orchestrates calls and formats
+ * results.
  */
 async function fetchMarketPulseData(options) {
   const [kpis, trend, topRoles, topCompanies, experience] = await Promise.all([
@@ -869,7 +872,7 @@ async function fetchMarketPulseData(options) {
       const rows = await runQuery(queries[kpi.builder](options));
       return { ...kpi, value: rows.length > 0 ? rows[0][kpi.alias] : null };
     })),
-    runQuery(queries.monthlyTrend(options)),
+    runQuery(queries.monthlyTrend({ ...options, months: MARKET_PULSE_TREND_MONTHS })),
     runQuery(queries.topRoles(options)),
     runQuery(queries.topCompanies(options)),
     runQuery(queries.experienceBreakdown(options)),
@@ -946,10 +949,12 @@ function appendChartCard(grid, { titleKey, captionKey, wide = false, option, noD
 }
 
 /**
- * Market Pulse renderer (RF-7): KPI cards 1-11, monthly trend by
- * `PostedYearMonth`, top 10 roles, top 10 companies and the experience
- * breakdown. Data, labels and formats come from the current language and the
- * global filters; this function only assembles DOM and mounts charts.
+ * Market Pulse renderer (RF-7): the four KPI cards of the report page, the
+ * monthly trend by `PostedYearMonth` limited to the last
+ * `MARKET_PULSE_TREND_MONTHS` months, top 10 roles, top 10 companies and the
+ * experience breakdown. Data, labels and formats come from the current
+ * language and the global filters; this function only assembles DOM and mounts
+ * charts.
  */
 async function renderMarketPulse({ requestId, body }) {
   const options = buildQueryOptions(state.filters);
@@ -966,7 +971,7 @@ async function renderMarketPulse({ requestId, body }) {
   }
 
   const grid = document.createElement('div');
-  grid.className = 'chart-grid';
+  grid.className = 'chart-grid chart-grid--pulse';
   const mounts = [
     appendChartCard(grid, {
       titleKey: 'view.marketPulse.trend.title',
