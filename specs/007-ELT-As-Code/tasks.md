@@ -39,28 +39,30 @@ completo —incluida la tarea de export web— en el bundle.
   - **Evidencia:** commit `docs(spec): T-01 ...`; hecho por el asistente al
     arrancar el track.
 
-- [ ] **T-02 — CLI y perfil de Databricks** (~25 min)
+- [x] **T-02 — CLI y perfil de Databricks** (~25 min)
   - **RF:** RF-3.
   - **Objetivo:** tener la CLI instalada y autenticada contra el workspace, y
     confirmar la edición de la suscripción.
   - **Preguntas guía:** ¿qué edición tiene el workspace (Premium?) y por qué
     importa para el resto del track (system tables, row filters, column
     masks)? ¿Con qué identidad trabajarás en dev?
-  - **Pistas y docs:** la extensión de VS Code trae su propia copia del CLI,
-    que no es la del terminal: comprueba `databricks version` y, si no existe,
-    `winget install Databricks.DatabricksCLI` (o el instalador oficial) y
-    reinicia el terminal. Con el PAT, crea un perfil en
-    `%USERPROFILE%\.databrickscfg` (`[tml]` con `host` y `token`) o usa
-    `DATABRICKS_HOST`/`DATABRICKS_TOKEN` para la sesión; `databricks auth
-    profiles` lista lo configurado. La edición **no** depende de cómo te
-    autentiques: es el SKU del recurso en Azure y se ve en el portal
-    (Databricks workspace → Overview → Pricing tier). Comprobación práctica
-    con el PAT: `databricks api get /api/2.1/unity-catalog/catalogs --profile
-    tml` debe listar `job_offers` (en Azure, UC exige Premium o Enterprise).
-  - **Hecho cuando:** `databricks current-user me --profile tml` responde con
-    tu usuario y la edición queda anotada (SKU del portal; si no hay acceso al
-    portal, inferida por UC y anotada como inferencia).
-  - **Evidencia:** salida saneada en `evidence.md` (sin tokens).
+  - **Pistas y docs:** la extensión de VS Code dejó un perfil ya válido
+    (`vs_code`, con PAT): el track usa `--profile vs_code`. `databricks auth
+    profiles` lista lo configurado; si algún día no apareciera, basta con
+    recrear el perfil en `%USERPROFILE%\.databrickscfg` o usar
+    `DATABRICKS_HOST`/`DATABRICKS_TOKEN` para la sesión. La edición **no**
+    depende de cómo te autentiques: es el SKU del recurso en Azure (portal →
+    Databricks workspace → Overview → Pricing tier). Comprobación práctica con
+    el PAT: `databricks api get /api/2.1/unity-catalog/catalogs --profile
+    vs_code` lista los catálogos de Unity Catalog (incluido `job_offers`; en
+    Azure, UC exige Premium o Enterprise).
+  - **Hecho cuando:** el perfil responde con tu usuario y la edición queda
+    anotada (SKU del portal o inferida por UC).
+  - **Resultado:** perfil `vs_code` con `Valid: Yes` y listado de catálogos de
+    UC obtenido correctamente ⇒ Unity Catalog activo ⇒ edición
+    Premium/Enterprise (inferida; confirmar el SKU en el portal si hay
+    acceso).
+  - **Evidencia:** salidas registradas en `evidence.md` (sin tokens).
 
 - [ ] **T-03 — Inventario del job actual** (~30 min)
   - **RF:** RF-1.
@@ -70,8 +72,8 @@ completo —incluida la tarea de export web— en el bundle.
   - **Preguntas guía:** ¿cuántas tareas hay y con qué dependencias? ¿qué compute
     usa cada una? ¿cuál es el trigger exacto y su URL? ¿`max_concurrent_runs` y
     timeouts? ¿qué campo conecta con la Git folder (`git_source`, `source`)?
-  - **Pistas y docs:** `databricks jobs list --profile tml` y
-    `databricks jobs get <job-id> --profile tml`; en la UI, el job tiene una
+  - **Pistas y docs:** `databricks jobs list --profile vs_code` y
+    `databricks jobs get <job-id> --profile vs_code`; en la UI, el job tiene una
     vista JSON. Guarda el resultado saneado como
     `specs/007-ELT-As-Code/job-actual.json`.
   - **Hecho cuando:** JSON guardado y resumen (tareas, dependencias, compute,
@@ -86,7 +88,7 @@ completo —incluida la tarea de export web— en el bundle.
     sola cuando hay push? ¿Desde qué ruta del workspace ejecuta el job? ¿Qué
     pasa en producción si esta semana se mergea algo a la rama que sigue?
   - **Pistas y docs:** UI → Workspace → Repos/Git folders; `databricks repos
-    list --profile tml` y `databricks repos get <id> --profile tml`.
+    list --profile vs_code` y `databricks repos get <id> --profile vs_code`.
   - **Hecho cuando:** nota con la respuesta a cada pregunta y captura de la
     configuración, con las implicaciones para el cutover anotadas.
   - **Evidencia:** nota en `evidence.md` + captura.
@@ -115,7 +117,7 @@ completo —incluida la tarea de export web— en el bundle.
     detalle no supo capturar (trigger, política de cluster, librerías)? ¿A
     dónde apuntan los `notebook_path` generados?
   - **Pistas y docs:** `databricks bundle generate job --existing-job-id
-    <id> --key elt --profile tml`; comparar el recurso generado con el JSON.
+    <id> --key elt --profile vs_code`; comparar el recurso generado con el JSON.
   - **Hecho cuando:** existe el recurso en `resources/`, validate pasa y las
     diferencias con el job manual están listadas.
   - **Evidencia:** diff/resumen en `evidence.md`.
@@ -158,8 +160,8 @@ completo —incluida la tarea de export web— en el bundle.
   - **Preguntas guía:** ¿dónde quedaron los ficheros sincronizados? ¿En qué se
     diferencia el job dev del manual (además de las variables)? ¿Subió el sync
     solo lo necesario (tamaño razonable)?
-  - **Pistas y docs:** `databricks bundle deploy -t dev --profile tml`;
-    `databricks bundle summary -t dev --profile tml`; `databricks jobs get`
+  - **Pistas y docs:** `databricks bundle deploy -t dev --profile vs_code`;
+    `databricks bundle summary -t dev --profile vs_code`; `databricks jobs get`
     del job dev.
   - **Hecho cuando:** el job dev existe, está pausado y las diferencias con el
     manual están revisadas (solo variables, paths y trigger).

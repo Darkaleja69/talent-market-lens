@@ -7,3 +7,4 @@ salidas saneadas se guardan junto a este fichero o en las rutas indicadas.
 | Fecha | Tarea | Comprobación | Resultado |
 |---|---|---|---|
 | 2026-10-12 | T-01 | `docs/databricks-de/roadmap.md` y `docs/databricks-de/notes/README.md` versionados en `spec/007-elt-as-code` | hecho |
+| 2026-10-12 | T-02 | `databricks auth profiles`: perfil `vs_code` con `Valid: Yes`; `databricks api get /api/2.1/unity-catalog/catalogs --profile vs_code` devuelve los catálogos del metastore | hecho; UC activo ⇒ edición Premium/Enterprise (inferida) |
