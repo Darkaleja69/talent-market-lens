@@ -10,8 +10,9 @@
  * T-10 (KPIs + ECharts), Roles & Skills in T-11 (benchmark table + bubble +
  * category donut) plus the median salary by skill category chart (T-24),
  * Salary Insights in T-12 (KPIs 15-18, averages by role
- * and work mode, top paying skills and the Europe choropleth with the
- * versioned GeoJSON), the Opportunity Explorer in T-13 (searchable paginated
+ * and work mode, top paying skills and the choropleth with the versioned
+ * GeoJSON) plus the country selector and per-region map (T-25), the
+ * Opportunity Explorer in T-13 (searchable paginated
  * table) and the Methodology in T-14 (sources, pipeline trace, salary
  * normalisation, dates, freshness from `meta.json`, limitations and legal
  * notice; no SQL and no charts). Every view now has a renderer; the localised
@@ -1234,8 +1235,8 @@ async function renderRolesSkills({ requestId, body }) {
 }
 
 /* ========================================================================== *
- * Salary Insights (T-12, RF-7/RF-8/RF-16): KPIs 15-18, averages by role and
- * work mode, top paying skills and the country choropleth
+ * Salary Insights (T-12/T-25, RF-7/RF-8/RF-16): KPIs 15-18, averages by role
+ * and work mode, top paying skills and the country/region choropleth
  * ========================================================================== */
 
 /** Salary Insights KPI cards mapped to measures 15-18 of §7 of the plan. */
@@ -1247,14 +1248,47 @@ const SALARY_INSIGHTS_KPIS = [
 ];
 
 /**
- * Versioned Europe GeoJSON (Natural Earth 110m, public domain): loaded once
- * per visit and registered in ECharts by name. Region names are the English
- * `properties.name` values, which is what `offersByCountry` returns.
+ * Country selector of the map, mirroring the report slicer
+ * (docs/images/powerbi_salary_insights.png) in its order: Europe keeps the
+ * continental map and clears the global country filter; every other button
+ * applies its `GeoCountry` through the global filters and switches the map to
+ * the regions of that country (T-25).
+ */
+const MAP_COUNTRIES = [
+  { id: 'europe', labelKey: 'view.salaryInsights.map.country.europe', country: '' },
+  { id: 'ireland', labelKey: 'view.salaryInsights.map.country.ireland', country: 'Ireland' },
+  { id: 'netherlands', labelKey: 'view.salaryInsights.map.country.netherlands', country: 'Netherlands' },
+  { id: 'spain', labelKey: 'view.salaryInsights.map.country.spain', country: 'Spain' },
+  { id: 'switzerland', labelKey: 'view.salaryInsights.map.country.switzerland', country: 'Switzerland' },
+  { id: 'united-states', labelKey: 'view.salaryInsights.map.country.unitedStates', country: 'United States' },
+];
+
+/**
+ * Versioned GeoJSON maps (Natural Earth, public domain; see
+ * docs/dashboard/README.md): the Europe map registers once as `tml-europe`
+ * and `regions.geojson` provides one map per selector country
+ * (`tml-spain`, …). Region names are the canonical `GeoRegion` values the
+ * export produces, which is what `offersByCountry`/`offersByRegion` return.
  */
 const EUROPE_GEOJSON_URL = './assets/europe.geojson';
-const EUROPE_MAP_NAME = 'europe';
+const REGIONS_GEOJSON_URL = './assets/regions.geojson';
+const EUROPE_MAP_NAME = 'tml-europe';
+
+/**
+ * Features excluded from the automatic fit so the country fills the card:
+ * Alaska, Hawaii and Puerto Rico would stretch the United States box across
+ * the Pacific. They are still registered and drawn (clipped outside the
+ * visible box, `roam` is off), and their data is simply not reachable on the
+ * fitted map; documented in the T-25 report and the dashboard README.
+ */
+const MAP_FIT_EXCLUSIONS = {
+  'united-states': new Set(['Alaska', 'Hawaii', 'Puerto Rico']),
+};
+
 let europeGeojsonPromise = null;
 let europeMapNames = null;
+let regionsGeojsonPromise = null;
+let countryMaps = null;
 
 /**
  * Loads (once) and registers the Europe GeoJSON, resolving to the set of
@@ -1279,6 +1313,118 @@ async function prepareEuropeMap() {
     console.warn('[tml] could not load the Europe GeoJSON:', error);
     return null;
   }
+}
+
+/**
+ * Bounding box of the features that must be visible, in ECharts order
+ * (`[[minLng, maxLat], [maxLng, minLat]]`), with a small padding so the
+ * country does not touch the card borders. Features listed in `excludedNames`
+ * (detached territories) do not take part in the fit.
+ */
+function fitBoundingCoords(features, excludedNames = null) {
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  const visit = (coords) => {
+    if (typeof coords[0] === 'number') {
+      const [lng, lat] = coords;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      return;
+    }
+    for (const child of coords) visit(child);
+  };
+  for (const feature of features) {
+    if (excludedNames && feature.properties && excludedNames.has(feature.properties.name)) continue;
+    if (feature.geometry && feature.geometry.coordinates) visit(feature.geometry.coordinates);
+  }
+  if (!Number.isFinite(minLng)) return null;
+  const padLng = Math.max((maxLng - minLng) * 0.03, 0.02);
+  const padLat = Math.max((maxLat - minLat) * 0.03, 0.02);
+  return [[minLng - padLng, maxLat + padLat], [maxLng + padLng, minLat - padLat]];
+}
+
+/**
+ * Loads (once) `regions.geojson` and registers one ECharts map per selector
+ * country with only that country's features. Resolves to a `Map` of
+ * `id → { mapName, names, boundingCoords }` or null when the fetch fails; the
+ * map card then shows its localised "unavailable" note and the rest of the
+ * view keeps working.
+ */
+async function prepareCountryMaps() {
+  if (!state.echarts) return null;
+  if (countryMaps) return countryMaps;
+  if (!regionsGeojsonPromise) regionsGeojsonPromise = fetchJson(REGIONS_GEOJSON_URL);
+  try {
+    const geojson = await regionsGeojsonPromise;
+    const maps = new Map();
+    for (const entry of MAP_COUNTRIES) {
+      if (!entry.country) continue;
+      const features = (geojson.features || []).filter(
+        (feature) => feature.properties && feature.properties.country === entry.country,
+      );
+      if (features.length === 0) continue;
+      const mapName = `tml-${entry.id}`;
+      state.echarts.registerMap(mapName, { type: 'FeatureCollection', features });
+      maps.set(entry.id, {
+        mapName,
+        names: new Set(features.map((feature) => feature.properties.name)),
+        boundingCoords: fitBoundingCoords(features, MAP_FIT_EXCLUSIONS[entry.id]),
+      });
+    }
+    countryMaps = maps;
+    return countryMaps;
+  } catch (error) {
+    regionsGeojsonPromise = null; // allow a retry on the next render
+    console.warn('[tml] could not load the regions GeoJSON:', error);
+    return null;
+  }
+}
+
+/** Country of the selector matching `state.filters.country`, or null (Europe). */
+function activeMapCountry() {
+  return MAP_COUNTRIES.find(
+    (entry) => entry.country && entry.country === state.filters.country,
+  ) || null;
+}
+
+/**
+ * Country selector chips above the map (T-25). The active button derives from
+ * `state.filters.country` (Europe when no selector country is filtered), so
+ * the chips and the filter-panel select stay synchronised; a click applies the
+ * global country filter and the active view re-renders with the country map
+ * fitted. `aria-pressed` exposes the active state without relying on colour.
+ */
+function buildMapSelector(activeId) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'map-selector';
+  wrapper.setAttribute('role', 'group');
+  wrapper.setAttribute('aria-label', t('view.salaryInsights.map.selector.label'));
+
+  for (const entry of MAP_COUNTRIES) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'map-selector__button';
+    button.setAttribute('aria-pressed', entry.id === activeId ? 'true' : 'false');
+    button.textContent = t(entry.labelKey);
+    button.addEventListener('click', () => {
+      // Re-clicking the active country (or Europe with no country filter) is a
+      // no-op; Europe with any other country filter clears it.
+      if (entry.id === activeId && entry.id !== 'europe') return;
+      if (entry.id === 'europe' && isBlank(state.filters.country)) return;
+      setFilters({ country: entry.country });
+    });
+    wrapper.append(button);
+  }
+
+  const hint = document.createElement('p');
+  hint.className = 'map-selector__hint';
+  hint.textContent = t('view.salaryInsights.map.selector.hint');
+  wrapper.append(hint);
+  return wrapper;
 }
 
 /**
@@ -1364,57 +1510,86 @@ function appendTopSkillsCard(grid, rows) {
   grid.append(figure);
 }
 
-/** Choropleth card: no-data countries in grey, values outside the map listed. */
-function appendMapCard(grid, { rows, regionNames, mounts }) {
+/**
+ * Choropleth card (T-25): the country selector chips sit above the chart. In
+ * Europe mode the map colours countries by `offersByCountry` and lists the
+ * labels without geometry below the map; in country mode it draws only that
+ * country's regions (registered `regions.geojson` features) coloured by
+ * `offersByRegion`, fitted to the country box through `boundingCoords`.
+ * Regions/countries without a row keep the light grey "no data" fill and
+ * tooltip.
+ */
+function appendMapCard(grid, { selected, countryMaps: maps, europeNames, rows, mounts }) {
+  const countryMode = selected != null;
+  const countryInfo = countryMode && maps ? maps.get(selected.id) : null;
+  const mapName = countryMode ? (countryInfo ? countryInfo.mapName : null) : EUROPE_MAP_NAME;
+  const regionNames = countryMode ? (countryInfo ? countryInfo.names : null) : europeNames;
+  const countryName = countryMode ? t(selected.labelKey) : '';
+  const titleKey = countryMode
+    ? 'view.salaryInsights.map.regionsTitle'
+    : 'view.salaryInsights.map.title';
+  const captionKey = countryMode
+    ? 'view.salaryInsights.map.regionsCaption'
+    : 'view.salaryInsights.map.caption';
+
   const figure = document.createElement('figure');
   figure.className = 'chart-card chart-card--map';
 
   const title = document.createElement('h3');
   title.className = 'chart-card__title';
-  title.textContent = t('view.salaryInsights.map.title');
+  title.textContent = t(titleKey, { country: countryName });
   figure.append(title);
+
+  figure.append(buildMapSelector(countryMode ? selected.id : 'europe'));
 
   const body = document.createElement('div');
   body.className = 'chart-card__body';
   body.setAttribute('role', 'img');
-  body.setAttribute('aria-label', `${t('view.salaryInsights.map.title')}. ${t('view.salaryInsights.map.caption')}`);
+  body.setAttribute('aria-label', `${title.textContent}. ${t(captionKey, { country: countryName })}`);
   figure.append(body);
 
   const caption = document.createElement('figcaption');
   caption.className = 'chart-card__caption';
-  caption.textContent = t('view.salaryInsights.map.caption');
+  caption.textContent = t(captionKey, { country: countryName });
   figure.append(caption);
 
-  if (!regionNames) {
+  if (!mapName || !regionNames) {
     body.replaceWith(noteElement('view.salaryInsights.mapUnavailable', 'chart-empty'));
     grid.append(figure);
     return;
   }
 
-  const mapped = rows.filter((row) => regionNames.has(row.country));
-  const outside = rows.filter((row) => !regionNames.has(row.country));
+  const mapped = rows.filter((row) => regionNames.has(row.name));
+  const outside = rows.filter((row) => !regionNames.has(row.name));
   if (rows.length === 0) {
     body.replaceWith(noteElement('view.salaryInsights.noData', 'chart-empty'));
   } else {
     const option = choroplethOption({
-      mapName: EUROPE_MAP_NAME,
+      mapName,
       rows: mapped,
-      seriesName: t('view.salaryInsights.map.title'),
+      boundingCoords: countryInfo ? countryInfo.boundingCoords : null,
+      seriesName: title.textContent,
       formatValue: formatCountCallback,
-      formatTooltip: (country, value) => t('view.salaryInsights.map.tooltip', {
-        country,
-        offers: formatCount(value, state.language),
-      }),
-      formatNoData: (country) => t('view.salaryInsights.map.noDataTooltip', { country }),
+      formatTooltip: (name, value) => (countryMode
+        ? t('view.salaryInsights.map.regionTooltip', {
+            region: name,
+            offers: formatCount(value, state.language),
+          })
+        : t('view.salaryInsights.map.tooltip', {
+            country: name,
+            offers: formatCount(value, state.language),
+          })),
+      formatNoData: (name) => t('view.salaryInsights.map.noDataTooltip', { country: name }),
       moreLabel: t('view.salaryInsights.map.more'),
       lessLabel: t('view.salaryInsights.map.less'),
     });
     mounts.push(() => mountChart(body, option));
   }
 
-  // Labels without geometry on the European map (e.g. "United States",
-  // "Europe", "(Not specified)") stay visible in a small transparent table.
-  if (outside.length > 0) {
+  // Labels without geometry only exist in Europe mode (e.g. "United States",
+  // "Europe", "(Not specified)"); in country mode `(Country)`/`(Other)` are
+  // aggregates of unmapped offers and are not listed (T-25).
+  if (!countryMode && outside.length > 0) {
     const wrapper = document.createElement('div');
     wrapper.className = 'map-outside';
     wrapper.append(buildInsightsTable({
@@ -1423,8 +1598,8 @@ function appendMapCard(grid, { rows, regionNames, mounts }) {
         { key: 'offers', labelKey: 'view.salaryInsights.map.outsideOffers', numeric: true },
       ],
       rows: outside.map((row) => ({
-        country: row.country,
-        offers: formatCount(row.job_offers, state.language),
+        country: row.name,
+        offers: formatCount(row.value, state.language),
       })),
       captionKey: 'view.salaryInsights.map.outsideCaption',
     }));
@@ -1435,10 +1610,12 @@ function appendMapCard(grid, { rows, regionNames, mounts }) {
 
 /**
  * Data of the view with the current global filters (RF-9). All builders come
- * from queries.js; this function only orchestrates calls.
+ * from queries.js; this function only orchestrates calls and normalises the
+ * map rows to `{ name, value }` — the region or country drawn on the map and
+ * its offer count.
  */
-async function fetchSalaryInsightsData(options) {
-  const [kpis, byRole, byWorkMode, topSkills, byCountry] = await Promise.all([
+async function fetchSalaryInsightsData(options, selectedCountry) {
+  const [kpis, byRole, byWorkMode, topSkills, mapRows] = await Promise.all([
     Promise.all(SALARY_INSIGHTS_KPIS.map(async (kpi) => {
       const rows = await runQuery(queries[kpi.builder](options));
       return { ...kpi, value: rows.length > 0 ? rows[0][kpi.alias] : null };
@@ -1446,9 +1623,20 @@ async function fetchSalaryInsightsData(options) {
     runQuery(queries.avgMidSalaryByRole(options)),
     runQuery(queries.avgMidSalaryByWorkMode(options)),
     runQuery(queries.topPayingSkills(options)),
-    runQuery(queries.offersByCountry(options)),
+    selectedCountry
+      ? runQuery(queries.offersByRegion(options))
+      : runQuery(queries.offersByCountry(options)),
   ]);
-  return { kpis, byRole, byWorkMode, topSkills, byCountry };
+  return {
+    kpis,
+    byRole,
+    byWorkMode,
+    topSkills,
+    mapRows: mapRows.map((row) => ({
+      name: selectedCountry ? row.region : row.country,
+      value: row.job_offers,
+    })),
+  };
 }
 
 /** Horizontal bars of an average salary per category (role, work mode). */
@@ -1464,15 +1652,19 @@ function buildAverageSalaryOption(rows, nameField, seriesNameKey) {
 
 /**
  * Salary Insights renderer (RF-7): KPI cards 15-18, average salary by role
- * category and work mode, top paying skills table and the European
- * choropleth. The GeoJSON loads once and its failure only replaces the map
- * with a localised note; the table is plain DOM and survives without ECharts.
+ * category and work mode, top paying skills table and the choropleth. The map
+ * mode derives from `state.filters.country` (T-25): the five selector
+ * countries draw their regions fitted to the card, anything else draws the
+ * European continent by country. GeoJSON failures only replace the map with a
+ * localised note; the table is plain DOM and survives without ECharts.
  */
 async function renderSalaryInsights({ requestId, body }) {
   const options = buildQueryOptions(state.filters);
-  const [data, regionNames] = await Promise.all([
-    fetchSalaryInsightsData(options),
+  const selected = activeMapCountry();
+  const [data, europeNames, maps] = await Promise.all([
+    fetchSalaryInsightsData(options, selected),
     state.echarts ? prepareEuropeMap() : Promise.resolve(null),
+    state.echarts ? prepareCountryMaps() : Promise.resolve(null),
   ]);
   if (requestId !== viewRenderId) return;
 
@@ -1504,7 +1696,13 @@ async function renderSalaryInsights({ requestId, body }) {
         : null,
     }));
     appendTopSkillsCard(grid, data.topSkills);
-    appendMapCard(grid, { rows: data.byCountry, regionNames, mounts });
+    appendMapCard(grid, {
+      selected,
+      countryMaps: maps,
+      europeNames,
+      rows: data.mapRows,
+      mounts,
+    });
   }
 
   content.append(grid);

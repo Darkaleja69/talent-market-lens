@@ -506,6 +506,24 @@ ORDER BY job_offers DESC, country`;
 }
 
 /**
+ * Offers by GeoRegion for the country-mode choropleth of Salary Insights
+ * (T-25): one row per normalized region of the current context plus the
+ * `(Not specified)` bucket when GeoRegion is NULL. The country arrives through
+ * the global `where` fragment (the chip sets `filters.country`), so this query
+ * only shapes the per-region counts; `(Country)`/`(Other)` rows keep their
+ * label and have no geometry on the region map.
+ */
+export function offersByRegion(options = {}) {
+  const { where = '', minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
+  return `SELECT COALESCE(f.GeoRegion, '(Not specified)') AS region,
+       COUNT(*) AS job_offers
+FROM fact_offers AS f
+WHERE ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
+GROUP BY 1
+ORDER BY job_offers DESC, region`;
+}
+
+/**
  * Skill Demand by Category donut (Roles & Skills, 'Skill Demand' per catalog
  * category). The DAX measure counts Fact_OfferSkills rows (one row per offer
  * + skill), so an offer mentioning two skills of one category weighs twice;

@@ -97,12 +97,25 @@ export const MESSAGES = {
     'view.salaryInsights.map.noDataTooltip': '{country}: sin datos con los filtros actuales',
     'view.salaryInsights.map.more': 'Más',
     'view.salaryInsights.map.less': 'Menos',
+    'view.salaryInsights.map.selector.label': 'País del mapa',
+    'view.salaryInsights.map.selector.hint':
+      'Elige un país para filtrar toda la página y ver sus regiones; Europa muestra el continente por países.',
+    'view.salaryInsights.map.country.europe': 'Europa',
+    'view.salaryInsights.map.country.ireland': 'Irlanda',
+    'view.salaryInsights.map.country.netherlands': 'Países Bajos',
+    'view.salaryInsights.map.country.spain': 'España',
+    'view.salaryInsights.map.country.switzerland': 'Suiza',
+    'view.salaryInsights.map.country.unitedStates': 'Estados Unidos',
+    'view.salaryInsights.map.regionsTitle': 'Ofertas por región · {country}',
+    'view.salaryInsights.map.regionsCaption':
+      'Ofertas por región (GeoRegion) de {country}. Las regiones en gris claro no tienen ofertas con los filtros actuales; pasa el cursor por encima para ver el detalle.',
+    'view.salaryInsights.map.regionTooltip': '{region}: {offers} ofertas',
     'view.salaryInsights.map.outsideCaption':
       'Valores fuera del mapa europeo, sin geometría en el GeoJSON; se listan para no perder información:',
     'view.salaryInsights.map.outsideCountry': 'País o etiqueta',
     'view.salaryInsights.map.outsideOffers': 'Ofertas',
     'view.salaryInsights.mapUnavailable':
-      'No se pudo cargar el GeoJSON del mapa europeo; el resto de la vista sigue disponible.',
+      'No se pudo cargar el GeoJSON de los mapas; el resto de la vista sigue disponible.',
     'view.salaryInsights.noData': 'Sin datos para esta vista con los filtros actuales.',
     'view.salaryInsights.notAvailable': 'N/D',
     'view.salaryInsights.chartsUnavailable':
@@ -376,12 +389,25 @@ export const MESSAGES = {
     'view.salaryInsights.map.noDataTooltip': '{country}: no data with the current filters',
     'view.salaryInsights.map.more': 'More',
     'view.salaryInsights.map.less': 'Fewer',
+    'view.salaryInsights.map.selector.label': 'Map country',
+    'view.salaryInsights.map.selector.hint':
+      'Pick a country to filter the whole page and see its regions; Europe shows the continent by country.',
+    'view.salaryInsights.map.country.europe': 'Europe',
+    'view.salaryInsights.map.country.ireland': 'Ireland',
+    'view.salaryInsights.map.country.netherlands': 'Netherlands',
+    'view.salaryInsights.map.country.spain': 'Spain',
+    'view.salaryInsights.map.country.switzerland': 'Switzerland',
+    'view.salaryInsights.map.country.unitedStates': 'United States',
+    'view.salaryInsights.map.regionsTitle': 'Postings by Region · {country}',
+    'view.salaryInsights.map.regionsCaption':
+      'Postings per region (GeoRegion) in {country}. Light grey regions have no postings under the current filters; hover for details.',
+    'view.salaryInsights.map.regionTooltip': '{region}: {offers} postings',
     'view.salaryInsights.map.outsideCaption':
       'Values outside the European map (no geometry in the GeoJSON), listed so no information is lost:',
     'view.salaryInsights.map.outsideCountry': 'Country or label',
     'view.salaryInsights.map.outsideOffers': 'Postings',
     'view.salaryInsights.mapUnavailable':
-      'The European map GeoJSON could not be loaded; the rest of the view keeps working.',
+      'The map GeoJSON could not be loaded; the rest of the view keeps working.',
     'view.salaryInsights.noData': 'No data for this view with the current filters.',
     'view.salaryInsights.notAvailable': 'N/A',
     'view.salaryInsights.chartsUnavailable':

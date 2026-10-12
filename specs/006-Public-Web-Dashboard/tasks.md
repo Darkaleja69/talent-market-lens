@@ -212,7 +212,7 @@ spec/plan se actualizan junto con estas tareas.
     coherente con la captura del informe, y la burbuja mantiene tooltips
     contenidos y etiquetas legibles; ES/EN.
 
-- [ ] **T-25 — Salary Insights: selector de país y mapa por regiones** (~35 min)
+- [x] **T-25 — Salary Insights: selector de país y mapa por regiones** (~35 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-21.
   - **Hecho cuando:** sobre el mapa aparecen los botones de país del informe

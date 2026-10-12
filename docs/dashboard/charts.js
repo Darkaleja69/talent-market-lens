@@ -168,14 +168,19 @@ export function donutChart({
  * row keep the base `itemStyle.areaColor` (light grey) and their tooltip
  * reports "no data"; only the rows present in `rows` go through the visualMap.
  * @param {Object} params
- * @param {string} params.mapName - name used with `echarts.registerMap`.
- * @param {Array<{country: string, job_offers: number}>} [params.rows] - mapped
- *   values; the caller must exclude labels without geometry from the map.
+ * @param {string} params.mapName - name used with `echarts.registerMap`
+ *   (`tml-europe` or a country map such as `tml-spain`).
+ * @param {Array<{name: string, value: number}>} [params.rows] - mapped values
+ *   (name = country or region drawn on the map); the caller must exclude
+ *   labels without geometry from the map.
+ * @param {number[][]} [params.boundingCoords] - optional box boundary of the
+ *   map, `[[minLng, maxLat], [maxLng, minLat]]`, used to fit a subset of the
+ *   map features (e.g. the regions of one country) into the chart area.
  * @param {string} [params.seriesName] - series name (used by tooltips/legend).
  * @param {(value: number) => string} [params.formatValue] - visualMap labels.
- * @param {(country: string, value: number) => string} [params.formatTooltip]
+ * @param {(name: string, value: number) => string} [params.formatTooltip]
  *   - localised tooltip for regions with data.
- * @param {(country: string) => string} [params.formatNoData] - localised
+ * @param {(name: string) => string} [params.formatNoData] - localised
  *   tooltip for regions without data.
  * @param {string} [params.moreLabel] - visualMap upper text (already localised).
  * @param {string} [params.lessLabel] - visualMap lower text (already localised).
@@ -186,6 +191,7 @@ export function donutChart({
 export function choroplethOption({
   mapName,
   rows = [],
+  boundingCoords = null,
   seriesName = '',
   formatValue = defaultFormat,
   formatTooltip = null,
@@ -196,7 +202,7 @@ export function choroplethOption({
   colors = ['#e3edf8', '#a8c8e8', '#5b93c9', '#1f5f9e'],
 }) {
   const values = rows
-    .map((row) => Number(row.job_offers))
+    .map((row) => Number(row.value))
     .filter((value) => Number.isFinite(value));
   const max = Math.max(1, ...values);
   return {
@@ -236,6 +242,9 @@ export function choroplethOption({
       nameProperty: 'name',
       selectedMode: false,
       roam: false,
+      // Fits the requested box (e.g. one country's regions) into the chart;
+      // absent means the default fit of every registered feature.
+      ...(boundingCoords ? { boundingCoords } : {}),
       label: { show: false },
       itemStyle: {
         areaColor: noDataColor,
@@ -247,9 +256,9 @@ export function choroplethOption({
       // takes the "no data" branch instead of showing a fabricated zero
       // (`Number(null)` would be 0).
       data: rows.map((row) => {
-        const raw = row.job_offers;
+        const raw = row.value;
         const value = raw == null || raw === '' ? NaN : Number(raw);
-        return Number.isFinite(value) ? { name: row.country, value } : { name: row.country };
+        return Number.isFinite(value) ? { name: row.name, value } : { name: row.name };
       }),
     }],
   };
