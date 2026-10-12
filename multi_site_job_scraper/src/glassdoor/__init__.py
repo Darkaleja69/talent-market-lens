@@ -1,1 +1,1 @@
-"""Scraper de Glassdoor (USA) con Playwright/patchright."""
+"""Scraper de Glassdoor (mercado Irlanda) con Playwright/patchright."""

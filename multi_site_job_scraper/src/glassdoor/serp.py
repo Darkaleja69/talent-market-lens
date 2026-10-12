@@ -140,8 +140,10 @@ def parse_cards(page) -> list[dict]:
                 continue
             seen.add(key)
 
-            job_url = href if href.startswith("http") else urljoin(
-                "https://www.glassdoor.com", href)
+            # Base del dominio real de la pagina (antes fija a .com): el
+            # fallback DOM debe generar URLs del mercado configurado (.ie).
+            page_url = getattr(page, "url", "") or "https://www.glassdoor.com"
+            job_url = href if href.startswith("http") else urljoin(page_url, href)
             job_id = f"gd_{listing_id}" if listing_id else f"gd_{hash(job_url + title)}"
 
             card_el = _closest_card(link)
@@ -316,7 +318,8 @@ def _looks_like_location(text: str) -> bool:
         return False
     t = text.strip()
     if t.lower() in ("remote", "united states", "us", "usa", "spain",
-                     "españa", "switzerland", "germany", "france"):
+                     "españa", "switzerland", "germany", "france",
+                     "ireland", "ie"):
         return True
     if "," in t:
         parts = [p.strip() for p in t.split(",") if p.strip()]
@@ -406,15 +409,19 @@ def go_to_next_page(page) -> bool:
     return False
 
 
-def parse_location(raw: str) -> tuple[str, str, str]:
-    """Parsea ubicacion raw en ciudad, region, pais."""
+def parse_location(raw: str, default_country: str = "") -> tuple[str, str, str]:
+    """Parsea ubicacion raw en ciudad, region, pais.
+
+    `default_country` permite al llamante fijar el pais del mercado (p. ej.
+    "Ireland"); antes se asumia "United States" de forma fija.
+    """
     if not raw:
         return "", "", ""
     if raw.lower() in ("remote", "united states", "us", "usa"):
-        return raw, "", "United States"
+        return raw, "", default_country
     parts = [p.strip() for p in raw.split(",") if p.strip()]
     if len(parts) >= 3:
         return parts[0], parts[1], parts[-1]
     if len(parts) == 2:
-        return parts[0], parts[1], "United States"
-    return parts[0], "", "United States"
+        return parts[0], parts[1], default_country
+    return parts[0], "", default_country
