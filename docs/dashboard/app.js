@@ -1485,10 +1485,16 @@ const TOP_SKILLS_COLUMNS = [
   { key: 'demand', labelKey: 'view.salaryInsights.topSkills.demand', numeric: true },
 ];
 
-/** Scrollable top-paying-skills card; plain DOM, so it survives without ECharts. */
-function appendTopSkillsCard(grid, rows) {
+/**
+ * Scrollable top-paying-skills card; plain DOM, so it survives without ECharts.
+ * `fill` is set when the card shares its row with the (taller) map card: the
+ * scroll region then grows with the row height so the card is never stretched
+ * with an empty gap below the table (T-29). Standalone (the degraded path
+ * without ECharts) the card keeps its compact fixed height.
+ */
+function appendTopSkillsCard(grid, rows, { fill = false } = {}) {
   const figure = document.createElement('figure');
-  figure.className = 'chart-card chart-card--table';
+  figure.className = `chart-card chart-card--table${fill ? ' chart-card--fill' : ''}`;
 
   const title = document.createElement('h3');
   title.className = 'chart-card__title';
@@ -1705,7 +1711,7 @@ async function renderSalaryInsights({ requestId, body }) {
         ? buildAverageSalaryOption(data.byWorkMode, 'work_mode', 'view.salaryInsights.avgByWorkMode.title')
         : null,
     }));
-    appendTopSkillsCard(grid, data.topSkills);
+    appendTopSkillsCard(grid, data.topSkills, { fill: true });
     appendMapCard(grid, {
       selected,
       countryMaps: maps,

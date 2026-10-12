@@ -239,6 +239,9 @@ export function barChart({
  * legend— so they always fit: outside labels with the full text were clipped
  * with an ellipsis ("Unknown …") in the narrow cards and inside labels
  * overflowed the ring on its left/right sides.
+ * With a single visible slice the legend is hidden (one name is not a legend),
+ * so that label carries the name too ("Junior: 100,0 %"): otherwise the only
+ * slice of the donut would be unidentifiable (T-29).
  * @param {Object} params
  * @param {Array<{name: string, value: number}>} params.items - slices (already
  *   ordered by the caller); entries that would format as 0.0 % are filtered out.
@@ -259,6 +262,7 @@ export function donutChart({
     .filter(({ value }) => Number.isFinite(value) && value > 0);
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
   const visible = slices.filter(({ value }) => total <= 0 || value / total >= 0.0005);
+  const labelWithName = visible.length === 1;
   return {
     animationDuration: 250,
     color: COLORS.categorical,
@@ -295,7 +299,8 @@ export function donutChart({
         fontFamily: FONT_FAMILY,
         formatter: (params) => {
           const ratio = Number.isFinite(params.percent) ? params.percent / 100 : 0;
-          return formatPercent(ratio);
+          const percent = formatPercent(ratio);
+          return labelWithName ? `${params.name}: ${percent}` : percent;
         },
       },
       labelLine: { show: true, length: 6, length2: 6, lineStyle: { color: COLORS.labelLine } },
