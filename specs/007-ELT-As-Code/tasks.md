@@ -46,13 +46,20 @@ completo —incluida la tarea de export web— en el bundle.
   - **Preguntas guía:** ¿qué edición tiene el workspace (Premium?) y por qué
     importa para el resto del track (system tables, row filters, column
     masks)? ¿Con qué identidad trabajarás en dev?
-  - **Pistas y docs:** instalador oficial o `winget install
-    Databricks.DatabricksCLI`; `databricks version`; `databricks auth login
-    --host https://<workspace>.azuredatabricks.net --profile tml`; comprobar
-    con `databricks current-user me --profile tml`. La edición se ve en el
-    portal de Azure (o Account Console → workspaces).
+  - **Pistas y docs:** la extensión de VS Code trae su propia copia del CLI,
+    que no es la del terminal: comprueba `databricks version` y, si no existe,
+    `winget install Databricks.DatabricksCLI` (o el instalador oficial) y
+    reinicia el terminal. Con el PAT, crea un perfil en
+    `%USERPROFILE%\.databrickscfg` (`[tml]` con `host` y `token`) o usa
+    `DATABRICKS_HOST`/`DATABRICKS_TOKEN` para la sesión; `databricks auth
+    profiles` lista lo configurado. La edición **no** depende de cómo te
+    autentiques: es el SKU del recurso en Azure y se ve en el portal
+    (Databricks workspace → Overview → Pricing tier). Comprobación práctica
+    con el PAT: `databricks api get /api/2.1/unity-catalog/catalogs --profile
+    tml` debe listar `job_offers` (en Azure, UC exige Premium o Enterprise).
   - **Hecho cuando:** `databricks current-user me --profile tml` responde con
-    tu usuario y la edición queda anotada.
+    tu usuario y la edición queda anotada (SKU del portal; si no hay acceso al
+    portal, inferida por UC y anotada como inferencia).
   - **Evidencia:** salida saneada en `evidence.md` (sin tokens).
 
 - [ ] **T-03 — Inventario del job actual** (~30 min)
