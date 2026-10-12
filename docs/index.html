@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Talent Market Lens · Dashboard público de ofertas de empleo</title>
+  <meta name="description" content="Dashboard público y sin registro sobre ofertas de empleo reales del mercado de datos y analítica: demanda, salarios, skills y geografía. Public, no-login dashboard for the data & analytics job market.">
+  <style>
+    /* Visual system shared with the dashboard (docs/dashboard/styles.css):
+       cool light canvas, deep-blue identity, white cards, compact type. */
+    :root {
+      color-scheme: light;
+      --color-bg: #f2f5fa;
+      --color-surface: #ffffff;
+      --color-text: #101828;
+      --color-muted: #5b6b82;
+      --color-border: #e3e8f1;
+      --color-header-bg: #0b1f36;
+      --color-header-bg-2: #143a63;
+      --color-header-text: #f6f9fd;
+      --color-header-muted: #b9cde4;
+      --color-accent: #1d4ed8;
+      --color-accent-2: #0e7490;
+      --color-accent-soft: #e8eefc;
+      --radius: 10px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.07);
+      --shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 8px 20px rgba(16, 24, 40, 0.1);
+      --max-width: 72rem;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    a { color: var(--color-accent); }
+
+    :focus-visible { outline: 3px solid #ffbf47; outline-offset: 2px; }
+
+    .wrap {
+      width: min(100% - 2rem, var(--max-width));
+      margin-inline: auto;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -100vw;
+      top: 0;
+      z-index: 10;
+      padding: 0.55rem 1rem;
+      background: var(--color-accent);
+      color: #fff;
+      border-radius: 0 0 var(--radius-sm) 0;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .skip-link:focus { left: 0; }
+
+    /* ------------------------------------------------------------- header --- */
+
+    .hero {
+      background: linear-gradient(135deg, var(--color-header-bg) 0%, var(--color-header-bg-2) 100%);
+      border-bottom: 2px solid rgba(96, 165, 250, 0.35);
+      color: var(--color-header-text);
+      padding-bottom: 1.6rem;
+    }
+
+    .hero__nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.4rem 1.25rem;
+      padding: 0.55rem 0;
+    }
+
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .hero__links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
+    }
+
+    .hero__links a {
+      color: var(--color-header-muted);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .hero__links a:hover,
+    .hero__links a:focus-visible { color: #fff; text-decoration: underline; }
+
+    .kicker {
+      margin: 1.1rem 0 0.15rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--color-header-muted);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+    }
+
+    .lead {
+      margin: 0.45rem 0 0;
+      max-width: 46rem;
+      color: var(--color-header-muted);
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin: 1.05rem 0 0;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.5rem 0.95rem;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+      text-decoration: none;
+      border: 1px solid transparent;
+    }
+
+    .btn--primary {
+      background: var(--color-accent);
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+
+    .btn--primary:hover { background: #1a44bd; }
+
+    .btn--ghost {
+      border-color: rgba(246, 249, 253, 0.45);
+      color: var(--color-header-text);
+    }
+
+    .btn--ghost:hover { background: rgba(246, 249, 253, 0.12); }
+
+    .hero__meta {
+      margin: 0.75rem 0 0;
+      font-size: 0.8rem;
+      color: var(--color-header-muted);
+    }
+
+    /* --------------------------------------------------------------- main --- */
+
+    main { padding: 1.4rem 0 0.6rem; }
+
+    .card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .card h2 {
+      margin: 0 0 0.65rem;
+      font-size: 1rem;
+    }
+
+    .card h2 .en {
+      color: var(--color-muted);
+      font-weight: 600;
+    }
+
+    .views {
+      display: grid;
+      gap: 0.6rem 1.4rem;
+      grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .views li {
+      border-left: 3px solid var(--color-accent-soft);
+      padding: 0.1rem 0 0.1rem 0.7rem;
+    }
+
+    .views strong { display: block; }
+
+    .views .es,
+    .views .en { display: block; color: var(--color-muted); }
+
+    .views .en { font-size: 0.84rem; }
+
+    .pipeline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem 0.45rem;
+      list-style: none;
+      margin: 0 0 0.7rem;
+      padding: 0;
+    }
+
+    .pipeline li {
+      background: var(--color-accent-soft);
+      color: #12305e;
+      border: 1px solid #d4e0f7;
+      border-radius: 999px;
+      padding: 0.22rem 0.65rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .pipeline li + li::before {
+      content: "→";
+      color: var(--color-muted);
+      margin-right: 0.45rem;
+      font-weight: 400;
+    }
+
+    .dual { margin: 0.3rem 0; }
+
+    .dual .es { margin: 0; }
+
+    .dual .en {
+      margin: 0.1rem 0 0;
+      color: var(--color-muted);
+      font-size: 0.84rem;
+    }
+
+    .figure {
+      margin: 0.8rem 0 0;
+    }
+
+    .figure img {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-width: 46rem;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+    }
+
+    .figure figcaption {
+      margin-top: 0.35rem;
+      color: var(--color-muted);
+      font-size: 0.8rem;
+    }
+
+    /* ------------------------------------------------------------ gallery --- */
+
+    .gallery {
+      display: grid;
+      gap: 0.8rem;
+      grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+      list-style: none;
+      margin: 0.2rem 0 0;
+      padding: 0;
+    }
+
+    .gallery li a {
+      display: block;
+      border-radius: var(--radius-sm);
+    }
+
+    .gallery img {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #fff;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      transition: box-shadow 0.15s ease;
+    }
+
+    .gallery a:hover img,
+    .gallery a:focus-visible img { box-shadow: var(--shadow-hover); }
+
+    .gallery figcaption,
+    .gallery .caption {
+      display: block;
+      margin-top: 0.3rem;
+      font-size: 0.8rem;
+      color: var(--color-muted);
+    }
+
+    .gallery .caption strong { color: var(--color-text); }
+
+    .pbip {
+      margin: 0.9rem 0 0;
+      padding: 0.7rem 0.9rem;
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+    }
+
+    .pbip p { margin: 0.1rem 0; }
+
+    /* ------------------------------------------------------------- footer --- */
+
+    .site-footer {
+      border-top: 1px solid var(--color-border);
+      padding: 1rem 0 1.4rem;
+      color: var(--color-muted);
+      font-size: 0.8rem;
+    }
+
+    .site-footer p { margin: 0.15rem 0; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .gallery img { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido / Skip to content</a>
+
+  <header class="hero">
+    <div class="wrap">
+      <nav class="hero__nav" aria-label="Navegación / Navigation">
+        <span class="brand">Talent Market Lens</span>
+        <span class="hero__links">
+          <a href="dashboard/">Dashboard</a>
+          <a href="#powerbi">Power BI</a>
+          <a href="https://github.com/Darkaleja69/talent-market-lens">GitHub</a>
+        </span>
+      </nav>
+      <p class="kicker">Portfolio · Data platform</p>
+      <h1>Talent Market Lens</h1>
+      <p class="lead" lang="es">Un dashboard público, sin registro, sobre ofertas de empleo reales del mercado de datos y analítica: demanda, salarios, skills y geografía.</p>
+      <p class="lead" lang="en">A public, no-login dashboard built on real job postings from the data &amp; analytics market: demand, salaries, skills and geography.</p>
+      <p class="cta-row">
+        <a class="btn btn--primary" href="dashboard/">Abrir el dashboard · Open the dashboard</a>
+        <a class="btn btn--ghost" href="#powerbi">Evidencia Power BI · Power BI evidence</a>
+      </p>
+      <p class="hero__meta" lang="es">Sin registro · Datos reales · Actualización diaria · Español e inglés en el propio dashboard.</p>
+      <p class="hero__meta" lang="en">No login · Real data · Daily update · Spanish and English inside the dashboard.</p>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <section class="card" aria-labelledby="views-title">
+      <h2 id="views-title">Qué encontrarás <span class="en" lang="en">· What you'll find</span></h2>
+      <ul class="views">
+        <li>
+          <strong>Market Pulse</strong>
+          <span class="es" lang="es">KPIs del informe, tendencia de los últimos 6 meses, top roles y empresas y reparto por experiencia.</span>
+          <span class="en" lang="en">Report KPIs, 6-month trend, top roles and companies and experience split.</span>
+        </li>
+        <li>
+          <strong>Roles &amp; Skills</strong>
+          <span class="es" lang="es">Demanda y cuota por skill, salario mediano, burbuja demanda vs. salario, donut por categoría y tabla benchmark.</span>
+          <span class="en" lang="en">Skill demand and share, median salary, demand-vs-salary bubble, category donut and benchmark table.</span>
+        </li>
+        <li>
+          <strong>Salary Insights</strong>
+          <span class="es" lang="es">Media, mediana, P25 y P75, medias por rol y modalidad, skills mejor pagadas y mapa con selector de país.</span>
+          <span class="en" lang="en">Average, median, P25 and P75, averages by role and work mode, top paying skills and a country-selector map.</span>
+        </li>
+        <li>
+          <strong>Opportunity Explorer</strong>
+          <span class="es" lang="es">Buscador de ofertas individuales con empresa, ubicación, modalidad, salario, fecha, fuente y enlace a la oferta original.</span>
+          <span class="en" lang="en">Searchable individual postings with company, location, work mode, salary, date, source and a link to the original offer.</span>
+        </li>
+        <li>
+          <strong>Metodología <span lang="en">· Methodology</span></strong>
+          <span class="es" lang="es">Fuentes, traza del pipeline, normalización salarial, frescura, limitaciones conocidas y aviso legal.</span>
+          <span class="en" lang="en">Sources, pipeline trace, salary normalisation, freshness, known limitations and legal notice.</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="how-title">
+      <h2 id="how-title">Cómo funciona <span class="en" lang="en">· How it works</span></h2>
+      <ul class="pipeline">
+        <li>Scrapers (Python)</li>
+        <li>Databricks · Bronze/Silver/Gold</li>
+        <li>Export Parquet + meta.json (ADLS Gen2)</li>
+        <li>GitHub Actions · 01:00 UTC</li>
+        <li>GitHub Pages</li>
+        <li>DuckDB-WASM + ECharts</li>
+      </ul>
+      <div class="dual">
+        <p class="es" lang="es">Los scrapers recogen ofertas de portales públicos; Databricks las procesa en la arquitectura Medallion (Bronze, Silver y Gold); una tarea final del job exporta las tablas Gold a Parquet más <code>meta.json</code> en Azure ADLS Gen2; GitHub Actions descarga el export cada día y publica el sitio; y tu navegador ejecuta SQL con DuckDB-WASM y dibuja los gráficos con ECharts. La fecha de datos visible en el dashboard sale de ese <code>meta.json</code>.</p>
+        <p class="en" lang="en">Scrapers collect postings from public job portals; Databricks processes them through the Medallion architecture (Bronze, Silver and Gold); a final job task exports the Gold tables to Parquet plus <code>meta.json</code> in Azure ADLS Gen2; GitHub Actions downloads the export every day and publishes the site; your browser then runs SQL with DuckDB-WASM and draws the charts with ECharts. The data date shown in the dashboard comes from that <code>meta.json</code>.</p>
+      </div>
+      <figure class="figure">
+        <img src="images/architecture.png" width="2000" height="510" alt="Arquitectura: scrapers locales → Azure ADLS Gen2 → Bronze (Auto Loader) → Silver (PySpark) → Gold (esquema en estrella) → export Parquet y dashboard web" loading="lazy">
+        <figcaption>Del scraping a la web, con Power BI como capa BI de evidencia. / From scraping to the web, with Power BI as the evidence BI layer.</figcaption>
+      </figure>
+    </section>
+
+    <section class="card" id="powerbi" aria-labelledby="powerbi-title">
+      <h2 id="powerbi-title">Evidencia Power BI <span class="en" lang="en">· Power BI evidence</span></h2>
+      <div class="dual">
+        <p class="es" lang="es">El canal público para explorar los datos es este dashboard web. El proyecto <code>Job_Offers_Dashboard.pbip</code> y las capturas del informe se mantienen como evidencia de la capa BI (modelo semántico, medidas DAX y 5 páginas).</p>
+        <p class="en" lang="en">The public channel for exploring the data is this web dashboard. The <code>Job_Offers_Dashboard.pbip</code> project and the report captures are kept as evidence of the BI layer (semantic model, DAX measures and 5 pages).</p>
+      </div>
+      <ul class="gallery">
+        <li>
+          <a href="images/powerbi_market_pulse.png">
+            <img src="images/powerbi_market_pulse.png" width="1161" height="658" alt="Captura de la página Market Pulse del informe Power BI" loading="lazy">
+          </a>
+          <span class="caption"><strong>Market Pulse</strong> — KPIs y tendencia · KPIs and trend</span>
+        </li>
+        <li>
+          <a href="images/powerbi_roles_skills.png">
+            <img src="images/powerbi_roles_skills.png" width="1164" height="654" alt="Captura de la página Roles and Skills del informe Power BI" loading="lazy">
+          </a>
+          <span class="caption"><strong>Roles &amp; Skills</strong> — demanda vs. salario · demand vs. salary</span>
+        </li>
+        <li>
+          <a href="images/powerbi_salary_insights.png">
+            <img src="images/powerbi_salary_insights.png" width="1165" height="655" alt="Captura de la página Salary Insights del informe Power BI" loading="lazy">
+          </a>
+          <span class="caption"><strong>Salary Insights</strong> — salarios y mapa · salaries and map</span>
+        </li>
+        <li>
+          <a href="images/powerbi_opportunity_explorer.png">
+            <img src="images/powerbi_opportunity_explorer.png" width="1164" height="655" alt="Captura de la página Opportunity Explorer del informe Power BI" loading="lazy">
+          </a>
+          <span class="caption"><strong>Opportunity Explorer</strong> — ofertas individuales · individual postings</span>
+        </li>
+        <li>
+          <a href="images/powerbi_about_methodology.png">
+            <img src="images/powerbi_about_methodology.png" width="1162" height="657" alt="Captura de la página About and Methodology del informe Power BI" loading="lazy">
+          </a>
+          <span class="caption"><strong>About &amp; Methodology</strong> — metodología · methodology</span>
+        </li>
+        <li>
+          <a href="images/powerbi_filter_pane.png">
+            <img src="images/powerbi_filter_pane.png" width="1017" height="565" alt="Captura del panel global de filtros del informe Power BI" loading="lazy">
+          </a>
+          <span class="caption"><strong>Filtros <span lang="en">· Filters</span></strong> — panel global · global pane</span>
+        </li>
+        <li>
+          <a href="media/talent-market-lens-demo.gif">
+            <img src="media/talent-market-lens-demo.gif" width="480" height="480" alt="GIF de demostración del proyecto Talent Market Lens" loading="lazy">
+          </a>
+          <span class="caption"><strong>Demo (GIF)</strong> — recorrido del proyecto · project walkthrough</span>
+        </li>
+      </ul>
+      <div class="pbip">
+        <p lang="es">Proyecto Power BI: <a href="https://github.com/Darkaleja69/talent-market-lens/blob/main/Job_Offers_Dashboard.pbip">Job_Offers_Dashboard.pbip</a> en GitHub · capturas originales en <a href="images/">images/</a> · GIF en <a href="media/">media/</a>.</p>
+        <p lang="en">Power BI project: <a href="https://github.com/Darkaleja69/talent-market-lens/blob/main/Job_Offers_Dashboard.pbip">Job_Offers_Dashboard.pbip</a> on GitHub · original captures in <a href="images/">images/</a> · GIF in <a href="media/">media/</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p lang="es">Datos públicos de portales de empleo; sin datos personales ni credenciales. Proyecto con fines educativos y de portfolio.</p>
+      <p lang="en">Public job posting data; no personal data and no credentials. Educational and portfolio project.</p>
+      <p><a href="https://github.com/Darkaleja69/talent-market-lens">GitHub</a> · <a href="https://github.com/Darkaleja69/talent-market-lens#readme">README (EN)</a> · <a href="https://github.com/Darkaleja69/talent-market-lens/blob/main/docs/es/README.md">README (ES)</a></p>
+    </div>
+  </footer>
+</body>
+</html>
