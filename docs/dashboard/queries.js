@@ -524,6 +524,37 @@ GROUP BY s.SkillCategory
 ORDER BY skill_demand DESC, skill_category`;
 }
 
+/**
+ * Median Salary by Skill Category (Roles & Skills, 'Median Salary by Skill
+ * Category' bar chart of the report page; capture in
+ * docs/images/powerbi_roles_skills.png). Ports the measure the visual binds,
+ * 'Skill Median Salary EUR' (Metrics.tmdl L183-193), grouped by
+ * Dim_SkillList[SkillCategory]: DAX aggregates MEDIAN over the Fact_Offers
+ * rows of the context, so every offer weighs once per category even when it
+ * mentions several skills of that category. The DISTINCT bridge subquery
+ * reproduces that weighting (a direct bridge join would count the offer once
+ * per matching row), under the same salary quality filter as measure 14
+ * (Metrics.tmdl L188-190). Categories without any valid salary keep a NULL
+ * median and the visual layer drops them; the salary range does NOT apply, as
+ * in measures 12-14. Ordered by median salary, highest first.
+ *
+ * Snapshot cotejo (data_date 2026-10-09): Data & AI 92 290 EUR, Cloud & DevOps
+ * 88 769, Programming Languages 86 044, BI & Analytics 72 336, Frameworks &
+ * Web 66 000, ERP & Platforms 64 533, Methods & Practices 60 942 (the last one
+ * from a single Kanban offer); dates drift as documented in the module header.
+ */
+export function medianSalaryBySkillCategory({ where = '' } = {}) {
+  return `SELECT d.SkillCategory AS skill_category,
+       MEDIAN(f.SalaryMidAnnual_EUR) AS median_mid_salary_eur
+FROM (SELECT DISTINCT fs.JobID, s.SkillCategory
+      FROM fact_offer_skills AS fs
+      ${CATALOG_JOIN}) AS d
+JOIN fact_offers AS f ON d.JobID = f.job_id
+WHERE ${midSalaryQualityFilter} AND ${applyWhere(where)}
+GROUP BY d.SkillCategory
+ORDER BY median_mid_salary_eur DESC NULLS LAST, skill_category`;
+}
+
 /* ========================================================================== *
  * Opportunity Explorer (T-13, RF-10): public-column table, search + paging
  * ========================================================================== */

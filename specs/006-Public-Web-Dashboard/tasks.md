@@ -204,7 +204,7 @@ spec/plan se actualizan junto con estas tareas.
     meses del contexto y los gráficos quedan compactos y a la vista;
     cotejado en local con la captura del informe.
 
-- [ ] **T-24 — Roles & Skills: mediana por categoría y burbuja pulida** (~20 min)
+- [x] **T-24 — Roles & Skills: mediana por categoría y burbuja pulida** (~20 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-21.
   - **Hecho cuando:** la vista añade el gráfico de salario mediano por

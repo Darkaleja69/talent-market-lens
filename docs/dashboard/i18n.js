@@ -61,6 +61,10 @@ export const MESSAGES = {
     'view.rolesSkills.category.title': 'Demanda de skills por categoría',
     'view.rolesSkills.category.caption':
       'Reparto de pares oferta-skill por categoría del catálogo (Skill Demand by Category).',
+    'view.rolesSkills.medianByCategory.title': 'Salario mediano por categoría de skill',
+    'view.rolesSkills.medianByCategory.caption':
+      'Mediana del salario mid anual en EUR de las ofertas con salario válido, por categoría de skill.',
+    'view.rolesSkills.medianByCategory.axis': 'Salario mediano (EUR)',
     'view.rolesSkills.benchmark.title': 'Tabla comparativa de skills',
     'view.rolesSkills.benchmark.caption':
       'Todas las skills del catálogo con ofertas, ordenadas por demanda descendente. Desplázate dentro de la tabla para ver el resto.',
@@ -336,6 +340,10 @@ export const MESSAGES = {
     'view.rolesSkills.category.title': 'Skill Demand by Category',
     'view.rolesSkills.category.caption':
       'Share of offer+skill pairs per catalogue category (Skill Demand by Category).',
+    'view.rolesSkills.medianByCategory.title': 'Median Salary by Skill Category',
+    'view.rolesSkills.medianByCategory.caption':
+      'Median annual mid salary in EUR of postings with a valid salary, by skill category.',
+    'view.rolesSkills.medianByCategory.axis': 'Median salary (EUR)',
     'view.rolesSkills.benchmark.title': 'Skills Benchmark',
     'view.rolesSkills.benchmark.caption':
       'All catalogued skills with postings, ranked by demand (highest first). Scroll inside the table to see the rest.',
@@ -692,6 +700,25 @@ export function formatSalary(value, language) {
   return new Intl.NumberFormat(localeTag(language), {
     style: 'currency',
     currency: 'EUR',
+    maximumFractionDigits: 0,
+  }).format(number);
+}
+
+/**
+ * Compact localised annual EUR amount for dense axis labels
+ * (`101 mil €` / `€101K`), used by the median-salary-by-category bar chart
+ * (T-24). Rounds to the nearest compact unit; the chart tooltip shares this
+ * formatter because ECharts applies one value formatter to both axis and
+ * tooltip. Null/blank passes through empty.
+ */
+export function formatSalaryCompact(value, language) {
+  if (value == null || value === '') return '';
+  const number = Number(value);
+  if (!Number.isFinite(number)) return String(value);
+  return new Intl.NumberFormat(localeTag(language), {
+    style: 'currency',
+    currency: 'EUR',
+    notation: 'compact',
     maximumFractionDigits: 0,
   }).format(number);
 }

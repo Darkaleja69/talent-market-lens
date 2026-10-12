@@ -8,7 +8,8 @@
  * smoke query and render the hash-routed shell with visible freshness. View
  * contents arrive view by view (T-10–T-14): Market Pulse is implemented in
  * T-10 (KPIs + ECharts), Roles & Skills in T-11 (benchmark table + bubble +
- * category donut), Salary Insights in T-12 (KPIs 15-18, averages by role
+ * category donut) plus the median salary by skill category chart (T-24),
+ * Salary Insights in T-12 (KPIs 15-18, averages by role
  * and work mode, top paying skills and the Europe choropleth with the
  * versioned GeoJSON), the Opportunity Explorer in T-13 (searchable paginated
  * table) and the Methodology in T-14 (sources, pipeline trace, salary
@@ -70,6 +71,7 @@ import {
   formatMonth,
   formatPercent,
   formatSalary,
+  formatSalaryCompact,
   persistLanguage,
   resolveInitialLanguage,
   translate,
@@ -883,6 +885,7 @@ async function fetchMarketPulseData(options) {
 const formatCountCallback = (value) => formatCount(value, state.language);
 const formatPercentCallback = (value) => formatPercent(value, state.language);
 const formatSalaryCallback = (value) => formatSalary(value, state.language);
+const formatCompactSalaryCallback = (value) => formatSalaryCompact(value, state.language);
 
 function buildTrendOption(rows) {
   const categories = rows.map((row) => formatMonth(row.year_month, state.language));
@@ -1007,7 +1010,8 @@ async function renderMarketPulse({ requestId, body }) {
 }
 
 /* ========================================================================== *
- * Roles & Skills (T-11, RF-7/RF-8/RF-16): benchmark table + bubble + donut
+ * Roles & Skills (T-11/T-24, RF-7/RF-8/RF-16): benchmark table + bubble +
+ * category donut + median salary by skill category
  * ========================================================================== */
 
 /** Benchmark columns of the view; `numeric` right-aligns and formats values. */
@@ -1102,12 +1106,15 @@ function appendBenchmarkCard(grid, rows) {
  * design (Metrics.tmdl L179-181); an active skill filter only restricts the
  * displayed rows, never the share. Skills without a valid salary offer are
  * absent from `skillMedianSalary`; the caller fills those cells with N/D.
+ * `medianSalaryBySkillCategory` is a direct aggregation whose rows may carry a
+ * NULL median when a category has no valid salary (dropped by the chart).
  */
 async function fetchRolesSkillsData() {
-  const [shareRows, medianRows, categoryRows] = await Promise.all([
+  const [shareRows, medianRows, categoryRows, medianByCategory] = await Promise.all([
     runQuery(queries.skillShare(buildQueryOptions(state.filters, { includeSkill: false }))),
     runQuery(queries.skillMedianSalary(buildQueryOptions(state.filters))),
     runQuery(queries.skillDemandByCategory(buildQueryOptions(state.filters))),
+    runQuery(queries.medianSalaryBySkillCategory(buildQueryOptions(state.filters))),
   ]);
   const skillFilter = isBlank(state.filters.skill) ? null : state.filters.skill;
   const visibleShares = skillFilter
@@ -1121,7 +1128,7 @@ async function fetchRolesSkillsData() {
     share: row.skill_share == null ? null : Number(row.skill_share),
     median: medianBySkill.has(row.skill) ? Number(medianBySkill.get(row.skill)) : null,
   }));
-  return { benchmark, categoryRows };
+  return { benchmark, categoryRows, medianByCategory };
 }
 
 /** Demand (x) vs. median salary (y) bubble; only skills with a median plot. */
@@ -1154,13 +1161,31 @@ function buildSkillCategoryOption(rows) {
 }
 
 /**
+ * Horizontal bars of the median salary per skill category (T-24). Rows whose
+ * category has no valid salary (NULL median) are dropped by the caller: a zero
+ * bar would read as a real salary. Values use the compact salary format
+ * (`101 mil €` / `€101K`) because ECharts shares one value formatter between
+ * the value axis and the tooltip, and full amounts would crowd the axis.
+ */
+function buildSkillCategoryMedianOption(rows) {
+  return barChart({
+    categories: rows.map((row) => row.skill_category),
+    values: rows.map((row) => Number(row.median_mid_salary_eur) || 0),
+    seriesName: t('view.rolesSkills.medianByCategory.axis'),
+    horizontal: true,
+    formatValue: formatCompactSalaryCallback,
+  });
+}
+
+/**
  * Roles & Skills renderer (RF-7): benchmark table of demand/share/median per
- * skill, demand-vs-salary bubble and category donut. The table is plain DOM,
- * so it stays visible even when ECharts is unavailable; the charts are
- * mounted only after the cards are attached to the document.
+ * skill, demand-vs-salary bubble (full width, it is the densest chart),
+ * category donut and median salary by skill category. The table is plain DOM,
+ * so it stays visible even when ECharts is unavailable; the charts are mounted
+ * only after the cards are attached to the document.
  */
 async function renderRolesSkills({ requestId, body }) {
-  const { benchmark, categoryRows } = await fetchRolesSkillsData();
+  const { benchmark, categoryRows, medianByCategory } = await fetchRolesSkillsData();
   if (requestId !== viewRenderId) return;
 
   const content = document.createDocumentFragment();
@@ -1184,6 +1209,7 @@ async function renderRolesSkills({ requestId, body }) {
     mounts.push(appendChartCard(grid, {
       titleKey: 'view.rolesSkills.bubble.title',
       captionKey: 'view.rolesSkills.bubble.caption',
+      wide: true,
       noDataKey: 'view.rolesSkills.noData',
       option: bubbleItems.length > 0 ? buildBubbleOption(bubbleItems) : null,
     }));
@@ -1192,6 +1218,13 @@ async function renderRolesSkills({ requestId, body }) {
       captionKey: 'view.rolesSkills.category.caption',
       noDataKey: 'view.rolesSkills.noData',
       option: categoryRows.length > 0 ? buildSkillCategoryOption(categoryRows) : null,
+    }));
+    const medianItems = medianByCategory.filter((row) => row.median_mid_salary_eur != null);
+    mounts.push(appendChartCard(grid, {
+      titleKey: 'view.rolesSkills.medianByCategory.title',
+      captionKey: 'view.rolesSkills.medianByCategory.caption',
+      noDataKey: 'view.rolesSkills.noData',
+      option: medianItems.length > 0 ? buildSkillCategoryMedianOption(medianItems) : null,
     }));
   }
   appendBenchmarkCard(grid, benchmark);
