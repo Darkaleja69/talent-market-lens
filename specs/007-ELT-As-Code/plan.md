@@ -12,7 +12,8 @@ dashboards.
 
 - Job `Git Based ELT` (id `704156530681034`): 7 tareas de notebook (bronze →
   cuatro silver → gold → export web) configuradas a mano; notebooks servidos
-  desde una Git folder apuntada a una rama; job cluster `tm-lens-job`
+  desde la Git folder `talent-market-lens` (hoy en la rama de la 006, con pull
+  manual; tras su merge pasará a `main`); job cluster `tm-lens-job`
   (Standard_D4ds_v4); `max_concurrent_runs: 1`, sin timeout; sin `git_source`
   (los notebooks se referencian por ruta); programación diaria `50 0 23 * * ?`
   (`Europe/Madrid`), sin trigger de eventos.
@@ -25,7 +26,7 @@ dashboards.
   de la 006 (`Build_for_Web-Dashboard`) ya está en el job y se capturará en el
   bundle.
 - Huecos por confirmar y registrar en `evidence.md`: permisos para crear jobs y
-  tokens, y ref real de la Git folder y su modo de actualización (T-04).
+  tokens (se comprueba al desplegar el entorno dev, T-09).
 
 ## 3. Arquitectura objetivo
 
@@ -170,8 +171,9 @@ seco dentro de la ventana y se documenta con tiempos.
 - **Un solo target con variables manuales:** pierde la separación dev/prod y
   la lección de entornos y parámetros.
 - **Mantener la Git folder como fuente del job:** no versiona la configuración
-  del job ni separa entornos; el cutover la reemplaza (la Git folder sigue
-  siendo la fuente del código hasta entonces).
+  del job, no separa entornos y hoy exige un pull manual en el workspace (el
+  job ejecuta lo que esté sincronizado); el cutover la reemplaza y la carpeta
+  queda solo como referencia del código.
 
 ## 14. Secuencia de implementación
 

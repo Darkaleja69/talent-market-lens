@@ -87,7 +87,7 @@ completo —incluida la tarea de export web— en el bundle.
     existe otro job antiguo (`Proceso Completo`) observado y fuera de alcance.
   - **Evidencia:** `job-actual.json` + fila en `evidence.md`.
 
-- [ ] **T-04 — Radiografía de la Git folder** (~25 min)
+- [x] **T-04 — Radiografía de la Git folder** (~25 min)
   - **RF:** RF-9.
   - **Objetivo:** saber exactamente cómo llega el código al job hoy y qué
     implica hasta el cutover.
@@ -98,7 +98,16 @@ completo —incluida la tarea de export web— en el bundle.
     list --profile vs_code` y `databricks repos get <id> --profile vs_code`.
   - **Hecho cuando:** nota con la respuesta a cada pregunta y captura de la
     configuración, con las implicaciones para el cutover anotadas.
-  - **Evidencia:** nota en `evidence.md` + captura.
+  - **Resultado:** no aparece en `repos list` (son Git folders nuevas, fuera de
+    esa API); en la UI, la carpeta del usuario tiene notebooks antiguos sueltos
+    y la Git folder `talent-market-lens`, **asociada hoy a la rama de la 006**
+    y que **se actualiza solo con pull manual** en el workspace. El job ejecuta
+    las 7 tareas desde esa carpeta, así que producción corre hoy el código
+    sincronizado de la 006; tras su merge, la carpeta pasará a `main`.
+    Implicación: hasta el cutover, un merge a `main` no llega a producción sin
+    pull manual; por eso la 007 no toca notebooks (solo la definición del job).
+  - **Evidencia:** fila en `evidence.md` + las 7 rutas verificadas en
+    `job-actual.json` (todas dentro de la Git folder).
 
 ## 2. Bundle y entorno dev (arranca tras el cierre de la 006)
 
@@ -253,8 +262,9 @@ completo —incluida la tarea de export web— en el bundle.
   - **RF:** RF-6.
   - **Depende de:** T-15.
   - **Objetivo:** escribir `specs/007-ELT-As-Code/cutover.md` con precondiciones,
-    pasos exactos (comandos/UI), ids, ventana, verificación de la noche y
-    rollback con tiempos y criterios de aborto.
+    pasos exactos (comandos/UI), ids, ventana, verificación de la noche,
+    rollback con tiempos y criterios de aborto, y el estado final de la Git
+    folder (en `main`, solo consulta: el job ya no la usa).
   - **Hecho cuando:** el plan queda revisado y aprobado explícitamente por la
     persona.
   - **Evidencia:** `cutover.md` + OK registrado.

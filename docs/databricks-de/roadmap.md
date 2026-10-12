@@ -68,3 +68,4 @@ Contingencias:
 | Fecha | Hito | Notas |
 |---|---|---|
 | 2026-10-12 | Arranca el track; spec 007 creada | Worktree `talent-market-lens-007`, rama `spec/007-elt-as-code` desde `main`; pendiente confirmar la reserva del examen |
+| 2026-10-12 | Recon T-02–T-04 completado | Edición Premium/Enterprise inferida por UC; job: 7 tareas, schedule `50 0 23 * * ?` (Europe/Madrid), cluster `tm-lens-job`; Git folder con pull manual, hoy en la rama de la 006 |
