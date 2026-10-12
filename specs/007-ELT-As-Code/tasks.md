@@ -64,21 +64,28 @@ completo —incluida la tarea de export web— en el bundle.
     acceso).
   - **Evidencia:** salidas registradas en `evidence.md` (sin tokens).
 
-- [ ] **T-03 — Inventario del job actual** (~30 min)
+- [x] **T-03 — Inventario del job actual** (~30 min)
   - **RF:** RF-1.
   - **Depende de:** T-02.
   - **Objetivo:** registrar la definición exacta del job `Git Based ELT` como
     referencia para el bundle.
   - **Preguntas guía:** ¿cuántas tareas hay y con qué dependencias? ¿qué compute
-    usa cada una? ¿cuál es el trigger exacto y su URL? ¿`max_concurrent_runs` y
-    timeouts? ¿qué campo conecta con la Git folder (`git_source`, `source`)?
+    usa cada una? ¿cuál es la programación exacta (cron y zona horaria) o el
+    trigger si lo hubiera? ¿`max_concurrent_runs` y timeouts? ¿Qué campo conecta
+    con la Git folder (`git_source`, `source`)?
   - **Pistas y docs:** `databricks jobs list --profile vs_code` y
     `databricks jobs get <job-id> --profile vs_code`; en la UI, el job tiene una
     vista JSON. Guarda el resultado saneado como
     `specs/007-ELT-As-Code/job-actual.json`.
   - **Hecho cuando:** JSON guardado y resumen (tareas, dependencias, compute,
-    trigger) anotado en `evidence.md`.
-  - **Evidencia:** `job-actual.json` + resumen.
+    programación) anotado en `evidence.md`.
+  - **Resultado:** 7 tareas (bronze → 4 silver → gold → export web), job cluster
+    `tm-lens-job` (Standard_D4ds_v4), `max_concurrent_runs: 1`, sin timeout y
+    sin `git_source` (los notebooks se referencian por ruta); **programación
+    diaria `50 0 23 * * ?` en `Europe/Madrid`** (no hay File Arrival: el plan
+    inicial lo asumía y se corrige). `job-actual.json` (saneado) en la spec;
+    existe otro job antiguo (`Proceso Completo`) observado y fuera de alcance.
+  - **Evidencia:** `job-actual.json` + fila en `evidence.md`.
 
 - [ ] **T-04 — Radiografía de la Git folder** (~25 min)
   - **RF:** RF-9.
@@ -114,7 +121,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Objetivo:** convertir el job real en recurso del bundle como punto de
     partida.
   - **Preguntas guía:** ¿coincide task a task con `job-actual.json`? ¿Qué
-    detalle no supo capturar (trigger, política de cluster, librerías)? ¿A
+    detalle no supo capturar (programación, política de cluster, librerías)? ¿A
     dónde apuntan los `notebook_path` generados?
   - **Pistas y docs:** `databricks bundle generate job --existing-job-id
     <id> --key elt --profile vs_code`; comparar el recurso generado con el JSON.
@@ -135,7 +142,7 @@ completo —incluida la tarea de export web— en el bundle.
     `plan.md` §6.
   - **Hecho cuando:** validate pasa, `databricks bundle summary -t dev`
     muestra los valores dev y no quedan rutas de producción hardcodeadas en el
-    recurso (dev pausado, sin trigger).
+    recurso (dev pausado, sin programación).
   - **Evidencia:** `bundle summary` en `evidence.md`.
 
 - [ ] **T-08 — Catálogo dev** (~20 min)
@@ -164,15 +171,15 @@ completo —incluida la tarea de export web— en el bundle.
     `databricks bundle summary -t dev --profile vs_code`; `databricks jobs get`
     del job dev.
   - **Hecho cuando:** el job dev existe, está pausado y las diferencias con el
-    manual están revisadas (solo variables, paths y trigger).
+    manual están revisadas (solo variables, paths y programación).
   - **Evidencia:** captura + resumen.
 
 - [ ] **T-10 — Run dev end-to-end** (~35 min)
   - **RF:** RF-4.
-  - **Depende de:** T-09 (y un `_READY` reciente disponible).
+  - **Depende de:** T-09 (y datos recientes en la landing).
   - **Objetivo:** ejecutar la ELT completa contra el entorno dev.
   - **Preguntas guía:** ¿todas las tareas en verde? ¿Los conteos por tabla
-    cuadran con producción para la misma fecha de `_READY`? ¿Se escribieron los
+    cuadran con producción para los mismos datos de origen? ¿Se escribieron los
     checkpoints en `_checkpoints_dev`? ¿El export quedó en `web_export_dev` sin
     tocar el de producción?
   - **Pistas y docs:** lanzar desde la UI o `databricks bundle run -t dev
@@ -233,8 +240,9 @@ completo —incluida la tarea de export web— en el bundle.
   - **RF:** RF-2, RF-6.
   - **Depende de:** T-10, T-13.
   - **Objetivo:** dejar producción lista para el cutover, pero pausada.
-  - **Preguntas guía:** ¿La URL del trigger coincide exactamente con la del job
-    manual? ¿El owner/`run_as` seguirá siendo el mismo? ¿Nombre final del job?
+  - **Preguntas guía:** ¿La expresión cron (`50 0 23 * * ?`) y la zona horaria
+    (`Europe/Madrid`) coinciden exactamente con las del job manual? ¿El
+    owner/`run_as` seguirá siendo el mismo? ¿Nombre final del job?
   - **Pistas y docs:** valores en `plan.md` §6; `databricks bundle summary -t
     prod`; comparar con `job-actual.json`. **No habilitar nada todavía.**
   - **Hecho cuando:** validate verde, job prod desplegado **en pausa** y
@@ -254,7 +262,7 @@ completo —incluida la tarea de export web— en el bundle.
 - [ ] **T-17 — Dry-run del cutover** (~25 min)
   - **RF:** RF-6, RF-9.
   - **Objetivo:** desplegar prod en pausa y comprobar que no dispara.
-  - **Preguntas guía:** ¿El job en pausa ignora el File Arrival? ¿Tareas y
+  - **Preguntas guía:** ¿El job en pausa no se dispara a su hora? ¿Tareas y
     dependencias coinciden con el manual?
   - **Hecho cuando:** tras unas horas no hay ningún run del job del bundle.
   - **Evidencia:** capturas de "sin runs" + checklist del cutover.md marcado.
@@ -265,7 +273,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Objetivo:** el bundle pasa a ser la fuente de verdad del job de producción.
   - **Pasos:** deshabilitar el job manual → habilitar el del bundle → registrar
     hora e ids.
-  - **Hecho cuando:** solo el job del bundle está activo con el trigger; no
+  - **Hecho cuando:** solo el job del bundle está activo con la programación; no
     queda ningún job manual habilitado.
   - **Evidencia:** captura + ids + hora en `evidence.md`.
 

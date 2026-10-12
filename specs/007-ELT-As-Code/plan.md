@@ -10,19 +10,22 @@ dashboards.
 
 ## 2. Estado de partida (se confirma en T-02–T-04)
 
-- Job `Git Based ELT`: tareas de notebook (bronze, cuatro silver, gold, export
-  web) configuradas a mano; notebooks servidos desde una Git folder apuntada a
-  una rama; trigger File Arrival sobre `_READY/dia=YYYY-MM-DD.txt`.
+- Job `Git Based ELT` (id `704156530681034`): 7 tareas de notebook (bronze →
+  cuatro silver → gold → export web) configuradas a mano; notebooks servidos
+  desde una Git folder apuntada a una rama; job cluster `tm-lens-job`
+  (Standard_D4ds_v4); `max_concurrent_runs: 1`, sin timeout; sin `git_source`
+  (los notebooks se referencian por ruta); programación diaria `50 0 23 * * ?`
+  (`Europe/Madrid`), sin trigger de eventos.
 - Unity Catalog con catálogo `job_offers` (bronze/silver/gold) y
-  almacenamiento externo; suscripción Azure Premium (por confirmar en T-02).
+  almacenamiento externo; Premium/Enterprise inferida por Unity Catalog (T-02).
 - Sin IaC, sin entornos, sin CI. Los notebooks ya reciben `catalog`,
   `storage_account`, `container` y `checkpoints_root` por widgets, lo que
   facilita la parametrización.
-- `origin` es GitHub (`Darkaleja69/talent-market-lens`); la 006 aporta la tarea
-  de export web, que se captura en el bundle tras su cierre.
-- Huecos por confirmar y registrar en `evidence.md`: edición confirmada,
-  permisos para crear jobs y tokens, ref real de la Git folder y soporte del
-  trigger File Arrival en el esquema del bundle.
+- `origin` es GitHub (`Darkaleja69/talent-market-lens`); la tarea de export web
+  de la 006 (`Build_for_Web-Dashboard`) ya está en el job y se capturará en el
+  bundle.
+- Huecos por confirmar y registrar en `evidence.md`: permisos para crear jobs y
+  tokens, y ref real de la Git folder y su modo de actualización (T-04).
 
 ## 3. Arquitectura objetivo
 
@@ -38,7 +41,7 @@ dev:  bundle deploy -t dev  → /Workspace/Users/…/.bundle/talent-market-lens/
       job «TML ELT (dev)» (pausado) → job_offers_dev · _checkpoints_dev · web_export_dev
 
 prod: bundle deploy -t prod → …/.bundle/talent-market-lens/prod/files
-      job «Git Based ELT» → job_offers · _checkpoints · gold/web_export · File Arrival _READY
+      job «Git Based ELT» → job_offers · _checkpoints · gold/web_export · programación 23:50
 ```
 
 ## 4. Stack y herramientas
@@ -51,8 +54,8 @@ prod: bundle deploy -t prod → …/.bundle/talent-market-lens/prod/files
 
 - `databricks.yml` — nombre del bundle, variables, targets y `sync` acotado
   (subir solo `databricks_notebooks/**` y `resources/**`; no el repo entero).
-- `resources/elt_job.yml` — job con tareas, dependencias, compute, trigger y
-  `max_concurrent_runs: 1`.
+- `resources/elt_job.yml` — job con tareas, dependencias, compute, programación
+  y `max_concurrent_runs: 1`.
 - `.github/workflows/databricks-bundle-validate.yml` — validación en CI.
 - `.gitignore` — añadir `.databricks/` (estado local del bundle).
 - `docs/databricks-de/roadmap.md` y `docs/databricks-de/notes/…`.
@@ -84,14 +87,14 @@ Variables y valores por target:
 - `notebook_path: ${workspace.file_path}/databricks_notebooks/<notebook>`.
 - `base_parameters` alimentados desde las variables (los notebooks ya leen
   widgets).
-- Compute: replicar el cluster actual o usar serverless si está disponible y
-  resulta más barato; la elección se documenta (recon T-03).
-- Trigger: `file_arrival` con la URL real de `_READY` en prod; si el esquema
-  del bundle no lo soportara, se mantiene configurado fuera y se documenta
-  como excepción (decisión tras T-06).
-- `max_concurrent_runs: 1` y timeout razonable; notificaciones opcionales.
-- Dev: sin trigger y `pause_status: PAUSED`; prod: trigger activo solo tras el
-  cutover.
+- Compute: replicar el job cluster actual `tm-lens-job` (Standard_D4ds_v4) en
+  `job_clusters`; si dev puede usar uno más pequeño y barato, se documenta.
+- Programación: `schedule` del bundle con la misma expresión que el job manual
+  (`50 0 23 * * ?`, `Europe/Madrid`); dev sin programación.
+- `max_concurrent_runs: 1` (como hoy) y timeout razonable; notificaciones
+  opcionales.
+- Dev: sin programación y `pause_status: PAUSED`; prod: programación activa
+  solo tras el cutover.
 
 ## 8. Entorno dev
 
@@ -123,8 +126,8 @@ Pasos del cutover:
 1. `bundle deploy -t prod` con el job en pausa (no dispara nada).
 2. Deshabilitar el job manual → habilitar el job del bundle (registrar ids y
    hora).
-3. Noche real: verificar un único disparo por File Arrival y run en verde;
-   tablas y export avanzan.
+3. Noche real: verificar una única ejecución programada (23:50) y run en
+   verde; tablas y export avanzan.
 4. Evidencia en `evidence.md` y `cutover.md`.
 
 Rollback: deshabilitar el job del bundle → rehabilitar el manual. Se prueba en
@@ -134,8 +137,8 @@ seco dentro de la ventana y se documenta con tiempos.
 
 - `databricks bundle validate` local y en CI (incluye un PR que falla y luego
   pasa).
-- Run dev end-to-end con conteos por tabla frente a producción para la misma
-  fecha de `_READY`.
+- Run dev end-to-end con conteos por tabla frente a producción para los mismos
+  datos de origen.
 - Cutover con noche real y disparo único.
 - Rollback en seco.
 - Suites existentes en verde:
@@ -146,10 +149,10 @@ seco dentro de la ventana y se documenta con tiempos.
 
 | Riesgo | Mitigación |
 |---|---|
-| Una noche sin disparo tras el cutover | Rollback documentado y probado; cutover con margen y verificación a la mañana siguiente; revisar `logs/upload-<fecha>.log` del pipeline local |
+| Una noche sin ejecución tras el cutover | Rollback documentado y probado; cutover con margen y verificación a la mañana siguiente; revisar la programación y `logs/upload-<fecha>.log` del pipeline local |
 | Dev y prod compartiendo algún recurso por un variable mal puesta | Diff del JSON de ambos jobs antes del cutover; checklist en `cutover.md` |
 | Sin permisos para crear jobs, tokens o el SP | Recon temprano (T-02/T-03); escalar antes de continuar |
-| El bundle no captura el trigger File Arrival | Fallback documentado (se decide tras T-06) |
+| La programación del bundle difiere (cron o zona horaria) | Cotejo en el dry-run (T-17) y checklist del cutover |
 | Sync del bundle sube demasiado (repo entero) | Acotar `sync` a `databricks_notebooks/**` y `resources/**`; validar tamaño en T-09 |
 | Ediciones manuales del job tras el cutover | Regla: el job solo se cambia por bundle; CI valida en cada PR |
 | PAT de CI caducado | Rotación documentada; el fallo es visible en el workflow |

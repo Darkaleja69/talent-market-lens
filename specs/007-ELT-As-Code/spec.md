@@ -3,9 +3,10 @@
 ## Contexto y objetivo
 
 La ELT de Talent Market Lens se ejecuta en un job de Databricks (`Git Based
-ELT`) configurado **a mano** en el workspace: las tareas de notebook se sirven
-desde una Git folder apuntada a una rama del repositorio y el job se dispara por
-File Arrival sobre `_READY/dia=YYYY-MM-DD.txt`. No existe definición versionada
+ELT`, 7 tareas) configurado **a mano** en el workspace: las tareas de notebook
+se sirven desde una Git folder apuntada a una rama del repositorio y el job
+está programado a diario a las 23:50 (Europe/Madrid). No existe definición
+versionada
 del job, ni entornos separados, ni parámetros auditables, ni validación
 automática: cada cambio de la ELT (specs 008–011: MERGE incremental, layout
 físico, observabilidad, gobernanza) obliga a editar el job a mano y arriesga el
@@ -61,8 +62,9 @@ deberá leer la landing en solo lectura y escribir únicamente en el catálogo
 `job_offers_dev`, checkpoints `_checkpoints_dev` y export `gold/web_export_dev`,
 sin escribir ni borrar nada en los recursos de producción; el target `prod`
 deberá reproducir el comportamiento actual (catálogo `job_offers`, checkpoints
-`_checkpoints`, export `gold/web_export` y disparo por File Arrival). El job dev
-deberá estar pausado por defecto y no competir nunca con el de producción.
+`_checkpoints`, export `gold/web_export` y programación diaria a las 23:50,
+Europe/Madrid). El job dev deberá estar pausado por defecto y no competir nunca
+con el de producción.
 
 ### RF-3 — Parámetros por target y gestión de secretos
 
@@ -76,8 +78,8 @@ producción.
 
 ### RF-4 — Run dev end-to-end con evidencia
 
-**Criterio de aceptación (EARS):** Cuando se lance el job dev con el `_READY`
-más reciente, todas las tareas deberán completarse en verde y las tablas dev
+**Criterio de aceptación (EARS):** Cuando se lance el job dev sobre los datos
+más recientes de la landing, todas las tareas deberán completarse en verde y las tablas dev
 deberán quedar consistentes con las de producción para la misma fecha (conteos
 por tabla y contrato de columnas), registrando run id, duración y conteos como
 evidencia en la spec.
@@ -92,8 +94,8 @@ desplegará a producción.
 
 ### RF-6 — Cutover reversible a producción
 
-**Criterio de aceptación (EARS):** Cuando se ejecute el cutover, el disparo por
-File Arrival sobre `_READY/dia=YYYY-MM-DD.txt` deberá seguir lanzando la ELT
+**Criterio de aceptación (EARS):** Cuando se ejecute el cutover, la
+programación diaria (23:50, Europe/Madrid) deberá seguir lanzando la ELT
 una única vez al día —nunca dos jobs duplicados a la vez—, el job manual
 anterior quedará deshabilitado y conservado como rollback, y una noche real
 completará con evidencia; el rollback (deshabilitar el job del bundle y
@@ -147,12 +149,12 @@ verde.
 
 ## Casos límite
 
-- `bundle generate` no reproduce algún detalle del job manual (trigger de File
-  Arrival, política de cluster): se reconstruye a mano comparando con el JSON
-  exportado y se documenta la diferencia.
-- El esquema del bundle no soporta el trigger de File Arrival: se mantiene el
-  trigger configurado fuera del bundle y se documenta como excepción
-  controlada.
+- `bundle generate` no reproduce algún detalle del job manual (programación,
+  política de cluster): se reconstruye a mano comparando con el JSON exportado
+  y se documenta la diferencia.
+- La programación del bundle no reproduce exactamente la del job manual
+  (`50 0 23 * * ?`, `Europe/Madrid`): el dry-run la coteja y cualquier desfase
+  de hora o zona se corrige antes del cutover.
 - Doble disparo durante el cutover: el checklist deshabilita el job manual
   antes de habilitar el del bundle, y la primera noche se verifica un único run.
 - El nombre del job cambia respecto al manual: se registran los ids nuevos y se
@@ -161,12 +163,12 @@ verde.
   documentada.
 - Primer run dev de Bronze re-procesa todo el histórico de la landing
   (checkpoint nuevo): se acepta, se mide y se documenta.
-- Un `_READY` ya procesado vuelve a disparar en dev: dev no escribe en
-  producción, sin impacto; se documenta.
+- Un run manual de dev cae la misma noche que la ejecución programada de
+  producción: dev escribe solo en sus recursos y no compite; se documenta.
 - La persona no tiene permisos para crear jobs o tokens (workspace gestionado):
   lo confirma el recon (T-02/T-03) y, si falta algo, se escala antes de seguir.
 - Diferencias de conteo dev vs prod por datos nuevos entre runs: la
-  comparación usa la misma fecha de `_READY` como referencia.
+  comparación usa la misma fecha de datos (día de landing) como referencia.
 - Rollback con un run ya en marcha: se espera a que termine; nunca dos
   ejecuciones simultáneas.
 - Cambios de la 006 durante el trabajo: no se solapa ningún fichero; si aparece
@@ -187,17 +189,18 @@ verde.
   que primero falla y después pasa.
 - Job dev desplegado y un run end-to-end con evidencia (run id, duración,
   conteos por tabla, checkpoints dev).
-- Cutover a producción con una noche real: disparo único por File Arrival, run
-  en verde, tablas y export avanzan; job manual deshabilitado como rollback.
+- Cutover a producción con una noche real: una única ejecución programada
+  (23:50), run en verde, tablas y export avanzan; job manual deshabilitado como
+  rollback.
 - Rollback probado en seco y documentado en `cutover.md`.
 - RUNBOOK y README actualizados; propuesta de `AGENTS.md` presentada a la
   persona.
 - Hoja de ruta y nota `05-cicd.md` versionadas.
 - Suites existentes en verde: `python -m pytest databricks_notebooks/tests -q`
   y `python -m pytest scrapers-pipeline/tests -q`.
-- **Comprobación real:** un ciclo nocturno completo tras el cutover (la subida
-  de `_READY` del pipeline local dispara el job del bundle, que termina en
-  verde y actualiza tablas y export) registrado como evidencia.
+- **Comprobación real:** un ciclo nocturno completo tras el cutover (la
+  programación de las 23:50 lanza el job del bundle, que termina en verde y
+  actualiza tablas y export) registrado como evidencia.
 - No se hace push ni merge sin validación de la persona (flujo de `AGENTS.md`).
 
 ## Decisiones aclaradas
@@ -205,7 +208,8 @@ verde.
 - Mismo workspace, dos catálogos (`job_offers_dev` y `job_offers`) y raíces de
   checkpoints y export separadas por target.
 - Base del bundle: `bundle generate` del job real, revisado a mano.
-- Dev en pausa salvo ejecución manual; prod con File Arrival.
+- Dev en pausa salvo ejecución manual; prod con la programación actual (23:50,
+  Europe/Madrid).
 - CI solo valida; el deploy de dev es manual (u opcional por dispatch); el de
   producción es siempre manual y validado.
 - Los notebooks no se mueven ni se renombran: el bundle los referencia donde
