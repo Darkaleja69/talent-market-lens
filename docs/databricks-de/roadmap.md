@@ -50,6 +50,10 @@ Contingencias:
   orienta y revisa (tests y revisión independiente del diff antes del commit).
 - **Commits atómicos** por tarea (`T-XX`); checkpoint cada ~5 tareas; al cerrar
   cada spec, comprobación real y revisión, según `AGENTS.md`.
+- **Ramas y despliegue (desde la 007):** cada spec se prueba con
+  `bundle deploy -t dev` desde su worktree (job dev, catálogo
+  `job_offers_dev`); producción se despliega desde `main`. La Git folder del
+  workspace queda en `main` y no se conmuta por spec.
 - **Notas por dominio** en `notes/`: se escriben al terminar cada tarea
   relevante y se revisan al cerrar la spec.
 - **Repaso espaciado:** 5 minutos al abrir sesión releyendo la última nota; en

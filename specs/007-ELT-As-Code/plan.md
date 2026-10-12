@@ -134,6 +134,11 @@ Pasos del cutover:
 Rollback: deshabilitar el job del bundle → rehabilitar el manual. Se prueba en
 seco dentro de la ventana y se documenta con tiempos.
 
+Tras el cutover, la Git folder queda en `main` y **no se conmuta por spec**: las
+ramas se prueban desplegando el target dev (`bundle deploy -t dev` desde el
+worktree de la spec) y producción se despliega desde `main`. El job ejecuta el
+artefacto del bundle, no lo que esté sincronizado en la carpeta.
+
 ## 11. Estrategia de comprobaciones
 
 - `databricks bundle validate` local y en CI (incluye un PR que falla y luego
