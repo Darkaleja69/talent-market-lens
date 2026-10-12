@@ -235,7 +235,7 @@ accesibilidad, los tooltips contenidos y el eje Y corregido, y sin dependencias
 nuevas. Las capturas de referencia «antes» viven en
 `.opencode/.agent-screenshots/20261012-121*` (desktop, ES).
 
-- [ ] **T-26 — Sistema visual v2 del shell** (~30 min)
+- [x] **T-26 — Sistema visual v2 del shell** (~30 min)
   - **RF:** RF-7, RF-9, RF-16.
   - **Depende de:** T-21–T-25.
   - **Hecho cuando:** `styles.css` revisa los tokens (paleta con acento
@@ -247,7 +247,7 @@ nuevas. Las capturas de referencia «antes» viven en
     `prefers-reduced-motion`; capturas antes/después en ES y EN; sin cambios de
     comportamiento (filtros, vistas, i18n).
 
-- [ ] **T-27 — Tema ECharts común y acabado de los gráficos** (~30 min)
+- [x] **T-27 — Tema ECharts común y acabado de los gráficos** (~30 min)
   - **RF:** RF-7, RF-16.
   - **Depende de:** T-26.
   - **Hecho cuando:** `charts.js` aplica un tema compartido (paleta, tipografía,
@@ -258,7 +258,7 @@ nuevas. Las capturas de referencia «antes» viven en
     siguen sin solapes; los tooltips contenidos y su envoltura en móvil se
     mantienen; 5 vistas revisadas en ES/EN.
 
-- [ ] **T-28 — Market Pulse de un vistazo** (~25 min)
+- [x] **T-28 — Market Pulse de un vistazo** (~25 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-27.
   - **Hecho cuando:** a 1440×900 y con los filtros colapsados, los 4 KPIs del
@@ -268,7 +268,7 @@ nuevas. Las capturas de referencia «antes» viven en
     anotadas (p. ej., tendencia ≤ 11rem y rankings ≤ 10.5rem a ≥ 64rem); móvil
     (≤ 640 px) sin regresiones; cifras cotejadas con la captura del informe.
 
-- [ ] **T-29 — Roles & Skills y Salary Insights sin huecos ni cortes** (~25 min)
+- [x] **T-29 — Roles & Skills y Salary Insights sin huecos ni cortes** (~25 min)
   - **RF:** RF-7, RF-8, RF-16.
   - **Depende de:** T-27.
   - **Hecho cuando:** en Roles & Skills la burbuja (leyenda/eje legibles) y el
@@ -278,7 +278,7 @@ nuevas. Las capturas de referencia «antes» viven en
     se ve sin recortes dentro de su tarjeta y no hay scroll horizontal a 1440;
     móvil y ES/EN sin regresiones.
 
-- [ ] **T-30 — Explorer, Metodología, estados y revisión visual final** (~25 min)
+- [x] **T-30 — Explorer, Metodología, estados y revisión visual final** (~25 min)
   - **RF:** RF-7, RF-9, RF-13, RF-16.
   - **Depende de:** T-28, T-29.
   - **Hecho cuando:** el explorador (que la persona valora) y la metodología
