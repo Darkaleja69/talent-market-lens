@@ -1,11 +1,11 @@
 /*
  * styles.css — responsive, accessible shell of the public dashboard.
  *
- * Visual system (T-21): it follows the tone of the Power BI evidence
- * (docs/images/powerbi_*.png): light canvas, white cards with soft shadows and
- * 12px corners, deep-blue header with an accent, dense typography (uppercase
- * muted KPI labels, tabular figures) and compact charts so every view reads
- * "at a glance".
+ * Visual system (T-21, refined in T-26): it follows the tone of the Power BI
+ * evidence (docs/images/powerbi_*.png): light canvas, white cards with soft
+ * shadows and 10px corners, deep-blue header with an accent, dense typography
+ * (uppercase muted KPI labels, tabular figures) and compact charts so every
+ * view reads "at a glance".
  *
  * Design notes:
  *   - Mobile-first, no dependency on hover: active/selected state is carried by
@@ -16,19 +16,25 @@
 
 :root {
   color-scheme: light;
-  --color-bg: #eef2f7;
+  /* Surfaces and text (T-26): a slightly cooler canvas and softer borders keep
+     the white cards in charge while the page stays calm. */
+  --color-bg: #f2f5fa;
   --color-surface: #ffffff;
-  --color-surface-soft: #f7f9fc;
-  --color-text: #17202c;
-  --color-muted: #5a6b80;
-  --color-border: #dbe2ec;
-  --color-header-bg: #0f2238;
-  --color-header-bg-2: #1b3f66;
-  --color-header-text: #f4f7fb;
-  --color-header-muted: #bfd0e4;
+  --color-surface-soft: #f7f9fd;
+  --color-text: #101828;
+  --color-muted: #5b6b82;
+  --color-border: #e3e8f1;
+  --color-header-bg: #0b1f36;
+  --color-header-bg-2: #143a63;
+  --color-header-text: #f6f9fd;
+  --color-header-muted: #b9cde4;
   --color-accent: #1d4ed8;
   --color-accent-soft: #e8eefc;
   --color-accent-contrast: #ffffff;
+  /* Secondary accent: used sparingly (KPI accents, chart ramp) so the blue
+     identity gains contrast without turning the page into a rainbow. */
+  --color-accent-2: #0e7490;
+  --color-accent-2-soft: #e0f2f6;
   --color-ok-bg: #e8f4ec;
   --color-ok-text: #0b5230;
   --color-warn-bg: #fdf3e3;
@@ -37,11 +43,17 @@
   --color-error-text: #8a1f24;
   --color-pending-bg: #eef2f7;
   --color-pending-text: #33414f;
-  --radius: 12px;
+  /* Accents of the KPI cards (T-26); 700-level hues, same saturation family. */
+  --kpi-accent-blue: #1d4ed8;
+  --kpi-accent-cyan: var(--color-accent-2);
+  --kpi-accent-teal: #0f766e;
+  --kpi-accent-amber: #b45309;
+  --kpi-accent-violet: #6d28d9;
+  --radius: 10px;
   --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(15, 32, 54, 0.06), 0 2px 8px rgba(15, 32, 54, 0.06);
-  --shadow-hover: 0 2px 4px rgba(15, 32, 54, 0.08), 0 10px 24px rgba(15, 32, 54, 0.12);
-  --max-width: 78rem;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.07);
+  --shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.06), 0 8px 20px rgba(16, 24, 40, 0.1);
+  --max-width: 80rem;
 }
 
 * {
@@ -60,7 +72,7 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
@@ -121,10 +133,10 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem 1.5rem;
-  padding: 0.8rem clamp(0.9rem, 4vw, 2.25rem);
+  gap: 0.4rem 1.25rem;
+  padding: 0.35rem clamp(0.9rem, 4vw, 2rem);
   background: linear-gradient(135deg, var(--color-header-bg) 0%, var(--color-header-bg-2) 100%);
-  border-bottom: 3px solid rgba(96, 165, 250, 0.35);
+  border-bottom: 2px solid rgba(96, 165, 250, 0.35);
   color: var(--color-header-text);
 }
 
@@ -134,7 +146,7 @@ body {
 
 .site-title {
   margin: 0;
-  font-size: clamp(1.1rem, 1.8vw, 1.35rem);
+  font-size: clamp(1rem, 1.4vw, 1.12rem);
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -150,9 +162,9 @@ body {
 }
 
 .site-subtitle {
-  margin: 0.1rem 0 0;
+  margin: 0.05rem 0 0;
   color: var(--color-header-muted);
-  font-size: 0.85rem;
+  font-size: 0.72rem;
 }
 
 .site-header__meta {
@@ -164,10 +176,10 @@ body {
 
 .freshness {
   margin: 0;
-  padding: 0.25rem 0.65rem;
+  padding: 0.2rem 0.6rem;
   border: 1px solid rgba(191, 208, 228, 0.35);
   border-radius: 999px;
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   color: var(--color-header-text);
 }
 
@@ -182,18 +194,18 @@ body {
 }
 
 .language-picker__label {
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   color: var(--color-header-muted);
 }
 
 .language-picker__select {
-  padding: 0.25rem 0.45rem;
+  padding: 0.2rem 0.4rem;
   border: 1px solid #8fa5c0;
   border-radius: 6px;
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 /* ------------------------------------------------------------ navigation --- */
@@ -211,19 +223,19 @@ body {
 .view-nav__list {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0.2rem;
   margin: 0 auto;
-  padding: 0.45rem clamp(0.9rem, 4vw, 2.25rem);
+  padding: 0.2rem clamp(0.9rem, 4vw, 2rem);
   max-width: var(--max-width);
   list-style: none;
 }
 
 .view-nav__link {
   display: inline-block;
-  padding: 0.35rem 0.8rem;
+  padding: 0.2rem 0.62rem;
   border-radius: 999px;
   color: var(--color-accent);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 600;
   text-decoration: none;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -245,7 +257,7 @@ body {
   width: 100%;
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 1rem clamp(0.9rem, 4vw, 2.25rem) 1.75rem;
+  padding: 0.3rem clamp(0.9rem, 4vw, 2rem) 1.4rem;
 }
 
 .notices {
@@ -254,14 +266,20 @@ body {
   margin-bottom: 0.8rem;
 }
 
+/* The empty announcement block adds no content but used to cost ~13px of the
+   top strip (T-26); it steps aside until there is a notice to show. */
+.notices:empty {
+  display: none;
+}
+
 .notice {
-  padding: 0.7rem 0.85rem;
+  padding: 0.55rem 0.75rem;
   border: 1px solid var(--color-border);
-  border-left-width: 5px;
+  border-left-width: 4px;
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   box-shadow: var(--shadow);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .notice--warning {
@@ -286,13 +304,25 @@ body {
 }
 
 .status-bar {
-  margin: 0 0 0.9rem;
-  padding: 0.5rem 0.8rem;
+  margin: 0 0 0.5rem;
+  padding: 0.25rem 0.6rem;
   border-radius: var(--radius-sm);
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   font-weight: 600;
   background: var(--color-pending-bg);
   color: var(--color-pending-text);
+}
+
+/* Small state dot so the slim bar still reads as a status (T-26). */
+.status-bar::before {
+  content: "";
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.75;
 }
 
 .status-bar[data-state="ok"] {
@@ -325,9 +355,9 @@ body {
 
 .view__title {
   margin: 0;
-  padding-left: 0.6rem;
+  padding-left: 0.55rem;
   border-left: 4px solid var(--color-accent);
-  font-size: clamp(1.2rem, 1.8vw, 1.4rem);
+  font-size: clamp(1.08rem, 1.5vw, 1.24rem);
   font-weight: 700;
 }
 
@@ -351,13 +381,13 @@ body {
 /* --------------------------------------------------------- market pulse --- */
 
 .view__body {
-  margin-top: 0.9rem;
+  margin-top: 0.7rem;
 }
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: 0.6rem;
+  grid-template-columns: repeat(auto-fit, minmax(8.75rem, 1fr));
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -367,17 +397,28 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 5.5rem;
-  padding: 0.6rem 0.8rem;
+  min-height: 4.25rem;
+  padding: 0.45rem 0.7rem 0.45rem 0.85rem;
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--kpi-accent, var(--color-accent));
   border-radius: var(--radius);
   background: var(--color-surface);
   box-shadow: var(--shadow);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
+/* Accent per KPI card (T-26); the data attribute is a presentation hook set by
+   app.js. The colour never carries meaning on its own: the label does. */
+.kpi[data-kpi="total"] { --kpi-accent: var(--kpi-accent-blue); }
+.kpi[data-kpi="companies"] { --kpi-accent: var(--kpi-accent-cyan); }
+.kpi[data-kpi="remoteFriendly"] { --kpi-accent: var(--kpi-accent-teal); }
+.kpi[data-kpi="disclosure"] { --kpi-accent: var(--kpi-accent-amber); }
+.kpi[data-kpi="avg"] { --kpi-accent: var(--kpi-accent-blue); }
+.kpi[data-kpi="median"] { --kpi-accent: var(--kpi-accent-cyan); }
+.kpi[data-kpi="p25"] { --kpi-accent: var(--kpi-accent-violet); }
+.kpi[data-kpi="p75"] { --kpi-accent: var(--kpi-accent-amber); }
+
 .kpi:hover {
-  border-color: #c4d3ea;
   box-shadow: var(--shadow-hover);
   transform: translateY(-1px);
 }
@@ -391,15 +432,15 @@ body {
 .kpi__label {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.72rem;
+  font-size: 0.67rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .kpi__value {
-  margin: 0.2rem 0 0;
-  font-size: clamp(1.35rem, 1.6vw, 1.55rem);
+  margin: 0.15rem 0 0;
+  font-size: clamp(1.18rem, 1.35vw, 1.38rem);
   font-weight: 700;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
@@ -408,8 +449,8 @@ body {
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-top: 0.75rem;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
 }
 
 .chart-card {
@@ -417,7 +458,7 @@ body {
   flex-direction: column;
   min-width: 0; /* allow the card to shrink with the grid; ECharts inline width otherwise pins it */
   margin: 0;
-  padding: 0.75rem 0.9rem 0.65rem;
+  padding: 0.6rem 0.75rem 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
@@ -426,7 +467,7 @@ body {
 }
 
 .chart-card:hover {
-  border-color: #c4d3ea;
+  border-color: #cfd9e9;
   box-shadow: var(--shadow-hover);
 }
 
@@ -446,7 +487,7 @@ body {
 
 .chart-card__title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
   font-weight: 700;
 }
 
@@ -470,9 +511,9 @@ body {
 }
 
 .chart-card__caption {
-  margin: 0.35rem 0 0;
+  margin: 0.3rem 0 0;
   color: var(--color-muted);
-  font-size: 0.75rem;
+  font-size: 0.71rem;
 }
 
 .chart-empty {
@@ -588,13 +629,13 @@ body {
 }
 
 .map-selector__button {
-  padding: 0.25rem 0.75rem;
+  padding: 0.22rem 0.68rem;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
   background: var(--color-surface);
   color: var(--color-accent);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -613,7 +654,7 @@ body {
   flex-basis: 100%;
   margin: 0.1rem 0 0;
   color: var(--color-muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 /* Values without geometry on the European map, kept visible below it. */
@@ -842,8 +883,8 @@ body {
 /* --------------------------------------------------------------- filters --- */
 
 .filters {
-  padding: 0.9rem 1.1rem;
-  margin-bottom: 0.9rem;
+  padding: 0.3rem 0.7rem;
+  margin-bottom: 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   background: var(--color-surface);
@@ -868,7 +909,7 @@ body {
 
 .filters__title {
   margin: 0;
-  font-size: clamp(0.98rem, 1.4vw, 1.1rem);
+  font-size: 0.9rem;
 }
 
 /* Visible toggle of the collapsible control grid (T-22); the glyph flips with
@@ -877,13 +918,13 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.3rem 0.8rem;
+  padding: 0.2rem 0.6rem;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
   background: var(--color-surface);
   color: var(--color-accent);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
@@ -914,11 +955,11 @@ body {
 .filters__help {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
 }
 
 .filters__body {
-  margin-top: 0.75rem;
+  margin-top: 0.45rem;
 }
 
 .filters__body .filters__grid {
@@ -926,13 +967,13 @@ body {
 }
 
 .filters__clear {
-  padding: 0.3rem 0.8rem;
+  padding: 0.2rem 0.6rem;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
   background: var(--color-surface);
   color: var(--color-accent);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s ease;
@@ -949,9 +990,9 @@ body {
 
 .filters__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.6rem 0.75rem;
-  margin-top: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem 0.6rem;
+  margin-top: 0.55rem;
 }
 
 .filter {
@@ -963,19 +1004,19 @@ body {
 
 .filter__label {
   color: var(--color-muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
 }
 
 .filter__control {
   width: 100%;
-  padding: 0.35rem 0.5rem;
+  padding: 0.28rem 0.45rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
 }
 
 .filter__control:disabled {
@@ -1001,13 +1042,13 @@ body {
 }
 
 .filters__chips {
-  margin-top: 0.75rem;
+  margin-top: 0.3rem;
 }
 
 .filters__hint {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.85rem;
+  font-size: 0.72rem;
 }
 
 .chips {
@@ -1024,12 +1065,12 @@ body {
   align-items: center;
   gap: 0.3rem;
   max-width: 100%;
-  padding: 0.18rem 0.3rem 0.18rem 0.6rem;
+  padding: 0.1rem 0.25rem 0.1rem 0.55rem;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
   background: var(--color-accent-soft);
   color: var(--color-text);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .chip__label {
@@ -1047,14 +1088,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 1.1rem;
+  height: 1.1rem;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
   color: var(--color-accent);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   line-height: 1;
   cursor: pointer;
   transition: background-color 0.15s ease;
@@ -1071,11 +1112,11 @@ body {
 /* ---------------------------------------------------------------- footer --- */
 
 .site-footer {
-  padding: 0.8rem clamp(0.9rem, 4vw, 2.25rem);
+  padding: 0.6rem clamp(0.9rem, 4vw, 2rem);
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .site-footer p {
@@ -1099,13 +1140,13 @@ body {
   }
 
   .view-nav__list {
-    gap: 0.2rem;
-    padding: 0.4rem 0.6rem;
+    gap: 0.15rem;
+    padding: 0.2rem 0.6rem;
   }
 
   .view-nav__link {
-    padding: 0.3rem 0.6rem;
-    font-size: 0.82rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.78rem;
   }
 
   .filters__help {
@@ -1113,22 +1154,22 @@ body {
   }
 
   .kpi-grid {
-    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.4rem;
   }
 
   .kpi {
-    min-height: 4.75rem;
-    padding: 0.5rem 0.65rem;
+    min-height: 3.9rem;
+    padding: 0.4rem 0.6rem 0.4rem 0.7rem;
   }
 
   .chart-grid {
     grid-template-columns: 1fr;
-    gap: 0.6rem;
+    gap: 0.55rem;
   }
 
   .chart-card {
-    padding: 0.65rem 0.75rem 0.55rem;
+    padding: 0.55rem 0.65rem 0.5rem;
   }
 
   .chart-card__body,

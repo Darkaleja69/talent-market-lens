@@ -850,6 +850,8 @@ function renderKpiList(kpis) {
   for (const kpi of kpis) {
     const item = document.createElement('li');
     item.className = 'kpi';
+    // Presentation hook for the accent of each KPI card (T-26); carries no logic.
+    item.dataset.kpi = kpi.id;
     const label = document.createElement('p');
     label.className = 'kpi__label';
     label.textContent = t(kpi.labelKey);
