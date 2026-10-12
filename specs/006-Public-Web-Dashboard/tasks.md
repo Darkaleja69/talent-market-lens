@@ -290,7 +290,7 @@ nuevas. Las capturas de referencia «antes» viven en
 
 ## 5. Publicación y documentación
 
-- [ ] **T-15 — Portada y READMEs** (~20 min)
+- [x] **T-15 — Portada y READMEs** (~20 min)
   - **RF:** RF-15.
   - **Depende de:** T-10–T-14.
   - **Hecho cuando:** `docs/index.html` presenta el proyecto y enlaza al
@@ -299,7 +299,7 @@ nuevas. Las capturas de referencia «antes» viven en
     queda como evidencia; `docs/dashboard/README.md` fija las versiones del CDN
     y el contrato de datos.
 
-- [ ] **T-16 — Instantánea local reproducible** (~25 min)
+- [x] **T-16 — Instantánea local reproducible** (~25 min)
   - **RF:** RF-11.
   - **Depende de:** T-06.
   - **Hecho cuando:** `scrapers-pipeline/export_web_snapshot.ps1` descarga el
@@ -330,7 +330,7 @@ nuevas. Las capturas de referencia «antes» viven en
 
 ## 6. Verificación y cierre
 
-- [ ] **T-19 — Degradación y robustez** (~20 min)
+- [x] **T-19 — Degradación y robustez** (~20 min)
   - **RF:** RF-4, RF-14.
   - **Depende de:** T-12, T-17.
   - **Hecho cuando:** se prueban (documentado) export ausente o antiguo, CDN
