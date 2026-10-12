@@ -223,6 +223,71 @@ spec/plan se actualizan junto con estas tareas.
     regiones sin dato quedan diferenciadas y el resultado se comprueba en
     local en ES/EN y móvil.
 
+## 4.2 Refinamiento visual, segunda iteración (revisión de la persona, 2026-10-12)
+
+Tras revisar el grupo 4.1 (ya en la rama), la persona confirma que los cambios
+pedidos están, pero el resultado visual todavía no le convence: el diseño sigue
+pareciendo básico y grande. Pide una pasada más ambiciosa antes de la portada y
+los READMEs (T-15). Objetivo: subir un escalón la identidad y la densidad
+(tarjetas con jerarquía, gráficos con tema propio, todo más compacto y legible
+de un vistazo), manteniendo intactas las funciones, los filtros, la
+accesibilidad, los tooltips contenidos y el eje Y corregido, y sin dependencias
+nuevas. Las capturas de referencia «antes» viven en
+`.opencode/.agent-screenshots/20261012-121*` (desktop, ES).
+
+- [ ] **T-26 — Sistema visual v2 del shell** (~30 min)
+  - **RF:** RF-7, RF-9, RF-16.
+  - **Depende de:** T-21–T-25.
+  - **Hecho cuando:** `styles.css` revisa los tokens (paleta con acento
+    secundario usado con moderación, escala tipográfica con base ≤ 0.9rem,
+    espaciados, radios y sombras) y la franja superior (cabecera, navegación,
+    barra de estado y panel de filtros colapsado) no supera ~200 px de alto a
+    1440×900; las tarjetas KPI ganan jerarquía (acento o icono, valor ≤ 1.5rem,
+    altura ≤ 4.5rem) sin perder contraste AA, foco visible ni
+    `prefers-reduced-motion`; capturas antes/después en ES y EN; sin cambios de
+    comportamiento (filtros, vistas, i18n).
+
+- [ ] **T-27 — Tema ECharts común y acabado de los gráficos** (~30 min)
+  - **RF:** RF-7, RF-16.
+  - **Depende de:** T-26.
+  - **Hecho cuando:** `charts.js` aplica un tema compartido (paleta, tipografía,
+    ejes, splitLine suave, tooltip) a línea, barras, donut, burbuja y mapa;
+    barras con esquinas redondeadas, línea con área sutil y donut sin etiquetas
+    truncadas ni categorías al 0,0 %; la última etiqueta del eje X de la
+    tendencia («oct 2026») ya no se corta; la leyenda y el eje de la burbuja
+    siguen sin solapes; los tooltips contenidos y su envoltura en móvil se
+    mantienen; 5 vistas revisadas en ES/EN.
+
+- [ ] **T-28 — Market Pulse de un vistazo** (~25 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-27.
+  - **Hecho cuando:** a 1440×900 y con los filtros colapsados, los 4 KPIs del
+    informe, la tendencia a 6 meses y los tres rankings se ven completos sin
+    scroll, o con un scroll residual menor de media pantalla documentado con la
+    medición de `agent-browser`; las alturas de los gráficos quedan reducidas y
+    anotadas (p. ej., tendencia ≤ 11rem y rankings ≤ 10.5rem a ≥ 64rem); móvil
+    (≤ 640 px) sin regresiones; cifras cotejadas con la captura del informe.
+
+- [ ] **T-29 — Roles & Skills y Salary Insights sin huecos ni cortes** (~25 min)
+  - **RF:** RF-7, RF-8, RF-16.
+  - **Depende de:** T-27.
+  - **Hecho cuando:** en Roles & Skills la burbuja (leyenda/eje legibles) y el
+    donut (sin etiquetas cortadas) quedan pulidos y la mediana por categoría y
+    la tabla se mantienen compactas; en Salary Insights ninguna tarjeta queda
+    estirada con huecos (mapa y skills mejor pagadas reparten la fila), el mapa
+    se ve sin recortes dentro de su tarjeta y no hay scroll horizontal a 1440;
+    móvil y ES/EN sin regresiones.
+
+- [ ] **T-30 — Explorer, Metodología, estados y revisión visual final** (~25 min)
+  - **RF:** RF-7, RF-9, RF-13, RF-16.
+  - **Depende de:** T-28, T-29.
+  - **Hecho cuando:** el explorador (que la persona valora) y la metodología
+    adoptan el sistema visual sin perder densidad ni funcionalidad; avisos,
+    estados vacíos y errores quedan coherentes con el nuevo sistema; se recorre
+    el sitio completo en ES/EN, escritorio y móvil, se corrigen los defectos
+    detectados y quedan capturas de evidencia del grupo en
+    `.opencode/.agent-screenshots/`.
+
 ## 5. Publicación y documentación
 
 - [ ] **T-15 — Portada y READMEs** (~20 min)
