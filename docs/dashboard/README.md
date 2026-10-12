@@ -99,6 +99,23 @@ Freshness and export metadata, written after the Parquet files:
 | `sources` | Row count per `source_scraper`. |
 | `size_bytes` | Total size of the four Parquet files. |
 
+### Degradation behavior
+
+The app never invents figures and never leaves a blank page: each failure
+raises a visible notice (with the last known `data_date` for export problems,
+and freshness in the header whenever `meta.json` loaded), and an incomplete
+export never renders figures (views stay off).
+
+| Case | Visitor sees | Workflow guarantee |
+|---|---|---|
+| `meta.json` missing | "No hay datos publicados"; freshness falls back to "Sin datos disponibles" (no date is knowable). | Download/validation fail; `deploy` never runs. |
+| Old export | Freshness header shows `data_date`/`generated_at` from `meta.json`; stale data is never silent. | Freshness only moves forward with a new run. |
+| Unreadable Parquet | "Fichero de datos ilegible" warning naming the file and the last data date; status degraded, filters off. | Not detected in CI (only non-empty + `meta.json` JSON are validated); caught by the app. |
+| Missing Parquet | "Datos incompletos" warning naming the file and the last data date. | `curl --fail` + non-empty check fail `build`. |
+| CDN down | "No se pudieron cargar las librerías" error, status "Datos no disponibles"; freshness still visible. | n/a (client-side; pinned versions above). |
+| `mode: "aggregated"` | "Modo de datos no soportado" warning with the last data date; nothing loads (does not apply today: ~3 MB < 25 MB, `mode: "full"`). | Not enforced in CI; the app refuses to load anything but `full` (site contract). |
+| SAS without permission | n/a (no visitor). | `curl --fail` fails `build`; `deploy` (`needs: build`) skipped: no partial deploy. |
+
 **Local verification:** the app has no test framework (simple stack, by design);
 `filters.js` is a pure module that can also run under Node, and every view is
 checked locally against this snapshot with the same files and paths as Pages.
