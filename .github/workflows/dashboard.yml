@@ -1,0 +1,157 @@
+name: Dashboard (GitHub Pages)
+
+# =============================================================================
+# Public web dashboard: download the ADLS export and publish to GitHub Pages.
+#
+# Flow: checkout -> assemble _site/ (copy of docs/ + empty data/) -> download
+# the five fixed export files under gold/web_export with curl + WEB_EXPORT_SAS
+# -> validate (non-empty files, meta.json is valid JSON) -> configure-pages ->
+# upload-pages-artifact -> deploy-pages. Any failure while downloading or
+# validating fails the build and the deploy never runs, so the previous site
+# stays intact (no partial deploy).
+#
+# The SAS is a secret and is never printed: no curl -v, no set -x, and curl
+# errors are masked as <SAS oculta>.
+#
+# -----------------------------------------------------------------------------
+# One-time manual setup (GitHub)
+# -----------------------------------------------------------------------------
+# 1. Secret WEB_EXPORT_SAS: read-only SAS scoped to the gold/web_export prefix
+#    of the landing container (permissions r + l, expiry <= 1 year). Azure CLI
+#    is not installed locally, so run it in Cloud Shell (https://shell.azure.com):
+#
+#      expiry=$(date -u -d "+1 year" '+%Y-%m-%dT%H:%MZ')
+#      az storage fs directory generate-sas \
+#        --account-name joboffershns --file-system landing \
+#        --name gold/web_export --permissions rl --expiry "$expiry" \
+#        --https-only --auth-mode key -o tsv
+#
+#    Value format: the query string only (sv=...&sp=rl&sr=d&sdd=2&se=...&sig=...),
+#    without quotes, without the https:// URL and without a file name. It may be
+#    pasted with or without the leading '?' (this workflow normalizes it).
+#    Do not reuse LANDING_SAS_TOKEN: generate_sas.ps1 creates a "racwl"
+#    (write) SAS for the whole landing container.
+#    Rotation: regenerate the SAS before it expires and update the secret
+#    under Settings -> Secrets and variables -> Actions -> WEB_EXPORT_SAS.
+#
+#    Optional check before saving the secret (HTTP 200, SAS not printed):
+#      curl -sSI "https://joboffershns.blob.core.windows.net/landing/gold/web_export/meta.json?<SAS>" | head -n 1
+#
+# 2. Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+#
+# 3. Actions -> "Dashboard (GitHub Pages)" -> Run workflow (workflow_dispatch).
+#    Public URL: https://darkaleja69.github.io/talent-market-lens/
+#
+# The schedule below (01:00 UTC, after the 23:30 Databricks ELT job) only runs
+# on the default branch: the cron starts updating the site once this branch is
+# merged to main. Until then, use workflow_dispatch.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 1 * * *'
+
+# Publishing the Pages artifact and minting the deployment OIDC token.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deployment at a time; never cancel a run mid-deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Export location (account + container + prefix from the T-16 contract).
+  # Not a credential: the read-only SAS lives in the WEB_EXPORT_SAS secret.
+  EXPORT_BASE_URL: https://joboffershns.blob.core.windows.net/landing/gold/web_export
+  # Fixed file contract: one Parquet per table plus meta.json.
+  EXPORT_FILES: fact_offers.parquet fact_offer_skills.parquet dim_skill_list.parquet dim_calendar.parquet meta.json
+
+jobs:
+  build:
+    name: Ensamblar el sitio
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Ensamblar _site/ (docs/ + data/)
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site
+          cp -R docs/. _site/
+          # The export is the only data source: drop any local snapshot.
+          rm -rf _site/data
+          mkdir -p _site/data
+          test -f _site/index.html
+          test -f _site/dashboard/index.html
+
+      - name: Descargar el export (curl + WEB_EXPORT_SAS)
+        env:
+          WEB_EXPORT_SAS: ${{ secrets.WEB_EXPORT_SAS }}
+        run: |
+          set -euo pipefail
+          # The secret may carry a leading '?' and stray CR/LF: normalize once.
+          sas="${WEB_EXPORT_SAS//$'\r'/}"
+          sas="${sas//$'\n'/}"
+          sas="${sas#\?}"
+          if [[ -z "${sas}" ]]; then
+            echo "ERROR: falta el secreto WEB_EXPORT_SAS (Settings -> Secrets and variables -> Actions)." >&2
+            exit 1
+          fi
+          read -r -a files <<< "${EXPORT_FILES}"
+          for file in "${files[@]}"; do
+            url="${EXPORT_BASE_URL}/${file}?${sas}"
+            # --fail: HTTP errors are hard failures. No -v, no set -x.
+            if ! err="$(curl --fail --location --max-redirs 3 --silent --show-error --retry 3 --retry-delay 2 --output "_site/data/${file}" "${url}" 2>&1)"; then
+              # Mask the SAS if curl echoed it (literal expansion, no regex).
+              msg="${err//$sas/<SAS oculta>}"
+              echo "ERROR: no se pudo descargar ${file}. ${msg}" >&2
+              exit 1
+            fi
+            echo "OK ${file} ($(wc -c < "_site/data/${file}") bytes)"
+          done
+
+      - name: Validar el export descargado
+        run: |
+          set -euo pipefail
+          read -r -a files <<< "${EXPORT_FILES}"
+          for file in "${files[@]}"; do
+            if [[ ! -s "_site/data/${file}" ]]; then
+              echo "ERROR: ${file} falta o esta vacio; se aborta sin desplegar." >&2
+              exit 1
+            fi
+          done
+          python3 - <<'PY'
+          import json
+
+          with open("_site/data/meta.json", encoding="utf-8") as handle:
+              meta = json.load(handle)
+          if not isinstance(meta, dict):
+              raise SystemExit("ERROR: meta.json no es un objeto JSON.")
+          print("meta.json valido:", meta.get("data_date"), meta.get("mode"))
+          PY
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Subir el artefacto del sitio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Desplegar en GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Desplegar el artefacto
+        id: deployment
+        uses: actions/deploy-pages@v4
