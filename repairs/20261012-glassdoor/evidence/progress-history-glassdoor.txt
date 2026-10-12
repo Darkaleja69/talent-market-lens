@@ -1,0 +1,19 @@
+﻿# Historial de latidos PROGRESS source=glassdoor en run.log (todo el fichero)
+# 9 latidos, todos de los runs del 6-7 oct 2026. Tras el 7-oct: cero latidos (runs 8,9,10,11,12 oct).
+
+14133: 00:10:29 INFO    glassdoor: PROGRESS source=glassdoor parsed=30 new=30 ts=2026-10-01T22:10:29+00:00
+14286: 00:08:40 INFO    glassdoor: PROGRESS source=glassdoor parsed=30 new=30 ts=2026-10-06T22:08:40+00:00
+14299: 00:10:14 INFO    glassdoor: PROGRESS source=glassdoor parsed=60 new=60 ts=2026-10-06T22:10:14+00:00
+14312: 00:12:10 INFO    glassdoor: PROGRESS source=glassdoor parsed=90 new=90 ts=2026-10-06T22:12:10+00:00
+14325: 00:13:31 INFO    glassdoor: PROGRESS source=glassdoor parsed=120 new=120 ts=2026-10-06T22:13:31+00:00
+14338: 00:14:46 INFO    glassdoor: PROGRESS source=glassdoor parsed=150 new=150 ts=2026-10-06T22:14:46+00:00
+14351: 00:15:52 INFO    glassdoor: PROGRESS source=glassdoor parsed=180 new=180 ts=2026-10-06T22:15:52+00:00
+14364: 00:17:41 INFO    glassdoor: PROGRESS source=glassdoor parsed=210 new=210 ts=2026-10-06T22:17:41+00:00
+14377: 00:19:18 INFO    glassdoor: PROGRESS source=glassdoor parsed=240 new=239 ts=2026-10-06T22:19:18+00:00
+
+# Ultimas lineas escritas en cada run posterior (el log se detiene sin PROGRESS):
+14404: 00:13:17 INFO    glassdoor: BFF page 1 'Data Analyst': 30 ofertas (total=451)
+14425: 09:20:15 INFO    glassdoor: BFF page 1 'Data Analyst': 30 ofertas (total=234)
+14448: 00:08:49 INFO    glassdoor: BFF page 1 'Data Analyst': 30 ofertas (total=276)
+14485: 00:13:09 INFO    glassdoor: BFF page 1 'Data Scientist': 30 ofertas (total=188)
+14516: 00:21:19 INFO    glassdoor: BFF page 1 'Data Analyst': 30 ofertas (total=137)

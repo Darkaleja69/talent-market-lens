@@ -1,0 +1,11 @@
+﻿Estado del watchdog de glassdoor (saneado: rutas de usuario como <HOME>) - run 2026-10-12
+mtime_estado=2026-10-12T00:41:13.6197583+02:00 (instante de la decision blocked / stop del arbol)
+
+source=glassdoor
+pid=19068
+stream=<HOME>\Documents\projects\multi_site_job_scraper\data\glassdoor\run.log
+started_at=2026-10-12T00:00:22.931719
+last_parsed=0
+last_progress_at=2026-10-12T00:00:22.931719
+stopped=True
+stop_reason=watchdog_no_progress

@@ -1,0 +1,75 @@
+﻿# Sonda glassdoor.ie SERP (2026-10-12) - resumen de red saneado (sin cabeceras ni cookies)
+# metodo status tipo url
+total_capturado=1338 gd=70
+cookie_names=
+g_state,rl_anonymous_id,gdId,gdsid,asst,rsReferrerData,rsSessionId,rl_page_init_referrer,_optionalConsent,otGeoUS,__cf_bm,rl_session,OptanonConsent,cf_clearance
+GET  Document https://www.glassdoor.ie/
+GET 200 Document https://www.glassdoor.ie/index.htm
+GET 200 Stylesheet https://www.glassdoor.ie/seo-pages/assets/_next/static/css/e76d686ee29e9858.css
+GET 200 Stylesheet https://www.glassdoor.ie/seo-pages/assets/_next/static/css/01db62decb85e875.css
+GET 200 Stylesheet https://www.glassdoor.ie/seo-pages/assets/_next/static/css/ab0b80c35a6dc69b.css
+GET 200 Stylesheet https://www.glassdoor.ie/web-core-sam/static/core-25e6820d85a645be.min.css
+GET 200 Stylesheet https://www.glassdoor.ie/app-install-sam-server/static/marketingBanner-50f7e44b681c3fb0.min.css
+GET 200 Stylesheet https://www.glassdoor.ie/sam-global-nav/static/lockedGlobalNav-52dff0fb08790907.min.css
+GET 200 Stylesheet https://www.glassdoor.ie/sam-global-nav/static/lib-7e5eadd736e8cc15.min.css
+GET 200 Stylesheet https://www.glassdoor.ie/sam-global-nav/static/globalFooter-d848aba9fd7e8ed7.min.css
+GET 200 Stylesheet https://www.glassdoor.ie/user-login-sam-server/static/unifiedUserAuth-8e2b6cccf50dcb3f.min.css
+GET 200 Script https://www.glassdoor.ie/web-core-sam/static/vendor/react19-19.2.8.min.js
+GET 200 Script https://www.glassdoor.ie/web-core-sam/static/core-d79d59bf25244d1e.min.js
+GET 200 Script https://www.glassdoor.ie/assets/bundles/brand-views/gd-brand-views.bundle.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/webpack-1f17f015306c6ffe.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/framework-0fa1d5d4d5cba287.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/main-c7ed844c30c51e03.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/pages/_app-ce40e04706323f42.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/58474bfb-286e4de427ebaad0.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/580-4a89e936c72c5950.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/9301-46ce7e3bf9b14430.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/4096-9c7e31481778eec0.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/pages/index-fe500cb3cdf5aa2c.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/a1ef2860/_buildManifest.js
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/a1ef2860/_ssgManifest.js
+GET 200 Image https://www.glassdoor.ie/assets/images/global-nav/locked-community.png
+GET 200 Image https://www.glassdoor.ie/assets/images/global-nav/locked-jobs.png
+GET 200 Image https://www.glassdoor.ie/assets/images/global-nav/locked-companies.png
+GET 200 Image https://www.glassdoor.ie/assets/images/global-nav/locked-salaries.png
+GET 200 Image https://www.glassdoor.ie/assets/images/global-nav/for-employers.png
+GET 200 Manifest https://www.glassdoor.ie/manifest.json
+GET 200 Image https://www.glassdoor.ie/assets/images/seo-pages/homepage/sohp-left-hero-image.webp
+GET 200 Image https://www.glassdoor.ie/assets/images/seo-pages/homepage/sohp-right-hero-image.webp
+GET  Script blob:https://www.glassdoor.ie/c66c3836-621c-41d9-99fe-d15358ef3830
+GET  Script https://www.glassdoor.ie/cdn-cgi/challenge-platform/scripts/jsd/main.js
+POST 204 XHR https://www.glassdoor.ie/util/ajax/bwl.htm
+GET 200 Script https://www.glassdoor.ie/seo-pages/assets/_next/static/chunks/4603.734b7a25f6de9f4b.js
+GET 200 Script https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/scripts/jsd/4df4a60fa397/main.js?
+OPTIONS 204 Other https://rsdp.glassdoor.ie/v1/track
+POST 200 XHR https://rsdp.glassdoor.ie/v1/track
+GET 200 Other https://www.glassdoor.ie/favicon.ico
+POST 200 XHR https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/jsd/oneshot/4df4a60fa397/0.8340845298236486:1791788719:-6PMJPR209dog2PJTXZwmPyzjjI3M4CvUD0natbEaI8/a4949
+POST 200 XHR https://rsdp.glassdoor.ie/v1/track
+GET 200 Other https://www.glassdoor.ie/favicon.ico
+GET 200 Script https://www.glassdoor.ie/app-install-sam-server/static/lib-2d739c22f4e3becc.min.js
+GET 200 Script https://www.glassdoor.ie/app-install-sam-server/static/marketingBanner-92ff6575c825b7f6.min.js
+GET 200 Script https://www.glassdoor.ie/sam-global-nav/static/lib-a17b151b52964442.min.js
+GET 200 Script https://www.glassdoor.ie/sam-global-nav/static/lockedGlobalNav-50fb6eaa40649c7c.min.js
+GET 200 Script https://www.glassdoor.ie/user-login-sam-server/static/unifiedUserAuth-9a96d2169cd3cd16.min.js
+GET 200 Script https://www.glassdoor.ie/sam-global-nav/static/globalFooter-601d596ceef8dba1.min.js
+GET 200 Script https://www.glassdoor.ie/user-login-sam-server/static/unified-user-auth-bundle-en-IE-json-4fea974c8d0eb59b.min.js
+GET 200 Script https://www.glassdoor.ie/sam-global-nav/static/global-nav-bundle-en-IE-json-b2d064027bb3cdc6.min.js
+GET 200 Script https://www.glassdoor.ie/sam-global-nav/static/global-nav-variants-bundle-en-IE-json-c6d816c8846bd339.min.js
+POST 200 XHR https://rsdp.glassdoor.ie/v1/track
+GET 200 Script https://www.glassdoor.ie/user-login-sam-server/static/7578-003c8d179b6e4dcf.min.js
+POST 200 XHR https://rsdp.glassdoor.ie/v1/track
+GET 200 Fetch https://www.glassdoor.ie/assets/lottie/global-nav/CommunityReactions.lottie
+GET 200 Fetch https://www.glassdoor.ie/assets/lottie/global-nav/WebNotificationBell.lottie
+GET 200 Fetch https://www.glassdoor.ie/assets/lottie/global-nav/WebNotificationBell.lottie
+GET  Document https://www.glassdoor.ie/Job/jobs.htm?sc.keyword=Data%20Analyst
+GET 403 Document https://www.glassdoor.ie/Job/jobs.htm?sc.keyword=Data%20Analyst
+GET 200 Script https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1?ray=a494999058fb0419
+GET  Script https://rscdn.glassdoor.ie/v1.1/rudder-analytics.min.js
+GET  Script blob:https://www.glassdoor.ie/2ce5ee3f-5377-4234-85b9-95153a51461e
+POST 200 XHR https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/fo/154388874:1791788714:IYDO3xZocc7G19juvwROcB1BOSacGsiRkJsll2JfieM/a494999058fb0419/TcTqEG0aHiOMyUlYXqc
+GET  Script blob:https://www.glassdoor.ie/4c88755c-1024-4f0e-bdb5-f6ba5313d9a2
+GET 200 Document https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/f/av0/rch/0xb65/0x4AAAAAAADnPIDROrmt1Wwj/light/fbE/new/normal?lang=auto
+POST 200 XHR https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/fo/2846843914:1791788716:a2PAxjJgeUbyvzfahtSutQx6eh-Jij9ScHrZMAkcTm8/a49499b50f09f767/4yvRI38MT
+GET 200 Image https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/ci/a49499b50f09f767/1791792337755/pMAjbFMAbPOMfLs.ghcYVfNQzfRwz3H_ffSG23AUdnw-1791792337-1.3.1.
+POST 200 XHR https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/fo/2846843914:1791788716:a2PAxjJgeUbyvzfahtSutQx6eh-Jij9ScHrZMAkcTm8/a49499b50f09f767/4yvRI38MT

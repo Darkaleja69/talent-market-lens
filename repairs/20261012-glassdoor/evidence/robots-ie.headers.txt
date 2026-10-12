@@ -1,0 +1,17 @@
+﻿HTTP/1.1 200 OK
+Date: Mon, 12 Oct 2026 08:02:03 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+vary: Accept-Encoding
+content-security-policy: frame-ancestors 'self'
+referrer-policy: unsafe-url
+set-cookie: <REDACTED>
+Cache-Control: public, max-age=1800
+last-modified: Mon, 12 Oct 2026 08:02:03 GMT
+expires: Mon, 12 Oct 2026 08:32:03 GMT
+cf-cache-status: EXPIRED
+Server: cloudflare
+CF-RAY: a49494837c39f774-MAD
+alt-svc: h3=":443"; ma=86400
+
