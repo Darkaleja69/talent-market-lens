@@ -902,13 +902,21 @@ function buildTrendOption(rows) {
 }
 
 function buildRankingOption(rows, nameField, seriesNameKey) {
-  return barChart({
+  const option = barChart({
     categories: rows.map((row) => row[nameField]),
     values: rows.map((row) => Number(row.job_offers) || 0),
     seriesName: t(seriesNameKey),
     horizontal: true,
     formatValue: formatCountCallback,
   });
+  // T-28: in the compact Market Pulse ranking cards ECharts' automatic
+  // category-label interval drops every other name once the band gets tight
+  // (top roles/companies cover 7-10 bars). The names are the readable part of
+  // the ranking, so force all of them and disable the overlap pass: measured
+  // at 1440×900 with the 10rem bodies the glyphs stay separate and legible.
+  option.yAxis.axisLabel.interval = 0;
+  option.yAxis.axisLabel.hideOverlap = false;
+  return option;
 }
 
 function buildExperienceOption(rows) {

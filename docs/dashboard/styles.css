@@ -501,12 +501,25 @@ body {
   height: 15rem;
 }
 
-/* Market Pulse (T-23): on desktop both chart rows shrink slightly (15rem →
-   13.5rem) so the four report KPIs, the six-month trend and the three ranking
-   charts fit a single glance. */
+/* Market Pulse (T-23/T-28): on desktop the trend spans the whole row and the
+   three lower cards (two rankings + the experience donut) share a single row;
+   both rows shrink (15rem → 10.5rem for the trend and 10rem for the rest) so
+   the four report KPIs, the six-month trend and the three lower charts fit a
+   1440×900 viewport at a glance. Measured at 1440×900 with the filters
+   collapsed: trend body 168 px (10.5rem ≤ 11rem), lower bodies 160 px (10rem
+   ≤ 10.5rem), last card bottom 788 px and no document scroll (scrollHeight
+   900 px). `buildRankingOption` (app.js) forces every category name at this
+   height, where ECharts would otherwise hide half of them. Below 64rem the
+   base two-column grid and the mobile heights (13.75rem) still apply. */
 @media (min-width: 64rem) {
   .chart-grid--pulse .chart-card__body {
-    height: 13.5rem;
+    height: 10rem;
+  }
+
+  /* The trend keeps a little more height: its card is wider and the extra
+     room costs less than in the three ranking cards. */
+  .chart-grid--pulse .chart-card--wide .chart-card__body {
+    height: 10.5rem;
   }
 }
 
