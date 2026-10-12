@@ -73,14 +73,77 @@ locales de usuario se escriben como <HOME>.
 - **Alcance de prueba propuesto:** affected portal only, 1 role, one page, watching time and PROGRESS
 - **Restricciones:** only the affected portal; no merge; no Azure upload; no landing update
 - **Comando propuesto:** `python -m src.glassdoor --max-pages 1`
-- **Pendiente:** comprobar robots.txt y términos de uso, separar hechos de hipótesis y confirmar la causa probable (RF-3).
+- **Investigación:** completada el 2026-10-12; informe en
+  `evidence/investigation-report.md`. Hechos clave: 9 latidos `PROGRESS`
+  históricos y ninguno desde el 8-oct; el BFF devolvió 30 ofertas el 12-oct y
+  el log quedó mudo 19 min 54 s antes del stop (last_parsed=0).
+- **Causa confirmada:** el latido se emitía solo al cerrar cada página
+  (`_process_role`), mientras las descripciones (hasta 30 × 60 s) se pedían
+  antes, dentro del bucle; el watchdog (40 min de inactividad) no podía
+  distinguir avance de cuelgue. Agravante: `run_all.ps1` anclaba el watchdog
+  en el `$RunStart` global del wrapper y no en el arranque real de cada
+  portal (~5 min de margen perdidos en glassdoor, el 6.º lanzado).
+- **Hallazgo legal (RF-6):** `robots.txt` de .com/.ie/.es prohíbe `/graph` (y
+  `/findPopularLocationAjax.htm`); los TOS exigen permiso escrito para extraer
+  datos. El SERP simple (`/Job/jobs.htm?sc.keyword=...`) no está en `Disallow`.
+- **Decisión de la persona (RF-6, 2026-10-12):** opción A — continuar con la
+  vía actual (BFF `/graph`) asumiendo explícitamente el conflicto con
+  `robots.txt`/TOS. Queda registrado.
+- **Mercado:** decisión de la persona (2026-10-12): las búsquedas pasan de
+  EE. UU. (`glassdoor.com`) a Irlanda (`glassdoor.ie`); EE. UU. deja de
+  capturarse y España no entra en esta reparación.
+- **Hipótesis del playbook:** H1-H3 y H6 confirmadas; H4 (descripciones en
+  lote) refutada hoy; H5 (presupuesto) no era la causa; H7 (salario EUR y
+  `/graph` en .ie/.es) pendiente de la prueba en vivo.
 <!-- /record:section:investigation -->
 
 <!-- record:section:changes -->
 ## Cambios realizados
 
-_(Pendiente: módulos y ficheros modificados, diseño elegido y dependencias
-nuevas justificadas, si las hay.)_
+- **`multi_site_job_scraper/src/glassdoor/scraper.py`**
+  - Latido de progreso dentro del bucle de tarjetas (una línea `PROGRESS` por
+    tarjeta) y latido inmediato tras parsear la página, antes del bucle de
+    descripciones; el latido de cierre de página se conserva y completa el
+    conteo de las tarjetas no iteradas. `parsed`/`new` conservan su semántica
+    acumulada (duplicados incluidos).
+  - Descripciones: `timeout`, número de intentos y tope de fallos consecutivos
+    parametrizados; al alcanzar el tope se desactivan las descripciones del
+    rol para no encadenar esperas de ~60 s con el BFF degradado. No cambia la
+    cobertura objetivo (el presupuesto 2000 cubre de sobra el máximo por rol).
+  - Ubicación: fallback nacional declarado por mercado (`location_fallback`);
+    sin fallback el run aborta con error en vez de buscar en el país
+    equivocado (`.ie` no hereda el `(1, "COUNTRY")` de `.com`).
+  - Mercado genérico: el chequeo de dominio regional de `_warmup_homepage`
+    compara contra `base_url` (sin hardcodes de `.es`/`.co.uk`/USA), la
+    geolocalización del navegador sale de config y los comentarios del bloqueo
+    de `countryRedirect` dejan de asumir EE. UU.
+- **`multi_site_job_scraper/src/glassdoor/bff.py`**: `fetch_description` acepta
+  `timeout` y `attempts` (por defecto, el comportamiento anterior).
+- **`multi_site_job_scraper/src/glassdoor/config_gd.py`**: mercado Irlanda
+  (`base_url` .ie, `country` IE, `country_name` Ireland, `currency` EUR,
+  `locale` en-IE, `timezone` Europe/Dublin, `search_path` `/Job/jobs.htm` y
+  geolocalización de Dublín); presupuesto de descripciones declarado
+  (2000 ≥ target 1000); claves nuevas `location_fallback`,
+  `description_timeout_ms`, `description_attempts` y
+  `max_description_consecutive_failures`. `profile_name` se mantiene
+  (`glassdoor`: perfil persistente caliente; el mercado lo marca el dominio) y
+  las rutas de salida no cambian (el mercado sustituye, no añade).
+- **`multi_site_job_scraper/src/glassdoor/serp.py`**: el fallback DOM genera
+  las URLs con el dominio real de la página (antes fijo a `.com`), reconoce
+  Irlanda como ubicación y `parse_location` acepta el país por defecto del
+  llamante (antes asumía Estados Unidos).
+- **`multi_site_job_scraper/src/glassdoor/__main__.py` y `auth.py`**: docstring,
+  banner y ayuda del scraper en el mercado Irlanda; el ayudante manual de
+  sesión abre el dominio/locale/geolocalización configurados.
+- **`multi_site_job_scraper/run_all.ps1`**: el watchdog de cada portal se
+  ancla en el arranque real de su proceso (`$e.StartedAt`, fijado al lanzarlo)
+  y no en el `$RunStart` global del wrapper; el resto de flags no cambia.
+- **Tests**: `tests/test_glassdoor_heartbeat.py` (latido en el bucle con BFF
+  simulado, semántica de cierre de página y tope de fallos de descripciones),
+  `tests/test_glassdoor_market.py` (config IE, fallback de ubicación y
+  detección de challenge/landing) y ampliación de `tests/test_glassdoor_bff.py`
+  (intentos de `fetch_description`). Sin red.
+- **Dependencias nuevas:** ninguna (biblioteca estándar; pytest solo en tests).
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
