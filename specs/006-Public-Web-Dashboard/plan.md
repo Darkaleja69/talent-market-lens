@@ -254,7 +254,7 @@ salarial siempre que se use salario: `SalaryMinAnnual_EUR > 0`,
 | # | Medida | Semántica portada (`Metrics.tmdl`) |
 |---|---|---|
 | 1 | Total Job Offers | `COUNTROWS` con el filtro de rango salarial global (`SalaryMaxAnnual_EUR` entre min y max) |
-| 2 | Companies Hiring | `DISTINCTCOUNT(company_name)` no vacío |
+| 2 | Companies Hiring | `DISTINCTCOUNT(company_name)` no vacío, excluyendo nombres que son solo un número (artefacto de valoración; p. ej. `4,0`) |
 | 3 | Countries Hiring | `DISTINCTCOUNT(location_country)` no vacío |
 | 4 | Cities Hiring | `DISTINCTCOUNT(location_city)` no vacío |
 | 5 | Offers Last 7 Days | `Total` con `posted_date > MAX(posted_date) - 7` |
@@ -273,16 +273,18 @@ salarial siempre que se use salario: `SalaryMinAnnual_EUR > 0`,
 | 18 | P75 Mid Salary EUR | `PERCENTILE.INC(..., 0.75)` |
 
 Además, agregaciones directas para los gráficos (sin nueva lógica de negocio):
-tendencia por `PostedYearMonth`; top roles (`role_category`), top empresas
-(`company_name`) y reparto por `experience_level`; media de `SalaryMidAnnual_EUR`
+tendencia por día de publicación (`posted_date`) de los últimos 6 meses; top
+roles (`role_category`), top empresas (`company_name`, sin nombres numéricos)
+y reparto por `experience_level`; media de `SalaryMidAnnual_EUR`
 por `role_category` y por `WorkModeBucket`; top skills pagadas y ofertas por
 `GeoCountry` para el mapa.
 
 **Vistas:**
 
-- **Market Pulse:** medidas 1–2 y 10–11 como KPIs del informe, tendencia por
-  `PostedYearMonth` de los últimos 6 meses, top roles, top empresas y reparto
-  por experiencia, con gráficos compactos.
+- **Market Pulse:** medidas 1–2 y 10–11 como KPIs del informe, tendencia diaria
+  por `posted_date` de los últimos 6 meses (días dentro de cada mes), top roles,
+  top empresas (sin nombres numéricos) y reparto por experiencia, con gráficos
+  compactos.
 - **Roles & Skills:** medidas 12–14 + burbuja demanda vs. salario, donut por
   categoría, mediana salarial por categoría de skill (agregación directa) y
   tabla benchmark.

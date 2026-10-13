@@ -107,8 +107,8 @@ SQL en el navegador sobre los Parquet del export.
 vistas navegables y enlazables, con gráficos compactos y legibles:
 - **Market Pulse:** los KPIs del informe original (ofertas únicas, empresas
   contratando, cuota remoto o híbrido y tasa de publicación de salario),
-  tendencia mensual de los últimos 6 meses, top roles, top empresas y reparto
-  por experiencia.
+  tendencia diaria por fecha de publicación de los últimos 6 meses (los días
+  dentro de cada mes), top roles, top empresas y reparto por experiencia.
 - **Roles & Skills:** demanda y cuota por skill, salario mediano por skill,
   burbuja demanda vs. salario, donut por categoría, salario mediano por
   categoría de skill y tabla de benchmark.
@@ -131,7 +131,10 @@ EUR) deberán conservar la semántica del modelo: filtros de calidad salarial
 última fecha de publicación, cuotas sobre el total del contexto y demanda de
 skill por oferta distinta. Sus cifras deberán ser cotejables con el informe
 Power BI para la misma fecha de datos, y las diferencias conocidas se
-documentarán en la metodología.
+documentarán en la metodología. `Companies Hiring` y los rankings de empresa
+excluirán los nombres de empresa que son solo un número (p. ej. `4,0`),
+artefactos de la fuente que no identifican empresas reales; la metodología lo
+explicará.
 
 ### RF-9 — Filtros globales
 

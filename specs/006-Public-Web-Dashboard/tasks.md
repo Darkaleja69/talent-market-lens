@@ -288,6 +288,39 @@ nuevas. Las capturas de referencia «antes» viven en
     detectados y quedan capturas de evidencia del grupo en
     `.opencode/.agent-screenshots/`.
 
+## 4.3 Correcciones de la persona (revisión, 2026-10-13)
+
+Antes del cierre, la persona detecta tres puntos al revisar Market Pulse: los
+nombres de empresa que son solo un número (valoración de la fuente) no deben
+contarse ni rankearse; la tendencia de ofertas debe mostrar los días dentro de
+cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
+
+- [ ] **T-31 — Excluir empresas con nombre numérico** (~20 min)
+  - **RF:** RF-7, RF-8, RF-13.
+  - **Hecho cuando:** `Companies Hiring` y el top de empresas excluyen los
+    nombres de empresa que son solo un número (`^[0-9]+([.,][0-9]+)?$` tras
+    trim; p. ej. `4,0`, `42`; se conservan `2k`, `3m`, `12build`), el filtro de
+    empresa no los ofrece, la metodología lo explica en ES/EN y las cifras
+    cuadran con el dato local (9.164 → 9.134 empresas en la instantánea
+    2026-10-10).
+
+- [ ] **T-32 — Tendencia diaria en Market Pulse** (~25 min)
+  - **RF:** RF-7, RF-8.
+  - **Depende de:** T-31.
+  - **Hecho cuando:** el gráfico de evolución usa el día de publicación
+    (`posted_date`) dentro de los últimos 6 meses, con etiquetas de día y mes en
+    ES/EN, tooltip con la fecha completa y título/caption actualizados, sin
+    regresiones de encaje a 1440×900 (T-28) ni de temas (T-27).
+
+- [ ] **T-33 — Scroll de las páginas del dashboard** (~20 min)
+  - **RF:** RF-7, RF-16.
+  - **Hecho cuando:** se reproduce el caso reportado por la persona (página,
+    ventana y gesto) y el scroll funciona en todas las páginas, con la
+    comprobación anotada. **Pendiente de concretar con la persona**: las
+    mediciones locales dan scroll correcto con rueda (sobre y fuera de
+    gráficos) y contenido que cabe entero en ventanas altas (Market Pulse,
+    Roles & Skills y Salary Insights a 2160×1350).
+
 ## 5. Publicación y documentación
 
 - [x] **T-15 — Portada y READMEs** (~20 min)
