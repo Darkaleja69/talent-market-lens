@@ -91,6 +91,10 @@
  *   - Case-insensitive text: the hiring counts fold case with LOWER(TRIM(...))
  *     to approximate the es-ES collation (cities 2 912 -> 2 905; companies
  *     and countries unchanged); accent folding is NOT replicated.
+ *   - T-31: company names that are only a number (rating artifacts of the
+ *     source, e.g. '4,0') are excluded from Companies Hiring, Top Companies
+ *     and the company filter through NOT_NUMERIC_COMPANY_NAME_FILTER.
+ *     Snapshot 2026-10-10: 9 164 -> 9 134 companies (30 numeric names).
  */
 
 /** 'Salary Min' what-if default (Metrics.tmdl L7-11). */
@@ -108,6 +112,25 @@ export const TOP_PAYING_SKILLS_LIMIT = 15;
  * the caller can override it via `minDemand`.
  */
 export const TOP_PAYING_SKILLS_MIN_DEMAND = 5;
+
+/**
+ * Names of company that are only a number are not companies: the source
+ * occasionally stores the posting's star rating as the company name (e.g.
+ * '4,0', '42'), so those values are rating artifacts (T-31). Single source of
+ * the rule: every company count, ranking and the company filter use
+ * `NOT_NUMERIC_COMPANY_NAME_FILTER` below. Names that merely start with digits
+ * ('2k', '3m', '12build') are real companies and stay.
+ */
+export const NUMERIC_COMPANY_NAME_REGEX = '^[0-9]+([.,][0-9]+)?$';
+
+/**
+ * Reusable SQL predicate over `f.company_name` (alias `f` of fact_offers,
+ * used by every company query in this module and by the app's filter
+ * options): drops rating-artifact names. Callers keep their own blank check.
+ * T-31.
+ */
+export const NOT_NUMERIC_COMPANY_NAME_FILTER =
+  `NOT regexp_matches(TRIM(COALESCE(f.company_name, '')), '${NUMERIC_COMPANY_NAME_REGEX}')`;
 
 const asFiniteNumber = (value, fallback) => {
   const n = Number(value);
@@ -178,15 +201,24 @@ WHERE ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}`;
  * compares raw strings, so LOWER(TRIM(...)) approximates it. Known
  * difference: accent folding is NOT replicated (e.g. "Bogotá" vs "Bogota"
  * stay distinct).
+ *
+ * `extraFilter` adds a measure-specific predicate (rows that do not satisfy
+ * it are dropped before the distinct count).
  */
-const distinctCounting = (column, alias, where) => `SELECT COUNT(DISTINCT LOWER(TRIM(f.${column}))) AS ${alias}
+const distinctCounting = (column, alias, where, extraFilter = '') => {
+  const extraLine = extraFilter ? `  AND ${extraFilter}\n` : '';
+  return `SELECT COUNT(DISTINCT LOWER(TRIM(f.${column}))) AS ${alias}
 FROM fact_offers AS f
 WHERE TRIM(COALESCE(f.${column}, '')) <> ''
-  AND ${applyWhere(where)}`;
+${extraLine}  AND ${applyWhere(where)}`;
+};
 
-/** 2. Companies Hiring — Metrics.tmdl L29-35. */
+/**
+ * 2. Companies Hiring — Metrics.tmdl L29-35. Pure-number names (rating
+ * artifacts of the source, e.g. '4,0') are not companies and do not count.
+ */
 export function companiesHiring({ where = '' } = {}) {
-  return distinctCounting('company_name', 'companies_hiring', where);
+  return distinctCounting('company_name', 'companies_hiring', where, NOT_NUMERIC_COMPANY_NAME_FILTER);
 }
 
 /** 3. Countries Hiring — Metrics.tmdl L37-43. */
@@ -417,13 +449,17 @@ ORDER BY job_offers DESC, role_category
 ${limitClause(limit)}`.trim();
 }
 
-/** Top Companies (Market Pulse, clustered bar, TopN 10, blanks excluded). */
+/**
+ * Top Companies (Market Pulse, clustered bar, TopN 10, blanks excluded).
+ * Pure-number names (rating artifacts, e.g. '4,0') stay out (T-31).
+ */
 export function topCompanies(options = {}) {
   const { where = '', limit = 10, minSalary = DEFAULT_SALARY_MIN, maxSalary = DEFAULT_SALARY_MAX } = options;
   return `SELECT f.company_name AS company_name,
        COUNT(*) AS job_offers
 FROM fact_offers AS f
 WHERE TRIM(COALESCE(f.company_name, '')) <> ''
+  AND ${NOT_NUMERIC_COMPANY_NAME_FILTER}
   AND ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
 GROUP BY f.company_name
 ORDER BY job_offers DESC, company_name

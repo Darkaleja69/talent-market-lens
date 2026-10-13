@@ -226,6 +226,8 @@ export const MESSAGES = {
       'Las medianas de skills con pocas ofertas con salario pueden ser inestables y moverse entre actualizaciones.',
     'view.methodology.limitations.point6':
       'La tendencia mensual agrupa por mes de publicación; el informe Power BI pinta la evolución por día.',
+    'view.methodology.limitations.point7':
+      'Algunos nombres de empresa del origen son en realidad valoraciones de la fuente (por ejemplo, «4,0»): las empresas cuyo nombre es solo un número se excluyen del recuento de empresas y de los rankings.',
     'view.methodology.limitations.detail':
       'El detalle completo de estas diferencias (fechas, muestras pequeñas y aproximaciones de texto) está documentado en la cabecera del módulo de consultas (queries.js) del proyecto.',
     'view.methodology.legal.title': 'Aviso legal',
@@ -518,6 +520,8 @@ export const MESSAGES = {
       'Medians for skills with few salaried postings can be unstable and move between refreshes.',
     'view.methodology.limitations.point6':
       'The monthly trend groups by publication month; the Power BI report plots the day-by-day evolution.',
+    'view.methodology.limitations.point7':
+      'Some company names in the source are actually source ratings (for example, "4,0"): companies whose name is only a number are excluded from the company count and the rankings.',
     'view.methodology.limitations.detail':
       'The full detail of these differences (dates, small samples and text approximations) is documented in the header of the project queries module (queries.js).',
     'view.methodology.legal.title': 'Legal notice',

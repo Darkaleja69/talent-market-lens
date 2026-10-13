@@ -562,9 +562,15 @@ WHERE TRIM(COALESCE(fs.Skill, '')) <> ''
 ORDER BY value`,
 };
 
+/**
+ * Companies feed an input + datalist; the options reuse the shared
+ * `NOT_NUMERIC_COMPANY_NAME_FILTER` of queries.js, so pure-number rating
+ * artifacts (e.g. '4,0') are never offered (T-31).
+ */
 const COMPANY_OPTIONS_QUERY = `SELECT DISTINCT f.company_name AS value
 FROM fact_offers AS f
 WHERE TRIM(COALESCE(f.company_name, '')) <> ''
+  AND ${queries.NOT_NUMERIC_COMPANY_NAME_FILTER}
 ORDER BY value`;
 
 let filterInputTimer = null;
@@ -2287,6 +2293,7 @@ function renderMethodology({ body }) {
     'view.methodology.limitations.point4',
     'view.methodology.limitations.point5',
     'view.methodology.limitations.point6',
+    'view.methodology.limitations.point7',
   ]);
   appendParagraph(limitationsSection, 'view.methodology.limitations.detail', 'methodology__note');
 
