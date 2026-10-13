@@ -69,7 +69,7 @@ import {
   formatCount,
   formatDate,
   formatDateTime,
-  formatMonth,
+  formatDayMonth,
   formatPercent,
   formatSalary,
   formatSalaryCompact,
@@ -837,7 +837,7 @@ const MARKET_PULSE_KPIS = [
   { id: 'disclosure', labelKey: 'kpi.salaryDisclosureRate', builder: 'salaryDisclosureRate', alias: 'salary_disclosure_rate', format: 'percent' },
 ];
 
-/** Monthly trend window of the report page: the last six months with data. */
+/** Trend window of the report page: the last six calendar months. */
 const MARKET_PULSE_TREND_MONTHS = 6;
 
 const EMPTY_VALUE = '—';
@@ -873,9 +873,9 @@ function renderKpiList(kpis) {
 /**
  * Runs the four KPI builders of the report page plus the four chart
  * aggregations in one batch with the current global filters (RF-9). The trend
- * is limited to the last `MARKET_PULSE_TREND_MONTHS` months. Every builder
- * comes from `queries.js`; this module only orchestrates calls and formats
- * results.
+ * is the day-by-day evolution limited to the last
+ * `MARKET_PULSE_TREND_MONTHS` calendar months. Every builder comes from
+ * `queries.js`; this module only orchestrates calls and formats results.
  */
 async function fetchMarketPulseData(options) {
   const [kpis, trend, topRoles, topCompanies, experience] = await Promise.all([
@@ -883,7 +883,7 @@ async function fetchMarketPulseData(options) {
       const rows = await runQuery(queries[kpi.builder](options));
       return { ...kpi, value: rows.length > 0 ? rows[0][kpi.alias] : null };
     })),
-    runQuery(queries.monthlyTrend({ ...options, months: MARKET_PULSE_TREND_MONTHS })),
+    runQuery(queries.dailyTrend({ ...options, months: MARKET_PULSE_TREND_MONTHS })),
     runQuery(queries.topRoles(options)),
     runQuery(queries.topCompanies(options)),
     runQuery(queries.experienceBreakdown(options)),
@@ -897,13 +897,22 @@ const formatSalaryCallback = (value) => formatSalary(value, state.language);
 const formatCompactSalaryCallback = (value) => formatSalaryCompact(value, state.language);
 
 function buildTrendOption(rows) {
-  const categories = rows.map((row) => formatMonth(row.year_month, state.language));
+  // Axis labels: day + short month in the active language ("12 oct" / "Oct 12").
+  // With ~180 days ECharts picks the label interval, so the axis stays legible;
+  // `showMaxLabel` (in `lineChart`) keeps the newest day from being skipped.
+  const categories = rows.map((row) => formatDayMonth(row.posted_date, state.language));
+  // Tooltip: the full localised date ("12 de octubre de 2026" / "October 12,
+  // 2026"); the compact axis label alone would drop the year.
+  const fullDates = rows.map((row) => formatDate(row.posted_date, state.language));
   return lineChart({
     categories,
     values: rows.map((row) => Number(row.job_offers) || 0),
     seriesName: t('view.marketPulse.trend.title'),
     formatValue: formatCountCallback,
-    rotateLabels: categories.length > 12,
+    formatTooltipTitle: (label, index) => fullDates[index] ?? label,
+    // A daily series carries 180+ points: the 4 px symbols of the shared theme
+    // would draw a dense dotted band, so the trend keeps line and subtle area.
+    showSymbol: false,
   });
 }
 
@@ -970,7 +979,7 @@ function appendChartCard(grid, { titleKey, captionKey, wide = false, option, noD
 
 /**
  * Market Pulse renderer (RF-7): the four KPI cards of the report page, the
- * monthly trend by `PostedYearMonth` limited to the last
+ * daily trend by `posted_date` limited to the last
  * `MARKET_PULSE_TREND_MONTHS` months, top 10 roles, top 10 companies and the
  * experience breakdown. Data, labels and formats come from the current
  * language and the global filters; this function only assembles DOM and mounts
@@ -2495,7 +2504,7 @@ async function boot() {
  * Read-only surface for local verification and T-10–T-14. Browser console:
  * `await tml.query('SELECT COUNT(*) FROM fact_offers')`,
  * `await tml.setFilters({ country: 'Spain' })`,
- * `await tml.runBuilder('monthlyTrend')`.
+ * `await tml.runBuilder('dailyTrend')`.
  */
 window.tml = {
   getState: () => state,

@@ -30,6 +30,9 @@
  *     (Metrics.tmdl L54-55/L65-66), so the window anchor depends only on
  *     `where`. Pass the range through `minSalary`/`maxSalary` (never inside
  *     `where`) to keep this fidelity; T-09 must do the same.
+ *   - `dailyTrend` also interpolates the fragment twice (window anchor +
+ *     per-day count); both CTEs alias fact_offers as `f`, so the same fragment
+ *     composition (including the skill `EXISTS`) is valid in each.
  *   - `skillShare` interpolates the fragment twice (per-skill demand +
  *     denominator); that fragment must reference `f` only, because the skill
  *     filter is deliberately excluded from the denominator (see the measure).
@@ -73,8 +76,8 @@
  *     Dim_Geo[Country] through FactOffers_to_DimGeo_Region (GeoRegion), a
  *     documented approximation. Under the faithful GeoRegion-based context
  *     the median matches exactly (31 500 EUR).
- *   - The report's monthly line chart is daily (by posted_date); this module
- *     groups by PostedYearMonth as planned in §7.
+ *   - The report's line chart is daily (by posted_date); since T-32 this
+ *     module's trend is daily too, over the day spine of `dim_calendar`.
  *   - 'Skill Demand by Category' counts offer+skill pairs (see the measure):
  *     the capture shows 29.14/27.98/25.96/13.23/3.69 %, this port
  *     29.5/27.6/25.5/13.8/3.6 %.
@@ -95,6 +98,11 @@
  *     source, e.g. '4,0') are excluded from Companies Hiring, Top Companies
  *     and the company filter through NOT_NUMERIC_COMPANY_NAME_FILTER.
  *     Snapshot 2026-10-10: 9 164 -> 9 134 companies (30 numeric names).
+ *   - T-32: the Market Pulse trend is the day-by-day evolution by posted_date
+ *     (the report's line chart), with `dim_calendar` as the day spine of the
+ *     last six months of the context, so days without offers read as 0
+ *     (snapshot 2026-10-10: 183 days, 19 of them at 0; 2026-10-09 = 185,
+ *     2026-09-29 = 302).
  */
 
 /** 'Salary Min' what-if default (Metrics.tmdl L7-11). */
@@ -399,17 +407,25 @@ export function p75MidSalary(options = {}) {
  * ========================================================================== */
 
 /**
- * Job Postings by Month (Market Pulse line chart, 'Total Job Offers' per
- * month). Ordered oldest first; months without data are absent.
+ * Job Postings per Day (Market Pulse line chart, 'Total Job Offers' per
+ * publication day). Ordered oldest first. The day spine comes from
+ * `dim_calendar` (the export ships it for date labels and ordering, plan
+ * §5.1), so every calendar day of the window keeps a row and a day without
+ * offers reads as 0 instead of shortening the line.
  *
- * `months` limits the result to the last N months **with data in the current
- * context**: the N most recent `PostedYearMonth` values that keep offers after
- * the global filters and the salary range, so a gap inside the window does not
- * shorten the line. The rows are picked with a descending subquery (LIMIT N)
- * and re-ordered oldest first. Without `months` (null or non-positive) the
- * behaviour is unchanged: every month with data.
+ * `months` limits the result to the last N calendar months of the current
+ * context: the anchor is `MAX(posted_date)` under the global filters and the
+ * salary range (the same context the line counts, as the previous monthly
+ * window did) and the window is `(anchor - N months, anchor]` — 183 calendar
+ * days for six months — independent of gaps in the data. Without `months`
+ * (null or non-positive) the spine keeps every calendar day up to the anchor
+ * (zero days included).
+ *
+ * The `where` fragment (RF-9) is interpolated twice — the anchor CTE and the
+ * per-day count — as in the 7/30-day measures; both CTEs use `fact_offers AS
+ * f`, so the fragment (skill `EXISTS` included) keeps its semantics in each.
  */
-export function monthlyTrend(options = {}) {
+export function dailyTrend(options = {}) {
   const {
     where = '',
     months = null,
@@ -417,23 +433,37 @@ export function monthlyTrend(options = {}) {
     maxSalary = DEFAULT_SALARY_MAX,
   } = options;
   const monthsCount = months == null ? null : asCount(months, 0);
-  const base = `SELECT f.PostedYearMonth AS year_month,
-       COUNT(*) AS job_offers
-FROM fact_offers AS f
-WHERE f.PostedYearMonth IS NOT NULL
-  AND ${salaryRangeFilter(minSalary, maxSalary)} AND ${applyWhere(where)}
-GROUP BY f.PostedYearMonth`;
-  if (monthsCount == null || monthsCount <= 0) {
-    return `${base}
-ORDER BY year_month`;
+  const range = salaryRangeFilter(minSalary, maxSalary);
+  const context = applyWhere(where);
+  const lines = [
+    'WITH context AS (',
+    '  SELECT MAX(f.posted_date) AS last_posting_date',
+    '  FROM fact_offers AS f',
+    `  WHERE ${range} AND ${context}`,
+    '),',
+    'days AS (',
+    '  SELECT c.Date AS posted_date',
+    '  FROM dim_calendar AS c, context',
+    '  WHERE context.last_posting_date IS NOT NULL',
+  ];
+  if (monthsCount != null && monthsCount > 0) {
+    lines.push(`    AND c.Date > context.last_posting_date - INTERVAL ${monthsCount} MONTH`);
   }
-  return `SELECT year_month, job_offers
-FROM (
-  ${base}
-  ORDER BY year_month DESC
-  LIMIT ${monthsCount}
-) AS recent_months
-ORDER BY year_month`;
+  lines.push(
+    '    AND c.Date <= context.last_posting_date',
+    '),',
+    'counted AS (',
+    '  SELECT f.posted_date AS posted_date, COUNT(*) AS job_offers',
+    '  FROM fact_offers AS f',
+    `  WHERE f.posted_date IS NOT NULL AND ${range} AND ${context}`,
+    '  GROUP BY f.posted_date',
+    ')',
+    'SELECT d.posted_date AS posted_date, COALESCE(c.job_offers, 0) AS job_offers',
+    'FROM days AS d',
+    'LEFT JOIN counted AS c ON c.posted_date = d.posted_date',
+    'ORDER BY d.posted_date',
+  );
+  return lines.join('\n');
 }
 
 /** Top Roles (Market Pulse, clustered bar, TopN 10 by 'Total Job Offers'). */

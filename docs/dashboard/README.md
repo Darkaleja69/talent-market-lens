@@ -83,7 +83,8 @@ are displayed, exactly as in the Power BI report.
 
 `Date`, `DateKey`, `Year`, `MonthNumber`, `MonthName`, `ShortMonth`,
 `YearMonth`, `Quarter`, `YearQuarter`, `WeekISO`, `Day`, `WeekDay`, `DayName`,
-`IsWeekend` — used for date labels and ordering.
+`IsWeekend` — used for date labels and ordering; the Market Pulse trend uses
+`Date` as the day spine of its six-month window (days without offers read as 0).
 
 ### `meta.json`
 

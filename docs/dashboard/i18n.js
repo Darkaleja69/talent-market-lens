@@ -39,9 +39,9 @@ export const MESSAGES = {
       'Fuentes, proceso de datos, normalización salarial, frescura y limitaciones.',
     'view.pending': 'Próximamente',
     'view.error': 'No se pudieron calcular los datos de esta vista. Inténtalo de nuevo.',
-    'view.marketPulse.trend.title': 'Ofertas por mes',
+    'view.marketPulse.trend.title': 'Ofertas por día',
     'view.marketPulse.trend.caption':
-      'Ofertas por mes de publicación (PostedYearMonth), últimos 6 meses con datos.',
+      'Ofertas por día de publicación (posted_date), últimos 6 meses.',
     'view.marketPulse.topRoles.title': 'Roles con más ofertas',
     'view.marketPulse.topRoles.caption': 'Top 10 categorías de rol por número de ofertas.',
     'view.marketPulse.topCompanies.title': 'Empresas con más ofertas',
@@ -225,7 +225,7 @@ export const MESSAGES = {
     'view.methodology.limitations.point5':
       'Las medianas de skills con pocas ofertas con salario pueden ser inestables y moverse entre actualizaciones.',
     'view.methodology.limitations.point6':
-      'La tendencia mensual agrupa por mes de publicación; el informe Power BI pinta la evolución por día.',
+      'La tendencia agrupa por día de publicación (posted_date) en los últimos 6 meses; los días sin ofertas aparecen a 0 para que la línea no salte.',
     'view.methodology.limitations.point7':
       'Algunos nombres de empresa del origen son en realidad valoraciones de la fuente (por ejemplo, «4,0»): las empresas cuyo nombre es solo un número se excluyen del recuento de empresas y de los rankings.',
     'view.methodology.limitations.detail':
@@ -333,9 +333,9 @@ export const MESSAGES = {
       'Sources, data process, salary normalisation, freshness and limitations.',
     'view.pending': 'Coming soon',
     'view.error': 'Could not compute the data for this view. Please try again.',
-    'view.marketPulse.trend.title': 'Job Postings by Month',
+    'view.marketPulse.trend.title': 'Offers per day',
     'view.marketPulse.trend.caption':
-      'Postings per publication month (PostedYearMonth), last 6 months with data.',
+      'Offers per publication day (posted_date), last 6 months.',
     'view.marketPulse.topRoles.title': 'Top Roles',
     'view.marketPulse.topRoles.caption': 'Top 10 role categories by number of postings.',
     'view.marketPulse.topCompanies.title': 'Top Companies',
@@ -519,7 +519,7 @@ export const MESSAGES = {
     'view.methodology.limitations.point5':
       'Medians for skills with few salaried postings can be unstable and move between refreshes.',
     'view.methodology.limitations.point6':
-      'The monthly trend groups by publication month; the Power BI report plots the day-by-day evolution.',
+      'The trend groups by publication day (posted_date) over the last 6 months; days without postings show as 0 so the line does not jump.',
     'view.methodology.limitations.point7':
       'Some company names in the source are actually source ratings (for example, "4,0"): companies whose name is only a number are excluded from the company count and the rankings.',
     'view.methodology.limitations.detail':
@@ -769,19 +769,16 @@ export function formatPercent(value, language) {
 }
 
 /**
- * Localised short month for a `YYYY-MM` key (`abr 2026` / `Apr 2026`).
- * Anything that does not match the `YYYY-MM` shape is returned as-is so
- * malformed data stays visible instead of becoming an invented date.
+ * Localised short day + month for the daily trend x-axis (`12 oct` in Spanish,
+ * `Oct 12` in English). Accepts the ISO day (`2026-10-12`) or a Date from
+ * Arrow; blank/invalid values pass through as-is, like `formatDate`.
  */
-export function formatMonth(value, language) {
-  const match = /^(\d{4})-(\d{2})$/.exec(String(value ?? '').trim());
-  if (!match) return String(value ?? '');
-  const month = Number(match[2]);
-  if (month < 1 || month > 12) return String(value);
-  const date = new Date(Date.UTC(Number(match[1]), month - 1, 1));
+export function formatDayMonth(value, language) {
+  const date = toDate(value);
+  if (!date) return String(value ?? '');
   return new Intl.DateTimeFormat(localeTag(language), {
+    day: 'numeric',
     month: 'short',
-    year: 'numeric',
     timeZone: 'UTC',
   }).format(date);
 }

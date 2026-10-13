@@ -55,7 +55,7 @@ const defaultFormat = (value) => String(value ?? '');
  * Shared grid with room for axis labels on every side. `containLabel` reserves
  * space for the labels that live inside the axis range, but the label centred
  * on the last tick/category can stick out past the canvas and get clipped
- * (e.g. "oct 2026" in the trend or the last value of a ranking); the extra
+ * (e.g. "10 oct" in the trend or the last value of a ranking); the extra
  * `right` keeps it visible (T-27).
  */
 const chartGrid = { left: 8, right: 38, top: 16, bottom: 8, containLabel: true };
@@ -114,7 +114,11 @@ const categoryAxisStyle = (categories) => ({
  * @param {number[]} params.values - data points aligned with `categories`.
  * @param {string} [params.seriesName] - series name used by the tooltip.
  * @param {(value: number) => string} [params.formatValue] - axis/tooltip formatter.
- * @param {boolean} [params.rotateLabels] - rotate dense category labels 45°.
+ * @param {(label: string, index: number) => string} [params.formatTooltipTitle]
+ *   - full localised tooltip title (e.g. the long date behind a compact axis
+ *   label); when omitted the axis label is used as the title.
+ * @param {boolean} [params.showSymbol] - draw the point symbols; a dense daily
+ *   series hides them so the 4 px circles do not read as a dotted band.
  * @returns {Object} ECharts option.
  */
 export function lineChart({
@@ -122,30 +126,46 @@ export function lineChart({
   values,
   seriesName = '',
   formatValue = defaultFormat,
-  rotateLabels = false,
+  formatTooltipTitle = null,
+  showSymbol = true,
 }) {
+  const tooltip = {
+    ...tooltipBase(),
+    trigger: 'axis',
+    valueFormatter: (value) => formatValue(value),
+  };
+  if (formatTooltipTitle) {
+    // Reproduces the default axis tooltip (title + per-series marker, name and
+    // value) with the localised full title instead of the compact axis label.
+    tooltip.formatter = (params) => {
+      const items = Array.isArray(params) ? params : [params];
+      const title = formatTooltipTitle(items[0].axisValueLabel, items[0].dataIndex);
+      return [
+        title,
+        ...items.map((item) => `${item.marker}${item.seriesName}: ${formatValue(item.value)}`),
+      ].join('<br/>');
+    };
+  }
   return {
     animationDuration: 250,
     color: [COLORS.accent],
     grid: chartGrid,
-    tooltip: {
-      ...tooltipBase(),
-      trigger: 'axis',
-      valueFormatter: (value) => formatValue(value),
-    },
+    tooltip,
     xAxis: {
       ...categoryAxisStyle(categories),
       boundaryGap: false,
-      // `showMaxLabel` keeps the newest month visible on narrow screens, where
-      // the label interval would skip it (the `right` padding above is what
-      // keeps it from being clipped).
-      axisLabel: { ...axisLabelStyle(), rotate: rotateLabels ? 45 : 0, showMaxLabel: true },
+      // `showMaxLabel` keeps the newest point visible on narrow screens, where
+      // the automatic label interval would skip it (the `right` padding above
+      // keeps it from being clipped). ECharts chooses the interval so dense
+      // daily labels never pile up.
+      axisLabel: { ...axisLabelStyle(), showMaxLabel: true },
     },
     yAxis: valueAxisStyle(formatValue),
     series: [{
       name: seriesName,
       type: 'line',
       data: values,
+      showSymbol,
       symbol: 'circle',
       symbolSize: 4,
       lineStyle: { width: 2, color: COLORS.accent },
