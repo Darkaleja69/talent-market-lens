@@ -295,7 +295,7 @@ nombres de empresa que son solo un número (valoración de la fuente) no deben
 contarse ni rankearse; la tendencia de ofertas debe mostrar los días dentro de
 cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
 
-- [ ] **T-31 — Excluir empresas con nombre numérico** (~20 min)
+- [x] **T-31 — Excluir empresas con nombre numérico** (~20 min)
   - **RF:** RF-7, RF-8, RF-13.
   - **Hecho cuando:** `Companies Hiring` y el top de empresas excluyen los
     nombres de empresa que son solo un número (`^[0-9]+([.,][0-9]+)?$` tras
@@ -304,7 +304,7 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     cuadran con el dato local (9.164 → 9.134 empresas en la instantánea
     2026-10-10).
 
-- [ ] **T-32 — Tendencia diaria en Market Pulse** (~25 min)
+- [x] **T-32 — Tendencia diaria en Market Pulse** (~25 min)
   - **RF:** RF-7, RF-8.
   - **Depende de:** T-31.
   - **Hecho cuando:** el gráfico de evolución usa el día de publicación
