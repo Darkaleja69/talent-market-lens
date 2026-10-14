@@ -20,6 +20,20 @@
 
 ---
 
+## Dashboard público
+
+**Sitio público: [https://darkaleja69.github.io/talent-market-lens/](https://darkaleja69.github.io/talent-market-lens/)**
+
+Un dashboard público y sin registro construido sobre los datos reales del scraping: **Market Pulse**, **Roles & Skills**, **Salary Insights**, **Opportunity Explorer** y **Metodología**, en español e inglés. El navegador ejecuta SQL con DuckDB-WASM sobre el export Parquet y dibuja los gráficos con ECharts — sin backend, sin build y sin credenciales.
+
+**Actualización diaria.** GitHub Actions (`.github/workflows/dashboard.yml`) descarga el export y republica el sitio cada día a las **01:00 UTC**, después de que el job ELT de Databricks (23:30) haya generado un export nuevo; un `workflow_dispatch` manual republica cuando haga falta.
+
+**Dónde vive el export.** Una tarea final del job de Databricks proyecta las tablas Gold en un fichero Parquet por tabla — `fact_offers.parquet`, `fact_offer_skills.parquet`, `dim_skill_list.parquet`, `dim_calendar.parquet` — más `meta.json` (fecha de datos, recuentos, modo del export) en `gold/web_export/` de Azure ADLS Gen2. El workflow los copia a la carpeta `data/` del sitio con una SAS de solo lectura (`WEB_EXPORT_SAS`). **Ni los datos ni las credenciales se versionan**; la instantánea local (`docs/data/`) está en `.gitignore`.
+
+**Power BI queda como evidencia.** El proyecto `Job_Offers_Dashboard.pbip`, las capturas del informe (`../images/powerbi_*.png`) y el GIF de demo (`../media/talent-market-lens-demo.gif`) documentan la capa BI y el modelo semántico; el canal público para explorar los datos es ahora el dashboard web. Las versiones del CDN, las licencias y el contrato de datos están en [`../dashboard/README.md`](../dashboard/README.md).
+
+---
+
 ## Arquitectura
 
 ![Talent Market Lens — scrapers locales → Azure ADLS Gen2 → Bronze (Auto Loader) → Silver (PySpark) → Gold (esquema en estrella) → Power BI](../images/architecture.png)
