@@ -54,7 +54,8 @@ prod: bundle deploy -t prod → …/.bundle/talent-market-lens/prod/files
 ## 5. Estructura de archivos
 
 - `databricks.yml` — nombre del bundle, variables, targets y `sync` acotado
-  (subir solo `databricks_notebooks/**` y `resources/**`; no el repo entero).
+  (subir solo `databricks_notebooks/**`; `resources/` se interpreta al
+  desplegar, no se sincroniza).
 - `resources/elt_job.yml` — job con tareas, dependencias, compute, programación
   y `max_concurrent_runs: 1`.
 - `.github/workflows/databricks-bundle-validate.yml` — validación en CI.
