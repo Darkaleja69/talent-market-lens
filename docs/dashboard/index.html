@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Market Pulse · Talent Market Lens</title>
+  <meta name="description" content="Public dashboard with real job posting data: offers, salaries, skills and geography.">
+  <link rel="stylesheet" href="styles.css">
+
+  <!--
+    Pinned CDN dependencies (no build step, native ES modules + import map):
+      - DuckDB-WASM 1.32.0 (MIT)
+        module: https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/dist/duckdb-browser.mjs
+        WASM bundles and workers are resolved by the module itself from the same
+        pinned version: duckdb-eh.wasm / duckdb-mvp.wasm +
+        duckdb-browser-eh.worker.js / duckdb-browser-mvp.worker.js
+      - Apache Arrow 17.0.0 (Apache-2.0), bare import of DuckDB-WASM (^17.0.0)
+        module: https://cdn.jsdelivr.net/npm/apache-arrow@17.0.0/+esm
+      - ECharts 6.1.0 (Apache-2.0)
+        module: https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.esm.min.js
+    Versions, licenses and the data contract are documented in the dashboard
+    README (T-15). Changing a version requires updating this import map.
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@duckdb/duckdb-wasm": "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/dist/duckdb-browser.mjs",
+        "apache-arrow": "https://cdn.jsdelivr.net/npm/apache-arrow@17.0.0/+esm",
+        "echarts": "https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.esm.min.js"
+      }
+    }
+  </script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="a11y.skipToContent">Skip to content</a>
+
+  <header class="site-header">
+    <div class="site-header__titles">
+      <h1 class="site-title"><a href="#/market-pulse">Talent Market Lens</a></h1>
+      <p class="site-subtitle" data-i18n="app.subtitle">Public overview of real job postings</p>
+    </div>
+    <div class="site-header__meta">
+      <p id="freshness" class="freshness" data-state="pending" data-i18n="freshness.unknown" data-i18n-title="freshness.title">No data available</p>
+      <div class="language-picker">
+        <label class="language-picker__label" for="language-select" data-i18n="language.label">Language</label>
+        <select id="language-select" class="language-picker__select">
+          <option value="es" lang="es">Español</option>
+          <option value="en" lang="en">English</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <nav class="view-nav" aria-label="Views" data-i18n-aria-label="nav.label">
+    <ul class="view-nav__list">
+      <li><a class="view-nav__link" href="#/market-pulse" data-view-link data-i18n="nav.marketPulse">Market Pulse</a></li>
+      <li><a class="view-nav__link" href="#/roles-skills" data-view-link data-i18n="nav.rolesSkills">Roles &amp; Skills</a></li>
+      <li><a class="view-nav__link" href="#/salary-insights" data-view-link data-i18n="nav.salaryInsights">Salary Insights</a></li>
+      <li><a class="view-nav__link" href="#/opportunity-explorer" data-view-link data-i18n="nav.opportunityExplorer">Opportunity Explorer</a></li>
+      <li><a class="view-nav__link" href="#/methodology" data-view-link data-i18n="nav.methodology">Methodology</a></li>
+    </ul>
+  </nav>
+
+  <main id="main" class="site-main">
+    <div id="app-notices" class="notices"></div>
+    <p id="status-bar" class="status-bar" role="status" data-state="pending" data-i18n="status.initializing">Starting…</p>
+
+    <section id="filters-panel" class="filters" aria-labelledby="filters-title">
+      <div class="filters__header">
+        <div class="filters__heading">
+          <h2 id="filters-title" class="filters__title" data-i18n="filters.title">Global filters</h2>
+          <button id="filters-toggle" class="filters__toggle" type="button"
+                  aria-expanded="false" aria-controls="filters-body" aria-describedby="filters-help"
+                  data-i18n-aria-label="filters.toggleAria">
+            <span class="filters__toggle-icon" aria-hidden="true"></span>
+            <span data-i18n="filters.toggle">Filters</span>
+          </button>
+          <p id="filters-help" class="filters__help" data-i18n="filters.help">These filters narrow all views at once.</p>
+        </div>
+        <button id="clear-filters" class="filters__clear" type="button" data-i18n="filters.clearAll" disabled>Clear all</button>
+      </div>
+      <div id="filters-body" class="filters__body" hidden>
+        <div class="filters__grid">
+          <label class="filter" for="filter-country">
+            <span class="filter__label" data-i18n="filter.field.country">Country</span>
+            <select id="filter-country" class="filter__control" data-filter-key="country" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
+
+          <label class="filter" for="filter-experience">
+            <span class="filter__label" data-i18n="filter.field.experience">Experience</span>
+            <select id="filter-experience" class="filter__control" data-filter-key="experience" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
+
+          <label class="filter" for="filter-role">
+            <span class="filter__label" data-i18n="filter.field.role">Role</span>
+            <select id="filter-role" class="filter__control" data-filter-key="role" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
+
+          <label class="filter" for="filter-work-mode">
+            <span class="filter__label" data-i18n="filter.field.workMode">Work mode</span>
+            <select id="filter-work-mode" class="filter__control" data-filter-key="workMode" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
+
+          <label class="filter" for="filter-company">
+            <span class="filter__label" data-i18n="filter.field.company">Company</span>
+            <input id="filter-company" class="filter__control" data-filter-key="company" type="text"
+                   list="filter-company-options" autocomplete="off" disabled>
+            <datalist id="filter-company-options"></datalist>
+          </label>
+
+          <label class="filter" for="filter-skill">
+            <span class="filter__label" data-i18n="filter.field.skill">Skill</span>
+            <select id="filter-skill" class="filter__control" data-filter-key="skill" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
+
+          <label class="filter" for="filter-source">
+            <span class="filter__label" data-i18n="filter.field.source">Source</span>
+            <select id="filter-source" class="filter__control" data-filter-key="source" disabled>
+              <option value="" data-i18n="filter.any">All</option>
+            </select>
+          </label>
+
+          <div class="filter filter--salary" role="group" data-i18n-aria-label="filter.field.salary">
+            <span class="filter__label" data-i18n="filter.field.salary">Salary</span>
+            <div class="filter__salary-row">
+              <label class="filter__salary" for="filter-salary-min">
+                <span class="visually-hidden" data-i18n="filter.field.salaryMin">Minimum salary (annual)</span>
+                <input id="filter-salary-min" class="filter__control" data-filter-key="salaryMin" type="number"
+                       min="0" step="1000" data-i18n-placeholder="filter.salary.placeholder"
+                       data-i18n-title="filter.salary.hint" disabled>
+              </label>
+              <span class="filter__salary-sep" aria-hidden="true">–</span>
+              <label class="filter__salary" for="filter-salary-max">
+                <span class="visually-hidden" data-i18n="filter.field.salaryMax">Maximum salary (annual)</span>
+                <input id="filter-salary-max" class="filter__control" data-filter-key="salaryMax" type="number"
+                       min="0" step="1000" data-i18n-placeholder="filter.salary.placeholder"
+                       data-i18n-title="filter.salary.hint" disabled>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="filter-chips" class="filters__chips" role="group" data-i18n-aria-label="filters.active">
+        <p class="filters__hint" data-i18n="filters.none">No active filters</p>
+      </div>
+    </section>
+
+    <section id="view-content" class="view" data-view="market-pulse" aria-labelledby="view-title"></section>
+  </main>
+
+  <footer class="site-footer">
+    <p data-i18n="footer.note">Public job posting data; no personal data and no credentials.</p>
+  </footer>
+
+  <noscript>
+    <p class="noscript">Activa JavaScript para ver el dashboard. / Enable JavaScript to view the dashboard.</p>
+  </noscript>
+</body>
+</html>
