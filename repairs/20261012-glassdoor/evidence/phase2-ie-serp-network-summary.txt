@@ -1,0 +1,23 @@
+Fase 2 (sesion real) - red del SERP de glassdoor.ie - 2026-10-15
+Alcance: 1 busqueda ("data analyst", Irlanda) + 1 recarga. Saneado: solo
+metodo/estado/URL y campos de datos publicos; sin cabeceras ni cookies.
+
+SERP: https://www.glassdoor.ie/Job/ireland-data-analyst-jobs-SRCH_IL.0,7_KO8,20.htm?sc.keyword=Data%2520Analyst
+Titulo: "192 Data analyst jobs in Ireland | Glassdoor"
+Resultados: pre-renderizados en el HTML (32 listingId embebidos; total 192)
+
+Peticiones relevantes:
+  POST https://www.glassdoor.ie/graph -> 200 (2 llamadas pequenas)
+  POST https://www.glassdoor.ie/job-search-next/bff/userProfileQuery -> 200
+  POST https://www.glassdoor.ie/job-search-next/bff/getJobAlertStatusQuery -> 200
+         cuerpo: {"keyword":"data analyst","locationId":70,"locationType":"COUNTRY"}
+  POST https://www.glassdoor.ie/job-search-next/bff/jobSeekerProfileAttributeQuestionsQuery -> 200
+  GET  /findPopularLocationAjax.htm?maxLocationsToReturn=10&term=Ireland -> 404
+
+Salario (datos publicos embebidos de ofertas):
+  "payCurrency":"EUR" con payPeriod "ANNUAL" y payPeriodAdjustedPay en euros
+  (muestra: p10=35000, p50=41833; otras ofertas con payPeriodAdjustedPay=null).
+  => Moneda EUR confirmada para Irlanda; cobertura parcial.
+
+Contexto anti-bot del sitio (sesion real): cfBotScore=92, knownBot=false,
+cfThreatScore=0.
