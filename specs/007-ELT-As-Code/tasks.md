@@ -128,7 +128,7 @@ completo —incluida la tarea de export web— en el bundle.
     v1.21.0 (winget, en PATH).
   - **Evidencia:** salida de validate en `evidence.md`.
 
-- [ ] **T-06 — Capturar el job con `bundle generate`** (~30 min)
+- [x] **T-06 — Capturar el job con `bundle generate`** (~30 min)
   - **RF:** RF-1.
   - **Depende de:** T-03, T-05.
   - **Objetivo:** convertir el job real en recurso del bundle como punto de
@@ -140,6 +140,13 @@ completo —incluida la tarea de export web— en el bundle.
     <id> --key elt --profile vs_code`; comparar el recurso generado con el JSON.
   - **Hecho cuando:** existe el recurso en `resources/`, validate pasa y las
     diferencias con el job manual están listadas.
+  - **Resultado:** `resources/elt.job.yml` con las 7 tareas y sus `depends_on`,
+    job cluster `tm-lens-job`, `schedule` (`50 0 23 * * ?`, `Europe/Madrid`,
+    UNPAUSED), `max_concurrent_runs: 1` y notificación de fallo; validate
+    verde. Diferencias vs `job-actual.json` en `evidence.md`: `notebook_path`
+    apuntan a copias descargadas en `src/` (T-07 los repunta a
+    `databricks_notebooks/` y elimina `src/`), sin `run_as` explícito,
+    `base_parameters` incompletos (T-07) y `include` añadido por `generate`.
   - **Evidencia:** diff/resumen en `evidence.md`.
 
 - [ ] **T-07 — Parametrizar por target** (~30 min)
