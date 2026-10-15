@@ -144,47 +144,46 @@ locales de usuario se escriben como <HOME>.
   detección de challenge/landing) y ampliación de `tests/test_glassdoor_bff.py`
   (intentos de `fetch_description`). Sin red.
 - **Dependencias nuevas:** ninguna (biblioteca estándar; pytest solo en tests).
+- **Fase 2 (2026-10-15):** `location_fallback` fijado a (70, "COUNTRY") con la sesión real de la persona (la ruta de autocompletado está retirada: 404 en sesión real, 403 con el perfil del scraper), de modo que el run ya no aborta en `resolve_location`; evidencia en `evidence/phase2-ie-real-session.md`.
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
 ## Pruebas: tests
 
-_(Pendiente: suites ejecutadas del scraper afectado y del diagnóstico, y su
-resultado.)_
+Desde `multi_site_job_scraper`: `python -m pytest tests -q` → **110 passed** (incluye `tests/test_glassdoor_market.py`, 13 passed). Verificación del diff del ajuste (`verifier`, 2026-10-15): apta, sin hallazgos bloqueantes. Sin red.
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+Comando: `python -m src.glassdoor --role "Data Analyst" --max-pages 1` (desde `multi_site_job_scraper`); 1 rol × 1 página, solo glassdoor; sin Azure, landing ni merge. 2026-10-15 23:29:23–23:31:16 (+02), 113,2 s, **exit 0**; **23 ofertas** (umbral 1, superado); **latido comprobado**: 25 líneas PROGRESS intercaladas en el bucle de tarjetas (parsed 1→23, hueco máximo 3 s) más la línea de cierre; descripciones 23/23 dentro del presupuesto (2000); fallback de país (70, COUNTRY) usado tras el 403 del autocompletado retirado; sin challenge visible (modo asistido no aplicable). Evidencia: `evidence/glassdoor-ie-live-test-20261015.md` y `quality_after.json`; artefactos pesados en `multi_site_job_scraper/data/glassdoor/` (gitignored).
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| skills | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| work_mode | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| location | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| title | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| company | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| description | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| salary | no | sin dato | 65.2 % | sin dato | sin meta | no aplica |
+| skills | no | sin dato | 91.3 % | sin dato | sin meta | no aplica |
+| work_mode | no | sin dato | 13.0 % | sin dato | sin meta | no aplica |
+| location | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| posted_date | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
 
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** Reparado y probado: el run ya no aborta y el latido PROGRESS quedó comprobado en vivo; prueba en vivo con 23 ofertas (≥ umbral 1) y puerta de calidad OK (obligatorios al 100 %; salary/skills/work_mode sin meta por lo que expone el portal; sin regresión: no hay datos previos). Mercado: Irlanda (glassdoor.ie); EE. UU. deja de capturarse; España fuera de esta reparación.
+- **Ofertas verificadas:** 23
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->
