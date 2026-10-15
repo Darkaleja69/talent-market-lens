@@ -1,0 +1,123 @@
+resources:
+  jobs:
+    elt:
+      name: Git Based ELT
+      job_clusters:
+        - job_cluster_key: tm-lens-job
+          new_cluster:
+            cluster_name: ""
+            custom_tags:
+              "project": "talent-market-lens"
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            is_single_node: true
+            kind: CLASSIC_PREVIEW
+            node_type_id: Standard_D4ds_v4
+            runtime_engine: STANDARD
+            spark_version: 17.3.x-scala2.13
+      tasks:
+        - task_key: Bronze_Ingestion
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            base_parameters:
+              storage_account: joboffershns
+            notebook_path: ../src/bronze_ingest.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: Silver_Indeed
+          depends_on:
+            - task_key: Bronze_Ingestion
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../src/silver_indeed.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: Silver_Infojobs
+          depends_on:
+            - task_key: Bronze_Ingestion
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../src/silver_infojobs.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: Silver_Linkedin
+          depends_on:
+            - task_key: Bronze_Ingestion
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../src/silver_linkedin.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: Silver_Multi_site
+          depends_on:
+            - task_key: Bronze_Ingestion
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../src/silver_multisite.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: Gold_Complete_Catalog
+          depends_on:
+            - task_key: Silver_Multi_site
+            - task_key: Silver_Indeed
+            - task_key: Silver_Infojobs
+            - task_key: Silver_Linkedin
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            notebook_path: ../src/gold_build.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+        - task_key: Build_for_Web-Dashboard
+          depends_on:
+            - task_key: Gold_Complete_Catalog
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            base_parameters:
+              storage_account: joboffershns
+            notebook_path: ../src/web_export_build.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
+      email_notifications:
+        no_alert_for_skipped_runs: false
+        on_failure:
+          - gomeznatesalejandro@gmail.com
+      max_concurrent_runs: 1
+      notification_settings:
+        no_alert_for_canceled_runs: false
+        no_alert_for_skipped_runs: false
+      performance_target: PERFORMANCE_OPTIMIZED
+      queue:
+        enabled: true
+      schedule:
+        pause_status: UNPAUSED
+        quartz_cron_expression: 50 0 23 * * ?
+        timezone_id: Europe/Madrid
+      timeout_seconds: 0
+      webhook_notifications: {}

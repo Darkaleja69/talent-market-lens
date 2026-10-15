@@ -5,6 +5,8 @@
 bundle:
   name: talent-market-lens
 
+include:
+  - resources/*.yml
 targets:
   dev:
     mode: development
