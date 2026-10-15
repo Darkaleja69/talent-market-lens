@@ -1,7 +1,7 @@
 resources:
   jobs:
     elt:
-      name: Git Based ELT
+      name: ${var.job_name}
       job_clusters:
         - job_cluster_key: tm-lens-job
           new_cluster:
@@ -21,8 +21,11 @@ resources:
           email_notifications: {}
           notebook_task:
             base_parameters:
-              storage_account: joboffershns
-            notebook_path: ../src/bronze_ingest.ipynb
+              storage_account: ${var.storage_account}
+              catalog: ${var.catalog}
+              container: ${var.container}
+              checkpoints_root: ${var.checkpoints_root}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/bronze_ingest.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -34,7 +37,9 @@ resources:
           disabled: false
           email_notifications: {}
           notebook_task:
-            notebook_path: ../src/silver_indeed.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/silver_indeed.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -46,7 +51,9 @@ resources:
           disabled: false
           email_notifications: {}
           notebook_task:
-            notebook_path: ../src/silver_infojobs.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/silver_infojobs.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -58,7 +65,9 @@ resources:
           disabled: false
           email_notifications: {}
           notebook_task:
-            notebook_path: ../src/silver_linkedin.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/silver_linkedin.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -70,7 +79,9 @@ resources:
           disabled: false
           email_notifications: {}
           notebook_task:
-            notebook_path: ../src/silver_multisite.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/silver_multisite.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -85,7 +96,9 @@ resources:
           disabled: false
           email_notifications: {}
           notebook_task:
-            notebook_path: ../src/gold_build.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/gold_build.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -98,8 +111,11 @@ resources:
           email_notifications: {}
           notebook_task:
             base_parameters:
-              storage_account: joboffershns
-            notebook_path: ../src/web_export_build.ipynb
+              storage_account: ${var.storage_account}
+              catalog: ${var.catalog}
+              container: ${var.container}
+              export_prefix: ${var.export_prefix}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/web_export_build.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
           timeout_seconds: 0
@@ -115,9 +131,5 @@ resources:
       performance_target: PERFORMANCE_OPTIMIZED
       queue:
         enabled: true
-      schedule:
-        pause_status: UNPAUSED
-        quartz_cron_expression: 50 0 23 * * ?
-        timezone_id: Europe/Madrid
       timeout_seconds: 0
       webhook_notifications: {}

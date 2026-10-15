@@ -7,16 +7,54 @@ bundle:
 
 include:
   - resources/*.yml
+
+variables:
+  catalog:
+    description: The catalog to use
+  storage_account:
+    description: The storage account to use in Azure
+  container:
+    description: Container of Azure
+  checkpoints_root:
+    description: The root folder for checkpoints of azcopy
+  export_prefix:
+    description: The folder in which will be the data for the dashboard
+  job_name:
+    description: The name of the job which will be run to deploy it
+
 targets:
   dev:
     mode: development
     default: true
     workspace:
       host: https://adb-7405619889654446.6.azuredatabricks.net
+    variables:
+      catalog: job_offers_dev
+      storage_account: joboffershns
+      container: landing
+      checkpoints_root: abfss://landing@joboffershns.dfs.core.windows.net/_checkpoints_dev
+      export_prefix: gold/web_export_dev
+      job_name: Git Based ELT Dev
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-7405619889654446.6.azuredatabricks.net
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: job_offers
+      storage_account: joboffershns
+      container: landing
+      checkpoints_root: abfss://landing@joboffershns.dfs.core.windows.net/_checkpoints
+      export_prefix: gold/web_export
+      job_name: Git Based ELT
+    resources:
+      jobs:
+        elt:
+          schedule:
+            pause_status: PAUSED
+            quartz_cron_expression: 50 0 23 * * ?
+            timezone_id: Europe/Madrid
+sync:
+  include:
+    - databricks_notebooks/**
 
-
-  ## Optionally, there could be 'staging' or 'prod' targets here.
-  #
-  # prod:
-  #   workspace:
-  #     host: https://adb-7405619889654446.6.azuredatabricks.net

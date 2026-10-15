@@ -39,7 +39,7 @@ GitHub repo (origin)
 └── docs/databricks-de/**           ← track de certificación
 
 dev:  bundle deploy -t dev  → /Workspace/Users/…/.bundle/talent-market-lens/dev/files
-      job «TML ELT (dev)» (pausado) → job_offers_dev · _checkpoints_dev · web_export_dev
+      job «Git Based ELT Dev» (pausado) → job_offers_dev · _checkpoints_dev · web_export_dev
 
 prod: bundle deploy -t prod → …/.bundle/talent-market-lens/prod/files
       job «Git Based ELT» → job_offers · _checkpoints · gold/web_export · programación 23:50
@@ -75,7 +75,7 @@ Variables y valores por target:
 | `container` | (el de producción) | (el de producción) |
 | `checkpoints_root` | `…/_checkpoints_dev` | `…/_checkpoints` |
 | `export_prefix` | `gold/web_export_dev` | `gold/web_export` |
-| `job_name` | `TML ELT (dev)` | `Git Based ELT` |
+| `job_name` | `Git Based ELT Dev` | `Git Based ELT` |
 
 - `workspace` por target: perfil local (`--profile`) para dev; en prod, el
   mismo host con el perfil documentado.

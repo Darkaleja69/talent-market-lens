@@ -149,7 +149,7 @@ completo —incluida la tarea de export web— en el bundle.
     `base_parameters` incompletos (T-07) y `include` añadido por `generate`.
   - **Evidencia:** diff/resumen en `evidence.md`.
 
-- [ ] **T-07 — Parametrizar por target** (~30 min)
+- [x] **T-07 — Parametrizar por target** (~30 min)
   - **RF:** RF-1, RF-3.
   - **Depende de:** T-06.
   - **Objetivo:** mismas tareas para dev y prod, con variables por target.
@@ -163,6 +163,12 @@ completo —incluida la tarea de export web— en el bundle.
   - **Hecho cuando:** validate pasa, `databricks bundle summary -t dev`
     muestra los valores dev y no quedan rutas de producción hardcodeadas en el
     recurso (dev pausado, sin programación).
+  - **Resultado:** variables por target (plan §6; dev `Git Based ELT Dev`);
+    `notebook_path` a `${workspace.file_path}/databricks_notebooks/...`;
+    `base_parameters` `${var.*}` en las 7 tareas; dev sin programación y prod
+    con `schedule` PAUSED (override de target); `sync` =
+    `databricks_notebooks/**`; `src/` eliminado; validate dev/prod en verde y
+    `summary -t dev` con los valores dev.
   - **Evidencia:** `bundle summary` en `evidence.md`.
 
 - [ ] **T-08 — Catálogo dev** (~20 min)
