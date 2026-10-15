@@ -57,9 +57,8 @@ Para cada petición:
 
 El comando `/repair` arranca el flujo sobre el diagnóstico vigente (refresco,
 objetivos, rama y registro, investigación, implementación, verificación, prueba
-en vivo y validación del push). La investigación se delega en `web-inspector`;
-la implementación, la prueba en vivo y la verificación, en `implementer` y
-`verifier` (RF-9). El detalle de negocio no se reproduce aquí: vive en la spec
+en vivo y validación del push). La investigación, la implementación y la prueba
+en vivo se delegan en `implementer`; la verificación, en `verifier` (RF-9). El detalle de negocio no se reproduce aquí: vive en la spec
 004 y su `plan.md` (§5, §6.0, §7 y §9).
 
 ### Cuándo usar cada skill (recetas completas en `/repair` y plan §7)

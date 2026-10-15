@@ -57,9 +57,9 @@ después de esta spec), se aplica §6.7 sin recetas previas.
 
 A partir de aquí, sigue los pasos de `plan.md` §5 sin saltarte ninguno: rama
 `repair/<fuente>-<fecha>` y registro en estado `planificado` → brief del
-objetivo → investigación delegada en `web-inspector` → implementación en
-`implementer` → verificación en `verifier` → prueba en vivo acotada → puerta de
-calidad → cierre del registro (índice e historial). Detalles de prueba, umbral y
+objetivo → investigación e implementación delegadas en `implementer` →
+verificación en `verifier` → prueba en vivo acotada → puerta de calidad →
+cierre del registro (índice e historial). Detalles de prueba, umbral y
 calidad: `plan.md` §9.
 
 - El flujo **se detiene a pedir a la persona la validación del push** (RF-12).
