@@ -78,12 +78,13 @@ def test_description_budget_covers_target():
 
 def test_location_fallback_does_not_inherit_us(tmp_path, monkeypatch):
     scraper = GlassdoorScraper(_cfg(tmp_path))
-    # En .ie no se hereda el (1, "COUNTRY") de glassdoor.com.
-    assert DEFAULT_CONFIG["location_fallback"] is None
+    # En .ie no se hereda el (1, "COUNTRY") de glassdoor.com: el fallback es
+    # el pais del propio dominio, confirmado con la sesion real (T-35).
+    assert DEFAULT_CONFIG["location_fallback"] == {"id": 70, "type": "COUNTRY"}
     monkeypatch.setattr(scraper_mod.bff, "resolve_location",
                         lambda *a, **k: (None, ""))
     assert scraper._resolve_location(
-        _FAKE_CONTEXT, DEFAULT_CONFIG["base_url"], "Ireland") == (None, "")
+        _FAKE_CONTEXT, DEFAULT_CONFIG["base_url"], "Ireland") == (70, "COUNTRY")
 
 
 def test_location_fallback_used_when_declared(tmp_path, monkeypatch):
@@ -107,7 +108,7 @@ def test_resolved_location_wins_over_fallback(tmp_path, monkeypatch):
 def test_missing_location_without_fallback_aborts(tmp_path, monkeypatch):
     # Sin ubicacion ni fallback declarado se aborta con error en vez de
     # buscar en el pais equivocado.
-    scraper = GlassdoorScraper(_cfg(tmp_path))
+    scraper = GlassdoorScraper(_cfg(tmp_path, location_fallback=None))
     monkeypatch.setattr(scraper, "_resolve_location", lambda *a, **k: (None, ""))
     with pytest.raises(RuntimeError):
         scraper._resolve_location_or_fail(

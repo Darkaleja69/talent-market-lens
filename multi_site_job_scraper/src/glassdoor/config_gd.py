@@ -43,10 +43,12 @@ DEFAULT_CONFIG = {
 
     # Fallback si findPopularLocationAjax no responde: id/tipo del pais del
     # dominio. En .com el pais US es (1, "COUNTRY"); en .ie el id de Ireland
-    # no esta verificado sin sesion real, de modo que no se adivina: None
-    # aborta el run con error en vez de buscar en el pais equivocado.
-    # (Pendiente de confirmar en la prueba en vivo.)
-    "location_fallback": None,
+    # es (70, "COUNTRY"), confirmado con la sesion real del 2026-10-15 (estado
+    # embebido del sitio y getJobAlertStatusQuery: locationId 70, COUNTRY).
+    # La ruta de autocompletado esta retirada (404 en sesion real; 403 de
+    # Cloudflare con el perfil del scraper el 2026-10-12), de modo que el
+    # fallback cubre su retirada sin buscar en el pais equivocado.
+    "location_fallback": {"id": 70, "type": "COUNTRY"},
 
     "date_filter": "7",       # solo ofertas de los ultimos 7 dias (fromAge)
     "jobs_per_search": 200,
