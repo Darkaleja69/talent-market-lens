@@ -67,7 +67,7 @@ Notas del intento:
 11:42:10 INFO    glassdoor: playwright-stealth aplicado
 11:42:10 INFO    glassdoor: Visitando homepage https://www.glassdoor.ie para calentar cookies...
 11:42:19 INFO    glassdoor: CSRF token extraido (1 chars)
-11:42:19 INFO    glassdoor: CSRF token: 1...
+11:42:19 INFO    glassdoor: CSRF token (valor omitido en la copia saneada)
 11:42:19 WARNING src.glassdoor.bff: resolve_location Ireland -> status 403
 11:42:19 WARNING glassdoor: No se pudo resolver 'Ireland' y el mercado no declara fallback de pais (T-35).
 11:42:20 ERROR   glassdoor: Error en scraper: No se pudo resolver la ubicacion nacional 'Ireland' y el mercado 'IE' no declara fallback de pais; se aborta para no buscar en el pais equivocado.
@@ -81,7 +81,7 @@ idéntica al bloque anterior.
 4. Intentos 1 y 2 (mismo comando; incidencias del arnés)
 -------------------------------------------------------------------------------
 Intento 1: 11:37:28-11:37:59; proceso 11:37:31-11:37:55; mismo aborto a los
-  ~24 s. Homepage: "CSRF token: NO" y warning "Detectado dominio
+  ~24 s. Homepage: "CSRF token ausente" y warning "Detectado dominio
   www.glassdoor.com distinto del configurado (www.glassdoor.ie); el scraper
   seguira usando la configuracion original" -> la homepage terminó en
   glassdoor.com (redirección de mercado). resolve_location Ireland -> status
