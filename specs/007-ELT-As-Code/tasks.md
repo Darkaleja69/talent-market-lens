@@ -111,7 +111,7 @@ completo —incluida la tarea de export web— en el bundle.
 
 ## 2. Bundle y entorno dev (arranca tras el cierre de la 006)
 
-- [ ] **T-05 — Esqueleto del bundle** (~25 min)
+- [x] **T-05 — Esqueleto del bundle** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** cierre de la 006 y `git merge main` en esta rama.
   - **Objetivo:** crear la raíz del bundle y dejarla validando en verde.
@@ -122,6 +122,10 @@ completo —incluida la tarea de export web— en el bundle.
     `databricks bundle validate`; añadir `.databricks/` a `.gitignore`.
   - **Hecho cuando:** `databricks bundle validate` pasa (aún sin job) y el
     estado local del bundle queda ignorado.
+  - **Resultado:** bundle `talent-market-lens` con target dev (`mode:
+    development`, host del workspace), aún sin job (llega en T-06);
+    `.databricks/` ignorado en `.gitignore`; `Validation OK!` con la CLI
+    v1.21.0 (winget, en PATH).
   - **Evidencia:** salida de validate en `evidence.md`.
 
 - [ ] **T-06 — Capturar el job con `bundle generate`** (~30 min)
