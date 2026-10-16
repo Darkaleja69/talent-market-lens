@@ -190,7 +190,7 @@ completo —incluida la tarea de export web— en el bundle.
     (`_scratch`) funciona.
   - **Evidencia:** salida + captura.
 
-- [ ] **T-09 — Deploy dev e inspección** (~25 min)
+- [x] **T-09 — Deploy dev e inspección** (~25 min)
   - **RF:** RF-2.
   - **Depende de:** T-07, T-08.
   - **Objetivo:** primer despliegue real del bundle, sin ejecutar nada.
@@ -202,6 +202,11 @@ completo —incluida la tarea de export web— en el bundle.
     del job dev.
   - **Hecho cuando:** el job dev existe, está pausado y las diferencias con el
     manual están revisadas (solo variables, paths y programación).
+  - **Resultado:** job dev `[dev …] Git Based ELT Dev` (id `320947022571947`)
+    desplegado y sin programación; 7 tareas con paths al bundle y parámetros
+    dev. Hallazgo corregido: `sync.include` no restringe (el primer deploy
+    subió el repo entero) → `sync.paths: [databricks_notebooks]`; redeploy en
+    limpio (solo notebooks).
   - **Evidencia:** captura + resumen.
 
 - [ ] **T-10 — Run dev end-to-end** (~35 min)

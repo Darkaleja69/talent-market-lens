@@ -55,6 +55,6 @@ targets:
             quartz_cron_expression: 50 0 23 * * ?
             timezone_id: Europe/Madrid
 sync:
-  include:
-    - databricks_notebooks/**
+  paths:
+    - databricks_notebooks
 

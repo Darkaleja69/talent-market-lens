@@ -54,8 +54,9 @@ prod: bundle deploy -t prod → …/.bundle/talent-market-lens/prod/files
 ## 5. Estructura de archivos
 
 - `databricks.yml` — nombre del bundle, variables, targets y `sync` acotado
-  (subir solo `databricks_notebooks/**`; `resources/` se interpreta al
-  desplegar, no se sincroniza).
+  con `sync.paths` (subir solo `databricks_notebooks`; `resources/` se
+  interpreta al desplegar, no se sincroniza). Nota: `sync.include` no
+  restringe, solo re-incluye lo ignorado por `.gitignore` (corregido en T-09).
 - `resources/elt_job.yml` — job con tareas, dependencias, compute, programación
   y `max_concurrent_runs: 1`.
 - `.github/workflows/databricks-bundle-validate.yml` — validación en CI.
@@ -160,7 +161,7 @@ artefacto del bundle, no lo que esté sincronizado en la carpeta.
 | Dev y prod compartiendo algún recurso por un variable mal puesta | Diff del JSON de ambos jobs antes del cutover; checklist en `cutover.md` |
 | Sin permisos para crear jobs, tokens o el SP | Recon temprano (T-02/T-03); escalar antes de continuar |
 | La programación del bundle difiere (cron o zona horaria) | Cotejo en el dry-run (T-17) y checklist del cutover |
-| Sync del bundle sube demasiado (repo entero) | Acotar `sync` a `databricks_notebooks/**` y `resources/**`; validar tamaño en T-09 |
+| Sync del bundle sube demasiado (repo entero) | `sync.paths` acotado a `databricks_notebooks`; el riesgo se materializó en T-09 (el primer deploy subió el repo entero porque `sync.include` solo re-incluye lo ignorado por `.gitignore`) y quedó corregido |
 | Ediciones manuales del job tras el cutover | Regla: el job solo se cambia por bundle; CI valida en cada PR |
 | PAT de CI caducado | Rotación documentada; el fallo es visible en el workflow |
 | Doble ejecución durante la ventana | `max_concurrent_runs: 1` + checklist (manual apagado antes de encender bundle) |
