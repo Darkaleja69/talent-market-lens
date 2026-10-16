@@ -184,6 +184,6 @@ Veredicto de `quality.py`: **OK**.
 
 - **Resultado:** Reparado y probado: el run ya no aborta y el latido PROGRESS quedó comprobado en vivo; prueba en vivo con 23 ofertas (≥ umbral 1) y puerta de calidad OK (obligatorios al 100 %; salary/skills/work_mode sin meta por lo que expone el portal; sin regresión: no hay datos previos). Mercado: Irlanda (glassdoor.ie); EE. UU. deja de capturarse; España fuera de esta reparación.
 - **Ofertas verificadas:** 23
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->
