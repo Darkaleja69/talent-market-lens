@@ -356,13 +356,16 @@ reparación descartada o escalada se registra y no bloquea a las demás.
     la prueba en vivo obtiene al menos 1 oferta y supera la puerta de calidad;
     tests en verde.
 
-- [ ] **T-35 — Reparar Glassdoor (playbook §6.5)** (ciclo completo)
+- [X] **T-35 — Reparar Glassdoor (playbook §6.5)** (ciclo completo)
   - **RF:** RF-1–RF-12.
   - **Hecho cuando:** el registro de `repair/glassdoor-<fecha>` queda probado;
     el scraper emite latido de progreso durante las descripciones y respeta un
     presupuesto declarado; la prueba en vivo termina sin `exit=75` con ofertas
     por encima del umbral y la descripción dentro del presupuesto; tests en
     verde.
+  - **Nota (2026-10-15):** completada con mercado Irlanda (`glassdoor.ie`;
+    decisión de la persona); fallback de país verificado (70, COUNTRY), latido
+    comprobado en vivo y registro `probado` en `repairs/20261012-glassdoor/`.
 
 ## 9. Mejoras de completitud de fuentes no fallidas (opcionales)
 
