@@ -1,7 +1,7 @@
 """Build the English JSON brief of one repair target (T-05; RF-1, RF-3).
 
-The brief is the entry document of a repair: it gives the ``web-inspector``
-and the implementer the source and its role, the reason (outcome and
+The brief is the entry document of a repair: it gives the ``implementer``
+(investigation and fix) the source and its role, the reason (outcome and
 diagnostic failures, or the completeness trigger with its field), the
 diagnostic evidence verbatim, the local evidence paths, the applicable
 playbook of plan §6, the per-field quality profile and the proposed bounded

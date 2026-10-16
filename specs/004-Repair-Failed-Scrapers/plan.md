@@ -85,8 +85,8 @@ por ruta.
 
 ### 2.4 Hipótesis iniciales (hechos observados vs. hipótesis)
 
-El `web-inspector` debe confirmar o refutar cada hipótesis con evidencia; el plan
-no las da por ciertas.
+La investigación (hoy, fase del `implementer`) debe confirmar o refutar cada
+hipótesis con evidencia; el plan no las da por ciertas.
 
 | Fuente | Hecho observado | Hipótesis a comprobar | Código señalado |
 |---|---|---|---|
@@ -104,7 +104,7 @@ no las da por ciertas.
   stepstone_nl 0 %, jobs_ch 40,4 %), `skills` (indeed no existe el campo,
   stepstone_nl 0 %, jobs_ch 32,7 %), `work_mode` (indeed 17,5 %, linkedin 42,4 %,
   stepstone_nl 0 %, nvb 0 %, jobs_ch 11,5 %).
-- La auditoría de cobertura de campos del `web-inspector` (§8) decide qué es
+- La auditoría de cobertura de campos de la investigación (§8) decide qué es
   extraíble de la web/API y con qué base legal; lo no disponible se documenta y
   no se promete.
 
@@ -136,15 +136,15 @@ contenido de `history.json` se serializan en inglés.
 | Pieza | Papel |
 |---|---|
 | Orquestador (ya existe) | Refresca el diagnóstico, ejecuta el flujo de §5, elige la skill adecuada (§7), abre rama y registro, y pide la validación del push. |
-| `web-inspector` (nuevo subagente) | Investiga la fuente real y devuelve el informe de §8 (incluida la auditoría de campos y la meta de calidad). Escribe solo evidencias bajo el registro. |
-| Implementador (ya existe) | Repara el scraper, añade tests, ejecuta la prueba en vivo acotada y mide la calidad. |
+| `implementer` (ya existe) | Investigación (informe de §8; escribe solo evidencias bajo el registro) y reparación: cambia el scraper, añade tests, ejecuta la prueba en vivo acotada y mide la calidad. |
 | Verificador (ya existe) | Revisa el diff y ejecuta las suites; no usa red. |
 
-`web-inspector` se define en `.opencode/agent/web-inspector.md` con
-`mode: subagent`, `edit: deny` y `bash: allow`. No modifica código ni lanza
-scrapers completos; las capturas y extractos que produce se copian a
+La fase de investigación no modifica código ni lanza scrapers completos; las
+capturas y extractos que produce se copian a
 `repairs/<fecha>-<fuente>/evidence/` (y a `.opencode/.agent-screenshots/`, que
-está fuera de git).
+está fuera de git). El subagente `web-inspector` que la desempeñaba durante la
+construcción de la spec se retiró el 2026-10-15 (decisión de la persona); hoy
+es una fase acotada del `implementer`.
 
 ### 3.3 Skills (versionadas en `.opencode/skills/`)
 
@@ -218,8 +218,9 @@ repairs/
    persona elige o limita el alcance (fuente o lista priorizada).
 1. El orquestador crea la rama `repair/<fuente>-<fecha>` y el registro con
    `records.py` (estado `planificado`), y genera el brief con `brief.py`.
-2. El orquestador delega la investigación en `web-inspector` con el brief y las
-   skills (§7); el informe incluye auditoría de campos y meta de calidad.
+2. El orquestador delega la investigación en `implementer` (fase acotada) con
+   el brief y las skills (§7); el informe incluye auditoría de campos y meta de
+   calidad.
 3. Con el informe, el orquestador da instrucciones al implementador: causa,
    cambio recomendado, alcance, metas de calidad y restricciones. El
    implementador repara, añade tests y actualiza el registro con la causa y los
@@ -240,8 +241,8 @@ repairs/
 
 ## 6. Playbooks por fuente
 
-Cada playbook es la entrada operativa del objetivo. El brief lo referencia; el
-`web-inspector` confirma o refuta sus hipótesis y propone la meta de calidad
+Cada playbook es la entrada operativa del objetivo. El brief lo referencia;
+la investigación confirma o refuta sus hipótesis y propone la meta de calidad
 final con evidencia. El orden recomendado de reparación es: InfoJobs (caso de
 cierre de la spec), Indeed, LinkedIn, IrishJobs y Glassdoor; la persona puede
 cambiar el orden o limitar el alcance. Los playbooks §6.1–§6.6 son las recetas
@@ -374,8 +375,8 @@ es fallo: si el sitio no despliega salario o skills, la prioridad es la
 ### 6.7 Playbook genérico para fuentes nuevas o fallos futuros
 
 Cualquier `id` que aparezca en `sources[]` o `investigations[]` es reparable sin
-tocar la spec: el brief se genera con lo que traiga el diagnóstico y el
-`web-inspector` aplica §6.0 y §7 sin recetas previas. Plantilla:
+tocar la spec: el brief se genera con lo que traiga el diagnóstico y la
+investigación aplica §6.0 y §7 sin recetas previas. Plantilla:
 
 - **Disparador:** `status: failed` u objetivo secundario, con su `outcome`,
   ofertas, `failures` y `evidence` (run de origen fijado).
@@ -414,7 +415,7 @@ volumen); `agent-browser close` borra cookies, no cerrar si hay sesión; no
 resolver CAPTCHAs de forma automática (diseño preventivo y pausa asistida); no
 usar servicios de pago; no tocar acciones de cuenta.
 
-## 8. Contrato del subagente `web-inspector`
+## 8. Contrato de la investigación (fase del `implementer`)
 
 **Entrada:** brief del objetivo (fuente, run de origen, fallo y evidencia,
 playbook, alcance de prueba propuesto y metas de calidad iniciales) más las
@@ -433,11 +434,12 @@ rutas de logs/parsers relevantes.
 - Comprobación manual propuesta.
 - Riesgos y límites: bloqueo, `robots.txt`/TOS, credenciales usadas.
 
-**Restricciones:** no edita código; solo escribe evidencias bajo
-`repairs/<fecha>-<fuente>/evidence/` y `.opencode/.agent-screenshots/`; no
-ejecuta scrapers completos; no resuelve CAPTCHAs; no usa servicios de pago; no
-deja credenciales en el informe. Comprueba `robots.txt`/TOS antes de proponer
-cambios y para si la única vía incumple (RF-6).
+**Restricciones de la fase:** no se modifica código; solo se escriben
+evidencias bajo `repairs/<fecha>-<fuente>/evidence/` y
+`.opencode/.agent-screenshots/`; no se ejecutan scrapers completos; no se
+resuelven CAPTCHAs; no se usan servicios de pago; no se dejan credenciales en
+el informe. Se comprueba `robots.txt`/TOS antes de proponer cambios y se para
+si la única vía incumple (RF-6).
 
 ## 9. Prueba en vivo, umbral y puerta de calidad
 
@@ -558,9 +560,11 @@ dentro de pytest.
 10. **Skills, agentes y comandos versionados en `.opencode/`** (solo
     dependencias locales y capturas de investigación quedan fuera). El proceso
     documenta su instalación.
-11. **El `web-inspector` no edita código, pero sí escribe evidencias.** Un
+11. **La investigación no edita código, pero sí escribe evidencias.** Un
     informe sin capturas en el registro no es verificable. **Descartado:**
-    inspector totalmente efímero y modo lectura absoluto.
+    inspector totalmente efímero y modo lectura absoluto. (El subagente
+    `web-inspector` se retiró el 2026-10-15; la investigación es hoy una fase
+    del `implementer`.)
 12. **Reparaciones posteriores planificadas, sin bloquear el cierre.** El cierre
     mínimo de la spec es InfoJobs (RF-12 y criterios de finalización); Indeed,
     LinkedIn, IrishJobs, Glassdoor y las secundarias se ejecutan después con el
@@ -579,8 +583,8 @@ dentro de pytest.
 3. Puerta de calidad: `quality.py` (RF-7, RF-8, RF-11).
 4. Registros: `records.py`, plantilla, índice y evidencia saneada (RF-2, RF-11).
 5. CLI delgada y contrato de entrada, incluido el paso 0 de refresco (RF-13).
-6. `web-inspector` (contrato v2), comando `/repair` y guía de skills (RF-3,
-   RF-4, RF-6).
+6. Investigación (contrato v2; hoy, fase del `implementer`), comando `/repair`
+   y guía de skills (RF-3, RF-4, RF-6).
 7. Flujo de reparación documentado para el orquestador (gates, ramas,
    validación del push) (RF-7, RF-8, RF-9, RF-12, RF-14, RF-15).
 8. Integración offline con el diagnóstico real y regresión completa.
@@ -598,10 +602,10 @@ dentro de pytest.
 |---|---|
 | RF-1 | `repair/targets.py`, `brief.py`; refresco §2.1; fixtures del diagnóstico real; perfil de calidad §2.5; cualquier `id` del diagnóstico, sin listas fijas. |
 | RF-2 | `records.py`; ramas `repair/`; flujo paso 1. |
-| RF-3 | `web-inspector`; §6 playbooks; §7 skills; §8 contrato. |
+| RF-3 | Investigación (fase del `implementer`); §6 playbooks; §7 skills; §8 contrato. |
 | RF-4 | §6.0 y §7: diseño preventivo (sesión/tokens reales, fingerprint, ritmo y flujo humanos); doctrina `scraping-expert`; pausa asistida como contingencia. |
 | RF-5 | §6 (líneas rojas) y §9 (escalado); sin servicios de pago. |
-| RF-6 | `web-inspector` y regla legal §7/§8; flujo paso 2. |
+| RF-6 | Investigación y regla legal §7/§8; flujo paso 2. |
 | RF-7 | Implementador; flujo paso 3; metas de calidad §6. |
 | RF-8 | `verifier`; flujo paso 4; `quality.py`; suites de regresión. |
 | RF-9 | Flujo paso 5; §9 alcance y límites. |

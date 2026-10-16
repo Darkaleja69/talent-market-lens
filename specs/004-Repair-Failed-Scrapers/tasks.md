@@ -200,6 +200,9 @@ su registro, no por fase.
     informe explica por qué se disparó el bloqueo (si lo hubo) y qué técnicas
     preventivas de §6.0 aplican (sesión/tokens reales, fingerprint, ritmo y
     flujo humanos).
+  - **Nota (2026-10-15):** el subagente `web-inspector` se retiró por decisión
+    de la persona; la investigación es hoy una fase del `implementer`
+    (plan §3.2 y §8 actualizados).
 
 - [x] **T-20 — Añadir el comando de entrada `/repair`** (~20 min)
   - **RF:** RF-13.
@@ -318,9 +321,9 @@ su registro, no por fase.
 
 Estas tareas se ejecutan **tras el cierre de la 004**, con el proceso ya
 fusionado en `main`. Cada una es un ciclo completo gobernado por el flujo de §5
-del plan: rama `repair/<fuente>-<fecha>` desde `main` → registro → `web-inspector`
-con el playbook → implementador → verificador → prueba en vivo (umbral +
-calidad) → registro completo → validación de la persona. Todas aplican la
+del plan: rama `repair/<fuente>-<fecha>` desde `main` → registro → investigación e
+implementación (`implementer`) con el playbook → verificador → prueba en vivo
+(umbral + calidad) → registro completo → validación de la persona. Todas aplican la
 política anti-bloqueos §6.0 (diseñar para no recibir el challenge, sin solvers).
 La lista de fuentes se recalcula con `targets` sobre el último diagnóstico; si
 el run cambia antes de ejecutarlas, los objetivos y playbooks se ajustan. Una

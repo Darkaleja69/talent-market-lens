@@ -142,9 +142,9 @@ Estos dos comandos escriben en `repairs/`: úsalos solo en una reparación real.
 
 El proceso encaja en el ciclo **run nocturno → verificación (paso 0) →
 reparación**. Dentro de la reparación, el flujo del plan §5 es: `targets`
-(elegir alcance) → `brief` y apertura del registro → investigación con el
-subagente `web-inspector` → implementación → verificación → prueba en vivo
-acotada → `quality` → cierre del registro → **validación humana del push**
+(elegir alcance) → `brief` y apertura del registro → investigación e
+implementación con el `implementer` → verificación → prueba en vivo acotada →
+`quality` → cierre del registro → **validación humana del push**
 (RF-12). Durante la reparación no se sube a Azure, no se toca la landing, no se
 ejecuta el merge de Multi-site y no se hace push ni merge sin la validación
 humana; la única ejecución de scrapers permitida es la prueba en vivo acotada.

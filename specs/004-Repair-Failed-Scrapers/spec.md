@@ -268,8 +268,8 @@ por probada aunque el recuento de ofertas alcance el umbral.
 
 - El núcleo determinista (objetivos, brief, umbral, puerta de calidad, registros
   y CLI) existe en `scrapers-pipeline/repair/` con tests offline en verde.
-- El subagente `web-inspector` y la elección de skills quedan documentados para
-  el orquestador, y las tres skills están instaladas y en uso.
+- La investigación (fase del `implementer`) y la elección de skills quedan
+  documentadas para el orquestador, y las tres skills están instaladas y en uso.
 - Cada reparación deja un registro versionado con plan, cambios, pruebas,
   calidad y resultado; el índice y el historial de umbrales se actualizan.
 - La selección de objetivos funciona sobre el último diagnóstico disponible,
@@ -287,9 +287,10 @@ por probada aunque el recuento de ofertas alcance el umbral.
 
 ## Decisiones aclaradas
 
-- Proceso ejecutado por agentes opencode: especialista web → implementador →
-  verificador; la prueba en vivo la hace el implementador y el verificador se
-  centra en tests y diff.
+- Proceso ejecutado por agentes opencode: investigación e implementación
+  (`implementer`) → verificador; la prueba en vivo la hace el implementador y
+  el verificador se centra en tests y diff. El subagente de investigación
+  (`web-inspector`) se retiró el 2026-10-15.
 - Una spec (la 004) construye el proceso; cada fix se abre en su propia rama
   `repair/<fuente>-<fecha>` con su pequeño plan almacenado.
 - El push de una rama de fix se pide a la persona solo cuando el fix esté

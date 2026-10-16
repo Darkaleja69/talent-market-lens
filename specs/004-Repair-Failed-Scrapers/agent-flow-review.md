@@ -12,6 +12,11 @@
   simulada** del flujo. Comprueba que el brief que alimenta al especialista y
   los contratos versionados encadenan las puertas; no es el log de una
   investigación real (véase §8, límites).
+- **Nota (2026-10-15):** este documento describe el flujo revisado en su fecha
+  (2026-10-05). El subagente `web-inspector` se retiró ese día por decisión de
+  la persona; hoy la investigación es una fase acotada del `implementer`
+  (plan §3.2 y §8 actualizados). Las referencias a `web-inspector` se conservan
+  como constancia del flujo entonces revisado.
 
 ## 1. Objetivo y alcance
 

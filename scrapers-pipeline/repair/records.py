@@ -15,7 +15,7 @@ Files of a freshly created record (plan section 3.4)::
       plan.md              # instantiated template, state planificado
       context.json         # the brief verbatim (T-05)
       quality_before.json  # per-field quality profile of the diagnostic
-      evidence/            # empty; the web inspector fills it (T-19)
+      evidence/            # empty; the investigation phase fills it
 
 Design rules:
 

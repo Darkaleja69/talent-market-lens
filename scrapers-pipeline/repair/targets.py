@@ -72,7 +72,7 @@ TRIGGER_OPTIONAL_FIELD = "optional_field_at_or_below_threshold"
 SECONDARY_TRIGGERS = frozenset({TRIGGER_REQUIRED_FIELD, TRIGGER_OPTIONAL_FIELD})
 
 # Local evidence paths of the source playbooks, relative to the repository
-# root (plan §2.3). They are pointers for the web inspector: the wildcard
+# root (plan §2.3). They are pointers for the investigation phase: the wildcard
 # entries are resolved by the operator against the local `output/`/`data/`
 # folders, which are not versioned. Any source absent from this table is a new
 # or unexpected failure and is served by the generic playbook (plan §6.7),
