@@ -42,7 +42,7 @@ dev:  bundle deploy -t dev  → /Workspace/Users/…/.bundle/talent-market-lens/
       job «Git Based ELT Dev» (pausado) → job_offers_dev · _checkpoints_dev · web_export_dev
 
 prod: bundle deploy -t prod → …/.bundle/talent-market-lens/prod/files
-      job «Git Based ELT» → job_offers · _checkpoints · gold/web_export · programación 23:50
+      job «Git Based ELT» → job_offers · _checkpoints · gold/web_export · programación 23:00
 ```
 
 ## 4. Stack y herramientas
@@ -129,7 +129,7 @@ Pasos del cutover:
 1. `bundle deploy -t prod` con el job en pausa (no dispara nada).
 2. Deshabilitar el job manual → habilitar el job del bundle (registrar ids y
    hora).
-3. Noche real: verificar una única ejecución programada (23:50) y run en
+3. Noche real: verificar una única ejecución programada (23:00) y run en
    verde; tablas y export avanzan.
 4. Evidencia en `evidence.md` y `cutover.md`.
 

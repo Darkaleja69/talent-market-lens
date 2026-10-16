@@ -5,7 +5,7 @@
 La ELT de Talent Market Lens se ejecuta en un job de Databricks (`Git Based
 ELT`, 7 tareas) configurado **a mano** en el workspace: las tareas de notebook
 se sirven desde una Git folder apuntada a una rama del repositorio y el job
-está programado a diario a las 23:50 (Europe/Madrid). No existe definición
+está programado a diario a las 23:00 (Europe/Madrid). No existe definición
 versionada
 del job, ni entornos separados, ni parámetros auditables, ni validación
 automática: cada cambio de la ELT (specs 008–011: MERGE incremental, layout
@@ -62,7 +62,7 @@ deberá leer la landing en solo lectura y escribir únicamente en el catálogo
 `job_offers_dev`, checkpoints `_checkpoints_dev` y export `gold/web_export_dev`,
 sin escribir ni borrar nada en los recursos de producción; el target `prod`
 deberá reproducir el comportamiento actual (catálogo `job_offers`, checkpoints
-`_checkpoints`, export `gold/web_export` y programación diaria a las 23:50,
+`_checkpoints`, export `gold/web_export` y programación diaria a las 23:00,
 Europe/Madrid). El job dev deberá estar pausado por defecto y no competir nunca
 con el de producción.
 
@@ -95,7 +95,7 @@ desplegará a producción.
 ### RF-6 — Cutover reversible a producción
 
 **Criterio de aceptación (EARS):** Cuando se ejecute el cutover, la
-programación diaria (23:50, Europe/Madrid) deberá seguir lanzando la ELT
+programación diaria (23:00, Europe/Madrid) deberá seguir lanzando la ELT
 una única vez al día —nunca dos jobs duplicados a la vez—, el job manual
 anterior quedará deshabilitado y conservado como rollback, y una noche real
 completará con evidencia; el rollback (deshabilitar el job del bundle y
@@ -190,7 +190,7 @@ verde.
 - Job dev desplegado y un run end-to-end con evidencia (run id, duración,
   conteos por tabla, checkpoints dev).
 - Cutover a producción con una noche real: una única ejecución programada
-  (23:50), run en verde, tablas y export avanzan; job manual deshabilitado como
+  (23:00), run en verde, tablas y export avanzan; job manual deshabilitado como
   rollback.
 - Rollback probado en seco y documentado en `cutover.md`.
 - RUNBOOK y README actualizados; propuesta de `AGENTS.md` presentada a la
@@ -199,7 +199,7 @@ verde.
 - Suites existentes en verde: `python -m pytest databricks_notebooks/tests -q`
   y `python -m pytest scrapers-pipeline/tests -q`.
 - **Comprobación real:** un ciclo nocturno completo tras el cutover (la
-  programación de las 23:50 lanza el job del bundle, que termina en verde y
+  programación de las 23:00 lanza el job del bundle, que termina en verde y
   actualiza tablas y export) registrado como evidencia.
 - No se hace push ni merge sin validación de la persona (flujo de `AGENTS.md`).
 
@@ -208,7 +208,7 @@ verde.
 - Mismo workspace, dos catálogos (`job_offers_dev` y `job_offers`) y raíces de
   checkpoints y export separadas por target.
 - Base del bundle: `bundle generate` del job real, revisado a mano.
-- Dev en pausa salvo ejecución manual; prod con la programación actual (23:50,
+- Dev en pausa salvo ejecución manual; prod con la programación actual (23:00,
   Europe/Madrid).
 - CI solo valida; el deploy de dev es manual (u opcional por dispatch); el de
   producción es siempre manual y validado.
