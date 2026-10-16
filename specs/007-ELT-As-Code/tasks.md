@@ -171,7 +171,7 @@ completo —incluida la tarea de export web— en el bundle.
     `summary -t dev` con los valores dev.
   - **Evidencia:** `bundle summary` en `evidence.md`.
 
-- [ ] **T-08 — Catálogo dev** (~20 min)
+- [x] **T-08 — Catálogo dev** (~20 min)
   - **RF:** RF-2.
   - **Depende de:** T-02.
   - **Objetivo:** crear el destino aislado de dev.
@@ -184,6 +184,10 @@ completo —incluida la tarea de export web— en el bundle.
     managed location propia (misma storage, prefijo dev).
   - **Hecho cuando:** `SHOW SCHEMAS IN job_offers_dev` devuelve los tres
     schemas y puedes escribir en ellos.
+  - **Resultado:** `job_offers_dev` creado con `MANAGED LOCATION` paralela a la
+    de prod (misma storage, sufijo `_dev`, plan §8) y schemas `bronze`,
+    `silver` y `gold`; `SHOW SCHEMAS` los devuelve y la prueba de escritura
+    (`_scratch`) funciona.
   - **Evidencia:** salida + captura.
 
 - [ ] **T-09 — Deploy dev e inspección** (~25 min)
