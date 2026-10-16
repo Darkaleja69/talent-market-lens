@@ -1,0 +1,161 @@
+﻿Prueba en vivo acotada (RF-9) — glassdoor (mercado Irlanda, glassdoor.ie)
+Run de origen: 2026-10-12 | Rama: repair/glassdoor-20261012 | Tarea: T-35
+Fecha de la prueba: 2026-10-12, hora local +02:00 (Europe/Madrid)
+
+Saneado: rutas de usuario escritas como <REPO> (raíz del repositorio); sin
+credenciales, cookies, tokens ni perfiles de navegador. Artefactos pesados
+(stdout, slices de log) quedan en multi_site_job_scraper/data/glassdoor/
+(gitignored) y se referencian por ruta.
+
+-------------------------------------------------------------------------------
+1. Comando y alcance
+-------------------------------------------------------------------------------
+Comando (desde <REPO>\multi_site_job_scraper):
+  python -m src.glassdoor --role "Data Analyst" --max-pages 1
+
+Alcance: 1 rol x 1 página, solo el portal glassdoor (mercado configurado IE).
+Sin subida a Azure, sin landing, sin merge, sin solvers, sin browser-cdp.
+Umbral exigido: 1 oferta (history.json no tiene entrada de glassdoor; umbral 1).
+
+La prueba se lanzó 3 veces seguidas con el mismo comando, todas abortadas en el
+mismo punto antes de llegar al SERP/BFF. Las 2 primeras ejecuciones tuvieron
+fallos de captura del arnés de medida (conteo de líneas del log y código de
+salida), no del scraper; la 3.ª es la canónica. No hubo challenge visible ni se
+resolvió ninguno.
+
+-------------------------------------------------------------------------------
+2. Resultado (intento canónico, 3.º)
+-------------------------------------------------------------------------------
+Inicio del wrapper: 2026-10-12 11:42:00 +02:00
+Última línea del run: 2026-10-12 11:42:20 +02:00
+Fin (proceso terminado): 2026-10-12 11:42:21 +02:00
+Duración: 21 s
+Código de salida: 1 (medido; en prueba directa no hay watchdog del wrapper, no
+hubo exit=75 y no hubo parada por inactividad)
+Recuento de ofertas de la prueba: 0 (< umbral 1 -> NO alcanzado)
+Líneas PROGRESS source=glassdoor en la prueba: 0
+Prueba del latido (RF-15/T-35): NO se pudo comprobar; el run aborta antes del
+SERP y no llega al bucle de tarjetas, así que no hay latidos que observar.
+
+Error exacto (extracto literal del run.log y de la consola):
+  11:42:19 WARNING src.glassdoor.bff: resolve_location Ireland -> status 403
+  11:42:19 WARNING glassdoor: No se pudo resolver 'Ireland' y el mercado no
+           declara fallback de pais (T-35).
+  11:42:20 ERROR   glassdoor: Error en scraper: No se pudo resolver la
+           ubicacion nacional 'Ireland' y el mercado 'IE' no declara fallback
+           de pais; se aborta para no buscar en el pais equivocado.
+
+Notas del intento:
+  - Homepage: "Visitando homepage https://www.glassdoor.ie para calentar
+    cookies..." y "CSRF token extraido (1 chars)" (token de 1 carácter,
+    anómalo); sin warning de dominio distinto en este intento.
+  - El 403 es del endpoint de autocompletado (/findPopularLocationAjax.htm),
+    no de un CAPTCHA visible; el scraper no registró "Anti-bot de Glassdoor
+    activado" ni marcadores de challenge/landing. Modo asistido no aplicable.
+
+-------------------------------------------------------------------------------
+3. Extracto del run.log (bloque íntegro de la prueba, 17 líneas)
+-------------------------------------------------------------------------------
+11:42:05 INFO    glassdoor: === Glassdoor Scraper (Ireland) ===
+11:42:05 INFO    glassdoor: Objetivo: 1000 ofertas unicas de datos
+11:42:05 INFO    src.core.store: Reanudacion: 0 job_ids cargados de <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\state.json
+11:42:05 INFO    glassdoor: === Glassdoor Scraper: 1 roles ===
+11:42:05 INFO    glassdoor: Roles: Data Analyst
+11:42:05 INFO    glassdoor: Paginas max/rol: 1 | detalle: False | jobs_per_search: 200 | ubicacion: Ireland
+11:42:06 INFO    glassdoor: Forzando modo headful
+11:42:06 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-IE tz=Europe/Dublin profile=glassdoor
+11:42:10 INFO    glassdoor: playwright-stealth aplicado
+11:42:10 INFO    glassdoor: Visitando homepage https://www.glassdoor.ie para calentar cookies...
+11:42:19 INFO    glassdoor: CSRF token extraido (1 chars)
+11:42:19 INFO    glassdoor: CSRF token (valor omitido en la copia saneada)
+11:42:19 WARNING src.glassdoor.bff: resolve_location Ireland -> status 403
+11:42:19 WARNING glassdoor: No se pudo resolver 'Ireland' y el mercado no declara fallback de pais (T-35).
+11:42:20 ERROR   glassdoor: Error en scraper: No se pudo resolver la ubicacion nacional 'Ireland' y el mercado 'IE' no declara fallback de pais; se aborta para no buscar en el pais equivocado.
+11:42:20 WARNING src.core.store: CSV: run sin datos; se conserva el output previo <REPO>\multi_site_job_scraper\data\glassdoor\output\jobs.csv
+11:42:20 WARNING src.core.store: Parquet: run sin datos; se conserva el output previo <REPO>\multi_site_job_scraper\data\glassdoor\output\jobs.parquet
+
+La consola (stdout redirigido a data/glassdoor/live_test_stdout_tmp3.txt) es
+idéntica al bloque anterior.
+
+-------------------------------------------------------------------------------
+4. Intentos 1 y 2 (mismo comando; incidencias del arnés)
+-------------------------------------------------------------------------------
+Intento 1: 11:37:28-11:37:59; proceso 11:37:31-11:37:55; mismo aborto a los
+  ~24 s. Homepage: "CSRF token ausente" y warning "Detectado dominio
+  www.glassdoor.com distinto del configurado (www.glassdoor.ie); el scraper
+  seguira usando la configuracion original" -> la homepage terminó en
+  glassdoor.com (redirección de mercado). resolve_location Ireland -> status
+  403. Código de salida no capturado por el arnés (quirk de
+  WindowsApps\python.exe con Start-Process); por el código de main() el aborto
+  se traduce en return 1.
+Intento 2: 11:39:45-11:40:11; mismo aborto. Código de salida escrito por un
+  wrapper .cmd con `echo %ERRORLEVEL%> fichero`; cmd interpretó el dígito como
+  descriptor de fichero (contenido "ECHO está desactivado." = huella de `1>`),
+  de nuevo sin valor legible. La 3.ª ejecución midió el código de forma fiable.
+El scraper no quedó ningún proceso vivo tras ninguna ejecución (solo siguen los
+dos `python -m http.server` ajenos al proyecto).
+
+-------------------------------------------------------------------------------
+5. Output y calidad
+-------------------------------------------------------------------------------
+Parquet de salida: <REPO>\multi_site_job_scraper\data\glassdoor\output\jobs.parquet
+  - Filas: 7; scraped_at 2026-09-26 (mercado EE. UU., código previo al fix);
+    mtime 2026-09-27 12:57:29. NO corresponde a esta prueba.
+  - Semántica de escritura (src/core/store.py): cada run no vacío sobrescribe
+    CSV y parquet con lo acumulado en memoria (sin --append no carga las
+    ofertas previas); si el run queda vacío se conserva el output anterior.
+    Esta prueba produjo 0 ofertas, así que el parquet es el anterior. Los
+    checkpoints por timestamp sí se acumulan.
+  - Medición de esta prueba: no hay muestra (0 ofertas); no se puede medir la
+    calidad del fix en vivo.
+
+Puerta de calidad (paso 6, desde <REPO>\scrapers-pipeline):
+  python -m repair.cli quality --record "../repairs/20261012-glassdoor" \
+    --parquet "..\multi_site_job_scraper\data\glassdoor\output\jobs.parquet" \
+    --output "../repairs/20261012-glassdoor/quality_after.json"
+  Código de salida: 1 (NO OK)
+
+  Calidad de la prueba en vivo — fuente: glassdoor
+  Veredicto: NO OK
+  Ofertas únicas medidas: 7
+  Bloqueos: falta la descripción (obligatoria y prioritaria); campo obligatorio
+  por debajo del 100 %; meta no alcanzada
+
+  Campo       | Obligatorio | Antes    | Después | Delta    | Meta    | Estado
+  ------------+-------------+----------+---------+----------+---------+-------
+  id          | no          | sin dato | 100.0 % | sin dato | 100.0 % | cumple
+  title       | sí          | sin dato | 100.0 % | sin dato | 100.0 % | cumple
+  company     | sí          | sin dato | 100.0 % | sin dato | 100.0 % | cumple
+  description | sí          | sin dato | 85.7 %  | sin dato | 100.0 % | no cumple (obligatorio < 100 %; meta no alcanzada)
+  salary      | no          | sin dato | 100.0 % | sin dato | 100.0 % | cumple
+  skills      | no          | sin dato | 57.1 %  | sin dato | 100.0 % | no cumple (meta no alcanzada)
+  work_mode   | no          | sin dato | 0.0 %   | sin dato | 100.0 % | no cumple (meta no alcanzada)
+  location    | no          | sin dato | 100.0 % | sin dato | 100.0 % | cumple
+  posted_date | no          | sin dato | 100.0 % | sin dato | 100.0 % | cumple
+
+  ADVERTENCIA: la medición usa el parquet obsoleto del 2026-09-26 (7 filas);
+  NO certifica la prueba de T-35 y no debe tratarse como "después" válido del
+  registro. `quality_after.json` se ha escrito por indicación de la tarea, con
+  `total_offers=7` y `ok=false`.
+
+-------------------------------------------------------------------------------
+6. Desviaciones, riesgos y pendientes
+-------------------------------------------------------------------------------
+- Aborto por resolve_location (riesgo conocido): el mercado IE tiene
+  `location_fallback=None` y `/findPopularLocationAjax.htm` responde 403
+  (ruta en Disallow de robots.txt). No se ha parcheado (instrucción expresa).
+- Latido en el bucle (objetivo del fix) sin comprobar en vivo: sin SERP/BFF no
+  hay tarjetas; la verificación del latido queda pendiente de una ejecución que
+  supere `resolve_location`.
+- Mercado Irlanda en navegador real: en el intento 1 la homepage acabó en
+  www.glassdoor.com (warning de dominio del propio scraper); en el intento 3 no
+  hubo warning pero el CSRF extraído fue de 1 carácter (anómalo). La decisión de
+  mercado IE no queda confirmada en la sesión persistente real.
+- Sin challenge/CAPTCHA visible detectado por el scraper en ninguno de los
+  intentos; el 403 del autocompletado es un bloqueo de API. No se aplicó modo
+  asistido.
+- `quality_after.json` no válido como certificación (ver §5).
+- Artefactos locales de la prueba (gitignored):
+  data/glassdoor/live_test_stdout_tmp3.txt (consola),
+  data/glassdoor/live_test_runlog_slice_tmp3.txt (bloque del run.log),
+  data/glassdoor/live_test_exit_tmp3.txt (=1), y equivalentes *_tmp{,2}.*.

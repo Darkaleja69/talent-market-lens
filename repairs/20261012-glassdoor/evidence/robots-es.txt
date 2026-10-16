@@ -1,0 +1,212 @@
+# Spain (es-ES)
+
+#### Rules for ANY User-Agent
+User-agent: *
+Disallow: /*?*hostSite=*
+Disallow: /1347171559/
+Disallow: /about/board/
+Disallow: /about/contact/
+Disallow: /about/faq/
+Disallow: /about/forCareerCenters/
+Disallow: /about/forLibraries/
+Disallow: /about/forStudents/
+Disallow: /about/guidelines/
+Disallow: /about/index/
+Disallow: /about/jobs/
+Disallow: /about/learn/
+Disallow: /about/overview/
+Disallow: /about/privacy/
+Disallow: /about/syndicationCenter/
+Disallow: /about/team/
+Disallow: /about/terms/
+Disallow: /about/widgetTerms/
+Disallow: /ajax/
+Disallow: /abtest
+Disallow: /browse/
+Disallow: /chat
+Disallow: /employerinfo/
+Disallow: /employerInfo/
+Disallow: /Explorar/buscar-empresas
+Disallow: /home/
+Disallow: /integrations/facebook/glassdoor/eep
+Disallow: /jobview/
+Disallow: /legal/
+Disallow: /lists/
+Disallow: /more/
+Disallow: /partner/
+Disallow: /partner-center/
+Disallow: /partners/company/
+Disallow: /partners/insights/
+Disallow: /partners/jobs/
+Disallow: /partners/reports/
+Disallow: /partners/resumeView
+Disallow: /partners/settings/
+Disallow: /parts
+Disallow: /profile/
+Allow:    /profile/login_input.htm
+Allow:    /profile/joinNow_input.htm
+Allow:    /member/profile/login
+Allow:    /member/profile/joinNow
+Disallow: /Resume/user-profile/
+Disallow: /rss/*
+Disallow: /search/
+Disallow: /Search/
+Disallow: /survey/
+Disallow: /surveys
+Disallow: /surveys/
+Disallow: /util/
+Disallow: /getAdSlotContentsAjax.htm
+Disallow: /developer/index.htm
+Disallow: /developer/widget/builder/
+
+Disallow: /mz-survey/
+Disallow: /user-activation/
+Disallow: /member/
+Disallow: /resume/build/
+Disallow: /userprofile/
+Disallow: /sourcing$
+Disallow: /knowyourworth/
+Disallow: /Opiniones/index.htm?
+
+#logging related
+Disallow: */lib$
+Disallow: */lib/
+Disallow: */globalize/
+Disallow: */globalize$
+Disallow: */ASCIISumThreshold$
+Disallow: */LogClient$
+Disallow: */MsgBuilder$
+Disallow: */UserAgent$
+Disallow: */Constants$
+Disallow: */init/
+Disallow: */init$
+Disallow: */LogServer$
+Disallow: */GDLogger$
+Disallow: */gd-perf$
+Disallow: */gd-site-hdr-dropdown$
+Disallow: */bundles$
+Disallow: */wait$
+Disallow: */extend$
+Disallow: */strings$
+Disallow: */strings/
+Disallow: */document$
+Disallow: */*Ajax.htm
+Disallow: */json$
+Disallow: */json/
+Disallow: /Compara/elegir
+
+Disallow: /employers/ec
+Disallow: /slink.htm
+Disallow: /*encryptedUserId
+Disallow: /*followId
+Disallow: /*userValidationKey
+Disallow: */trackClickAsync.htm
+
+# Blocking track urls (ACQ-2468)
+Disallow: /track
+
+#Blocking non standard job view and job search URLs, and paginated job SERP URLs (TRFC-2831)
+Disallow: /job-listing/details.htm?*
+Disallow: /job-listing/*_IE*.htm
+Disallow: /job-listing/JV.htm?*
+Disallow: /Empleo/*_IP*
+
+# Blocking Glassdoor jobs for non-US domains (DW-2185)
+Disallow: /Empleos/Glassdoor-Empleos-E100431.htm
+
+#Blocking pagination on employer infosite
+
+Disallow: /Empleos/*_P*.htm*
+Disallow: /Empleos/*_IP*.htm*
+Disallow: /Opiniones/*_P*.htm*
+Disallow: /Opiniones/*_IP*.htm*
+Allow: /Opiniones/*-opiniones-SRCH_*_IP2.htm*
+Disallow: /Entrevista/*_P*.htm*
+Disallow: /Entrevista/*_IP*.htm*
+Disallow: /Beneficios/*_IP*.htm*
+Disallow: /Sueldos/*_IP*.htm*
+Allow: /Sueldos/*_IP2.htm*
+Allow: /Sueldos/*_IP3.htm*
+Allow: /Sueldos/*_IP4.htm*
+Allow: /Sueldos/*_IP5.htm*
+
+# Blocking bots from crawling DoubleClick for Publisher and Google Analytics related URL's (which aren't real URL's)
+Disallow: /1060761/*
+
+#Blocking low-traffic employer profile pages
+Disallow: /Fotos/
+Disallow: /Ubicación/Todas-*-Ubicaciones-Oficinas-E*.htm
+
+# Indeed callback only
+Disallow: /job-listing/indeedApplyCallback.htm
+
+# API Endpoints
+Disallow: /graph
+Disallow: /api-web/
+Disallow: /api/
+Disallow: /employers/engagement/api/
+
+#Analytics
+Disallow: /geb
+Disallow: /brand-views
+
+#Typeaheads
+Disallow: /autocomplete
+Disallow: /searchsuggest
+Disallow: /findCityAjax.htm
+
+#### END Rules for ANY User-Agent
+
+User-agent: ia_archiver
+Disallow: /
+Allow: */index.htm
+
+User-Agent: OmniExplorer_Bot
+Disallow: /
+
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Baiduspider
+Disallow: /
+Allow: */index.htm
+
+####Partially Block High-Quality AI/LLM Bots
+User-agent: GPTBot
+User-agent: Google-Extended
+User-agent: Amazonbot
+User-agent: anthropic-ai
+User-agent: GoogleOther
+User-agent: Claude-Web
+User-agent: ClaudeBot
+User-agent: Perplexity
+User-agent: Cohere
+User-agent: cohere-ai
+User-agent: Applebot-Extended
+User-agent: Google-CloudVertexBot
+Disallow: /
+Allow: /blog/
+Allow: /About/
+Allow: /empresas/
+
+#### Block Low-Quality AI/LLM Bots
+User-agent: CCBot
+Disallow: /
+User-agent: Omgilibot
+Disallow: /
+User-agent: Omgili
+Disallow: /
+User-agent: FacebookBot
+Disallow: /
+User-agent: Bytespider
+Disallow: /
+User-agent: Diffbot
+Disallow: /
+User-agent: Youbot
+Disallow: /
+User-agent: FriendlyCrawler
+Disallow: /
+User-agent: img2dataset
+Disallow: /
+
+#### End AI/LLM Bot Blocks

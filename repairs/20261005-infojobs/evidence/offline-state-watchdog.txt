@@ -1,0 +1,15 @@
+=== state.json (resumen, sin volcar IDs) ===
+processed_ids: 1512
+claves raiz: processed_ids
+
+=== .watchdog_attempt1.json (saneado) ===
+{
+  "source": "infojobs",
+  "pid": 9372,
+  "stream": "<HOME>\\Documents\\projects\\infojobs_jobs_scraper\\data\\nightly_stdout_attempt1.log",
+  "started_at": "2026-10-06T00:00:46.489827",
+  "last_parsed": 0,
+  "last_progress_at": "2026-10-06T00:00:46.489827",
+  "stopped": false,
+  "stop_reason": null
+}

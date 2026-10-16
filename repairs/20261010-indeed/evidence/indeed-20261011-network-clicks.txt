@@ -1,0 +1,27 @@
+Red observada al clicar tarjetas (Chrome 9222; agent-browser network requests --json)
+====================================================================================
+Saneado: query strings recortadas; parametros de sesion (tk, bb, xkcb, ad...) omitidos.
+
+Clic 1 - jk=b7041f40c1315659 (15:17 local aprox.)
+  GET  nl.indeed.com /viewjob?jk=b7041f40c1315659&from=vjs&viewtype=embedded   200  (Fetch)
+  POST apis.indeed.com /graphql  op=SaveJobButton  {jobKey: b7041f40c1315659}    200
+  POST apis.indeed.com /graphql  op=RecordJobSeen  (...)                         200
+  POST apis.indeed.com /graphql  op=SaveJobButton (segundo envio)               200
+  (telemetria no relevante, omitida: t.indeed.com/signals, s.indeed.com snowplow, nl.indeed.com/m/rpc/*)
+
+Clic 2 - jk=c74ad662adfe7b9f (15:22 local aprox.)
+  GET  nl.indeed.com /viewjob?jk=c74ad662adfe7b9f&from=vjs&viewtype=embedded   200  (Fetch)
+  POST apis.indeed.com /graphql  op=SaveJobButton                               200
+  POST apis.indeed.com /graphql  op=RecordJobSeen                               200
+
+Lectura:
+- El titulo+descripcion del panel derecho llegan con el fetch a
+  /viewjob?...viewtype=embedded que dispara la PROPIA pagina al clicar (el mismo
+  patron que usa `viewJobLink` del JSON de tarjetas, que ya apunta a
+  /viewjob?jk=...&viewtype=embedded).
+- Los GraphQL de apis.indeed.com observados solo hacen operaciones de cuenta
+  (SaveJobButton/RecordJobSeen): no sirven la descripcion.
+- robots.txt (NL, evidencia indeed-robots-nl.txt): `Disallow: /viewjob`,
+  `Disallow: /m/viewjob` y `Disallow: /graphql` para User-agent: *. El
+  investigador no llamo a esas rutas; el fetch interno de /viewjob lo provoca el
+  clic (el navegador real hace lo mismo con un clic humano). Ver Riesgos.

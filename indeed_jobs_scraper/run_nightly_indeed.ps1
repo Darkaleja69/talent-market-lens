@@ -157,6 +157,24 @@ function Test-CdpAlive {
     }
 }
 
+function Test-CdpHandshake {
+    # Probe REAL del handshake CDP (T-32): GET /json solo prueba que el endpoint
+    # HTTP de DevTools responde; patchright puede no completar el handshake
+    # aunque /json conteste (paso en el run 2026-10-10). La logica vive en
+    # scraper/cdp_probe.py y reutiliza el probe del propio scraper.
+    param([int]$Port = 9222)
+    $probe = "import sys; sys.path.insert(0, r'$ProjectRoot'); from scraper.cdp_probe import main; sys.exit(main(['--port', '$Port']))"
+    try {
+        $out = & python -c $probe 2>&1
+        $code = $LASTEXITCODE
+        if ($out) { foreach ($line in $out) { Write-NLog "CDP probe: $line" } }
+        return ($code -eq 0)
+    } catch {
+        Write-NLog "CDP probe: no se pudo ejecutar: $($_.Exception.Message)"
+        return $false
+    }
+}
+
 # ----------------------- Main -----------------------
 $TargetsDesc = ($Targets | ForEach-Object { "$($_.Country)($($_.Cities))" }) -join " "
 Write-NLog "=== INICIO RUN NOCTURNA INDEED ==="
@@ -175,6 +193,26 @@ if (-not (Test-CdpAlive)) {
     exit 3
 }
 Write-NLog "CDP pre-flight OK. Chrome responde en puerto $CdpPort."
+
+# Si el handshake CDP real no se verifica, se OMITE --cdp: el scraper arranca
+# directamente el navegador propio headed (sin fase CDP que pueda colgarse por
+# el driver de patchright) y se limita a 1 pagina. Si el handshake pasa, los
+# args y el volumen del nightly quedan intactos.
+$cdpArgs = @("--cdp", "$CdpPort")
+$pagesForRun = $Pages
+
+if (Test-CdpHandshake -Port $CdpPort) {
+    Write-NLog "CDP handshake OK: patchright conecta y verifica contra el Chrome real."
+} else {
+    # No se aborta: el scraper continua con navegador propio headed (1 pagina,
+    # sin sesion) y el run sigue con lo que pueda capturar.
+    $cdpArgs = @()
+    $pagesForRun = 1
+    Write-NLog "WARN: el handshake CDP real falla (patchright <-> Chrome) pese a que /json responde."
+    Write-NLog "WARN: motivo: Chrome $CdpPort no completa el handshake (driver/instancia degradados); se omite --cdp."
+    Write-NLog "WARN: se ejecuta en modo navegador propio headed con --pages 1, sin sesion de Chrome."
+    Write-NLog "WARN: revisa la version de Chrome/patchright y relanza Chrome con start_chrome_cdp.ps1."
+}
 
 $overallExit = 0
 $abortedChallenge = $false
@@ -204,11 +242,13 @@ for ($i = 0; $i -lt $Targets.Count; $i++) {
         $pythonArgs = @(
             "-u",
             "main.py",
-            "--country", "$country",
-            "--cdp", "$CdpPort",
+            "--country", "$country"
+        )
+        $pythonArgs += $cdpArgs
+        $pythonArgs += @(
             "--terms=`"$SearchTerms`"",
             "--cities=`"$cities`"",
-            "--pages", "$Pages",
+            "--pages", "$pagesForRun",
             "--fromage", "$Fromage",
             "--enrich-rate", "$EnrichRate",
             "--enrich-max", "$EnrichMax",
@@ -350,7 +390,7 @@ $ts = Get-Date -Format "yyyyMMdd_HHmmss"
 $countries = ($Targets | ForEach-Object { $_.Country }) -join ","
 $marker = Join-Path $ProjectRoot "output\last_nightly_run_indeed.txt"
 $watchdogField = if ($watchdogReason) { "watchdog=$watchdogReason" } else { "watchdog=none" }
-"last_run=$ts exit=$overallExit terms=$SearchTerms countries=$countries pages=$Pages $watchdogField" | `
+"last_run=$ts exit=$overallExit terms=$SearchTerms countries=$countries pages=$pagesForRun $watchdogField" | `
     Set-Content -LiteralPath $marker -Encoding UTF8
 if ($abortedChallenge) {
     Write-NLog "=== FIN RUN NOCTURNA INDEED exit=$overallExit (challenge anti-bot: espera 24h) ==="

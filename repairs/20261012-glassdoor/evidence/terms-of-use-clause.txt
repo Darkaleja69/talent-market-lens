@@ -1,0 +1,9 @@
+﻿# Extracto saneado de Glassdoor Terms of Use (consulta unica 2026-10-12, https://www.glassdoor.com/about/terms/)
+# Cláusula relevante (conducta prohibida):
+
+ffiliate links, and other forms of solicitation;
+Imply a Glassdoor endorsement, sponsorship, or partnership of any kind without our express written permission;
+Send messages in violation of the USA CAN-SPAM Act or any other applicable anti-spam law;
+Introduce software or automated agents to the services, or access the services so as to produce multiple accounts, generate automated messages, or to scrape, strip, or mine data from the services without our express written permission;
+ÔÇ£FrameÔÇØ or ÔÇ£mirrorÔÇØ or otherwise incorporate part of the services into any website, or ÔÇ£deep-linkÔÇØ to any portion of the services without our express written permission (except in instances where we make such functionality available via an API or formal embedding feature);
+Copy, modify, or create derivative works of the services or any Content (excluding Your Content) without our express written per

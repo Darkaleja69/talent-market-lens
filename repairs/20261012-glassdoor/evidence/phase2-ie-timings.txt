@@ -1,0 +1,13 @@
+Fase 2 (sesion real) - tiempos en glassdoor.ie - 2026-10-15
+Sesion: Chrome real de la persona via CDP (ya iniciada); medicion con
+performance API y HAR. Alcance acotado (2 cargas del SERP + 1 sonda).
+
+- Navegacion completa del SERP: ~3731 ms (1 muestra).
+- XHR /graph (llamadas pequenas del sitio): ~130 ms y ~130 ms (2 muestras;
+  entrada HAR: 128,8 ms).
+- Descripcion (JobDetailQuery por oferta del scraper): no medido en esta fase;
+  lo medira la prueba en vivo del scraper.
+
+Nota: el payload JobSearchResultsQuery del scraper (con sus descripciones) no
+se ejercito en esta fase; los tiempos de descripcion dependen del BFF del run
+real.

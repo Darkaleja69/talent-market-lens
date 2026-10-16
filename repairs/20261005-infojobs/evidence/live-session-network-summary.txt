@@ -1,0 +1,28 @@
+﻿=== Red de la sesión real — resumen saneado — 2026-10-06 Europe/Madrid ===
+Origen: agent-browser --cdp 9222 network requests --filter "" --json (captura completa: 268 peticiones).
+No se registran valores de cookies/tokens; en las URLs de telemetría se omite la query.
+
+Documentos (resourceType=Document):
+GET 200 https://www.infojobs.net/
+GET 200 https://www.infojobs.net/
+GET 200 https://www.infojobs.net/ofertas-trabajo/madrid/madrid   <- SERP con tarjetas (render en servidor)
+GET 200 https://cdn.btloader.com/cchecker.html?upapi=true
+GET 200 https://btloader.com/trustedIframe.html?o=<id>&upapi=true
+GET 200 https://btloader.com/trustedIframe.html?o=<id>&upapi=true
+
+XHR/Fetch a infojobs.net y fuseplatform (endpoint; query relevante conservada, telemetría recortada):
+POST 200 Fetch application/json  https://www.infojobs.net/ijlibrarym.js?d=www.infojobs.net   (x3)
+POST 200 XHR application/json    https://candidate-web.gw.infojobs.net/1/location/ij-home/next?portalId=0&amount=6&algorithm=DEFAULT
+POST 200 XHR application/json    https://candidate-web.gw.infojobs.net/1/location/ij-search-results/next?algorithm=SEGMENTED_RANDOM&amount=4&portalId=0
+POST 200 XHR text/plain          https://www.infojobs.net/responsive-components-home/show-number-offers.xhtml
+POST 200 Fetch application/json  https://adit.gw.infojobs.net/saitama/v2/display/advertised-page/site/ij/device/wde
+POST 202 XHR text/plain          https://adit.gw.infojobs.net/mushroom/v1/collect   (x3)
+GET  200 Fetch application/octet-stream  https://infojobs.cdn.fuseplatform.net/telemetry/noconsent?...  (x5, web-vitals/carga; query omitida)
+
+Recuento por tipo: Script 102, Fetch 58, Image 56, XHR 15, Other 13, Stylesheet 9, Font 9, Document 6.
+
+Conclusiones de red:
+- El listado de ofertas llega en el HTML del documento de la SERP (SSR). No existe XHR/fetch que devuelva el listado.
+- No hay endpoint JSON interno de búsqueda consumido por la propia web: los endpoints candidate-web son ubicaciones/carruseles
+  (ij-home/next, ij-search-results/next) y los de adit.gw son anuncios/telemetría.
+- La ruta /ofertas-trabajo/<ciudad>/<ciudad>/data (sondeada antes con curl y UA de bot) devolvió 405 + challenge; el navegador real no la usa.

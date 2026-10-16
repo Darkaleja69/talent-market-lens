@@ -1,0 +1,73 @@
+{
+  "completeness_scope": "run",
+  "fields": [
+    {
+      "current_pct": null,
+      "field": "id",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "title",
+      "is_focus": false,
+      "required": true,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "company",
+      "is_focus": false,
+      "required": true,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "description",
+      "is_focus": false,
+      "required": true,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "salary",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "skills",
+      "is_focus": false,
+      "required": false,
+      "target_pct": null
+    },
+    {
+      "current_pct": null,
+      "field": "work_mode",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "location",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": null,
+      "field": "posted_date",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    }
+  ],
+  "offers_current_run": 0,
+  "offers_snapshot": null,
+  "run_date": "2026-10-03",
+  "schema_version": 1,
+  "source": "infojobs"
+}

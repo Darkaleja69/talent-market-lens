@@ -1,0 +1,1028 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-03T11:11:56",
+  "run": {
+    "date": "2026-10-03",
+    "started_at": "2026-10-03T00:00:03",
+    "finished_at": "2026-10-03T02:10:54",
+    "log_path": "<HOME>\\Documents\\projects\\scrapers-pipeline\\logs\\upload-2026-10-03.log"
+  },
+  "global_status": {
+    "status": "partial",
+    "reason": null
+  },
+  "sources": [
+    {
+      "id": "indeed",
+      "kind": "direct",
+      "status": "failed",
+      "outcome": "ok",
+      "offers_current_run": 57,
+      "offers_snapshot": null,
+      "completeness": [
+        {
+          "field": "id",
+          "required": false,
+          "valid": 57,
+          "total": 57,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "title",
+          "required": true,
+          "valid": 57,
+          "total": 57,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "company",
+          "required": true,
+          "valid": 57,
+          "total": 57,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "description",
+          "required": true,
+          "valid": 0,
+          "total": 57,
+          "pct": 0.0,
+          "absent": 57,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "salary",
+          "required": false,
+          "valid": 20,
+          "total": 57,
+          "pct": 35.08771929824562,
+          "absent": 37,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "skills",
+          "required": false,
+          "valid": 0,
+          "total": 57,
+          "pct": 0.0,
+          "absent": 57,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "work_mode",
+          "required": false,
+          "valid": 10,
+          "total": 57,
+          "pct": 17.54385964912281,
+          "absent": 47,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "location",
+          "required": false,
+          "valid": 57,
+          "total": 57,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "posted_date",
+          "required": false,
+          "valid": 57,
+          "total": 57,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        }
+      ],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": 57,
+        "delta_offers": null
+      },
+      "failures": [
+        "campo obligatorio 'description' por debajo del umbral"
+      ],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: metadata=scrape_metadata_20261003_0006.json finished_at=2026-10-03T01:21:08.627374",
+        "intento 2/2"
+      ]
+    },
+    {
+      "id": "linkedin",
+      "kind": "direct",
+      "status": "failed",
+      "outcome": "ok",
+      "offers_current_run": 1590,
+      "offers_snapshot": 8387,
+      "completeness": [
+        {
+          "field": "id",
+          "required": false,
+          "valid": 8387,
+          "total": 8387,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "title",
+          "required": true,
+          "valid": 8387,
+          "total": 8387,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "company",
+          "required": true,
+          "valid": 8387,
+          "total": 8387,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "description",
+          "required": true,
+          "valid": 7418,
+          "total": 8387,
+          "pct": 88.44640515082867,
+          "absent": 969,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "salary",
+          "required": false,
+          "valid": 1368,
+          "total": 8387,
+          "pct": 16.31095743412424,
+          "absent": 6951,
+          "invalid": 68,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "skills",
+          "required": false,
+          "valid": 6766,
+          "total": 8387,
+          "pct": 80.67246929772267,
+          "absent": 1621,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "work_mode",
+          "required": false,
+          "valid": 3558,
+          "total": 8387,
+          "pct": 42.42279718612138,
+          "absent": 4829,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "location",
+          "required": false,
+          "valid": 8387,
+          "total": 8387,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "posted_date",
+          "required": false,
+          "valid": 8033,
+          "total": 8387,
+          "pct": 95.7791820674854,
+          "absent": 354,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        }
+      ],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": 8387,
+        "delta_offers": null
+      },
+      "failures": [
+        "campo obligatorio 'description' por debajo del umbral"
+      ],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: stdout=nightly_stdout_attempt1.log",
+        "intento 1/5"
+      ]
+    },
+    {
+      "id": "infojobs",
+      "kind": "direct",
+      "status": "failed",
+      "outcome": "blocked",
+      "offers_current_run": 0,
+      "offers_snapshot": null,
+      "completeness": [],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": null,
+        "delta_offers": null
+      },
+      "failures": [
+        "sin evidencia suficiente para confirmar la fuente"
+      ],
+      "evidence": [
+        "estado del pipeline: no_data (subidos=0, rechazados=0)",
+        "resultado de la ejecución: bloqueado (blocked)",
+        "error registrado: captcha block detected",
+        "detalle: blocked=true",
+        "intento 1/3"
+      ]
+    },
+    {
+      "id": "irishjobs",
+      "kind": "multi_site",
+      "status": "failed",
+      "outcome": "error",
+      "offers_current_run": null,
+      "offers_snapshot": null,
+      "completeness": [],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": null,
+        "delta_offers": null
+      },
+      "failures": [
+        "sin evidencia suficiente para confirmar la fuente"
+      ],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: error técnico (error)",
+        "error registrado: exit=75",
+        "detalle: exit=75 merge_exit=0 output_merged=False"
+      ]
+    },
+    {
+      "id": "stepstone_nl",
+      "kind": "multi_site",
+      "status": "ok",
+      "outcome": "ok",
+      "offers_current_run": 3,
+      "offers_snapshot": null,
+      "completeness": [
+        {
+          "field": "id",
+          "required": false,
+          "valid": 3,
+          "total": 3,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "title",
+          "required": true,
+          "valid": 3,
+          "total": 3,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "company",
+          "required": true,
+          "valid": 3,
+          "total": 3,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "description",
+          "required": true,
+          "valid": 3,
+          "total": 3,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "salary",
+          "required": false,
+          "valid": 0,
+          "total": 3,
+          "pct": 0.0,
+          "absent": 3,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "skills",
+          "required": false,
+          "valid": 0,
+          "total": 3,
+          "pct": 0.0,
+          "absent": 3,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "work_mode",
+          "required": false,
+          "valid": 0,
+          "total": 3,
+          "pct": 0.0,
+          "absent": 3,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "location",
+          "required": false,
+          "valid": 3,
+          "total": 3,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "posted_date",
+          "required": false,
+          "valid": 3,
+          "total": 3,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        }
+      ],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": 3,
+        "delta_offers": null
+      },
+      "failures": [],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: exit=0 merge_exit=0 output_merged=True"
+      ]
+    },
+    {
+      "id": "devitjobs",
+      "kind": "multi_site",
+      "status": "ok",
+      "outcome": "ok",
+      "offers_current_run": 29,
+      "offers_snapshot": null,
+      "completeness": [
+        {
+          "field": "id",
+          "required": false,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "title",
+          "required": true,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "company",
+          "required": true,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "description",
+          "required": true,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "salary",
+          "required": false,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "skills",
+          "required": false,
+          "valid": 28,
+          "total": 29,
+          "pct": 96.55172413793103,
+          "absent": 1,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "work_mode",
+          "required": false,
+          "valid": 28,
+          "total": 29,
+          "pct": 96.55172413793103,
+          "absent": 1,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "location",
+          "required": false,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "posted_date",
+          "required": false,
+          "valid": 29,
+          "total": 29,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        }
+      ],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": 29,
+        "delta_offers": null
+      },
+      "failures": [],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: exit=0 merge_exit=0 output_merged=True"
+      ]
+    },
+    {
+      "id": "nvb",
+      "kind": "multi_site",
+      "status": "ok",
+      "outcome": "ok",
+      "offers_current_run": 444,
+      "offers_snapshot": null,
+      "completeness": [
+        {
+          "field": "id",
+          "required": false,
+          "valid": 444,
+          "total": 444,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "title",
+          "required": true,
+          "valid": 444,
+          "total": 444,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "company",
+          "required": true,
+          "valid": 444,
+          "total": 444,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "description",
+          "required": true,
+          "valid": 444,
+          "total": 444,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "salary",
+          "required": false,
+          "valid": 302,
+          "total": 444,
+          "pct": 68.01801801801801,
+          "absent": 142,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "skills",
+          "required": false,
+          "valid": 356,
+          "total": 444,
+          "pct": 80.18018018018019,
+          "absent": 88,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "work_mode",
+          "required": false,
+          "valid": 0,
+          "total": 444,
+          "pct": 0.0,
+          "absent": 389,
+          "invalid": 55,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "location",
+          "required": false,
+          "valid": 444,
+          "total": 444,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "posted_date",
+          "required": false,
+          "valid": 444,
+          "total": 444,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        }
+      ],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": 444,
+        "delta_offers": null
+      },
+      "failures": [],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: exit=0 merge_exit=0 output_merged=True"
+      ]
+    },
+    {
+      "id": "jobs_ch",
+      "kind": "multi_site",
+      "status": "ok",
+      "outcome": "ok",
+      "offers_current_run": 104,
+      "offers_snapshot": null,
+      "completeness": [
+        {
+          "field": "id",
+          "required": false,
+          "valid": 104,
+          "total": 104,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "title",
+          "required": true,
+          "valid": 104,
+          "total": 104,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "company",
+          "required": true,
+          "valid": 104,
+          "total": 104,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "description",
+          "required": true,
+          "valid": 104,
+          "total": 104,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "salary",
+          "required": false,
+          "valid": 42,
+          "total": 104,
+          "pct": 40.38461538461539,
+          "absent": 62,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "skills",
+          "required": false,
+          "valid": 34,
+          "total": 104,
+          "pct": 32.69230769230769,
+          "absent": 70,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "work_mode",
+          "required": false,
+          "valid": 12,
+          "total": 104,
+          "pct": 11.538461538461538,
+          "absent": 92,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "location",
+          "required": false,
+          "valid": 104,
+          "total": 104,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        },
+        {
+          "field": "posted_date",
+          "required": false,
+          "valid": 104,
+          "total": 104,
+          "pct": 100.0,
+          "absent": 0,
+          "invalid": 0,
+          "published_valid": null,
+          "published_total": null,
+          "published_pct": null,
+          "difference": null
+        }
+      ],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": 104,
+        "delta_offers": null
+      },
+      "failures": [],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: correcto (ok)",
+        "detalle: exit=0 merge_exit=0 output_merged=True"
+      ]
+    },
+    {
+      "id": "glassdoor",
+      "kind": "multi_site",
+      "status": "failed",
+      "outcome": "error",
+      "offers_current_run": null,
+      "offers_snapshot": null,
+      "completeness": [],
+      "publication": {
+        "state": "not_checked",
+        "obtained_offers": null,
+        "delta_offers": null
+      },
+      "failures": [
+        "sin evidencia suficiente para confirmar la fuente"
+      ],
+      "evidence": [
+        "estado del pipeline: ok (subidos=1, rechazados=0)",
+        "resultado de la ejecución: error técnico (error)",
+        "error registrado: exit=75",
+        "detalle: exit=75 merge_exit=0 output_merged=False"
+      ]
+    }
+  ],
+  "trend": {
+    "runs_used": 0,
+    "note": "no hay ejecuciones comparables suficientes para mostrar tendencia"
+  },
+  "investigations": [
+    {
+      "source": "indeed",
+      "trigger": "required_field_below_target",
+      "field": "description",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "indeed",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "salary",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "indeed",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "skills",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "indeed",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "work_mode",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "linkedin",
+      "trigger": "required_field_below_target",
+      "field": "description",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "linkedin",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "salary",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "linkedin",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "work_mode",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "infojobs",
+      "trigger": "source_failed",
+      "field": null,
+      "state": "unconfirmed"
+    },
+    {
+      "source": "irishjobs",
+      "trigger": "source_failed",
+      "field": null,
+      "state": "unconfirmed"
+    },
+    {
+      "source": "stepstone_nl",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "salary",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "stepstone_nl",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "skills",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "stepstone_nl",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "work_mode",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "nvb",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "work_mode",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "jobs_ch",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "salary",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "jobs_ch",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "skills",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "jobs_ch",
+      "trigger": "optional_field_at_or_below_threshold",
+      "field": "work_mode",
+      "state": "unconfirmed"
+    },
+    {
+      "source": "glassdoor",
+      "trigger": "source_failed",
+      "field": null,
+      "state": "unconfirmed"
+    }
+  ]
+}

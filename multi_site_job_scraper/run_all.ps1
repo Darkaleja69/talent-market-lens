@@ -165,8 +165,12 @@ try {
                 # con los demas portales sin tocar sus procesos.
                 $stateFile = Join-Path $root "data\$($e.Name)\.watchdog.json"
                 $logFile = Join-Path $root "data\$($e.Name)\run.log"
+                # Ancla del watchdog: arranque real de ESTE proceso
+                # ($e.StartedAt, fijado al lanzarlo), no el $RunStart global
+                # del wrapper: los portales arrancan escalonados (60 s) y el
+                # margen del watchdog debe contar desde su propio arranque.
                 $decision = Get-WatchdogDecision -Source $e.Name -ProcessId $e.Proc.Id `
-                    -Stream $logFile -State $stateFile -StartedAt $RunStart.ToString("o")
+                    -Stream $logFile -State $stateFile -StartedAt $e.StartedAt.ToString("o")
                 if ($decision -match 'state=blocked') {
                     Write-Host ("  [{0}] WATCHDOG: sin progreso; arbol de procesos detenido (motivo {1})." -f $e.Name, $WatchdogReason) -ForegroundColor Red
                     $e.WatchdogBlocked = $true

@@ -6,9 +6,35 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 DATA_DIR = ROOT / "data"
-PROFILE_DIR = DATA_DIR / "profile"
 LOG_DIR = DATA_DIR / "logs"
 DELTA_DIR = DATA_DIR / "delta_table"
+
+
+def _resolve_profile_dir(raw: str | None = None) -> Path:
+    """Resolve the browser profile directory.
+
+    ``INFOJOBS_PROFILE_DIR`` overrides the default ``data/profile`` (T-28) so
+    the scraper can reuse a copy of the real session profile; relative paths
+    are resolved against the project root. No profile path is versioned.
+    """
+    value = (
+        raw if raw is not None else os.getenv("INFOJOBS_PROFILE_DIR", "")
+    ).strip()
+    if not value:
+        return DATA_DIR / "profile"
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = ROOT / path
+    return path
+
+
+PROFILE_DIR = _resolve_profile_dir()
+
+# T-30 (iteracion): en modo CDP el scraper se conecta a un Chrome lanzado
+# directamente (sin las flags de automatizacion de Playwright), la via que
+# pasa el challenge de Distil/Imperva (mismo patron que Indeed). Vacio =
+# modo persistente con patchright (comportamiento por defecto).
+CDP_URL: str = os.getenv("INFOJOBS_CDP_URL", "").strip()
 
 CIUDADES: list[dict[str, str]] = [
     {
@@ -51,9 +77,6 @@ SCROLL_WAIT_MAX: float = 1.5
 
 RATE_LIMIT_MIN: float = 5.0
 RATE_LIMIT_MAX: float = 9.0
-
-CAPTCHA_TIMEOUT: int = int(os.getenv("INFOJOBS_CAPTCHA_TIMEOUT", "300"))
-CAPTCHA_MAX_ATTEMPTS: int = int(os.getenv("INFOJOBS_CAPTCHA_ATTEMPTS", "3"))
 
 HEADLESS: bool = False
 

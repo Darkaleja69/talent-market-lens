@@ -1,7 +1,9 @@
 import pytest
 from datetime import date
+from pathlib import Path
 from scraper.parser import (
     parse_listing,
+    _clean_offer_url,
     _extract_offer_id_from_url,
     _extract_offer_id_from_h2,
     _parse_relative_date,
@@ -9,6 +11,12 @@ from scraper.parser import (
 )
 from scraper.main import build_search_url, _is_valid_results_page
 from bs4 import BeautifulSoup
+
+_FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+
+
+def _read_fixture(name: str) -> str:
+    return (_FIXTURE_DIR / name).read_text(encoding="utf-8")
 
 
 class TestExtractOfferIdUrl:
@@ -197,3 +205,59 @@ class TestIsValidResultsPage:
     def test_captcha_blocked(self):
         html = "<html><body>distil captcha</body></html>"
         assert not _is_valid_results_page(html)
+
+
+class TestCleanOfferUrl:
+    def test_drops_application_origin_query(self):
+        url = (
+            "https://www.infojobs.net/madrid/data-scientist/of-iabc123"
+            "?applicationOrigin=search-new&page=1&sortBy=RELEVANCE"
+        )
+        assert (
+            _clean_offer_url(url)
+            == "https://www.infojobs.net/madrid/data-scientist/of-iabc123"
+        )
+
+    def test_drops_fragment(self):
+        assert _clean_offer_url("https://x.test/of-iabc#frag") == (
+            "https://x.test/of-iabc"
+        )
+
+
+class TestOfferUrlStoredWithoutApplicationOrigin:
+    def test_real_fixture_urls_are_clean(self):
+        if not (_FIXTURE_DIR / "listing_madrid.html").is_file():
+            pytest.skip("Fixture not found")
+        offers = parse_listing(
+            _read_fixture("listing_madrid.html"), "Madrid", "data", 1
+        )
+        assert offers
+        for o in offers:
+            assert "applicationOrigin" not in o.url_oferta
+            assert "?" not in o.url_oferta
+            assert "/of-i" in o.url_oferta
+
+
+class TestFullCardDescription:
+    def test_description_is_the_full_card_paragraph(self):
+        if not (_FIXTURE_DIR / "listing_madrid.html").is_file():
+            pytest.skip("Fixture not found")
+        html = _read_fixture("listing_madrid.html")
+        offers = parse_listing(html, "Madrid", "data", 1)
+        assert offers
+
+        soup = BeautifulSoup(html, "lxml")
+        full_texts: dict[str, str] = {}
+        for card in soup.select("li.ij-List-item.ij-OfferList-offerCardItem"):
+            title_h2 = card.select_one("h2.ij-OfferCardContent-description-title")
+            paragraph = card.select_one(
+                "p.ij-OfferCardContent-description-description"
+            )
+            if title_h2 is None or paragraph is None:
+                continue
+            offer_id = str(title_h2.get("id") or "").removeprefix("job-title-")
+            full_texts[offer_id] = paragraph.get_text(" ", strip=True)
+
+        for offer in offers:
+            assert offer.descripcion_snippet
+            assert offer.descripcion_snippet == full_texts[offer.id_oferta]

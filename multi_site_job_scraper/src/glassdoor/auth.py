@@ -14,6 +14,8 @@ import sys
 import time
 from pathlib import Path
 
+from .config_gd import DEFAULT_CONFIG
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
@@ -37,7 +39,7 @@ def main() -> int:
     with sync_playwright() as pw:
         from src.core.browser import PROFILE_DIR
 
-        profile_dir = PROFILE_DIR / "glassdoor"
+        profile_dir = PROFILE_DIR / DEFAULT_CONFIG.get("profile_name", "glassdoor")
         profile_dir.mkdir(parents=True, exist_ok=True)
 
         log.info("Perfil: %s", profile_dir)
@@ -47,8 +49,8 @@ def main() -> int:
             user_data_dir=str(profile_dir),
             headless=False,
             viewport={"width": 1536, "height": 864},
-            locale="en-US",
-            timezone_id="America/New_York",
+            locale=DEFAULT_CONFIG.get("locale", "en-IE"),
+            timezone_id=DEFAULT_CONFIG.get("timezone", "Europe/Dublin"),
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -60,7 +62,11 @@ def main() -> int:
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
         )
         context.grant_permissions(["geolocation"])
-        context.set_geolocation({"latitude": 40.7128, "longitude": -74.0060})
+        geo = DEFAULT_CONFIG.get("geolocation") or {}
+        context.set_geolocation({
+            "latitude": float(geo.get("latitude", 53.3498)),
+            "longitude": float(geo.get("longitude", -6.2603)),
+        })
 
         page = context.new_page()
 
@@ -71,9 +77,10 @@ def main() -> int:
         except ImportError:
             pass
 
-        # Navegar a Glassdoor
-        log.info("Navegando a https://www.glassdoor.com...")
-        page.goto("https://www.glassdoor.com", wait_until="domcontentloaded", timeout=30000)
+        # Navegar al dominio del mercado configurado
+        base_url = DEFAULT_CONFIG.get("base_url", "https://www.glassdoor.ie")
+        log.info("Navegando a %s...", base_url)
+        page.goto(base_url, wait_until="domcontentloaded", timeout=30000)
         time.sleep(3)
 
         # Aceptar cookies si aparece
@@ -88,25 +95,25 @@ def main() -> int:
         except Exception:
             pass
 
+        login_url = f"{base_url.rstrip('/')}/profile/login_input.htm"
         log.info("")
         log.info("============================================================")
         log.info("  AHORA: Inicia sesion o crea cuenta en Glassdoor.")
-        log.info("  Ve a: https://www.glassdoor.com/profile/login_input.htm")
-        log.info("  Si te redirige a .es, no importa — usa esa version.")
+        log.info("  Ve a: %s", login_url)
+        log.info("  Si te redirige a otro dominio regional, no importa — usa esa version.")
         log.info("")
         log.info("  Cuando hayas terminado, vuelve a esta terminal")
         log.info("  y pulsa ENTER para cerrar el navegador.")
         log.info("============================================================")
 
-        page.goto("https://www.glassdoor.com/profile/login_input.htm",
-                  wait_until="domcontentloaded", timeout=30000)
+        page.goto(login_url, wait_until="domcontentloaded", timeout=30000)
         time.sleep(2)
 
         log.info("")
         log.info("============================================================")
         log.info("  AHORA: Inicia sesion o crea cuenta en Glassdoor.")
-        log.info("  Ve a: https://www.glassdoor.com/profile/login_input.htm")
-        log.info("  Si te redirige a .es, no importa — usa esa version.")
+        log.info("  Ve a: %s", login_url)
+        log.info("  Si te redirige a otro dominio regional, no importa — usa esa version.")
         log.info("")
         log.info("  Cuando hayas terminado, CIERRA la ventana del navegador.")
         log.info("  La sesion se guardara automaticamente.")

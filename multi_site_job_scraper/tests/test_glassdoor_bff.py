@@ -232,3 +232,32 @@ def test_parse_jobview_salary_raw_original_conserva_valor_glassdoor():
     assert card["salary_raw"] == "USD 8,000 - 12,000 per month"
     assert card["salary_raw_original"] == "USD 8,000 - 12,000 per month"
     assert card["salary_period"] == "MONTH"
+
+
+class _Fake403Response:
+    status = 403
+
+    def json(self):
+        return {}
+
+
+class _FakeRequest:
+    def __init__(self):
+        self.calls = 0
+
+    def post(self, *args, **kwargs):
+        self.calls += 1
+        return _Fake403Response()
+
+
+def test_fetch_description_attempts_parameterized():
+    # T-35: los intentos de JobDetailQuery se pueden acotar desde config.
+    single = _FakeRequest()
+    assert bff.fetch_description(single, "https://www.glassdoor.ie", "tok",
+                                 123, attempts=1) == ""
+    assert single.calls == 1
+
+    default = _FakeRequest()
+    assert bff.fetch_description(default, "https://www.glassdoor.ie", "tok",
+                                 123) == ""
+    assert default.calls == 2

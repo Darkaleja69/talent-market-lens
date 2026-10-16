@@ -1,0 +1,20 @@
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=windows-1252
+Content-Length: 4593
+Connection: keep-alive
+Date: Tue, 06 Oct 2026 15:45:39 GMT
+Content-Language: es
+Set-Cookie: AWSALB=<redacted>; Expires=Tue, 13 Oct 2026 15:45:39 GMT; Path=/
+Set-Cookie: AWSALBCORS=<redacted>; Expires=Tue, 13 Oct 2026 15:45:39 GMT; Path=/; SameSite=None
+Server: Apache
+P3P: CP="CAO PSA OUR"
+Vary: Host,Accept-Encoding,User-Agent
+Last-Modified: Tue, 06 Oct 2026 13:36:02 GMT
+Accept-Ranges: bytes
+Strict-Transport-Security: max-age=63072000; includeSubdomains;
+Content-Security-Policy: frame-ancestors 'self' *.optimizely.com *.optimizelyedit.com *.adobe.com *.adyen.com;
+X-Cache: Miss from cloudfront
+Via: 1.1 ddcf546dc6ebb5644c611f71496d6444.cloudfront.net (CloudFront)
+X-Amz-Cf-Pop: MAD53-P7
+X-Amz-Cf-Id: t7qzDd09sI2t9u3yq9Tj1pQMqNnm30idikrMfU8fVumR3kW6_ovjvg==
+

@@ -1,0 +1,87 @@
+﻿# Sonda glassdoor.es SERP (2026-10-12) - resumen de red saneado (sin cabeceras ni cookies)
+# metodo status tipo url
+GET  Script https://www.glassdoor.ie/cdn-cgi/challenge-platform/scripts/jsd/main.js
+GET 200 Script https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/scripts/jsd/4df4a60fa397/main.js?
+POST 200 XHR https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/jsd/oneshot/4df4a60fa397/0.8340845298236486:1791788719:-6PMJPR209dog2PJTXZwmPyzjjI3M4CvUD0natbEaI8/a4949
+GET 200 Script https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1?ray=a494999058fb0419
+GET 200 Script https://challenges.cloudflare.com/turnstile/v0/g/4df4a60fa397/api.js?onload=zeEi4&render=explicit
+POST 200 XHR https://www.glassdoor.ie/cdn-cgi/challenge-platform/h/g/fo/154388874:1791788714:IYDO3xZocc7G19juvwROcB1BOSacGsiRkJsll2JfieM/a494999058fb0419/TcTqEG0aHiOMyUlYXqc
+GET 200 Document https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/f/av0/rch/0xb65/0x4AAAAAAADnPIDROrmt1Wwj/light/fbE/new/normal?lang=auto
+POST 200 XHR https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/fo/2846843914:1791788716:a2PAxjJgeUbyvzfahtSutQx6eh-Jij9ScHrZMAkcTm8/a49499b50f09f767/4yvRI38MT
+GET  Script blob:https://challenges.cloudflare.com/70f10d6b-9f5d-4bce-871c-b0b868f9571f
+GET  Script blob:https://challenges.cloudflare.com/70f10d6b-9f5d-4bce-871c-b0b868f9571f
+GET  Script blob:https://challenges.cloudflare.com/70f10d6b-9f5d-4bce-871c-b0b868f9571f
+GET 200 Image https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/ci/a49499b50f09f767/1791792337755/pMAjbFMAbPOMfLs.ghcYVfNQzfRwz3H_ffSG23AUdnw-1791792337-1.3.1.
+POST 200 XHR https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/fo/2846843914:1791788716:a2PAxjJgeUbyvzfahtSutQx6eh-Jij9ScHrZMAkcTm8/a49499b50f09f767/4yvRI38MT
+GET  Script blob:https://challenges.cloudflare.com/70e0a0c7-e08f-4148-82ba-6d262abf720d
+GET  Document https://www.glassdoor.es/
+GET 200 Document https://www.glassdoor.es/index.htm
+GET 200 Stylesheet https://www.glassdoor.es/seo-pages/assets/_next/static/css/e76d686ee29e9858.css
+GET 200 Stylesheet https://www.glassdoor.es/seo-pages/assets/_next/static/css/01db62decb85e875.css
+GET 200 Stylesheet https://www.glassdoor.es/seo-pages/assets/_next/static/css/ab0b80c35a6dc69b.css
+GET 200 Stylesheet https://www.glassdoor.es/web-core-sam/static/core-25e6820d85a645be.min.css
+GET 200 Stylesheet https://www.glassdoor.es/app-install-sam-server/static/marketingBanner-50f7e44b681c3fb0.min.css
+GET 200 Stylesheet https://www.glassdoor.es/sam-global-nav/static/lockedGlobalNav-52dff0fb08790907.min.css
+GET 200 Stylesheet https://www.glassdoor.es/sam-global-nav/static/lib-7e5eadd736e8cc15.min.css
+GET 200 Stylesheet https://www.glassdoor.es/sam-global-nav/static/globalFooter-d848aba9fd7e8ed7.min.css
+GET 200 Stylesheet https://www.glassdoor.es/user-login-sam-server/static/unifiedUserAuth-8e2b6cccf50dcb3f.min.css
+GET 200 Script https://www.glassdoor.es/web-core-sam/static/vendor/react19-19.2.8.min.js
+GET 200 Script https://www.glassdoor.es/web-core-sam/static/core-d79d59bf25244d1e.min.js
+GET 200 Script https://www.glassdoor.es/assets/bundles/brand-views/gd-brand-views.bundle.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/webpack-1f17f015306c6ffe.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/framework-0fa1d5d4d5cba287.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/main-c7ed844c30c51e03.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/pages/_app-ce40e04706323f42.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/58474bfb-286e4de427ebaad0.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/580-4a89e936c72c5950.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/9301-46ce7e3bf9b14430.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/4096-9c7e31481778eec0.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/pages/index-fe500cb3cdf5aa2c.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/a1ef2860/_buildManifest.js
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/a1ef2860/_ssgManifest.js
+GET 200 Image https://www.glassdoor.es/assets/images/global-nav/locked-jobs.png
+GET 200 Image https://www.glassdoor.es/assets/images/global-nav/locked-companies.png
+GET 200 Image https://www.glassdoor.es/assets/images/global-nav/locked-salaries.png
+GET 200 Image https://www.glassdoor.es/assets/images/global-nav/for-employers.png
+GET 200 Manifest https://www.glassdoor.es/manifest.json
+GET 200 Image https://www.glassdoor.es/assets/images/seo-pages/homepage/sohp-left-hero-image.webp
+GET 200 Image https://www.glassdoor.es/assets/images/seo-pages/homepage/sohp-right-hero-image.webp
+GET  Script blob:https://www.glassdoor.es/db39e564-cf63-4451-b57c-8ae160d4f9ed
+GET  Script https://www.glassdoor.es/cdn-cgi/challenge-platform/scripts/jsd/main.js
+POST 204 XHR https://www.glassdoor.es/util/ajax/bwl.htm
+GET 200 Script https://www.glassdoor.es/seo-pages/assets/_next/static/chunks/4603.734b7a25f6de9f4b.js
+GET 200 Script https://www.glassdoor.es/cdn-cgi/challenge-platform/h/g/scripts/jsd/4df4a60fa397/main.js?
+OPTIONS 204 Other https://rsdp.glassdoor.es/v1/track
+POST 200 XHR https://rsdp.glassdoor.es/v1/track
+GET 200 Other https://www.glassdoor.es/favicon.ico
+POST 200 XHR https://www.glassdoor.es/cdn-cgi/challenge-platform/h/g/jsd/oneshot/4df4a60fa397/0.8340845298236486:1791788719:-6PMJPR209dog2PJTXZwmPyzjjI3M4CvUD0natbEaI8/a4949
+GET 200 Other https://www.glassdoor.es/favicon.ico
+GET 200 Script https://www.glassdoor.es/app-install-sam-server/static/lib-2d739c22f4e3becc.min.js
+GET 200 Script https://www.glassdoor.es/app-install-sam-server/static/marketingBanner-92ff6575c825b7f6.min.js
+GET 200 Script https://www.glassdoor.es/sam-global-nav/static/lib-a17b151b52964442.min.js
+GET 200 Script https://www.glassdoor.es/sam-global-nav/static/lockedGlobalNav-50fb6eaa40649c7c.min.js
+GET 200 Script https://www.glassdoor.es/user-login-sam-server/static/unifiedUserAuth-9a96d2169cd3cd16.min.js
+GET 200 Script https://www.glassdoor.es/sam-global-nav/static/globalFooter-601d596ceef8dba1.min.js
+POST 200 XHR https://rsdp.glassdoor.es/v1/track
+GET 200 Script https://www.glassdoor.es/user-login-sam-server/static/unified-user-auth-bundle-es-json-62613dcb12a65c63.min.js
+GET 200 Script https://www.glassdoor.es/sam-global-nav/static/global-nav-bundle-es-json-c07827bea959fd7b.min.js
+GET 200 Script https://www.glassdoor.es/sam-global-nav/static/global-nav-variants-bundle-es-json-7c3e16b89a5dbd80.min.js
+POST 200 XHR https://rsdp.glassdoor.es/v1/track
+GET 200 Script https://www.glassdoor.es/user-login-sam-server/static/6078-216b9a7df7a96267.min.js
+POST 200 XHR https://rsdp.glassdoor.es/v1/track
+GET  Document https://www.glassdoor.es/Empleo/empleos.htm?sc.keyword=Data%20Analyst
+GET 403 Document https://www.glassdoor.es/Empleo/empleos.htm?sc.keyword=Data%20Analyst
+GET 200 Script https://www.glassdoor.es/cdn-cgi/challenge-platform/h/g/orchestrate/chl_page/v1?ray=a4949d13cd94c8f5
+GET  Script https://rscdn.glassdoor.es/v1.1/rudder-analytics.min.js
+GET  Script blob:https://www.glassdoor.es/5e7971f7-c426-4044-b85f-ddce7fa09e3c
+GET 200 Script https://challenges.cloudflare.com/turnstile/v0/g/4df4a60fa397/api.js?onload=zeEi4&render=explicit
+POST 200 XHR https://www.glassdoor.es/cdn-cgi/challenge-platform/h/g/fo/154388874:1791788714:IYDO3xZocc7G19juvwROcB1BOSacGsiRkJsll2JfieM/a4949d13cd94c8f5/2Hm.Rtd60dn_tTd8fXw
+GET  Script blob:https://www.glassdoor.es/145325b9-63b3-45e4-be75-7ab10b6ba50b
+GET 200 Document https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/turnstile/f/av0/rch/dbhrq/0x4AAAAAAADnPIDROrmt1Wwj/light/fbE/new/normal?lang=auto
+POST 200 XHR https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/fo/2846843914:1791788716:a2PAxjJgeUbyvzfahtSutQx6eh-Jij9ScHrZMAkcTm8/a4949d241ae50325/0xlbJZ9DS
+GET  Script blob:https://challenges.cloudflare.com/8a72d027-9327-4f5d-985f-61ac1c05e1db
+GET 200 Image https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/ci/a4949d241ae50325/1791792478126/ick8XoxUjxtGHJP3b_Misn1IiiId23Bx1zXAeQttqTE-1791792478-1.3.1.
+GET  Script blob:https://challenges.cloudflare.com/8a72d027-9327-4f5d-985f-61ac1c05e1db
+GET  Script blob:https://challenges.cloudflare.com/8a72d027-9327-4f5d-985f-61ac1c05e1db
+POST 200 XHR https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/g/fo/2846843914:1791788716:a2PAxjJgeUbyvzfahtSutQx6eh-Jij9ScHrZMAkcTm8/a4949d241ae50325/0xlbJZ9DS
+GET  Script blob:https://challenges.cloudflare.com/1e0206de-82f2-4347-9225-77601bf0ff01

@@ -1,0 +1,33 @@
+Puerta de calidad — prueba en vivo acotada Indeed (RF-16), spec 004, T-32, iteración 3
+====================================================================================
+
+Fecha/hora local: 2026-10-11, tras el run de 17:38-17:42.
+Comando (desde scrapers-pipeline/):
+  python -m repair.cli quality --record ..\repairs\20261010-indeed
+      --parquet ..\indeed_jobs_scraper\output\indeed_jobs_20261011_1738.parquet
+      --output ..\repairs\20261010-indeed\quality_after.json
+Exit code: 0 (veredicto OK).
+
+Tabla impresa:
+Calidad de la prueba en vivo — fuente: indeed
+Veredicto: OK
+Ofertas únicas medidas: 11
+Bloqueos: ninguno
+
+  Campo       | Obligatorio | Antes    | Después | Delta    | Meta     | Estado
+  ------------+-------------+----------+---------+----------+----------+----------
+  id          | no          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  title       | sí          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  company     | sí          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  description | sí          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  salary      | no          | sin dato | 90.9 %  | sin dato | sin meta | no aplica
+  skills      | no          | sin dato | 0.0 %   | sin dato | sin meta | no aplica
+  work_mode   | no          | sin dato | 54.5 %  | sin dato | sin meta | no aplica
+  location    | no          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  posted_date | no          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+Calidad escrita en ..\repairs\20261010-indeed\quality_after.json
+
+Comparación con la iteración 2 (mismo alcance): description pasó de 0.0 % a
+100.0 %; salary 90.9 % y work_mode 54.5 % se mantienen; sin regresión en
+ningún campo. El perfil efectivo evaluado es quality_before.json reconciliado
+(salary/work_mode/skills sin meta).

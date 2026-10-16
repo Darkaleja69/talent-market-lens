@@ -132,7 +132,14 @@ _MOSAIC_DATA_RE = re.compile(r'<script id="mosaic-data"[^>]*>(.*?)</script>', re
 _JOBCARDS_ASSIGN_RE = re.compile(
     r'window\.mosaic\.providerData\["mosaic-provider-jobcards"\]\s*=\s*'
 )
-_INITIAL_DATA_RE = re.compile(r'window\._initialData\s*=\s*')
+# Contenedor de la descripcion del job auto-abierto (two-pane). Indeed ya no
+# publica `window._initialData =`; el contenedor sigue embebido en los
+# <script> y se localiza de forma tolerante por su clave, tanto en la forma
+# `"autoOpenTwoPaneViewjobResponse": {...}` como `... = {...}` (T-32).
+_SCRIPT_BODY_RE = re.compile(r"<script[^>]*>(.*?)</script>", re.DOTALL | re.IGNORECASE)
+_AUTO_OPEN_RESPONSE_RE = re.compile(
+    r'autoOpenTwoPaneViewjobResponse["\']?\s*[:=]\s*'
+)
 
 
 def _extract_jobcards_results(html: str) -> list[dict] | None:
@@ -177,53 +184,119 @@ def _extract_jobcards_results(html: str) -> list[dict] | None:
     return results
 
 
-def _extract_initial_data_descriptions(html: str) -> dict[str, str]:
-    """Extrae la descripcion del job auto-abierto en el panel derecho (two-pane).
+def _descriptions_from_auto_open(response: dict) -> dict[str, str]:
+    """Extrae ``job.key -> description.html`` de la respuesta auto-open (T-32).
 
-    window._initialData contiene autoOpenTwoPaneViewjobResponse.body
-    con hostQueryExecutionResult.data.jobData.results[0], que tiene
-    la descripcion del job que Indeed abre automaticamente al cargar la SERP.
+    El ``body`` de la respuesta puede ser un objeto JSON o una cadena JSON
+    codificada. Acepta dos formas:
 
-    Solo devuelve 1 descripcion (la del job auto-seleccionado), no todas.
-    Para obtener todas las descripciones, usar --enrich (panel derecho por clics)
-    o el fallback /viewjob?jk=.
+    - ruta actual (layout two-pane 2026-10): ``body.jobKey`` +
+      ``body.jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription`` (HTML);
+    - ruta antigua (fallback): ``body.hostQueryExecutionResult.data.jobData.
+      results[].job.key`` + ``job.description.html``.
+
+    Devuelve {} cuando ninguna ruta existe; nunca lanza.
     """
-    m = _INITIAL_DATA_RE.search(html)
-    if not m:
-        log.debug("no se encontro window._initialData en el HTML")
+    if not isinstance(response, dict):
         return {}
-    brace = m.end()
-    end = _balance_braces(html, brace)
-    if end < 0:
-        log.warning("no se pudo balancear window._initialData")
-        return {}
-    raw = html[brace:end]
-    try:
-        import json
-        obj = json.loads(raw)
-    except Exception as e:
-        log.debug("JSON de window._initialData no parseo: %s", e)
+    body = response.get("body")
+    if isinstance(body, str):
+        try:
+            import json
+            body = json.loads(body)
+        except Exception as e:
+            log.debug("body de autoOpenTwoPaneViewjobResponse no parseo: %s", e)
+            return {}
+    if not isinstance(body, dict):
         return {}
 
+    # Ruta nueva (2026-10): la descripcion embebida vive en
+    # jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription (HTML) y la
+    # clave del job en body.jobKey.
     try:
-        body = obj["autoOpenTwoPaneViewjobResponse"]["body"]
+        new_jk = body["jobKey"]
+        new_desc = body["jobInfoWrapperModel"]["jobInfoModel"]["sanitizedJobDescription"]
+    except (KeyError, TypeError):
+        new_jk, new_desc = "", ""
+    if isinstance(new_jk, str) and new_jk and isinstance(new_desc, str) and new_desc:
+        return {new_jk: unescape(new_desc)}
+
+    # Ruta antigua (fallback): hostQueryExecutionResult.data.jobData.results[].
+    try:
         results = body["hostQueryExecutionResult"]["data"]["jobData"]["results"]
     except (KeyError, TypeError):
+        return {}
+    if not isinstance(results, list):
         return {}
 
     descriptions: dict[str, str] = {}
     for item in results:
         if not isinstance(item, dict):
             continue
+        job = item.get("job")
+        if not isinstance(job, dict):
+            continue
         try:
-            jk = item["job"]["key"]
-            desc_html = item["job"]["description"]["html"]
+            jk = job["key"]
+            desc_html = job["description"]["html"]
         except (KeyError, TypeError):
             continue
         if jk and desc_html:
             descriptions[jk] = unescape(desc_html)
 
     return descriptions
+
+
+def _iter_auto_open_responses(html: str):
+    """Itera las respuestas auto-open embebidas, de forma tolerante (T-32).
+
+    Búsqueda por clave (``autoOpenTwoPaneViewjobResponse`` seguida de ``:`` o
+    ``=``) en cada <script> y, como respaldo, en el HTML completo (fixtures sin
+    etiquetas). Cada candidata se recorta con el balanceo de llaves existente y
+    se parsea a JSON; las candidatas que no parsean o no llevan la clave se
+    descartan sin romper.
+    """
+    import json
+
+    contents = [m.group(1) for m in _SCRIPT_BODY_RE.finditer(html)]
+    contents.append(html)
+    for content in contents:
+        for marker in _AUTO_OPEN_RESPONSE_RE.finditer(content):
+            brace = content.find("{", marker.end())
+            if brace < 0:
+                continue
+            end = _balance_braces(content, brace)
+            if end < 0:
+                continue
+            try:
+                obj = json.loads(content[brace:end])
+            except Exception:
+                continue
+            if isinstance(obj, dict):
+                yield obj
+
+
+def _extract_initial_data_descriptions(html: str) -> dict[str, str]:
+    """Extrae la descripcion del job auto-abierto en el panel derecho (two-pane).
+
+    Indeed ya no publica ``window._initialData =`` de forma estable, pero el
+    contenedor ``autoOpenTwoPaneViewjobResponse`` sigue embebido en los
+    ``<script>``; se busca de forma tolerante por su clave y se acepta tanto la
+    ruta actual (``body.jobInfoWrapperModel.jobInfoModel.
+    sanitizedJobDescription`` con la clave en ``body.jobKey``) como la antigua
+    (``body.hostQueryExecutionResult.data.jobData.results[]``); ``body`` puede
+    ser un objeto o una cadena JSON.
+
+    Solo devuelve 1 descripcion (la del job auto-seleccionado), no todas.
+    Para obtener todas las descripciones, usar --enrich (panel derecho por
+    clics). Devuelve {} sin romper cuando el contenedor no aparece.
+    """
+    for response in _iter_auto_open_responses(html):
+        descriptions = _descriptions_from_auto_open(response)
+        if descriptions:
+            return descriptions
+    log.debug("no se encontro autoOpenTwoPaneViewjobResponse con descripciones en el HTML")
+    return {}
 
 
 def _map_item_to_offer(
@@ -301,7 +374,7 @@ def _map_item_to_offer(
         job_type=job_type,
         workplace_type=workplace_type,
         snippet=_clean_html(item.get("snippet", "") or ""),
-        description_html="",  # se llena desde _initialData (hostQueryExecutionResult)
+        description_html="",  # se llena desde el JSON auto-open (ver _extract_initial_data_descriptions)
         posted_relative=item.get("formattedRelativeTime", "") or "",
         posted_date=_epoch_ms_to_iso(item.get("pubDate") or item.get("createDate")),
         is_sponsored=bool(item.get("sponsored")),
@@ -346,7 +419,10 @@ def parse_serp(
                 offer.snippet = offer.description_text[:500]
                 filled += 1
         if filled:
-            log.info("descripciones from _initialData: %d/%d ofertas", filled, len(offers))
+            log.info(
+                "descripciones from _initialData (autoOpen embedded JSON): %d/%d ofertas",
+                filled, len(offers),
+            )
 
     log.info(
         "parseadas %d ofertas (pagina %d, %s/%s) via JSON embebido",
@@ -424,17 +500,151 @@ def _map_conditions_to_offer(offer, conditions_text: str) -> None:
         offer.benefits = "; ".join(benefits_lines)
 
 
-def enrich_offers_via_right_panel(page: "Page", offers: list[JobOffer], domain: str = "", rate: float = 1.0, state=None, cache: dict | None = None, max_enrich: int = 0) -> tuple[int, int]:
+# Cadena de esperas del panel derecho (T-32; iteracion 3): la UI two-pane
+# actual usa testids `vj-*`/`viewjob-*`; los selectores del layout antiguo
+# (`jobsearch-*`, `#jobDescriptionText`) se conservan al final como respaldo.
+# El encabezado nuevo (`vj-job-title`) va primero; un timeout ya no aborta la
+# oferta, solo tras agotar la cadena se registra como fallida.
+_PANEL_HEADER_SELECTOR = (
+    '[data-testid="vj-job-title"], '
+    '[data-testid="jobsearch-JobInfoHeader-title"]'
+)
+# El marcador `vj-job-description-heading` identifica el contenedor de la
+# descripcion: `_read_panel_description` lee su contenedor padre (el heading
+# solo es el titulo visible).
+_PANEL_DESC_HEADING_SELECTOR = '[data-testid="vj-job-description-heading"]'
+_PANEL_DESC_SELECTORS = (
+    '[data-testid="viewjob-job-content"]',
+    _PANEL_DESC_HEADING_SELECTOR,
+    "#jobDescriptionText",
+    '[data-testid="jobDescriptionText"]',
+    'div[class*="jobDescriptionText"]',
+    'div[id*="jobDescription"]',
+)
+_PANEL_DESC_SELECTOR = ", ".join(_PANEL_DESC_SELECTORS)
+_PANEL_DESC_PARENT_XPATH = "xpath=ancestor::div[1]"
+_PANEL_WAIT_STEPS = (
+    (_PANEL_HEADER_SELECTOR, 4000),
+    (_PANEL_DESC_SELECTOR, 8000),
+)
+_MIN_DESC_HTML_LEN = 30
+
+
+def _is_timeout_error(exc: BaseException) -> bool:
+    """True para el TimeoutError de Playwright/patchright o el builtin."""
+    return type(exc).__name__ in ("TimeoutError", "PlaywrightTimeoutError")
+
+
+def _wait_for_selector_safe(page, selector: str, timeout_ms: int) -> bool:
+    """Espera un selector sin propagar errores; True si aparecio (T-32)."""
+    try:
+        page.wait_for_selector(selector, timeout=timeout_ms)
+        return True
+    except Exception as e:
+        if not _is_timeout_error(e):
+            log.debug("wait_for_selector fallo para %r: %s", selector, e)
+        return False
+
+
+def _parent_of_heading(locator):
+    """Contenedor padre del marcador de descripcion; el marcador si falla."""
+    try:
+        parent = locator.locator(_PANEL_DESC_PARENT_XPATH)
+        if parent.count() > 0:
+            return parent
+    except Exception:
+        pass
+    return locator
+
+
+def _read_panel_description(page) -> str:
+    """Lee el HTML/texto de la descripcion del panel derecho, si ya esta.
+
+    Orden (T-32, iteracion 3): contenedor actual `viewjob-job-content`, marcador
+    `vj-job-description-heading` (se lee el contenedor padre del marcador) y,
+    al final, los selectores del layout antiguo (`#jobDescriptionText`,
+    `jobDescriptionText`, clases `jobDescriptionText`/`jobDescription`).
+    """
+    for sel in _PANEL_DESC_SELECTORS:
+        try:
+            el = page.locator(sel).first
+        except Exception:
+            continue
+        if el.count() > 0:
+            if sel == _PANEL_DESC_HEADING_SELECTOR:
+                el = _parent_of_heading(el)
+            try:
+                desc_html = el.inner_html() or el.inner_text() or ""
+            except Exception:
+                desc_html = ""
+            if desc_html and len(desc_html) > _MIN_DESC_HTML_LEN:
+                return desc_html
+    return ""
+
+
+def _is_card_active(page, jk: str) -> bool:
+    """True cuando la tarjeta clicada quedo activa (`vjs-highlight`)."""
+    selector = (
+        f'div.vjs-highlight a[data-jk="{jk}"], '
+        f'a[data-jk="{jk}"].vjs-highlight'
+    )
+    try:
+        return page.locator(selector).count() > 0
+    except Exception:
+        return False
+
+
+def _wait_for_right_panel(page, jk: str) -> tuple[str, bool]:
+    """Espera la descripcion del panel derecho con selectores encadenados.
+
+    Encadena el encabezado (`vj-job-title` y respaldo
+    `jobsearch-JobInfoHeader-title`, 4 s) y los contenedores de descripcion
+    (`viewjob-job-content`/`vj-job-description-heading` y respaldos antiguos,
+    8 s), comprobando ademas si la tarjeta quedo activa (`vjs-highlight`).
+    Nunca aborta la oferta: si la cadena se agota devuelve ("", card_active) y
+    el llamante registra el fallo y sigue.
+    """
+    card_active = False
+    for selector, timeout_ms in _PANEL_WAIT_STEPS:
+        _wait_for_selector_safe(page, selector, timeout_ms)
+        if not card_active:
+            card_active = _is_card_active(page, jk)
+        desc_html = _read_panel_description(page)
+        if desc_html:
+            return desc_html, card_active
+    return "", card_active
+
+
+def enrich_offers_via_right_panel(
+    page: "Page",
+    offers: list[JobOffer],
+    domain: str = "",
+    rate: float = 1.0,
+    state=None,
+    cache: dict | None = None,
+    max_enrich: int = 0,
+    allow_viewjob_fallback: bool = False,
+    progress_cb=None,
+) -> tuple[int, int]:
     """Clica cada job card en el panel izquierdo y cosecha la descripcion
     completa y las condiciones (beneficios, jornada, schedule, compensacion)
     del panel derecho de la SERP two-pane de Indeed.
 
     Llamar despues de parse_serp, con la pagina aun abierta.
     Modifica los JobOffer in-place (description_html, benefits, etc.).
-    Con delay entre clics (~3s) para no disparar anti-bot.
+    Con delay entre clics (~6s) para no disparar anti-bot.
 
-    Si domain se proporciona, usa /viewjob?jk= como fallback cuando el panel
-    derecho no devuelve descripcion (navega a la pagina de detalle de la oferta).
+    Descripcion (T-32): la espera del panel es una cadena escalonada de
+    selectores (`_wait_for_right_panel`); si se agota, la oferta se registra
+    como fallida (WARNING) y el bucle sigue con la siguiente, sin `continue`
+    silencioso. `progress_cb(done, total)` se invoca tras procesar cada oferta
+    para emitir latido PROGRESS durante el enriquecimiento (el watchdog del
+    pipeline decide por ese contador).
+
+    Fallback /viewjob: **desactivado por defecto**. `robots.txt` de Indeed
+    prohibe `/viewjob` y `/graphql` para `User-agent: *` y el fallback era
+    inalcanzable por el orden del codigo; solo un interruptor explicito
+    (`allow_viewjob_fallback=True`) lo activa, jamas la ejecucion normal.
 
     Estrategia mixta y segura (cache + tope):
       1. Primero rellena desde `cache` (desc_cache) las ofertas ya conocidas: 0 clics.
@@ -451,7 +661,6 @@ def enrich_offers_via_right_panel(page: "Page", offers: list[JobOffer], domain: 
     """
     import random as _random
     import time
-    from playwright.sync_api import TimeoutError as PlaywrightTimeout  # patchright es drop-in
 
     if not offers:
         return 0, 0
@@ -491,6 +700,7 @@ def enrich_offers_via_right_panel(page: "Page", offers: list[JobOffer], domain: 
         )
 
     cond_selectors = [
+        '[data-testid="structured-job-summary"]',
         '[data-testid="jobsearch-OtherJobDetailsContainer"]',
         '[data-testid="jobDetailsSection"]',
         'div[class*="jobDetails"]',
@@ -501,6 +711,8 @@ def enrich_offers_via_right_panel(page: "Page", offers: list[JobOffer], domain: 
 
     enriched = 0
     success = 0
+    failed = 0
+    total = len(sample)
     for offer in sample:
         jk = offer.job_key
         if not jk:
@@ -510,128 +722,126 @@ def enrich_offers_via_right_panel(page: "Page", offers: list[JobOffer], domain: 
 
         conditions_text = ""
         vj_conditions = ""
+        desc_html = ""
         try:
             card_link = page.locator(f'a[data-jk="{jk}"]').first
             if card_link.count() == 0:
                 card_link = page.locator(f'a[href*="jk={jk}"]').first
             if card_link.count() == 0:
-                log.debug("no se encontro card clicable para jk=%s", jk)
-                continue
-
-            card_link.scroll_into_view_if_needed()
-            time.sleep(0.8)
-            card_link.click(timeout=5000)
-            # pausa amplia y variable tras cada clic (perfil lento/seguro)
-            time.sleep(6.0 + (hash(jk) % 50) * 0.12)
-
-            try:
-                page.wait_for_selector(
-                    '#jobDescriptionText, [data-testid="jobDescriptionText"], '
-                    'div#jobDescriptionText, '
-                    '[data-testid="jobsearch-JobInfoHeader-title"]',
-                    timeout=8000,
+                failed += 1
+                log.warning(
+                    "enriquecimiento fallido jk=%s: no se encontro tarjeta clicable en la SERP",
+                    jk,
                 )
-            except PlaywrightTimeout:
-                log.debug("timeout esperando descripcion en panel derecho para jk=%s", jk)
-                continue
+            else:
+                card_link.scroll_into_view_if_needed()
+                time.sleep(0.8)
+                card_link.click(timeout=5000)
+                # pausa amplia y variable tras cada clic (perfil lento/seguro)
+                time.sleep(6.0 + (hash(jk) % 50) * 0.12)
 
-            time.sleep(1)
+                # Cadena de esperas: ya no hay `continue` que aborte la oferta.
+                desc_html, card_active = _wait_for_right_panel(page, jk)
 
-            desc_html = ""
-            desc_selectors = [
-                "#jobDescriptionText",
-                '[data-testid="jobDescriptionText"]',
-                'div[class*="jobDescriptionText"]',
-                'div[id*="jobDescription"]',
-            ]
-            for sel in desc_selectors:
-                el = page.locator(sel).first
-                if el.count() > 0:
+                if desc_html:
+                    offer.description_html = desc_html
+                    offer.description_text = _clean_html(desc_html)
+                    offer.snippet = offer.description_text[:500]
+                elif allow_viewjob_fallback and domain:
                     try:
-                        desc_html = el.inner_html() or el.inner_text() or ""
-                    except Exception:
-                        pass
-                    if desc_html and len(desc_html) > 30:
-                        break
+                        vj_url = f"https://{domain}/viewjob?jk={jk}"
+                        desc_page = page.context.new_page()
+                        try:
+                            desc_page.goto(vj_url, wait_until="domcontentloaded", timeout=15000)
+                            time.sleep(1.5)
+                            desc_el = desc_page.locator(
+                                "#jobDescriptionText, [data-testid='jobDescriptionText']"
+                            ).first
+                            if desc_el.count() > 0:
+                                vj_desc = desc_el.inner_html() or ""
+                                if vj_desc and len(vj_desc) > _MIN_DESC_HTML_LEN:
+                                    offer.description_html = vj_desc
+                                    offer.description_text = _clean_html(vj_desc)
+                                    offer.snippet = offer.description_text[:500]
+                                    desc_html = vj_desc
+                                    log.debug("descripcion obtenida via /viewjob para jk=%s", jk)
+                            for sel in cond_selectors:
+                                el = desc_page.locator(sel).first
+                                if el.count() > 0:
+                                    try:
+                                        vj_conditions += (el.inner_text() or "") + "\n"
+                                    except Exception:
+                                        pass
+                        finally:
+                            desc_page.close()
+                    except Exception as e:
+                        log.debug("fallback /viewjob fallo para jk=%s: %s", jk, e)
 
-            if desc_html:
-                offer.description_html = desc_html
-                offer.description_text = _clean_html(desc_html)
-                offer.snippet = offer.description_text[:500]
-            elif domain:
-                try:
-                    vj_url = f"https://{domain}/viewjob?jk={jk}"
-                    desc_page = page.context.new_page()
+                if not desc_html:
+                    # Se agoto la cadena de selectores: se registra el fallo y
+                    # se sigue (la oferta conserva lo que traia la SERP).
+                    failed += 1
+                    active_note = "tarjeta activa" if card_active else "tarjeta sin vjs-highlight"
+                    log.warning(
+                        "enriquecimiento fallido jk=%s: sin descripcion en el panel derecho "
+                        "tras la cadena de esperas (%s); se continua con la siguiente oferta",
+                        jk, active_note,
+                    )
+
+                for sel in cond_selectors:
+                    el = page.locator(sel).first
+                    if el.count() > 0:
+                        try:
+                            conditions_text += (el.inner_text() or "") + "\n"
+                        except Exception:
+                            pass
+
+                if not conditions_text:
                     try:
-                        desc_page.goto(vj_url, wait_until="domcontentloaded", timeout=15000)
-                        time.sleep(1.5)
-                        desc_el = desc_page.locator(
-                            "#jobDescriptionText, [data-testid='jobDescriptionText']"
+                        extra_el = page.locator(
+                            '[data-testid="attribute_snippet_testid"], '
+                            'text="Jornada", text="Tipo de contrato", '
+                            'text="Beneficios", text="Horario", text="Salario base", '
+                            'text="Tipo de empleo"'
                         ).first
-                        if desc_el.count() > 0:
-                            vj_desc = desc_el.inner_html() or ""
-                            if vj_desc and len(vj_desc) > 30:
-                                offer.description_html = vj_desc
-                                offer.description_text = _clean_html(vj_desc)
-                                offer.snippet = offer.description_text[:500]
-                                desc_html = vj_desc
-                                log.debug("descripcion obtenida via /viewjob para jk=%s", jk)
-                        for sel in cond_selectors:
-                            el = desc_page.locator(sel).first
-                            if el.count() > 0:
-                                try:
-                                    vj_conditions += (el.inner_text() or "") + "\n"
-                                except Exception:
-                                    pass
-                    finally:
-                        desc_page.close()
-                except Exception as e:
-                    log.debug("fallback /viewjob fallo para jk=%s: %s", jk, e)
-
-            for sel in cond_selectors:
-                el = page.locator(sel).first
-                if el.count() > 0:
-                    try:
-                        conditions_text += (el.inner_text() or "") + "\n"
+                        if extra_el.count() > 0:
+                            parent = extra_el.locator("xpath=ancestor::div[1]")
+                            if parent.count() > 0:
+                                conditions_text = (parent.inner_text() or "")
                     except Exception:
                         pass
 
-            if not conditions_text:
-                try:
-                    extra_el = page.locator(
-                        '[data-testid="attribute_snippet_testid"], '
-                        'text="Jornada", text="Tipo de contrato", '
-                        'text="Beneficios", text="Horario", text="Salario base", '
-                        'text="Tipo de empleo"'
-                    ).first
-                    if extra_el.count() > 0:
-                        parent = extra_el.locator("xpath=ancestor::div[1]")
-                        if parent.count() > 0:
-                            conditions_text = (parent.inner_text() or "")
-                except Exception:
-                    pass
+                if vj_conditions and vj_conditions.strip():
+                    conditions_text += vj_conditions
 
-            if vj_conditions and vj_conditions.strip():
-                conditions_text += vj_conditions
-
-            if conditions_text and conditions_text.strip():
-                _map_conditions_to_offer(offer, conditions_text)
-
-            enriched += 1
-            if offer.description_html and len(offer.description_html) > 50:
-                success += 1
-            log.debug("enriquecida oferta jk=%s: desc=%d chars, cond=%d chars",
-                      jk, len(desc_html), len(conditions_text))
+                if conditions_text and conditions_text.strip():
+                    _map_conditions_to_offer(offer, conditions_text)
 
         except Exception as e:
-            log.debug("error enriqueciendo jk=%s: %s", jk, e)
-            continue
+            if not desc_html:
+                failed += 1
+                log.warning("enriquecimiento fallido jk=%s: %s", jk, e)
+            else:
+                log.debug("error tras obtener la descripcion de jk=%s: %s", jk, e)
+
+        enriched += 1
+        if offer.description_html and len(offer.description_html) > 50:
+            success += 1
+        log.debug("enriquecida oferta jk=%s: desc=%d chars, cond=%d chars",
+                  jk, len(desc_html), len(conditions_text))
+        if progress_cb is not None:
+            try:
+                progress_cb(enriched, total)
+            except Exception as e:
+                log.debug("progress_cb del enrich fallo: %s", e)
 
     log.info(
-        "enriquecidas %d/%d clics (candidatas sin descripcion: %d, rate=%.0f%%, max_enrich=%s)",
-        enriched, len(sample), len(candidates), rate * 100, max_enrich if max_enrich > 0 else "sin tope",
+        "enriquecidas %d/%d clics (con descripcion: %d, sin descripcion: %d; "
+        "candidatas sin descripcion: %d, rate=%.0f%%, max_enrich=%s)",
+        enriched, total, success, failed, len(candidates), rate * 100,
+        max_enrich if max_enrich > 0 else "sin tope",
     )
-    return len(sample), success
+    return total, success
 
 
 # --- Fallback HTML (cuando el JSON embebido falla) -------------------------

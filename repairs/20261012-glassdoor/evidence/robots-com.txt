@@ -1,0 +1,255 @@
+# Greetings, human beings!,
+#
+# If you're sniffing around this file, and you're not a robot, we're looking to meet curious folks such as yourself.
+#
+# Think you have what it takes to join the best white-hat SEO growth hackers on the planet, and help improve the way people everywhere find jobs?
+#
+# Run - don't crawl - to apply to join Glassdoor's SEO team here http://jobs.glassdoor.com
+#
+#
+#### Rules for ANY User-Agent
+User-agent: *
+Disallow: /*?*hostSite=*
+Disallow: /1347171559/
+Disallow: /about/board/
+Disallow: /about/contact/
+Disallow: /about/faq/
+Disallow: /about/forCareerCenters/
+Disallow: /about/forLibraries/
+Disallow: /about/forStudents/
+Disallow: /about/guidelines/
+Disallow: /about/index/
+Disallow: /about/jobs/
+Disallow: /about/learn/
+Disallow: /about/overview/
+Disallow: /about/privacy/
+Disallow: /about/syndicationCenter/
+Disallow: /about/team/
+Disallow: /about/terms/
+Disallow: /about/widgetTerms/
+Disallow: /ajax/
+Disallow: /abtest
+Disallow: /browse/
+Disallow: /chat
+Disallow: /Compare/choose
+Disallow: /employerinfo/
+Disallow: /employerInfo/
+Disallow: /Explore/browse-companies
+Disallow: /home/
+Disallow: /integrations/facebook/glassdoor/eep
+Disallow: /jobview/
+Disallow: /legal/
+Disallow: /lists/
+Disallow: /more/
+Disallow: /partner/
+Disallow: /partner-center/
+Disallow: /partners/company/
+Disallow: /partners/insights/
+Disallow: /partners/jobs/
+Disallow: /partners/reports/
+Disallow: /partners/resumeView
+Disallow: /partners/settings/
+Disallow: /parts
+Disallow: /Polls
+Disallow: /profile/
+Allow:    /profile/login_input.htm
+Allow:    /profile/joinNow_input.htm
+Allow:    /member/profile/login
+Allow:    /member/profile/joinNow
+Disallow: /Resume/user-profile/
+Disallow: /rss/*
+Disallow: /search/
+Disallow: /Search/
+Disallow: /survey/
+Disallow: /surveys
+Disallow: /surveys/
+Disallow: /util/
+Disallow: /getAdSlotContentsAjax.htm
+Disallow: /developer/index.htm
+Disallow: /developer/widget/builder/
+Disallow: /event-ingestion
+
+Disallow: /employers/ec
+Disallow: /employers/enhanced/billing_*
+Disallow: /slink.htm
+Disallow: /*encryptedUserId
+Disallow: /*followId
+Disallow: /*userValidationKey
+Disallow: */trackClickAsync.htm
+
+Disallow: /mz-survey/
+Disallow: /user-activation/
+Disallow: /member/
+Disallow: /resume/build/
+Disallow: /userprofile/
+Disallow: /sourcing$
+Disallow: /knowyourworth/
+Disallow: /Reviews/index.htm?
+Disallow: *filter.searchKeyword=
+
+#logging related
+Disallow: */lib$
+Disallow: */lib/
+Disallow: */globalize/
+Disallow: */globalize$
+Disallow: */ASCIISumThreshold$
+Disallow: */LogClient$
+Disallow: */MsgBuilder$
+Disallow: */UserAgent$
+Disallow: */Constants$
+Disallow: */init/
+Disallow: */init$
+Disallow: */LogServer$
+Disallow: */GDLogger$
+Disallow: */gd-perf$
+Disallow: */gd-site-hdr-dropdown$
+Disallow: */bundles$
+Disallow: */wait$
+Disallow: */extend$
+Disallow: */strings$
+Disallow: */strings/
+Disallow: */document$
+Disallow: */*Ajax.htm
+Disallow: */json$
+Disallow: */json/
+
+# Blocking track urls (ACQ-2468)
+Disallow: /track
+
+#Blocking non standard job view and job search URLs, and paginated job SERP URLs (TRFC-2831)
+
+Disallow: /job-listing/*_IE*.htm
+Disallow: /job-listing/JV.htm?*
+Disallow: /Job/*_IP*
+
+Disallow: /Job/bwl.htm
+
+# TRFC-3125 Block 'sex jobs' jobs infosite pages from being indexed
+Disallow: /Jobs/*-sex-*Jobs-EI*
+
+# TRFC-4037 Block page from being indexed
+Disallow: /Reviews/Barbizon-scam-*
+
+# Block Pages with misaligned search intent, impacting site links SERP
+Disallow: /Jobs/Glassdoor-Jobs-E100431.htm
+Disallow: /Reviews/Glassdoor-Reviews-E100431.htm
+Disallow: /Salary/Glassdoor-Salaries-E100431.htm
+Disallow: /Reviews/EMPLOYERS-Reviews-E25702.htm
+Disallow: /Reviews/Anonymous-Reviews-E5182641.htm
+Disallow: /Salaries/search-salary-SRCH_KO0,6.htm
+
+#Blocking low-traffic employer profile pages
+Disallow: /Photos/
+Disallow: /Location/All-*-Office-Locations*
+
+# Block pages with low SEO potential to reduce crawling
+Disallow: /Compare/-vs-
+Disallow: /Salary/_DEPT*
+Disallow: /Interview/_IL
+
+# Block specific query filter parameters
+Disallow: *filter.searchCategory
+Disallow: *filter.overallRating
+Disallow: *filter.employmentStatus
+Disallow: *sort
+Disallow: *experienceLevel
+Disallow: *locationId
+Disallow: *filter.experience
+Disallow: *filter.jobFunction
+Disallow: *filter.location
+
+# Blocking pagination on employer infosite TR-12
+Disallow: /Jobs/*_P*.htm*
+Disallow: /Jobs/*_IP*.htm*
+Disallow: /Reviews/*_P*.htm*
+Disallow: /Reviews/*_IP*.htm*
+Allow: /Reviews/*-reviews-SRCH_*_IP2.htm*
+Disallow: /Interview/*_P*.htm*
+Disallow: /Interview/*_IP*.htm*
+Disallow: /Benefits/*_IP*.htm*
+Disallow: /Salaries/*_IP*.htm*
+Allow: /Salaries/*_IP2.htm*
+Allow: /Salaries/*_IP3.htm*
+Allow: /Salaries/*_IP4.htm*
+Allow: /Salaries/*_IP5.htm*
+
+# Blocking bots from crawling DoubleClick for Publisher and Google Analytics related URL's (which aren't real URL's)
+Disallow: /1060761/*
+
+# Indeed callback only
+Disallow: /job-listing/indeedApplyCallback.htm
+
+# API Endpoints
+Disallow: /graph
+Disallow: /api-web/
+Disallow: /api/
+Disallow: /employers/engagement/api/
+
+#Analytics
+Disallow: /geb
+Disallow: /brand-views
+
+#Typeaheads
+Disallow: /autocomplete
+Disallow: /searchsuggest
+Disallow: /findCityAjax.htm
+
+#### END Rules for ANY User-Agent
+
+User-agent: ia_archiver
+Disallow: /
+Allow: */index.htm
+
+User-Agent: OmniExplorer_Bot
+Disallow: /
+
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Baiduspider
+Disallow: /
+Allow: */index.htm
+
+####Partially Block High-Quality AI/LLM Bots
+User-agent: GPTBot
+User-agent: Google-Extended
+User-agent: Amazonbot
+User-agent: anthropic-ai
+User-agent: GoogleOther
+User-agent: Claude-Web
+User-agent: ClaudeBot
+User-agent: Perplexity
+User-agent: Cohere
+User-agent: cohere-ai
+User-agent: Applebot-Extended
+User-agent: Google-CloudVertexBot
+Disallow: /
+Allow: /blog/
+Allow: /Award/
+Allow: /About/
+Allow: /employers/
+Disallow: /employers/ec
+Disallow: /employers/engagement/api/
+Disallow: /employers/enhanced/billing_*
+
+#### Block Low-Quality AI/LLM Bots
+User-agent: CCBot
+Disallow: /
+User-agent: Omgilibot
+Disallow: /
+User-agent: Omgili
+Disallow: /
+User-agent: FacebookBot
+Disallow: /
+User-agent: Bytespider
+Disallow: /
+User-agent: Diffbot
+Disallow: /
+User-agent: Youbot
+Disallow: /
+User-agent: FriendlyCrawler
+Disallow: /
+User-agent: img2dataset
+Disallow: /
+
+#### End AI/LLM Bot Blocks

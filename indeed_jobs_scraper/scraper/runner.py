@@ -75,6 +75,10 @@ class ScraperRunner:
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         self.started_at = datetime.now(tz=timezone.utc)
         self._logged_in = False
+        # True solo si el handshake CDP real se verifico (T-32); con
+        # `--cdp` pedido y handshake roto, BrowserSession degrada a navegador
+        # propio y aqui queda False.
+        self._cdp_connected = False
         self._by_city: dict[str, int] = {}
         self._serps_completed = 0
         self.captcha_aborted = False
@@ -98,9 +102,10 @@ class ScraperRunner:
     def run(self) -> list[JobOffer]:
         all_offers: list[JobOffer] = []
         with BrowserSession(self.country, self.output_dir, use_chrome_profile=self.use_chrome_profile, cdp_port=self.cdp_port) as session:
-            if self.login and not self._logged_in and self.cdp_port == 0:
+            self._apply_session_mode(session)
+            if self.login and not self._logged_in and not self._cdp_connected:
                 self._do_assisted_login(session)
-            elif self.cdp_port > 0:
+            elif self._cdp_connected:
                 self._logged_in = True
                 log.info("modo CDP: asumiendo que el usuario ya esta logueado en Chrome")
                 if not self._verify_cdp_session(session):
@@ -140,6 +145,41 @@ class ScraperRunner:
         save_cache(self.output_dir / DESC_CACHE_FILE, self.desc_cache)
         self._export(all_offers, total_before)
         return all_offers
+
+    def _apply_session_mode(self, session) -> None:
+        """Adapta el run al navegador que realmente consiguio BrowserSession.
+
+        Con `--cdp`, BrowserSession verifica el handshake real y, si no lo
+        logra, degrada a un navegador propio headed (T-32). Ese navegador no
+        tiene la sesion real de Chrome, asi que la pagina 2 (que exige login
+        para sesiones anonimas) se limita: el run continua con una sola pagina
+        en lugar de morir en seco o pedir login.
+        """
+        self._cdp_connected = self.cdp_port > 0 and bool(
+            getattr(session, "connected_via_cdp", False)
+        )
+        if self.cdp_port > 0 and not self._cdp_connected:
+            log.warning(
+                "CDP en localhost:%d sin handshake verificado; se continua con "
+                "navegador propio headed, sin sesion iniciada.",
+                self.cdp_port,
+            )
+            if self.pages > 1:
+                log.warning(
+                    "CDP degradado: se limita la ejecucion a 1 pagina "
+                    "(la pagina 2 exige login en una sesion no autenticada)."
+                )
+                self.pages = 1
+
+    def _emit_enrich_progress(self, done: int, total: int) -> None:
+        """Latido PROGRESS durante el enriquecimiento (T-32).
+
+        Cada oferta procesada cuenta como un item procesado mas; el watchdog
+        del pipeline solo avanza con un `parsed` creciente, y este bucle puede
+        estar minutos sin parsear paginas nuevas.
+        """
+        self._progress.add(1)
+        log.info("%s enrich=%d/%d", self._progress.line(at=datetime.now(timezone.utc)), done, total)
 
     def _record_page_progress(self, offers: list[JobOffer]) -> str:
         """Update the cumulative run counter and return the PROGRESS line.
@@ -219,6 +259,7 @@ class ScraperRunner:
                             state=self.state,
                             cache=self.desc_cache,
                             max_enrich=self.enrich_max,
+                            progress_cb=self._emit_enrich_progress,
                         )
                         self._enrich_attempted += attempted
                         self._enrich_success += success
@@ -511,7 +552,9 @@ class ScraperRunner:
             by_city=self._by_city,
             started_at=self.started_at,
             limit=self.limit,
-            logged_in=self._logged_in or self.cdp_port > 0,
+            # `cdp_port > 0` es solo la peticion; el flag real es que el
+            # handshake CDP se haya verificado (T-32).
+            logged_in=self._logged_in or self._cdp_connected,
             cdp_port=self.cdp_port,
             enrich_success_rate=f"{self._enrich_success}/{self._enrich_attempted}" if self.enrich or self.enrich_rate > 0 else "N/A",
             description_filled_rate=f"{described_count}/{len(offers)}",

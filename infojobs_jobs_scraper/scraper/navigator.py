@@ -1,18 +1,43 @@
-import time
-import random
+import html as html_lib
 import os
-from playwright.sync_api import Page
+import random
+import re
+import time
+import unicodedata
+
+# patchright is a drop-in replacement of playwright (binary-level anti-detection
+# patches). Fallback keeps the scraper usable if it is not installed.
+try:
+    from patchright.sync_api import Page
+except ImportError:  # pragma: no cover - depends on the environment
+    from playwright.sync_api import Page  # type: ignore
+
 from rich.console import Console
 from scraper.config import (
     SCROLL_STEP,
     SCROLL_WAIT_MIN,
     SCROLL_WAIT_MAX,
     BASE_URL,
-    CAPTCHA_TIMEOUT,
-    CAPTCHA_MAX_ATTEMPTS,
 )
 
 console = Console()
+
+# T-27/T-28: challenge markers and session cookie. Only cookie *names* are
+# inspected; values are never read nor logged (RF-11).
+CHALLENGE_COOKIE_NAME = "reese84"
+COOKIE_BANNER_SELECTORS: tuple[str, ...] = (
+    "#didomi-notice-agree-button",
+    "button[id*='didomi'][id*='agree']",
+    "button[aria-label*='Aceptar']",
+)
+
+_CANONICAL_TAG_RE = re.compile(r"(?is)<link\b[^>]*>")
+_CANONICAL_REL_RE = re.compile(r"(?i)\brel\s*=\s*[\"']?canonical")
+_HREF_RE = re.compile(r"(?i)\bhref\s*=\s*[\"']([^\"']*)")
+_H1_RE = re.compile(r"(?is)<h1\b[^>]*>(.*?)</h1>")
+_TAG_RE = re.compile(r"(?s)<[^>]+>")
+_IFRAME_DISTIL_RE = re.compile(r"(?is)<iframe\b[^>]*\bsrc\s*=\s*[\"'][^\"']*distil")
+_IMG_SHERLOCK_RE = re.compile(r"(?is)<img\b[^>]*\bsrc\s*=\s*[\"'][^\"']*sherlock")
 
 
 def respectful_sleep(min_s: float, max_s: float) -> None:
@@ -20,75 +45,150 @@ def respectful_sleep(min_s: float, max_s: float) -> None:
     time.sleep(duration)
 
 
-def detect_captcha(page: Page) -> bool:
-    url = page.url.lower()
-    if "/distil/" in url or "captcha" in url:
-        return True
-    try:
-        heading = page.locator("h1").first.text_content() or ""
-        if "no podemos identificar tu navegador" in heading.lower():
-            return True
-    except Exception:
-        pass
-    try:
-        canonical = page.locator("link[rel='canonical']").get_attribute("href") or ""
-        if "captcha" in canonical or "distil" in canonical:
-            return True
-    except Exception:
-        pass
-    try:
-        image_alt = page.locator("img[alt='']").first.get_attribute("src") or ""
-        if "sherlock" in image_alt.lower():
-            return True
-    except Exception:
-        pass
-    return False
+def _normalize_text(text: str) -> str:
+    """Lowercase and strip accents so marker matching is stable."""
+    unescaped = html_lib.unescape(text)
+    decomposed = unicodedata.normalize("NFKD", unescaped)
+    return "".join(
+        char for char in decomposed if not unicodedata.combining(char)
+    ).lower()
 
 
-def handle_captcha(
-    page: Page,
-    max_attempts: int = CAPTCHA_MAX_ATTEMPTS,
-    timeout: int = CAPTCHA_TIMEOUT,
-) -> bool:
-    for attempt in range(1, max_attempts + 1):
-        console.log(
-            f"[bold yellow]CAPTCHA detectado (intento {attempt}/{max_attempts})[/] "
-            f"[white]Resuelvelo en el navegador... esperando hasta {timeout}s...[/]"
-        )
-        # Intentar hacer scroll del iframe/elemento del captcha a la vista para
-        # que sea visible en pantallas pequenas. Heuristica: captchas de InfoJobs
-        # suelen estar dentro de iframes de distilcloudframe; scroll al centro.
-        for _scroll in range(3):
-            try:
-                page.evaluate(
-                    "() => {"
-                    "  const iframe = document.querySelector('iframe[src*=\"distil\"], iframe[src*=\"captcha\"], iframe[title*=\"captcha\"], iframe[title*=\"challenge\"]');"
-                    "  if (iframe) iframe.scrollIntoView({block:'center'});"
-                    "  else window.scrollTo(0, Math.max(document.body.scrollHeight - window.innerHeight - 50, 0));"
-                    "}"
-                )
-                time.sleep(0.5)
-            except Exception:
-                pass
-        for _catch in range(timeout * 2):
-            time.sleep(0.5)
-            try:
-                if not detect_captcha(page):
-                    console.log("[green]CAPTCHA resuelto![/]")
-                    time.sleep(2)
-                    return True
-            except Exception:
-                pass
-        console.log("  [yellow]Timeout, forzando recarga...[/]")
+def _canonical_href(html: str) -> str:
+    for tag in _CANONICAL_TAG_RE.findall(html):
+        if _CANONICAL_REL_RE.search(tag):
+            match = _HREF_RE.search(tag)
+            if match:
+                return match.group(1)
+    return ""
+
+
+def _heading_text(html: str) -> str:
+    match = _H1_RE.search(html)
+    if match is None:
+        return ""
+    return _TAG_RE.sub(" ", match.group(1))
+
+
+def captcha_marker_from_html(html: str, url: str = "") -> str | None:
+    """Return the challenge marker found in the page, or ``None`` when clean.
+
+    Markers come from the T-27 investigation of the real Distil/Imperva +
+    GeeTest challenge: the URL, the canonical link, the heading, a GeeTest
+    script/``initGeetest`` call and a Distil iframe; the ``sherlock`` image is
+    kept as a residual marker. Pure function: no browser and no network, so
+    every real variant is unit-testable offline.
+    """
+    lowered_url = (url or "").lower()
+    if "/distil/" in lowered_url:
+        return "url_distil"
+    if "captcha" in lowered_url:
+        return "url_captcha"
+
+    canonical = _canonical_href(html).lower()
+    if "captcha" in canonical:
+        return "canonical_captcha"
+    if "distil" in canonical:
+        return "canonical_distil"
+
+    heading = _normalize_text(_heading_text(html))
+    if "eres humano" in heading or "un robot" in heading:
+        return "h1_human_check"
+    if "no podemos identificar tu navegador" in heading:
+        return "h1_legacy"
+
+    if "geetest" in html.lower():
+        return "geetest"
+    if _IFRAME_DISTIL_RE.search(html):
+        return "iframe_distil"
+    if _IMG_SHERLOCK_RE.search(html):
+        return "sherlock"
+    return None
+
+
+def captcha_marker(page: Page) -> str | None:
+    """Inspect the live page and return the marker that fires, if any.
+
+    Reading failures (detached page, closed context) degrade to an empty
+    value for that source: the marker is only reported when observed.
+    """
+    url = ""
+    try:
+        url = page.url or ""
+    except Exception:
+        pass
+    html = ""
+    try:
+        html = page.content()
+    except Exception:
+        pass
+    return captcha_marker_from_html(html, url)
+
+
+def handle_captcha(page: Page) -> tuple[bool, str | None]:
+    """Apply the abort policy for a visible challenge (person, 2026-10-08).
+
+    Returns ``(True, None)`` when the page is clean and ``(False, marker)``
+    when a challenge is present, after logging the marker. There is no long
+    pause and no blind reload: reloading could renew the challenge and worsen
+    the session reputation. Solving the challenge is out of scope.
+    """
+    marker = captcha_marker(page)
+    if marker is None:
+        return True, None
+    console.log(
+        f"[red]Challenge visible detectado ({marker}); "
+        "se aborta sin recargas ni pausas[/]"
+    )
+    return False, marker
+
+
+def session_has_reese84(page: Page) -> bool:
+    """True when the persistent session carries the Distil challenge token.
+
+    Only the cookie name is checked; its value is never logged (RF-11).
+    """
+    try:
+        cookies = page.context.cookies()
+    except Exception:
+        return False
+    return any(
+        isinstance(cookie, dict) and cookie.get("name") == CHALLENGE_COOKIE_NAME
+        for cookie in cookies
+    )
+
+
+def accept_cookies(page: Page) -> bool:
+    """Best-effort click on the Didomi cookie banner, when it appears."""
+    for selector in COOKIE_BANNER_SELECTORS:
         try:
-            page.reload(wait_until="domcontentloaded", timeout=15000)
-            time.sleep(3)
-            if not detect_captcha(page):
-                console.log("[green]CAPTCHA resuelto tras recarga![/]")
+            button = page.locator(selector).first
+            if button.is_visible(timeout=1000):
+                button.click(timeout=3000)
+                console.log("  [dim]Banner de cookies aceptado[/]")
                 return True
         except Exception:
-            pass
+            continue
     return False
+
+
+def warm_up(page: Page) -> None:
+    """Human-like warm-up before the first SERP: home, cookies, short pause.
+
+    Visits the home page and accepts the cookie banner (best-effort) so the
+    first search request does not arrive on a cold, cookieless session.
+    """
+    console.log("  [dim]Warm-up: home + banner de cookies[/]")
+    try:
+        page.goto(BASE_URL, wait_until="domcontentloaded", timeout=30000)
+    except Exception:
+        console.log(
+            "  [yellow]Warm-up: no se pudo cargar la home; se continua[/]"
+        )
+        return
+    respectful_sleep(2, 4)
+    accept_cookies(page)
+    respectful_sleep(1, 2)
 
 
 def slow_scroll_to_bottom(page: Page) -> None:
@@ -127,10 +227,10 @@ def auto_login(page: Page) -> bool:
     page.goto(f"{BASE_URL}/candidate/login/index.xhtml", wait_until="domcontentloaded", timeout=20000)
     respectful_sleep(2, 3)
 
-    if detect_captcha(page):
-        ok = handle_captcha(page)
-        if not ok:
-            return False
+    clean, marker = handle_captcha(page)
+    if not clean:
+        console.log(f"  [red]Challenge en login ({marker}); abortando login[/]")
+        return False
 
     try:
         email_input = page.locator("input[type='email'], input[name*='email'], input[name*='user']").first
@@ -163,8 +263,10 @@ def auto_login(page: Page) -> bool:
     except Exception:
         pass
 
-    if detect_captcha(page):
-        handle_captcha(page)
+    clean, marker = handle_captcha(page)
+    if not clean:
+        console.log(f"  [red]Challenge en login ({marker}); abortando login[/]")
+        return False
 
     logged_in = False
     try:

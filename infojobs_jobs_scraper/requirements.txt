@@ -1,4 +1,8 @@
 playwright>=1.47
+# Drop-in anti-detection browser (same API as playwright; used by Indeed,
+# LinkedIn and multi_site). Justified in the repair record (T-28): reduces the
+# automation fingerprint that Distil/Imperva uses to serve the challenge.
+patchright>=1.49
 beautifulsoup4>=4.12
 lxml>=5.2
 pandas>=2.2

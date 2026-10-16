@@ -1,0 +1,9 @@
+agent-browser-win32-x64.exe : Ô£ù Element not found: 
+.opencode\.agent-screenshots\20261010-193902-indeed-serp-security-check.png. Verify the selector, role, or name is 
+correct and the element exists in the DOM.
+En <HOME>\AppData\Roaming\npm\agent-browser.ps1: 3 Carácter: 1
++ & "$basedir\node_modules\agent-browser\bin\agent-browser-win32-x64.ex ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Ô£ù Element not...sts in the DOM.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

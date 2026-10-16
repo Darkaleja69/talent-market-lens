@@ -1,0 +1,44 @@
+﻿Prueba en vivo acotada Indeed 2026-10-11 — medición de la puerta de calidad (RF-16)
+====================================================================================
+
+Parquet medido: indeed_jobs_scraper\output\indeed_jobs_20261011_1500.parquet
+(11 filas, run 2026-10-11 15:00 hora local).
+
+Comando (desde scrapers-pipeline/):
+  python -m repair.cli quality --record ..\repairs\20261010-indeed --parquet ..\indeed_jobs_scraper\output\indeed_jobs_20261011_1500.parquet --output ..\repairs\20261010-indeed\quality_after.json
+
+Nota: la salida de la CLI es UTF-8; el volcado original del shell corrompió los
+acentos, por lo que aquí se reproduce exactamente la salida impresa ya obtenida
+en la ejecución (mismo texto, sin mojibake).
+
+Salida impresa por la CLI:
+--------------------------------------------------------------------------
+Calidad de la prueba en vivo — fuente: indeed
+Veredicto: NO OK
+Ofertas únicas medidas: 11
+Bloqueos: falta la descripción (obligatoria y prioritaria); campo obligatorio por debajo del 100 %; meta no alcanzada
+
+  Campo       | Obligatorio | Antes    | Después | Delta    | Meta     | Estado
+  ------------+-------------+----------+---------+----------+----------+----------------------------------------------------------------------
+  id          | no          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  title       | sí          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  company     | sí          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  description | sí          | sin dato | 0.0 %   | sin dato | 100.0 %  | no cumple (campo obligatorio por debajo del 100 %; meta no alcanzada)
+  salary      | no          | sin dato | 90.9 %  | sin dato | sin meta | no aplica
+  skills      | no          | sin dato | 0.0 %   | sin dato | sin meta | no aplica
+  work_mode   | no          | sin dato | 54.5 %  | sin dato | sin meta | no aplica
+  location    | no          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+  posted_date | no          | sin dato | 100.0 % | sin dato | 100.0 %  | cumple
+Calidad escrita en ..\repairs\20261010-indeed\quality_after.json
+--------------------------------------------------------------------------
+
+EXIT_CODE=1  (0 = puerta superada; 1 = puerta NO superada)
+
+Veredicto: NO OK — `description` 0.0 % (obligatoria, meta 100 %);
+`title`, `company`, `id`, `location`, `posted_date` al 100 %;
+`salary` 90.9 %, `work_mode` 54.5 %, `skills` 0 % (sin meta, no bloquean).
+Bloqueos de `quality_after.json`: description_missing, required_below_100,
+target_not_reached; ok=false.
+
+El registro queda pendiente de instrucciones: no se completa (plan.md sin
+tocar; sin record --status, sin índice ni historial actualizados).

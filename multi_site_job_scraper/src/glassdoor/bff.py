@@ -628,8 +628,12 @@ def _desc_to_text(raw) -> str:
 
 def fetch_description(context_request, base_url: str, csrf_token: str,
                       listing_id, user_agent: str = "",
-                      timeout: int = 30000) -> str:
-    """Obtiene la descripcion completa de una oferta via JobDetailQuery."""
+                      timeout: int = 30000, attempts: int = 2) -> str:
+    """Obtiene la descripcion completa de una oferta via JobDetailQuery.
+
+    `timeout` (ms) y `attempts` son parametrizables desde la config del
+    scraper para acotar el coste por oferta en noches degradadas (T-35).
+    """
     if not listing_id:
         return ""
     body = json.dumps([{
@@ -656,7 +660,7 @@ def fetch_description(context_request, base_url: str, csrf_token: str,
         headers["user-agent"] = user_agent
 
     url = f"{base_url.rstrip('/')}{GRAPH_ENDPOINT}"
-    for attempt in range(2):
+    for attempt in range(max(1, int(attempts))):
         try:
             resp = context_request.post(url, data=body, headers=headers,
                                         timeout=timeout)

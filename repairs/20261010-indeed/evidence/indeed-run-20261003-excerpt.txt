@@ -1,0 +1,39 @@
+Extracto saneado de indeed_jobs_scraper\output\log_20261003_0006.log (run IE 2026-10-03).
+----------------------------------------------------------------------
+2026-10-03 00:10:57,126 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-03 00:10:59,709 [INFO] scraper.parser: enriquecimiento limitado a 13 clics (candidatas sin descripcion: 15, max_enrich=15)
+2026-10-03 00:15:49,664 [INFO] scraper.parser: enriquecidas 0/13 clics (candidatas sin descripcion: 15, rate=90%, max_enrich=15)
+2026-10-03 00:16:38,788 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data&l=Dublin&radius=25&start=10&fromage=7
+2026-10-03 00:16:49,599 [WARNING] scraper.runner: Indeed redirige a login en pagina 2. Para paginar necesitas una cuenta: ejecuta con --login (login asistido). Se omite esta pagina.
+2026-10-03 00:20:58,046 [INFO] scraper.parser: parseadas 6 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-03 00:20:58,077 [INFO] scraper.parser: enriquecimiento limitado a 5 clics (candidatas sin descripcion: 6, max_enrich=15)
+2026-10-03 00:22:33,831 [INFO] scraper.parser: enriquecidas 0/5 clics (candidatas sin descripcion: 6, rate=90%, max_enrich=15)
+2026-10-03 00:31:55,261 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data&l=Cork&radius=25&start=10&fromage=7
+2026-10-03 00:32:14,673 [WARNING] scraper.runner: Indeed redirige a login en pagina 2. Para paginar necesitas una cuenta: ejecuta con --login (login asistido). Se omite esta pagina.
+2026-10-03 00:37:46,011 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-03 00:37:46,096 [INFO] scraper.parser: enriquecimiento limitado a 13 clics (candidatas sin descripcion: 15, max_enrich=15)
+2026-10-03 00:43:03,164 [INFO] scraper.parser: enriquecidas 0/13 clics (candidatas sin descripcion: 15, rate=90%, max_enrich=15)
+2026-10-03 00:43:54,317 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data engineer&l=Dublin&radius=25&start=10&fromage=7
+2026-10-03 00:43:59,641 [WARNING] scraper.runner: Indeed redirige a login en pagina 2. Para paginar necesitas una cuenta: ejecuta con --login (login asistido). Se omite esta pagina.
+2026-10-03 00:48:03,290 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-03 00:48:03,298 [INFO] scraper.parser: enriquecimiento limitado a 13 clics (candidatas sin descripcion: 15, max_enrich=15)
+2026-10-03 00:52:09,453 [INFO] scraper.parser: enriquecidas 0/13 clics (candidatas sin descripcion: 15, rate=90%, max_enrich=15)
+2026-10-03 01:00:23,329 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data engineer&l=Cork&radius=25&start=10&fromage=7
+2026-10-03 01:00:27,206 [WARNING] scraper.runner: Indeed redirige a login en pagina 2. Para paginar necesitas una cuenta: ejecuta con --login (login asistido). Se omite esta pagina.
+2026-10-03 01:03:53,994 [ERROR] scraper.runner: CAPTCHA detectado en Dublin pagina 1: CAPTCHA/challenge detectado: iframe/elemento de challenge presente: iframe[src*="challenges.cloudflare.com"] (url='https://ie.indeed.com/jobs?q=data%20analyst&l=Dublin&radius=25&fromage=7', title='Security Check - Indeed.com')
+2026-10-03 01:03:53,996 [ERROR] scraper.runner: Abortando ejecucion por CAPTCHA. Ofertas conseguidas hasta ahora: 51
+2026-10-03 01:06:43,620 [INFO] scraper.parser: parseadas 6 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-03 01:06:43,622 [INFO] scraper.parser: enriquecimiento limitado a 5 clics (candidatas sin descripcion: 6, max_enrich=15)
+2026-10-03 01:08:14,726 [INFO] scraper.parser: enriquecidas 0/5 clics (candidatas sin descripcion: 6, rate=90%, max_enrich=15)
+2026-10-03 01:09:02,461 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data scientist&l=Dublin&radius=25&start=10&fromage=7
+2026-10-03 01:09:03,438 [WARNING] scraper.runner: Indeed redirige a login en pagina 2. Para paginar necesitas una cuenta: ejecuta con --login (login asistido). Se omite esta pagina.
+2026-10-03 01:11:59,942 [INFO] scraper.parser: parseadas 5 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-03 01:11:59,942 [INFO] scraper.parser: enriquecimiento limitado a 4 clics (candidatas sin descripcion: 5, max_enrich=15)
+2026-10-03 01:13:07,845 [INFO] scraper.parser: enriquecidas 0/4 clics (candidatas sin descripcion: 5, rate=90%, max_enrich=15)
+2026-10-03 01:21:05,746 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data scientist&l=Cork&radius=25&start=10&fromage=7
+2026-10-03 01:21:06,948 [WARNING] scraper.runner: Indeed redirige a login en pagina 2. Para paginar necesitas una cuenta: ejecuta con --login (login asistido). Se omite esta pagina.
+
+Nota: las 3 descripciones contadas en description_filled 3/68 (run 12:47) provienen del desc-cache, no de extraccion:
+2026-10-03 13:47:37,346 [INFO] scraper.desc_cache: desc-cache: 1 ofertas rellenadas sin clics
+2026-10-03 14:03:35,861 [INFO] scraper.desc_cache: desc-cache: 2 ofertas rellenadas sin clics
+2026-10-03 14:09:23,477 [INFO] scraper.desc_cache: desc-cache: 1 ofertas rellenadas sin clics

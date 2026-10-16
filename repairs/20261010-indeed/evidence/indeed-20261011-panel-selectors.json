@@ -1,0 +1,19 @@
+{
+  "old_selectors_in_current_ui": {
+    "#jobDescriptionText": 0,
+    "[data-testid=jobDescriptionText]": 0,
+    "[data-testid=jobsearch-JobInfoHeader-title]": 0,
+    "div[class*=jobDescriptionText]": 0,
+    "div[id*=jobDescription]": 0
+  },
+  "current_panel_testids": ["desktop-header-sticky-sentinel","desktop-job-header","company-info-title-row","vj-job-title","company-info-metadata","desktop-embedded-compact-header","vj-job-title-compact","job-header-actions","primary-apply-action","viewjob-indeed-apply","save-job-action","vj-saveJobButton","dislike-job-action","vj-dislikeJobButton","share-job-action","desktop-share-dropdown-trigger","viewjob-job-content","structured-job-summary","vj-job-description-heading","vj-report-job"],
+  "mapping_recommended": {
+    "panel_wrapper": "viewjob-main-content",
+    "title": "vj-job-title (o vj-job-title-compact)",
+    "description_heading": "vj-job-description-heading",
+    "description_container": "viewjob-job-content (o el parent del heading; innerHTML ~7857 chars en un caso)",
+    "conditions": "structured-job-summary y/o viewjob-job-content"
+  },
+  "sample_description_first_chars": "Volledige vacaturetekst\n\nWil jij als Fullstack BI Specialist meebouwen aan een compleet nieuw Microsoft-datalandschap?...",
+  "note": "La UI two-pane actual usa testids vj-*/viewjob-*; los selectores jobsearch-* del layout antiguo ya no existen en esta variante."
+}

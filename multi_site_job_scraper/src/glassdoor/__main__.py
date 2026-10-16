@@ -1,7 +1,7 @@
 """Entry point: python -m src.glassdoor
 
-Ejecuta el scraper de Glassdoor (USA) para ofertas de datos.
-Objetivo: ~1.000 ofertas unicas entre Data Analyst, Data Scientist,
+Ejecuta el scraper de Glassdoor (mercado Irlanda, glassdoor.ie) para ofertas
+de datos. Objetivo: ~1.000 ofertas unicas entre Data Analyst, Data Scientist,
 Data Engineer y Analytics Engineer.
 """
 from __future__ import annotations
@@ -37,7 +37,9 @@ def setup_logging(verbose: bool = False) -> None:
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         prog="glassdoor",
-        description="Glassdoor USA scraper — ofertas de datos (~1.000 objetivo)",
+        description=(
+            "Scraper de Glassdoor (%s) — ofertas de datos (~1.000 objetivo)"
+            % DEFAULT_CONFIG.get("country_name", "")),
     )
     ap.add_argument("--role", action="append", default=None,
                     help="Filtrar por rol (repetible). Ej: --role 'Data Analyst'")
@@ -67,7 +69,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     setup_logging(verbose=args.verbose)
-    log.info("=== Glassdoor USA Scraper ===")
+    log.info("=== Glassdoor Scraper (%s) ===",
+             DEFAULT_CONFIG.get("country_name", ""))
     log.info("Objetivo: %d ofertas unicas de datos", args.target)
 
     config = DEFAULT_CONFIG.copy()

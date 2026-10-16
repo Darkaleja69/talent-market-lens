@@ -22,11 +22,30 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .models import CSV_COLUMN_ORDER, JobOffer, PARQUET_SCHEMA_FIELDS
+from .models import CSV_COLUMN_ORDER, JobOffer, PARQUET_SCHEMA_FIELDS, now_utc_iso
 
 log = logging.getLogger(__name__)
 
 _RATING_OR_URL = re.compile(r"^\d[,.]\d{1,2}$|^https?://")
+
+
+def _normalize_pending_entry(entry: Any) -> dict[str, Any]:
+    """Normalize one ``detail_pending`` entry of a previous ``state.json``.
+
+    Retrocompatible: a missing/broken entry becomes an empty one instead of
+    breaking the load of the whole state.
+    """
+    if not isinstance(entry, dict):
+        return {"first_seen": "", "attempts": 0}
+    first_seen = entry.get("first_seen")
+    try:
+        attempts = int(entry.get("attempts") or 0)
+    except (TypeError, ValueError):
+        attempts = 0
+    return {
+        "first_seen": first_seen if isinstance(first_seen, str) else "",
+        "attempts": max(attempts, 0),
+    }
 
 
 def _row_is_coherent(row) -> bool:
@@ -60,6 +79,9 @@ class Store:
         # job_ids ya procesados (extraidos de state.json) -> reanudacion real
         # Permite saltar el parse_detail en runs sucesivos para no repetir.
         self._processed_ids: set[str] = set()
+        # job_id -> {"first_seen": ISO, "attempts": n}: detalles que salieron
+        # sin descripcion y aun se pueden reintentar dentro de su ventana.
+        self._detail_pending: dict[str, dict[str, Any]] = {}
         self._warning_count: int = 0
         self._load_state()
 
@@ -79,6 +101,14 @@ class Store:
                 self._processed_ids = {str(jid) for jid in ids if jid}
                 log.info("Reanudacion: %d job_ids cargados de %s",
                          len(self._processed_ids), state_p)
+            pending = state.get("detail_pending")
+            if isinstance(pending, dict):
+                # Retrocompatible: los state.json previos no traen la clave.
+                self._detail_pending = {
+                    str(job_id): _normalize_pending_entry(entry)
+                    for job_id, entry in pending.items()
+                    if job_id
+                }
         except (OSError, ValueError, KeyError) as e:
             log.warning("state.json ilegible (%s); arrancando run fresco.", e)
 
@@ -90,6 +120,39 @@ class Store:
         """Devuelve la JobOffer almacenada (o None). Permite consultar si ya
         tiene detalle antes de volver a visitarla."""
         return self._by_id.get(job_id)
+
+    # --- Detalles pendientes de reintento (T-33) ---
+    @property
+    def detail_pending(self) -> dict[str, dict[str, Any]]:
+        """job_id -> {"first_seen", "attempts"} de detalles sin descripcion."""
+        return self._detail_pending
+
+    def pending_detail_get(self, job_id: str) -> dict[str, Any] | None:
+        """Entrada de reintento de un job_id, o None si no esta pendiente."""
+        return self._detail_pending.get(job_id)
+
+    def pending_detail_add(self, job_id: str,
+                           first_seen: str | None = None) -> dict[str, Any]:
+        """Marca un detalle como pendiente (conserva first_seen si ya estaba).
+
+        Devuelve la entrada almacenada. El primer fallo fija ``first_seen``;
+        los siguientes solo releen la entrada.
+        """
+        entry = self._detail_pending.get(job_id)
+        if entry is None:
+            entry = {"first_seen": first_seen or now_utc_iso(), "attempts": 0}
+            self._detail_pending[job_id] = entry
+        return entry
+
+    def pending_detail_increment(self, job_id: str) -> dict[str, Any]:
+        """Cuenta un intento fallido mas; crea la entrada si no existia."""
+        entry = self.pending_detail_add(job_id)
+        entry["attempts"] = int(entry.get("attempts") or 0) + 1
+        return entry
+
+    def pending_detail_remove(self, job_id: str) -> bool:
+        """Olvida un detalle pendiente (recuperado). True si estaba."""
+        return self._detail_pending.pop(job_id, None) is not None
 
     def warning_inc(self, label: str = "") -> int:
         """Incrementa el contador de warnings best-effort (para telemetria)."""
@@ -294,6 +357,9 @@ class Store:
             "total": len(self._by_id),
             "job_ids": list(self._by_id.keys()),
             "updated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+            # Reintento acotado de detalles sin descripcion (T-33): la ventana
+            # de cada oferta y sus intentos sobreviven al run.
+            "detail_pending": self._detail_pending,
         }
         state_p.write_text(json.dumps(state, ensure_ascii=False, indent=2),
                            encoding="utf-8")

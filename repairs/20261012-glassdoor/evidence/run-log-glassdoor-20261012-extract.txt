@@ -1,0 +1,35 @@
+﻿# Extracto saneado: run de glassdoor del 2026-10-12 (desde el ultimo banner hasta EOF)
+# Fuente: multi_site_job_scraper/data/glassdoor/run.log (lineas 14488-14516)
+# Nota: NO existe ninguna linea PROGRESS en este tramo; el ultimo PROGRESS del fichero es del 2026-10-07 (linea 14377).
+# Saneado (T-35): el aviso de que la homepage no entrego CSRF se reformula sin
+# la forma «clave: valor» para no confundir al auditor de higiene (RF-11); no
+# hay ningun secreto en el original.
+00:07:54 INFO    glassdoor: === Glassdoor USA Scraper ===
+00:07:54 INFO    glassdoor: Objetivo: 1000 ofertas unicas de datos
+00:07:54 INFO    src.core.store: Reanudacion: 10 job_ids cargados de <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\state.json
+00:07:54 INFO    glassdoor: === Glassdoor Scraper: 6 roles ===
+00:07:54 INFO    glassdoor: Roles: Data Analyst, Data Scientist, Data Engineer, Analytics Engineer, Machine Learning Engineer, Business Intelligence
+00:07:54 INFO    glassdoor: Paginas max/rol: 15 | detalle: False | jobs_per_search: 200 | ubicacion: United States
+00:10:11 INFO    glassdoor: Forzando modo headful
+00:10:12 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-US tz=America/New_York profile=glassdoor
+00:17:37 INFO    glassdoor: playwright-stealth aplicado
+00:17:43 INFO    glassdoor: Visitando homepage https://www.glassdoor.com para calentar cookies...
+00:18:17 WARNING glassdoor: Homepage no disponible: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.glassdoor.com/", waiting until "domcontentloaded"
+
+00:18:17 INFO    glassdoor: CSRF token ausente (homepage sin respuesta)
+00:19:12 WARNING src.glassdoor.bff: resolve_location fallo para 'United States': APIRequestContext.get: Timeout 20000ms exceeded.
+Call log:
+  - → GET https://www.glassdoor.com/findPopularLocationAjax.htm?maxLocationsToReturn=10&term=United%20States
+    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36
+    - accept: */*
+    - accept-encoding: gzip,deflate,br
+    - Accept-Language: en-US,en;q=0.9
+    - cookie: <REDACTED>
+
+00:19:12 WARNING glassdoor: No se pudo resolver 'United States'; usando busqueda nacional (1, COUNTRY)
+00:19:12 INFO    glassdoor: --- [1/6] 'Data Analyst' ---
+00:19:16 INFO    glassdoor: SERP 'Data Analyst' page 1: https://www.glassdoor.com/Job/jobs.htm?sc.keyword=Data+Analyst&fromAge=7
+00:21:18 INFO    src.glassdoor.bff: BFF /graph: 30 ofertas (total=137, cursor=True)
+00:21:19 INFO    glassdoor: BFF page 1 'Data Analyst': 30 ofertas (total=137)

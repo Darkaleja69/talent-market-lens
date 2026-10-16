@@ -17,6 +17,7 @@ import shutil
 import time
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 from src.core.browser import launch_context, close_context, PROFILE_DIR
 from src.core.human import delay, mouse_jitter, scroll_slow
@@ -48,6 +49,9 @@ _LANDING_MARKERS = [
 _ANTIBOT_MARKERS = [
     "humans only", "security protections", "just a moment",
     "checking your browser", "attention required",
+    # Challenge del SERP en espanol (glassdoor.es): se detecta igual para no
+    # confundirlo con una pagina vacia. El mercado actual es .ie (en-IE).
+    "solo personas reales", "sistemas de seguridad avanzados",
 ]
 
 
@@ -74,7 +78,7 @@ def _clean_profile(profile_name: str = "glassdoor") -> None:
 
 
 class GlassdoorScraper:
-    """Scraper de Glassdoor USA con Playwright/patchright + BFF."""
+    """Scraper de Glassdoor (mercado configurable; hoy Irlanda) + BFF."""
 
     def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or DEFAULT_CONFIG
@@ -107,11 +111,11 @@ class GlassdoorScraper:
         max_pages = self.config.get("max_pages", 15)
         jobs_per_search = self.config.get("jobs_per_search", 200)
         site = self.config.get("site", "glassdoor")
-        country = self.config.get("country", "US")
-        country_name = self.config.get("country_name", "United States")
+        country = self.config.get("country", "IE")
+        country_name = self.config.get("country_name", "Ireland")
         location_name = self.config.get("location_name", "")
-        locale = self.config.get("locale", "en-US")
-        timezone = self.config.get("timezone", "America/New_York")
+        locale = self.config.get("locale", "en-IE")
+        timezone = self.config.get("timezone", "Europe/Dublin")
         profile_name = self.config.get("profile_name", site)
 
         delays_cfg = self.config.get("delays", {})
@@ -148,7 +152,7 @@ class GlassdoorScraper:
                      (self._csrf_token[:20] + "...") if self._csrf_token else "NO")
 
             loc_term = location_name or country_name
-            loc_id, loc_type = self._resolve_location(
+            loc_id, loc_type = self._resolve_location_or_fail(
                 context, effective_base_url, loc_term)
 
             for idx, role in enumerate(roles):
@@ -191,7 +195,7 @@ class GlassdoorScraper:
                                 pw, locale, timezone, profile_name, clean=False)
                             effective_base_url, self._csrf_token = self._warmup_homepage(
                                 page, base_url, search_path, date_filter)
-                            loc_id, loc_type = self._resolve_location(
+                            loc_id, loc_type = self._resolve_location_or_fail(
                                 context, effective_base_url, loc_term)
                         else:
                             log.error("No se pudo recuperar tras 3 intentos para '%s'.", role)
@@ -243,15 +247,43 @@ class GlassdoorScraper:
 
     def _resolve_location(self, context, base_url: str,
                           location_name: str) -> tuple[Optional[int], str]:
-        """Resuelve la ubicacion objetivo; fallback (1, COUNTRY) = USA nacional."""
+        """Resuelve la ubicacion objetivo con el fallback declarado por mercado.
+
+        `location_fallback` (config) fija el pais de reserva cuando el
+        autocompletado no responde; None = no adivinar pais (T-35).
+        """
         loc_id, loc_type = bff.resolve_location(context.request, base_url,
                                                 location_name)
         if loc_id:
             log.info("Ubicacion '%s' -> id=%s type=%s", location_name, loc_id, loc_type)
             return loc_id, loc_type
-        log.warning("No se pudo resolver '%s'; usando busqueda nacional (1, COUNTRY)",
-                    location_name)
-        return 1, "COUNTRY"
+        fallback = self.config.get("location_fallback") or {}
+        fb_id = fallback.get("id")
+        if fb_id:
+            fb_type = fallback.get("type", "COUNTRY")
+            log.warning(
+                "No se pudo resolver '%s'; usando pais de reserva del mercado "
+                "(%s, %s)", location_name, fb_id, fb_type)
+            return int(fb_id), fb_type
+        log.warning("No se pudo resolver '%s' y el mercado no declara fallback "
+                    "de pais (T-35).", location_name)
+        return None, ""
+
+    def _resolve_location_or_fail(self, context, base_url: str,
+                                  location_name: str) -> tuple[int, str]:
+        """Como `_resolve_location`, pero aborta si no hay ubicacion ni fallback.
+
+        Buscar sin ubicacion resuelta enviaria la consulta al pais equivocado:
+        se prefiere un error claro a datos incorrectos (T-35).
+        """
+        loc_id, loc_type = self._resolve_location(context, base_url, location_name)
+        if loc_id is None:
+            raise RuntimeError(
+                "No se pudo resolver la ubicacion nacional '%s' y el mercado "
+                "'%s' no declara fallback de pais; se aborta para no buscar en "
+                "el pais equivocado." % (location_name,
+                                         self.config.get("country", "")))
+        return loc_id, loc_type
 
     def _process_role(self, page, context, role, base_url, search_path,
                       date_filter, loc_id, loc_type, do_detail, max_detail,
@@ -265,6 +297,11 @@ class GlassdoorScraper:
         fetch_desc = self.config.get("fetch_descriptions", False)
         max_desc = self.config.get("max_description_jobs", 100)
         desc_fetched = 0
+        desc_timeout = int(self.config.get("description_timeout_ms", 30000))
+        desc_attempts = int(self.config.get("description_attempts", 2))
+        max_desc_failures = int(
+            self.config.get("max_description_consecutive_failures", 5))
+        desc_failures = 0
         if date_filter:
             try:
                 fromage = int(date_filter)
@@ -341,11 +378,17 @@ class GlassdoorScraper:
 
             consecutive_empty = 0
             processed_this_page = 0
-            for i, raw in enumerate(cards[:jobs_per_search]):
+            page_cards = cards[:jobs_per_search]
+            # Latido inmediato tras parsear la pagina: marca la llegada antes
+            # del bucle de descripciones, que puede tardar minutos (T-35).
+            self._emit_progress(0, 0)
+            iterated = 0
+            for i, raw in enumerate(page_cards):
                 if self._sig_stop:
                     break
                 if len(self.store) >= self.target:
                     break
+                iterated += 1
 
                 offer = self._card_to_offer(raw, role, site, country, country_name)
                 is_new = self.store.add(offer)
@@ -358,13 +401,24 @@ class GlassdoorScraper:
                     desc = bff.fetch_description(
                         context.request, base_url, self._csrf_token,
                         raw.get("job_id", "").replace("gd_", ""),
-                        user_agent=self._page_ua(page))
+                        user_agent=self._page_ua(page),
+                        timeout=desc_timeout, attempts=desc_attempts)
                     if desc:
                         offer.description_full = desc
                         offer.description_snippet = desc[:500]
                         if not offer.skills:
                             offer.skills = extract_skills(desc)
                         desc_fetched += 1
+                        desc_failures = 0
+                    else:
+                        desc_failures += 1
+                        if (max_desc_failures > 0
+                                and desc_failures >= max_desc_failures):
+                            log.warning(
+                                "Descripciones: %d fallos consecutivos; se "
+                                "desactivan para '%s' (BFF degradado).",
+                                desc_failures, role)
+                            fetch_desc = False
                     time.sleep(random.uniform(0.8, 1.8))
 
                 if (do_detail and is_new and total <= max_detail
@@ -379,7 +433,14 @@ class GlassdoorScraper:
                 if (i + 1) % 10 == 0 and total > 0:
                     self.store.checkpoint(tag=f"gd_{role}_p{pg}_{i+1}")
 
-            self._emit_progress(len(cards[:jobs_per_search]), processed_this_page)
+                # Latido dentro del bucle: cada tarjeta cuenta como progreso
+                # (parsed incluye duplicados), de modo que el watchdog no
+                # confunde una descripcion lenta con un cuelgue (T-35).
+                self._emit_progress(1, 1 if is_new else 0)
+
+            # Cierre de pagina: completa el parsed de las tarjetas no iteradas
+            # (parada o target) para conservar la semantica acumulada (T-35).
+            self._emit_progress(len(page_cards) - iterated, 0)
             log.info("Page %d '%s': %d procesadas (%d nuevas, fuente=%s)",
                      pg, role, len(cards), processed_this_page, source)
 
@@ -426,7 +487,8 @@ class GlassdoorScraper:
         for marker in _ANTIBOT_MARKERS:
             if marker in low:
                 log.error("Anti-bot de Glassdoor activado ('%s'). "
-                          "Prueba sin --headless o con proxy de USA.", marker)
+                          "Prueba sin --headless o con un proxy del pais "
+                          "del mercado.", marker)
                 return True
         url_low = page.url.lower()
         if any(k in url_low for k in ("jobs_for_you", "index.htm")):
@@ -523,10 +585,14 @@ class GlassdoorScraper:
         _apply_stealth(page)
 
         context.grant_permissions(["geolocation"])
-        context.set_geolocation({"latitude": 40.7128, "longitude": -74.0060})
+        geo = self.config.get("geolocation") or {}
+        context.set_geolocation({
+            "latitude": float(geo.get("latitude", 53.3498)),
+            "longitude": float(geo.get("longitude", -6.2603)),
+        })
 
-        # Interceptar countryRedirect: evitar que Glassdoor cambie de pais
-        # silenciosamente a .es/.co.uk cuando el target es USA.
+        # Interceptar countryRedirect: evitar que Glassdoor redirija en
+        # silencio a otro dominio regional distinto del configurado.
         def _block_country_redirect(request):
             url = request.url
             if "countryRedirect=true" in url:
@@ -561,11 +627,12 @@ class GlassdoorScraper:
             else:
                 log.info("CSRF token extraido (%d chars)", len(token))
 
-            current_domain = page.url
-            if "glassdoor.es" in current_domain or "glassdoor.co.uk" in current_domain:
-                log.warning("Detectado dominio regional %s; el target es USA. "
-                            "El scraper seguira usando la configuracion original.",
-                            current_domain[:60])
+            current_host = urlparse(page.url or "").netloc.lower()
+            expected_host = urlparse(base_url or "").netloc.lower()
+            if current_host and expected_host and current_host != expected_host:
+                log.warning("Detectado dominio %s distinto del configurado (%s); "
+                            "el scraper seguira usando la configuracion original.",
+                            current_host[:60], expected_host)
             return base_url, token
         except Exception as e:
             log.warning("Homepage no disponible: %s", e)

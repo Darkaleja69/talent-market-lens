@@ -1,0 +1,17 @@
+Transcripción saneada del volcado del script de arranque CDP (texto de interfaz original en chino; se eliminan rutas locales, RF-11)
+====================================================================
+
+- Plataforma: win32
+- Puerto CDP: 9222
+- Chrome: 154.0.8037.98
+- El perfil real de Chrome se copió a un directorio de depuración saneado: <HOME>\chrome-debug-profile
+- Se detuvieron los procesos de Chrome existentes y se lanzó Chrome en modo CDP (puerto 9222); espera del arranque correcta.
+
+Respuesta de /json/version:
+
+{
+   "Browser": "Chrome/154.0.8037.98",
+   "Protocol-Version": "1.3",
+   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+   "V8-Version": "15.4.80.20"
+}

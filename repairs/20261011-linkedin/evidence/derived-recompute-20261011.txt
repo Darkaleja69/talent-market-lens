@@ -1,0 +1,36 @@
+Antes de escribir:
+== Recomputo de campos derivados (sin red) ==
+Filas totales antes:        9686
+salary_raw valido antes:    1670
+salary_raw invalido antes:  133
+salary_raw vacio antes:     7883
+work_mode no vacio antes:   4129
+--
+salary completado:          669
+salary invalido limpiado:   133
+work_mode recuperado:       623
+--
+salary_raw valido despues:  2339
+salary_raw invalido despues:0
+salary_raw vacio despues:   7347
+work_mode no vacio despues: 4752
+Copias de seguridad: <HOME>\Documents\projects\linkedin_jobs_scraper\data\output\backup-20261011_204449-jobs.csv, <HOME>\Documents\projects\linkedin_jobs_scraper\data\output\backup-20261011_204449-jobs.parquet
+Despues de escribir:
+== Recomputo de campos derivados (sin red) ==
+Filas totales antes:        9686
+salary_raw valido antes:    1670
+salary_raw invalido antes:  133
+salary_raw vacio antes:     7883
+work_mode no vacio antes:   4129
+--
+salary completado:          669
+salary invalido limpiado:   133
+work_mode recuperado:       623
+--
+salary_raw valido despues:  2339
+salary_raw invalido despues:0
+salary_raw vacio despues:   7347
+work_mode no vacio despues: 4752
+Copias de seguridad: <HOME>\Documents\projects\linkedin_jobs_scraper\data\output\backup-20261011_204449-jobs.csv, <HOME>\Documents\projects\linkedin_jobs_scraper\data\output\backup-20261011_204449-jobs.parquet
+Filas totales despues:      9686 (sin cambios)
+

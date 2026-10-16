@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "source": "linkedin",
+  "kind": "direct",
+  "role": "secondary",
+  "field": "description",
+  "trigger": "required_field_below_target",
+  "run_date": "2026-10-11",
+  "offers_current_run": 690,
+  "offers_snapshot": 9686,
+  "completeness_scope": "historical_snapshot",
+  "reason": {
+    "trigger": "required_field_below_target",
+    "field": "description",
+    "current_pct": 90.15073301672517,
+    "summary": "required field 'description' below target (90.15073301672517%)"
+  },
+  "evidence": [
+    "estado del pipeline: ok (subidos=1, rechazados=0)",
+    "resultado de la ejecución: correcto (ok)",
+    "detalle: stdout=nightly_stdout_attempt1.log",
+    "intento 1/5"
+  ],
+  "evidence_paths": [
+    "linkedin_jobs_scraper/data/nightly_stdout_attempt1.log",
+    "linkedin_jobs_scraper/data/output/jobs.parquet",
+    "linkedin_jobs_scraper/data/run.log",
+    "scrapers-pipeline/logs/diagnostic_last.json",
+    "scrapers-pipeline/logs/upload-2026-10-11.log"
+  ],
+  "evidence_paths_base": "repository_root",
+  "playbook": {
+    "section": "6.3",
+    "title": "LinkedIn - historical description and optional fields",
+    "recipe": "About 970 rows without description with scraped_at <= 17-09-2026; local coverage is ~100% since 18-09; salary 16.3% (regex) and work_mode 42.4%. Check whether the SDUI detail or the guest API expose structured salary/workplace and whether the store retries rows without description. Backfill the history (or justify why not) and extract salary/work_mode when the site exposes them.",
+    "test_scope": {
+      "description": "1 role x 1 city in guest mode",
+      "parameters": {
+        "roles": 1,
+        "cities": 1,
+        "mode": "guest"
+      },
+      "constraints": [
+        "no Azure upload",
+        "no landing update",
+        "no merge"
+      ],
+      "command": null
+    }
+  },
+  "quality": [
+    {
+      "field": "id",
+      "required": false,
+      "current_pct": 100.0,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "title",
+      "required": true,
+      "current_pct": 100.0,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "company",
+      "required": true,
+      "current_pct": 100.0,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "description",
+      "required": true,
+      "current_pct": 90.15073301672517,
+      "target_pct": 100.0,
+      "is_focus": true
+    },
+    {
+      "field": "salary",
+      "required": false,
+      "current_pct": 17.7782366301879,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "skills",
+      "required": false,
+      "current_pct": 82.11852157753458,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "work_mode",
+      "required": false,
+      "current_pct": 42.62853603138551,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "location",
+      "required": false,
+      "current_pct": 100.0,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "posted_date",
+      "required": false,
+      "current_pct": 96.38653727028701,
+      "target_pct": 100.0,
+      "is_focus": false
+    }
+  ],
+  "test_scope": {
+    "description": "1 role x 1 city in guest mode",
+    "parameters": {
+      "roles": 1,
+      "cities": 1,
+      "mode": "guest"
+    },
+    "constraints": [
+      "no Azure upload",
+      "no landing update",
+      "no merge"
+    ],
+    "command": null
+  }
+}

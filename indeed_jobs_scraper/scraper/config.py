@@ -30,9 +30,11 @@ class CountryConfig:
         start=10  -> pagina 2
         start=20  -> pagina 3 ...
 
-        limit>0 anade &limit=<N> para pedir mas resultados en una sola pagina
-        (util porque Indeed exige login para paginar mas alla de la pagina 1;
-        con limit=50 se obtienen hasta 50 resultados sin login).
+        limit>0 anade &limit=<N>. Debe quedarse en 0: el parametro limit dispara
+        el challenge de Cloudflare de Indeed ('Security Check - Additional
+        Verification Required') y no evita el login de la paginacion; el nightly
+        no lo usa. La via para mas resultados por SERP es la paginacion
+        permitida (&start=) con sesion real.
 
         fromage>0 filtra por antiguedad en dias (ej: --fromage 7).
         remote=True filtra solo ofertas remotas (param sc=0kf...).

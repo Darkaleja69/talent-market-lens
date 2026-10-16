@@ -1,0 +1,19 @@
+Fase 2 (sesion real) - ubicacion de Irlanda en glassdoor.ie - 2026-10-15
+Saneado: sin cookies, tokens ni datos de perfil personal.
+
+1) Estado embebido del SERP (contexto global del sitio):
+   "tldLocation":{"locationId":70,"locationType":"N"}
+   => Irlanda en el dominio .ie: locationId=70, tipo=N (COUNTRY).
+
+2) Peticion del propio sitio al cargar el SERP:
+   POST https://www.glassdoor.ie/job-search-next/bff/getJobAlertStatusQuery -> 200
+   cuerpo: {"keyword":"data analyst","locationId":70,"locationType":"COUNTRY"}
+
+3) Endpoint de autocompletado que usa el scraper (resolve_location), probado
+   en la sesion real:
+   GET /findPopularLocationAjax.htm?maxLocationsToReturn=10&term=Ireland -> HTTP 404
+   (ruta retirada; devuelve el 404 HTML del propio sitio)
+   Nota: con el perfil persistente del scraper, el run 2026-10-12 recibio 403
+   de Cloudflare en la misma ruta.
+
+4) Valor a fijar en config (location_fallback): {"id": 70, "type": "COUNTRY"}

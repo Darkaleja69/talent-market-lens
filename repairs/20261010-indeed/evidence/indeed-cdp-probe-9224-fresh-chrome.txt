@@ -1,0 +1,30 @@
+Sonda de aislamiento del handshake CDP (2026-10-11, orquestador)
+=================================================================
+Objetivo: aislar por que patchright 1.60.1 no completa connect_over_cdp contra el
+Chrome 9222 (Network.setCacheDisabled / session closed; timeout 20 s) mientras
+agent-browser si opera contra ese mismo Chrome.
+
+Lineas de comandos de las instancias vivas (via WMI, sin tocar procesos):
+- puerto 9222: <CHROME_EXE> --remote-debugging-port=9222 --user-data-dir="<HOME>\Documents\projects\indeed_jobs_scraper\output\chrome_cdp_profile"
+- puerto 9333: <CHROME_EXE> --remote-debugging-port=9333 --user-data-dir="<HOME>\chrome-debug-profile" about:blank
+  (control: patchright conecta OK contra 9333 en 0.7 s)
+
+Experimento: Chrome de prueba propio, puerto 9224, perfil temporal vacio
+(<HOME>\AppData\Local\Temp\opencode\chrome-probe-9224), lanzado directamente:
+  <CHROME_EXE> --remote-debugging-port=9224 --user-data-dir="<temporal>" --no-first-run --no-default-browser-check about:blank
+Sonda: python -m scraper.cdp_probe --port 9224 ->
+  2026-10-11 14:00:56 CDP intento 1/1: handshake verificado (1 contexto(s); pagina de prueba abierta y cerrada)
+  CDP_HANDSHAKE_OK port=9224 (exit 0)
+
+Conclusion: patchright 1.60.1 y Chrome 154 funcionan juntos contra un Chrome
+fresco; el fallo es especifico del estado de la instancia/perfil del 9222 (no de
+la version de Chrome ni de patchright). El nightly del 2026-10-11 lo confirma en
+produccion: el pre-flight detecto CDP_HANDSHAKE_FAIL a las 00:00:53 y, pese al
+aviso, el run siguio con --cdp 9222; la fase CDP se colgo tras el crash del
+driver y el watchdog lo mato a los 40 min (ver
+indeed-nightly-20261011-cdp-crash.txt).
+
+Remedio recomendado para la prueba en vivo: reiniciar el Chrome 9222 con
+start_chrome_cdp.ps1 (mismo perfil: las cookies persisten) y repetir la sonda
+antes de ejecutar el scraper. No se cerro ninguna instancia existente; el Chrome
+de prueba 9224 se cerro al terminar la sonda.

@@ -1,0 +1,29 @@
+Verificacion offline con las funciones reales del parser (sin tocar codigo)
+==========================================================================
+Fecha: 2026-10-11 ~15:27 local. HTML volcado desde la pestana t2 (Chrome 9222)
+con `eval document.documentElement.outerHTML` -> <TEMP>\indeed-serp-20261011.html
+(1.175.704 bytes). El script <TEMP>\check_parser_offline.py inserta
+<HOME>\Documents\projects\indeed_jobs_scraper en sys.path, importa `scraper.parser`
+y llama a sus funciones privadas sobre el HTML guardado.
+
+Salida exacta:
+  html_len 1175704
+  has_HQ_in_page False
+  jobcards_results 11
+  snippet_empty 11 of 11
+  first_jobkey c74ad662adfe7b9f
+  parser_initial_descriptions_count 0
+  candidate 1 status success jobKey c74ad662adfe7b9f title Fullstack BI-Specialist sanitizedLen 3037
+  candidate 2 status success jobKey c74ad662adfe7b9f title Fullstack BI-Specialist sanitizedLen 3037
+  autoopen_candidates_total 2
+
+Lectura:
+- `_extract_jobcards_results` extrae 11 ofertas (la via mosaic-data sigue OK).
+- `_extract_initial_data_descriptions` devuelve 0: el contenedor
+  autoOpenTwoPaneViewjobResponse SI esta en el HTML, pero su `body` ya no tiene
+  `hostQueryExecutionResult.data.jobData.results` (ruta que espera
+  `_descriptions_from_auto_open`); la descripcion vive ahora en
+  `body.jobInfoWrapperModel.jobInfoModel.sanitizedJobDescription` (3037 chars).
+- La funcion falla en SILENCIO ({}), por eso los runs no registran la linea
+  "descripciones from _initialData": la ausencia de esa linea NO prueba que el
+  contenedor no se sirviera.

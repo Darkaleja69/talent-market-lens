@@ -1,0 +1,20 @@
+﻿# Síntesis de sondas IE/ES y TOS (2026-10-12, perfil propio de agent-browser; sin sesión de la persona)
+
+## Dominios regionales (navegador, perfil limpio)
+- https://www.glassdoor.ie/ -> 200 final https://www.glassdoor.ie/index.htm | title: 'Glassdoor | Job Search and Career Community' (bundles en-IE) | sin challenge.
+- https://www.glassdoor.es/ -> 200 final https://www.glassdoor.es/index.htm | title: 'Búsqueda de empleo en Glassdoor | Te mereces una empresa que te valore' (bundles es-ES) | sin challenge.
+- https://www.glassdoor.ie/Job/jobs.htm?sc.keyword=Data%20Analyst -> HTTP 403 Document + challenge Cloudflare; pagina visible 'Humans only' ('Glassdoor has been built on the contributions... advanced security systems...').
+- https://www.glassdoor.es/Empleo/empleos.htm?sc.keyword=Data%20Analyst -> HTTP 403 Document + challenge Cloudflare; pagina visible 'Solo personas reales' ('...sistemas de seguridad avanzados...').
+- En ninguna de las dos sondas de SERP se llego a observar XHR a /graph ni a BFF: el challenge ocurre antes del render (ver resúmenes de red).
+- curl sin JS sobre ambas homepages: HTTP 403 pagina 'Security | Glassdoor' (bloqueo anti-bot a cliente no navegador).
+- Cookies presentes tras la sonda (solo NOMBRES, sin valores): g_state, rl_anonymous_id, gdId, gdsid, asst, rsReferrerData, rsSessionId, rl_page_init_referrer, _optionalConsent, otGeoUS, __cf_bm, rl_session, OptanonConsent, cf_clearance.
+
+## robots.txt (consulta unica por dominio, cabeceras en evidence)
+- glassdoor.com / glassdoor.ie / glassdoor.es comparten el bloque User-agent: * con: Disallow: /graph, /api/, /api-web/, /autocomplete, /searchsuggest, /findCityAjax.htm, /jobview/, */*Ajax.htm (cubre /findPopularLocationAjax.htm), /Job/*_IP* (paginacion Workday), /job-listing/*_IE*.htm y /job-listing/JV.htm?*.
+- .ie: cabecera '# Ireland (en-IE)'; .es: cabecera '# Spain (es-ES)' con rutas en espanol (/Empleo/, /Opiniones/, /Sueldos/, /Explorar/, /Compara/).
+- El SERP simple /Job/jobs.htm?sc.keyword=... (.ie) y /Empleo/empleos.htm?sc.keyword=... (.es) NO aparece en Disallow (solo el patron *_IP*).
+
+## Terms of Use (consulta unica de revision; ver terms-of-use-clause.txt)
+- Conducta prohibida citada: 'Introduce software or automated agents to the services, or access the services so as to produce multiple accounts, generate automated messages, or to scrape, strip, or mine data from the services without our express written permission'.
+- La ruta /about/terms/ figura en Disallow de robots; se consulto una unica vez como revision humana (no recoleccion).
+

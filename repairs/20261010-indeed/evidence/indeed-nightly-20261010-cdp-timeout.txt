@@ -1,0 +1,58 @@
+Extracto saneado de indeed_jobs_scraper\output\log_20261010_0000.log (run nocturno NL attempt1, 2026-10-10 00:00-00:03)
+Rutas de usuario saneadas como <HOME>.
+----------------------------------------------------------------------
+2026-10-10 00:00:17,246 [INFO] scraper.state: state cargado: 2932 job_keys procesados, 2932 exportados
+2026-10-10 00:00:17,335 [INFO] scraper.desc_cache: desc-cache cargado: 423 descripciones
+2026-10-10 00:00:17,765 [WARNING] fake_useragent: Error occurred during getting browser(s): random, but was suppressed with fallback.
+2026-10-10 00:00:20,385 [INFO] scraper.browser: conectando a Chrome existente via CDP en puerto 9222...
+2026-10-10 00:03:22,530 [ERROR] __main__: error fatal: No se pudo conectar a Chrome en localhost:9222. Lanza Chrome primero con:
+  "<CHROME_EXE>" --remote-debugging-port=9222 --user-data-dir="<HOME>\Documents\projects\indeed_jobs_scraper\output\chrome_profile"
+Error: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+  - <ws connected> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+Traceback (most recent call last):
+  File "<HOME>\Documents\projects\indeed_jobs_scraper\scraper\browser.py", line 93, in _start
+    self._browser = self._pw.chromium.connect_over_cdp(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\sync_api\_generated.py", line 16394, in connect_over_cdp
+    self._sync(
+  File "<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\_impl\_sync_base.py", line 94, in _sync
+    return task.result()
+           ^^^^^^^^^^^^^
+  File "<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\_impl\_browser_type.py", line 191, in connect_over_cdp
+    response = await self._channel.send_return_as_dict(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\_impl\_connection.py", line 66, in send_return_as_dict
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<HOME>\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\patchright\_impl\_connection.py", line 500, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+patchright._impl._errors.TimeoutError: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+  - <ws connected> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<HOME>\Documents\projects\indeed_jobs_scraper\main.py", line 199, in main
+    offers = runner.run()
+             ^^^^^^^^^^^^
+  File "<HOME>\Documents\projects\indeed_jobs_scraper\scraper\runner.py", line 100, in run
+    with BrowserSession(self.country, self.output_dir, use_chrome_profile=self.use_chrome_profile, cdp_port=self.cdp_port) as session:
+  File "<HOME>\Documents\projects\indeed_jobs_scraper\scraper\browser.py", line 72, in __enter__
+    self._start()
+  File "<HOME>\Documents\projects\indeed_jobs_scraper\scraper\browser.py", line 97, in _start
+    raise RuntimeError(
+RuntimeError: No se pudo conectar a Chrome en localhost:9222. Lanza Chrome primero con:
+  "<CHROME_EXE>" --remote-debugging-port=9222 --user-data-dir="<HOME>\Documents\projects\indeed_jobs_scraper\output\chrome_profile"
+Error: BrowserType.connect_over_cdp: Timeout 180000ms exceeded.
+Call log:
+  - <ws preparing> retrieving websocket url from http://localhost:9222
+  - <ws connecting> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+  - <ws connected> ws://localhost:9222/devtools/browser/d288b904-b5b2-45d8-9a00-1cb378b6dced
+

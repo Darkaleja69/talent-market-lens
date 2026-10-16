@@ -25,6 +25,7 @@ from src.parse_detail import (
     _RE_SALARY_IN_TEXT,
     _collect_skills,
     _extract_salary_from_description,
+    _infer_work_mode,
 )
 from src.store import Store
 
@@ -86,6 +87,51 @@ def test_extract_salary_from_description_no_salary():
     )
     assert raw == ""
     assert smin is None and smax is None
+
+
+# ---------- T-33: salario sin basura ----------
+
+@pytest.mark.parametrize("desc", [
+    "Se abona en , libra al año.",           # raw ", libra ..."
+    "Importe . € al mes.",                   # raw ". € ..."
+    "Cifra ., Euro por ano.",                # raw "., Euro ..."
+])
+def test_extract_salary_ignores_separator_only_captures(desc: str):
+    """La captura numerica [\\d.,]+ tambien casa con separadores sueltos
+    (", libra", ". €", "., Euro"); sin digito no hay importe y se devuelve
+    sin salario (T-33)."""
+    # La regex SI matchea: el caso ejercita la guarda de digitos, no un
+    # simple "no hay match".
+    assert _RE_SALARY_IN_TEXT.search(desc) is not None
+    assert _extract_salary_from_description(desc) == ("", None, None, "", "")
+
+
+def test_extract_salary_valid_cases_still_intact():
+    """La guarda de digitos no rompe los casos validos existentes."""
+    raw, smin, smax, cur, period = _extract_salary_from_description(
+        "Salario: 40.000-55.000 euros/año")
+    assert raw
+    assert smin == 40000.0 and smax == 55000.0
+    assert cur == "EUR" and period == "year"
+
+
+# ---------- T-33: modalidad multilingue ----------
+
+@pytest.mark.parametrize("text,expected", [
+    ("Modelo híbrido con 2 días en oficina", "Hibrido"),
+    ("This is a hybrid role", "Hibrido"),
+    ("Hybride werken mogelijk", "Hibrido"),
+    ("HYBRIDES ARBEITSMODELL im Team", "Hibrido"),
+    ("Volledig thuiswerken is mogelijk", "Remoto"),
+    ("Thuiswerk mogelijk na overleg", "Remoto"),
+    ("100% remoto desde cualquier lugar", "Remoto"),
+    ("Trabajo presencial en nuestras oficinas", "Presencial"),
+    ("On-site position in Madrid", "Presencial"),
+    ("Wij bieden een thuiswerkvergoeding", ""),  # compuesto: sin falso positivo
+    ("Sin senales de modalidad en el texto", ""),
+])
+def test_infer_work_mode_multilingual(text: str, expected: str):
+    assert _infer_work_mode(text) == expected
 
 
 # ---------- normalize_experience_level (F2-13) ----------

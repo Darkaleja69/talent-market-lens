@@ -1,0 +1,7 @@
+﻿Sonda CDP patchright 1.60.1 connect_over_cdp -> http://localhost:9333 (Chrome InfoJobs, Chrome/154.0.8037.98) - CONTROL
+Fecha ejecucion: 2026-10-10 (local). Solo conecta, lista contextos y desconecta (pw.stop); NO browser.close(); no toca paginas.
+------------------------------------------------------------------------
+CONNECT OK in 0.7s
+browser_type: chromium
+contexts: 1
+context 0 pages: 1

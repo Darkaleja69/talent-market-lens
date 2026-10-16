@@ -1,0 +1,84 @@
+Prueba en vivo acotada — Indeed (RF-9), spec 004, tarea T-32, iteración 2
+======================================================================
+
+Fecha/hora local: 2026-10-11; inicio 15:00:10, cierre 15:05:40 (331,8 s)
+Alcance (acotado y repetible): 1 país (NL) x 1 término ("data") x 1 ciudad
+(Rotterdam) x 1 página (start=0, fromage=7).
+Restricciones respetadas: sin subida a Azure, sin actualización de landing,
+sin merge; sin --limit; conexión al Chrome 9222 de la persona (sesión real,
+modo CDP). Chrome 9222/9333 no se cerraron ni reiniciaron.
+
+Pre-check de conexión (14:59:49): python -m scraper.cdp_probe --port 9222
+  -> "CDP intento 1/1: handshake verificado (1 contexto(s); pagina de prueba
+     abierta y cerrada)" / CDP_HANDSHAKE_OK port=9222
+
+Comando exacto (desde indeed_jobs_scraper/):
+  python main.py --country NL --cities Rotterdam --term data --pages 1
+      --fromage 7 --cdp 9222 --enrich --enrich-rate 1.0 --enrich-max 15
+
+Intentos: 1 de 1. No apareció CAPTCHA ni challenge visible (no se necesitó
+pausa asistida ni segundo intento).
+
+Extracto saneado del log (output/log_20261011_1500.log; rutas locales como
+<HOME>):
+  15:00:12 scraper.browser: conectando a Chrome existente via CDP en puerto 9222...
+  15:00:13 scraper.browser: CDP intento 1/3: handshake verificado (1 contexto(s);
+           pagina de prueba abierta y cerrada)
+  15:00:13 scraper.browser: conectado al contexto existente de Chrome (1 pestañas abiertas)
+  15:00:29 scraper.runner: navegando pagina 1 (start=0):
+           https://nl.indeed.com/jobs?q=data&l=Rotterdam&radius=25&fromage=7
+  15:01:02 scraper.parser: parseadas 11 ofertas (pagina 1, NL/Rotterdam) via JSON embebido
+  15:01:27..15:05:32 scraper.parser: enriquecimiento fallido jk=<id>: sin descripcion
+           en el panel derecho tras la cadena de esperas (tarjeta activa);
+           se continua con la siguiente oferta   [11 avisos, uno por oferta]
+  15:05:33 scraper.parser: enriquecidas 11/11 clics (con descripcion: 0,
+           sin descripcion: 11; candidatas sin descripcion: 11, rate=100%, max_enrich=15)
+  Linea "descripciones from _initialData (autoOpen embedded JSON): ...": AUSENTE
+           (extraccion embebida = 0 ofertas rellenadas; el portal no sirvio el
+           JSON auto-abierto en esta sesion).
+  Marcadores de CAPTCHA/challenge ("CAPTCHA detectado", "Security Check",
+           "Additional Verification"): sin apariciones.
+  Latido de progreso del enrich presente (11 lineas PROGRESS ... enrich=N/11),
+           ultimo: PROGRESS source=indeed parsed=22 new=11 ts=...13:05:33+00:00
+  15:05:33 scraper.runner: pagina 1: 11 ofertas (acumulado ciudad: 11)
+  15:05:34 scraper.browser: desconectado de Chrome CDP (el navegador del usuario
+           sigue abierto)
+  15:05:34 scraper.exporters: Parquet:
+           <HOME>\Documents\projects\indeed_jobs_scraper\output\indeed_jobs_20261011_1500.parquet
+           (11 filas, 33 cols)
+  Resumen final de consola: "Scrape completado: 11 ofertas unicas." ; EXIT_CODE=0
+  Nota: este scraper no emite una linea "RESULT total="; el recuento equivalente
+           es el resumen final ("Scrape completado: 11 ofertas unicas.")
+           y la metadata (total_unique = 11).
+
+Metadata del run (scrape_metadata_20261011_1500.json):
+  run_id=1b996c45-0758-484e-98d7-1efe8ee885e4; country=NL; cities=[Rotterdam];
+  terms=[data]; pages=1; total_serps=1; total_offers_raw=11; total_unique=11;
+  limit=0; logged_in=true (CDP verificado); cdp_port=9222;
+  enrich_attempted=11; enrich_success=0; enrich_success_rate="0/11";
+  description_filled_rate="0/11"; enrich_rate_target=1.0.
+
+Recuento y umbral:
+  - Recuento obtenido: 11 ofertas únicas.
+  - Umbral exigido: 1 (repair.cli threshold --source indeed, sin historial:
+    "mejor verificado: sin dato | umbral: 1").
+  - RECUENTO >= UMBRAL: SÍ.
+
+Resultado de la puerta de calidad: NO OK (description 0.0 %; obligatoria y
+meta 100 %). Medición completa en
+repairs/20261010-indeed/evidence/indeed-20261011-quality-gate.txt y
+repairs/20261010-indeed/quality_after.json (exit 1). El registro NO se
+completa; queda a la espera de instrucciones.
+
+Inspección offline del export (indeed_jobs_20261011_1500.json, 11 ofertas):
+  - description_text y description_html vacíos en 11/11 (0 chars).
+  - snippet vacío en 11/11 (0 chars) — la propia SERP se sirvió sin extractos
+    de descripción en las tarjetas.
+  - title/company/location/posted_date presentes en 11/11; salary_text en
+    10/11; workplace_type no vacío en 6/11.
+  - Lectura: no hubo CAPTCHA visible, pero el portal sirvió una experiencia
+    degradada (tarjetas parseables sin snippet y panel derecho sin texto de
+    descripción), coherente con descripción al 0 % en la medición de calidad.
+
+Saneado: sin cookies, sin rutas de perfil de navegador, sin credenciales;
+las rutas locales de usuario se escriben como <HOME>.

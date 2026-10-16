@@ -20,6 +20,24 @@ $SafetyTimeoutHours = 4
 $LockFile           = Join-Path $ProjectRoot "data\.nightly.lock"
 $NightlyLog         = Join-Path $ProjectRoot "data\run_nightly.log"
 
+# T-30 (iteracion): modo CDP. El scraper se conecta a un Chrome lanzado
+# directamente (sin las flags de automatizacion de Playwright): es la via que
+# pasa el challenge de Distil/Imperva (mismo patron que Indeed en 9222). Si el
+# CDP no responde, este wrapper levanta Chrome con el perfil dedicado.
+#   INFOJOBS_CDP_PORT     puerto CDP (por defecto 9333).
+#   INFOJOBS_CDP_PROFILE  perfil de Chrome (por defecto la copia de la sesion
+#                         real si existe; si no, data\cdp_profile).
+$CdpPort    = if ($env:INFOJOBS_CDP_PORT) { [int]$env:INFOJOBS_CDP_PORT } else { 9333 }
+$CdpUrl     = "http://127.0.0.1:$CdpPort"
+$debugProfile = Join-Path $env:USERPROFILE "chrome-debug-profile"
+$CdpProfile = if ($env:INFOJOBS_CDP_PROFILE) {
+    $env:INFOJOBS_CDP_PROFILE
+} elseif (Test-Path -LiteralPath $debugProfile) {
+    $debugProfile
+} else {
+    Join-Path $ProjectRoot "data\cdp_profile"
+}
+
 # Watchdog de progreso (RF-15, T-19): la decision la toma el supervisor Python
 # (scrapers-pipeline/verification/supervisor.py) sobre el contador PROGRESS, no
 # sobre la actividad generica del log. $WatchdogExitCode (75) no colisiona con
@@ -145,10 +163,72 @@ function Release-Lock {
     }
 }
 
+function Test-CdpAlive {
+    try {
+        Invoke-WebRequest -Uri "$CdpUrl/json/version" -UseBasicParsing -TimeoutSec 5 | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Get-ChromeExe {
+    $candidates = @(
+        "C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        (Join-Path $env:LOCALAPPDATA "Google\Chrome\Application\chrome.exe")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+    return $null
+}
+
+function Start-CdpChrome {
+    # Levanta Chrome DIRECTO (no via Playwright): sin flags de automatizacion.
+    $chromeExe = Get-ChromeExe
+    if (-not $chromeExe) {
+        Write-NLog "CDP: no se encontro chrome.exe."
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $CdpProfile)) {
+        New-Item -ItemType Directory -Force -Path $CdpProfile | Out-Null
+    }
+    Write-NLog "CDP no responde; lanzando Chrome directo (puerto $CdpPort, perfil $CdpProfile)."
+    Start-Process -FilePath $chromeExe `
+        -ArgumentList @(
+            "--remote-debugging-port=$CdpPort",
+            "--user-data-dir=`"$CdpProfile`"",
+            "--no-first-run",
+            "--no-default-browser-check"
+        ) `
+        -PassThru | Out-Null
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Milliseconds 500
+        if (Test-CdpAlive) { return $true }
+    }
+    return $false
+}
+
 # ----------------------- Main -----------------------
 Write-NLog "=== INICIO RUN NOCTURNA INFOJOBS ==="
 
 if (-not (Test-AndAcquireLock)) { exit 0 }
+
+# Pre-flight CDP (T-30): reutiliza el Chrome ya abierto o lo levanta directo.
+# Si no hay CDP se cae al modo persistente (patchright) como red de seguridad.
+if (Test-CdpAlive) {
+    Write-NLog "CDP pre-flight OK: Chrome responde en $CdpUrl."
+    $env:INFOJOBS_CDP_URL = $CdpUrl
+} elseif (Start-CdpChrome) {
+    Write-NLog "CDP pre-flight OK: Chrome levantado automaticamente."
+    $env:INFOJOBS_CDP_URL = $CdpUrl
+} elseif ($env:INFOJOBS_CDP_URL) {
+    # No pisar un endpoint CDP indicado desde fuera (p. ej. por operacion).
+    Write-NLog "CDP pre-flight: puerto $CdpPort sin respuesta; se respeta INFOJOBS_CDP_URL externo."
+} else {
+    Write-NLog "CDP pre-flight: sin Chrome CDP; se usara el modo persistente."
+}
 
 $attempt = 0
 $exitCode = 1
