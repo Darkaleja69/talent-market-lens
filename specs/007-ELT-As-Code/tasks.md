@@ -209,7 +209,7 @@ completo —incluida la tarea de export web— en el bundle.
     limpio (solo notebooks).
   - **Evidencia:** captura + resumen.
 
-- [ ] **T-10a — Arreglo de rendimiento de las silvers de LinkedIn y multisite (dedup temprano por `job_id`)** (~35 min)
+- [x] **T-10a — Arreglo de rendimiento de las silvers de LinkedIn y multisite (dedup temprano por `job_id`)** (~35 min)
   - **RF:** RF-4 (desbloquea T-10).
   - **Depende de:** T-09; **precede a** T-10.
   - **Modo de trabajo (persona, 2026-10-17):** la implementa el asistente
@@ -240,6 +240,12 @@ completo —incluida la tarea de export web— en el bundle.
       empates exactos, cualquiera de las filas empatadas es válida.
     - La dedup final por `_key` y el contrato de columnas no se tocan.
       La decisión de fondo «append vs carga completa diaria» sigue en 008/009.
+  - **Resultado (2026-10-17):** módulo `databricks_notebooks/Deduplicate_Job_Offers.py`
+    (9 tests nuevos en `databricks_notebooks/tests/test_dedup_job_offers.py`;
+    suite `databricks_notebooks`: 81 passed, 1 skipped preexistente de Windows)
+    integrado en ambas silvers; dos rondas de revisión independiente sin
+    bloqueantes (commit `a9e9d15`). Tiempo de la silver: pendiente del run dev
+    de T-10.
   - **Hecho cuando:** la lógica vive en un módulo importable con tests, ambos
     notebooks la usan, las suites existentes siguen verdes y el diff pasa la
     revisión independiente.
