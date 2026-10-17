@@ -1,0 +1,27 @@
+# Cabeceras de robots.txt de irishjobs.ie (saneadas)
+# Capturado: 2026-10-17 ~07:34 UTC con el Chrome propio de agent-browser.
+# Petición: GET https://www.irishjobs.ie/robots.txt
+# Sonda: Chrome/154 de agent-browser (UA nativo, Windows). Sin cookies de sesión de la persona.
+
+HTTP/1.1 200 (fecha de respuesta: Sat, 17 Oct 2026 07:34:25 GMT)
+
+content-type: text/plain; charset=utf-8
+content-length: 1675
+last-modified: Wed, 25 Mar 2026 14:31:22 GMT
+cache-control: max-age=23359
+expires: Sat, 17 Oct 2026 14:03:44 GMT
+etag: "f0f992e31d8d95bd0569dff56f6ef4f1"
+
+# Marcadores de infraestructura (evidencia del vendor/anti-bot):
+server-timing: cdn-cache; desc=HIT
+server-timing: edge; dur=1
+server-timing: ak_p; desc="1792222465751_389797778_193189809_59_16319_13_28_255";dur=1
+strict-transport-security: max-age=15552000; includeSubDomains; preload;
+
+# Notas:
+# - `ak_p` en server-timing es un marcador de Akamai. En la respuesta del
+#   documento SERP aparece además `x-akamai-transformed` (ver serp-document-headers.txt).
+# - Cabeceras internas de almacenamiento (x-amz-id-2, x-amz-request-id,
+#   x-amz-server-side-encryption, x-amz-version-id) se han omitido por ser
+#   identificadores de infraestructura sin valor para la reparación.
+# - No se han usado credenciales; la petición es anónima.

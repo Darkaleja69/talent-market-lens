@@ -1,0 +1,23 @@
+{
+    "_comment": "Copia saneada de multi_site_job_scraper/data/merged/last_run.json (run 2026-10-17T01:09:23+02:00).",
+    "results": {
+        "stepstone_nl": 75,
+        "devitjobs": 0,
+        "glassdoor": 0,
+        "jobs_ch": 0,
+        "nvb": 1,
+        "irishjobs": 75
+    },
+    "_comment_results": "El 75 de irishjobs y stepstone_nl es el exit code (WATCHDOG_EXIT_CODE), no un recuento de ofertas; el merge parcial no incluyó el output de estos dos portales.",
+    "merge_mode": "parcial",
+    "merge_exit": 0,
+    "per_scraper_timeout_min": 1080,
+    "watchdog_blocked": [
+        { "site": "irishjobs", "reason": "watchdog_no_progress", "pid": 992 },
+        { "site": "stepstone_nl", "reason": "watchdog_no_progress", "pid": 15396 }
+    ],
+    "global_exit": 1,
+    "merge_ran": true,
+    "outputs_merged": [ "devitjobs", "glassdoor" ],
+    "run_at": "2026-10-17T01:09:23.1857707+02:00"
+}
