@@ -91,9 +91,6 @@ def launch_context(pw: Playwright, locale: str = "en-GB",
     else:
         raise last_err if last_err else RuntimeError("launch_context fallo")
 
-    context.add_init_script(
-        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-    )
     context.set_extra_http_headers({"Accept-Language": "en-US,en;q=0.9"})
     return context
 

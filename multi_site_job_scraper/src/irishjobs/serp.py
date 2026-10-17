@@ -9,7 +9,7 @@ import logging
 import time
 import re
 from typing import Optional
-from urllib.parse import urlencode, urljoin
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +65,36 @@ SEL_JOB_TITLE_LINK = '[data-testid="job-item-title"]'
 SEL_JOB_CARD = '[data-testid="job-card-content"]'
 SEL_NEXT_PAGE = 'a[rel="next"], a[aria-label*="Next"], nav[aria-label="Pagination"] a[class*="next"]'
 
+# Contenedores y contador del listado (SSR). Su presencia distingue una pagina
+# valida (con o sin resultados) de una respuesta mitigada/bloqueada (T-34).
+SEL_RESULT_LIST = '[data-at="unified-resultlist"]'
+SEL_RESULT_COUNT = '[data-at="search-jobs-count"]'
+SEL_PAGINATION_NAV = 'nav[aria-label="pagination"], nav[aria-label="Pagination"]'
+NO_RESULTS_TEXT = "there is no job matching your search"
+
+# Marcadores de challenge/interstitial observados en paginas mitigadas
+# (Akamai/Cloudflare). Motivo en ingles y sin datos sensibles: va a la linea
+# de maquina BLOCKED y a la evidencia saneada.
+_BLOCK_TEXT_MARKERS = (
+    "access denied",
+    "just a moment",
+    "pardon our interruption",
+    "attention required",
+    "captcha",
+    "challenge",
+    "forbidden",
+)
+
+# En el TITULO solo se evaluan las frases inequivocas: "challenge" a secas
+# puede aparecer en titulos legitimos ("Data Challenge Jobs") y se reserva
+# para el cuerpo, que solo se mira sin marcadores estructurales.
+_BLOCK_TITLE_MARKERS = tuple(
+    m for m in _BLOCK_TEXT_MARKERS if m != "challenge")
+
+# `page` como parametro de query. robots.txt veta `&page=` (p.ej. `?age=7&page=2`)
+# y `?action=`: la unica forma conforme es `page` como PRIMER parametro.
+_RE_PAGE_QUERY = re.compile(r"[?&]page=(\d+)")
+
 # Selectores estructurados de StepStone (data-at estables). Cuando existen se
 # prefieren al parseo de texto: evitan mezclar empresa/ubicacion/descripcion.
 SEL_ST_COMPANY = '[data-at="job-item-company-name"]'
@@ -78,20 +108,107 @@ _COOKIE_DISMISSED = False
 def build_search_url(base_url: str, search_path: str, role: str,
                      page: int = 1, date_filter: str = "30",
                      location: str = "") -> str:
+    """URL de busqueda conforme a robots.txt.
+
+    `page` solo puede ir como PRIMER parametro de query: `Disallow: /*&page=`
+    veta `page` precedido de `&`, y `Disallow: /*?action=`/`/*&action=` vetan
+    `action=paging_next` (el enlace propio del sitio no lo usa).
+    """
     role_slug = role.lower().replace(" ", "-")
     url = f"{base_url.rstrip('/')}{search_path.format(role_slug=role_slug)}"
     params = {}
+    if page > 1:
+        params["page"] = str(page)
     if date_filter:
         params["age"] = date_filter
     if location:
         city_slug_path = location.lower().replace(" ", "-")
         url = f"{url}/in-{city_slug_path}"
-    if page > 1:
-        params["page"] = str(page)
-        params["action"] = "paging_next"
     if params:
         url += "?" + urlencode(params)
     return url
+
+
+def _current_page_number(url: str) -> int:
+    m = _RE_PAGE_QUERY.search(url or "")
+    return int(m.group(1)) if m else 1
+
+
+def _url_with_page(url: str, page_no: int) -> str:
+    """URL con `page` como primer parametro y sin `action` (robots.txt)."""
+    parts = urlsplit(url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+             if k not in ("page", "action")]
+    query.insert(0, ("page", str(page_no)))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path,
+                       urlencode(query), parts.fragment))
+
+
+def detect_block(page) -> tuple[bool, str, dict]:
+    """Clasifica la pagina actual: bloqueada, vacia legitima o normal.
+
+    Devuelve `(blocked, reason, markers)`. `markers` registra que marcadores
+    estructurales estaban presentes (para la evidencia saneada).
+
+    - Pagina valida: existe `unified-resultlist`, `search-jobs-count` o
+      tarjetas. Un SERP vacio legitimo conserva el contenedor del listado y
+      muestra "There is no job matching your search".
+    - Bloqueo: los marcadores inequivocos de challenge del titulo (Access
+      Denied, Just a moment, captcha, ...; nunca "challenge" a secas) se
+      evaluan siempre; los del cuerpo, que si incluyen "challenge", solo
+      cuando no hay marcadores estructurales, para no confundir una
+      descripcion o un titulo legitimo con un challenge. Sin ningun marcador,
+      la pagina se considera bloqueada.
+    """
+    markers: dict = {}
+    for name, selector in (
+        ("resultlist", SEL_RESULT_LIST),
+        ("result_count", SEL_RESULT_COUNT),
+        ("job_item", SEL_JOB_ITEM),
+        ("job_card", SEL_JOB_CARD),
+    ):
+        try:
+            markers[name] = page.query_selector(selector) is not None
+        except Exception:
+            markers[name] = False
+
+    title = ""
+    try:
+        title = page.title() or ""
+    except Exception:
+        title = ""
+
+    # Los marcadores inequivocos de challenge del TITULO se evaluan siempre,
+    # incluso si la pagina conserva marcadores estructurales: una respuesta
+    # mitigada puede mantener el contenedor del listado y un titulo de
+    # challenge. "challenge" a secas no cuenta aqui (falsos positivos en
+    # titulos legitimos como "Data Challenge Jobs").
+    title_lower = title.lower()
+    for marker in _BLOCK_TITLE_MARKERS:
+        if marker in title_lower:
+            return True, f"challenge:{marker.replace(' ', '_')}", markers
+
+    if any(markers.values()):
+        return False, "", markers
+
+    body = ""
+    try:
+        body = _text(page.query_selector("body"))[:5000]
+    except Exception:
+        body = ""
+
+    # Los marcadores del CUERPO solo cuentan cuando no hay marcadores
+    # estructurales: asi una palabra tipo "challenge" en la descripcion de una
+    # oferta no bloquea una pagina valida.
+    body_lower = body.lower()
+    for marker in _BLOCK_TEXT_MARKERS:
+        if marker in body_lower:
+            return True, f"challenge:{marker.replace(' ', '_')}", markers
+
+    if NO_RESULTS_TEXT in f"{title_lower}\n{body_lower}":
+        return False, "no_results", markers
+
+    return True, "no_result_markers", markers
 
 
 def _text(el) -> str:
@@ -406,27 +523,78 @@ def get_total_results(page) -> int:
     return 0
 
 
+def next_page_href(page) -> str:
+    """Href del enlace "siguiente pagina" del propio sitio ("" si no hay).
+
+    En IrishJobs/StepStone no existe `link[rel=next]`: la paginacion vive en
+    `nav[aria-label="pagination"]` con hrefs `?page=N&ag=7`. Se prefiere
+    siempre ese href al construido a mano (nunca lleva `action`).
+    """
+    selectors = (
+        'link[rel="next"]',
+        'nav[aria-label="pagination"] a[rel="next"]',
+        'nav[aria-label="pagination"] a[aria-label*="Next"]',
+        'nav[aria-label="pagination"] a[class*="next"]',
+        'a[rel="next"]',
+        '[data-testid="pagination-next"]',
+        '[aria-label*="Next page"]',
+    )
+    for sel in selectors:
+        try:
+            el = page.query_selector(sel)
+        except Exception:
+            el = None
+        if el:
+            href = el.get_attribute("href") or ""
+            if href:
+                return href
+
+    # Nav de paginacion con enlaces numericos: el primero con page > actual.
+    try:
+        nav = page.query_selector(SEL_PAGINATION_NAV)
+        if nav:
+            current = _current_page_number(getattr(page, "url", "") or "")
+            for a in nav.query_selector_all("a[href]"):
+                href = a.get_attribute("href") or ""
+                m = _RE_PAGE_QUERY.search(href)
+                if m and int(m.group(1)) > current:
+                    return href
+    except Exception:
+        pass
+    return ""
+
+
 def has_next_page(page) -> bool:
     try:
         link = page.query_selector("link[rel='next']")
-        if link:
-            return bool(link.get_attribute("href"))
-    except Exception:
-        pass
-    try:
-        btn = page.query_selector("a[rel='next']")
-        if btn:
+        if link and link.get_attribute("href"):
             return True
     except Exception:
         pass
+
+    # Nav de paginacion del sitio: es la fuente de verdad (no hay link[rel=next]).
     try:
-        btn = page.query_selector("[aria-label*='Next page']")
-        if btn:
-            return True
+        nav = page.query_selector(SEL_PAGINATION_NAV)
     except Exception:
-        pass
+        nav = None
+    if nav:
+        current = _current_page_number(getattr(page, "url", "") or "")
+        pages = []
+        try:
+            for a in nav.query_selector_all("a[href]"):
+                m = _RE_PAGE_QUERY.search(a.get_attribute("href") or "")
+                if m:
+                    pages.append(int(m.group(1)))
+            if pages:
+                return max(pages) > current
+        except Exception:
+            pass
+
+    if next_page_href(page):
+        return True
+
     try:
-        btns = page.query_selector_all("[data-testid='pagination-next'], a[aria-label*='Next']")
+        btns = page.query_selector_all(SEL_NEXT_PAGE + ", [data-testid='pagination-next']")
         if btns:
             return True
     except Exception:
@@ -449,17 +617,17 @@ def cards_still_different(page, previous_ids: set, jobs_per_search: int) -> bool
 
 
 def go_to_next_page(page) -> bool:
-    try:
-        link = page.query_selector("link[rel='next']")
-        if link:
-            href = link.get_attribute("href")
-            if href:
-                full_url = href if href.startswith("http") else urljoin(page.url, href)
-                page.goto(full_url, wait_until="domcontentloaded", timeout=30000)
-                return True
-    except Exception:
-        pass
+    # 1) Href propio del sitio (forma `?page=N&ag=7`, conforme a robots.txt).
+    href = next_page_href(page)
+    if href:
+        try:
+            full_url = urljoin(getattr(page, "url", "") or "", href)
+            page.goto(full_url, wait_until="domcontentloaded", timeout=30000)
+            return True
+        except Exception:
+            pass
 
+    # 2) Fallback por clic en el control de paginacion del sitio.
     try:
         btn = page.query_selector("a[rel='next'], a[aria-label*='Next'], "
                                   "[aria-label*='Next page'], [data-testid='pagination-next']")
@@ -489,14 +657,12 @@ def go_to_next_page(page) -> bool:
     except Exception:
         pass
 
+    # 3) Ultimo recurso: reconstruir la URL con `page` como PRIMER parametro
+    # (nunca `&page=` ni `action=`, vetados por robots.txt).
     try:
         current_url = page.url
-        if "page=" in current_url:
-            current_page = int(re.search(r"page=(\d+)", current_url).group(1))
-            next_url = re.sub(r"page=\d+", f"page={current_page + 1}", current_url)
-        else:
-            sep = "&" if "?" in current_url else "?"
-            next_url = f"{current_url}{sep}page=2&action=paging_next"
+        next_url = _url_with_page(current_url,
+                                  _current_page_number(current_url) + 1)
         page.goto(next_url, wait_until="domcontentloaded", timeout=30000)
         return True
     except Exception:

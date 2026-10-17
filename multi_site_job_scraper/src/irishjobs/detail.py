@@ -58,8 +58,19 @@ def _parse_json_ld_detail(html_str: str, result: dict) -> None:
     if desc and not result.get("description_full"):
         result["description_full"] = desc
 
-    if jp.get("employmentType") and not result.get("employment_type"):
-        result["employment_type"] = as_text(jp["employmentType"])
+    et = jp.get("employmentType")
+    if et:
+        et_text = as_text(et)
+        if et_text and not result.get("employment_type"):
+            result["employment_type"] = et_text
+        # employmentType estructurado -> work_mode (T-34): la heuristica de
+        # texto se conserva como respaldo para el resto de valores.
+        if et_text and not result.get("work_mode"):
+            et_upper = et_text.upper()
+            if "HYBRID" in et_upper:
+                result["work_mode"] = "Hybrid"
+            elif "REMOTE" in et_upper or "TELECOMMUTE" in et_upper:
+                result["work_mode"] = "Remote"
 
     if jp.get("datePosted") and not result.get("posted_datetime"):
         result["posted_datetime"] = jp["datePosted"]
@@ -219,7 +230,12 @@ def parse_detail(page, offer) -> dict:
               page.query_selector("article") or \
               page.query_selector("main")
     if desc_el:
-        result["description_full"] = _text(desc_el)
+        dom_desc = _text(desc_el)
+        # El JSON-LD trae la descripcion completa; el texto del DOM es un
+        # recorte/teaser y no debe sobrescribirla (T-34). Solo se usa si el
+        # JSON-LD no trajo descripcion.
+        if dom_desc and not result.get("description_full"):
+            result["description_full"] = dom_desc
 
     body_text = _text(page.query_selector("body")) or ""
 
