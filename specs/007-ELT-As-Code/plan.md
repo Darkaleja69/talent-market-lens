@@ -6,9 +6,9 @@ Convertir la definición del job `Git Based ELT` —hoy configurada a mano en el
 workspace— en un Asset Bundle versionado, con un target dev aislado, un target
 prod que reproduce el comportamiento actual, validación en CI y un cutover
 reversible. No cambia la lógica de los notebooks, ni el pipeline local, ni los
-dashboards. Excepción (2026-10-17): T-10a corrige el rendimiento de la silver
-de LinkedIn (dedup temprano por `job_id`) para desbloquear T-10; el detalle
-vive en `tasks.md`.
+dashboards. Excepción (2026-10-17): T-10a corrige el rendimiento de las
+silvers de LinkedIn y multisite (dedup temprano por `job_id`; `site` + `job_id`
+en multisite) para desbloquear T-10; el detalle vive en `tasks.md`.
 
 ## 2. Estado de partida (se confirma en T-02–T-04)
 
@@ -168,7 +168,7 @@ artefacto del bundle, no lo que esté sincronizado en la carpeta.
 | PAT de CI caducado | Rotación documentada; el fallo es visible en el workflow |
 | Doble ejecución durante la ventana | `max_concurrent_runs: 1` + checklist (manual apagado antes de encender bundle) |
 | Coste del entorno dev | Job pausado por defecto; un run por iteración; compute pequeño o serverless |
-| Bronce dev acumula snapshots duplicados (LinkedIn: ~715 copias por oferta) | T-10a (dedup temprano en la silver) + normalización one-off del bronce dev; la decisión estructural (append incremental vs carga completa diaria) pasa a 008/009 |
+| Bronce dev acumula snapshots duplicados (LinkedIn: ~715 copias por oferta; multisite: ~21) | T-10a (dedup temprano en las silvers de LinkedIn y multisite) + normalización one-off del bronce dev; la decisión estructural (append incremental vs carga completa diaria) pasa a 008/009 |
 
 ## 13. Decisiones y alternativas descartadas
 
@@ -200,7 +200,7 @@ artefacto del bundle, no lo que esté sincronizado en la carpeta.
 | RF-1 | T-03, T-05, T-06, T-07 |
 | RF-2 | T-08, T-09, T-10, T-15 |
 | RF-3 | T-07, T-12 |
-| RF-4 | T-10 |
+| RF-4 | T-10a, T-10 |
 | RF-5 | T-12, T-13 |
 | RF-6 | T-15, T-16, T-17, T-18, T-19, T-20 |
 | RF-7 | T-21 |

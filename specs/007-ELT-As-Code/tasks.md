@@ -209,42 +209,42 @@ completo —incluida la tarea de export web— en el bundle.
     limpio (solo notebooks).
   - **Evidencia:** captura + resumen.
 
-- [ ] **T-10a — Arreglo de rendimiento de la silver de LinkedIn (dedup temprano por `job_id`)** (~35 min)
+- [ ] **T-10a — Arreglo de rendimiento de las silvers de LinkedIn y multisite (dedup temprano por `job_id`)** (~35 min)
   - **RF:** RF-4 (desbloquea T-10).
   - **Depende de:** T-09; **precede a** T-10.
-  - **La implementa la persona** (formato guiado); el asistente prepara
-    preguntas y pistas, y revisa el diff con el verificador. El asistente no
-    escribe el código de esta tarea ni llama al bundle por ti.
-  - **Contexto (diagnóstico, 2026-10-17):** el bronce dev de LinkedIn quedó con
-    9.569.896 filas para 13.376 `job_id` distintos (~715 copias por oferta:
-    los ficheros del landing son snapshots acumulativos y el checkpoint nuevo
-    los leyó todos). La silver dev superó los 92,9 min y se canceló; en prod
-    (16.371 filas, los mismos 13.376 `job_id`) tarda 5,9 min.
-  - **Objetivo:** que la silver conserve solo la última captura de cada oferta
-    (`job_id`) antes de `enrich()` y de la tabla de compañías, sin cambiar el
-    contrato de columnas de salida ni la dedup semántica final por `_key`.
-  - **Preguntas guía:** ¿por qué hay ~715 copias de cada oferta en el bronce?
-    ¿Dónde conviene desduplicar para que `enrich()` (regex sobre
-    `description_clean`) no pague los duplicados: antes o después? ¿Qué fila
-    debe sobrevivir de cada `job_id` y con qué orden (`scraped_at`,
-    `_ingest_date`)? ¿Qué haces con las filas de `job_id` nulo? ¿Por qué la
-    dedup final por `_key` sigue haciendo falta? ¿Cómo lo probarías en local
-    sin llamar a Databricks?
-  - **Pistas y docs:** el notebook ya usa `Window.partitionBy(...).orderBy(...)`
-    + `row_number` para la dedup por `_key`: el mismo patrón vale particionando
-    por `job_id`; deja la lógica en un módulo importable junto a los notebooks
-    (como `Enrich_Job_Offers_Dataframes.py`) y añade tests en
-    `databricks_notebooks/tests/` (pytest + Spark local; cada sesión tarda
-    ~7–10 min en Windows). La decisión de fondo «append vs carga completa
-    diaria» no se toca aquí (specs 008/009).
-  - **Decisión (persona, 2026-10-17):** la restricción de alcance «esta spec no
-    toca notebooks» se retira para esta tarea; la implementación y las llamadas
-    al bundle son de la persona; el asistente orienta y verifica.
-  - **Hecho cuando:** la lógica vive en un módulo importable con tests, el
-    notebook la usa, las suites existentes siguen verdes y el diff pasa la
+  - **Modo de trabajo (persona, 2026-10-17):** la implementa el asistente
+    (`implementer`) a petición expresa de la persona; la persona revisa e
+    interioriza el código (se le imprime en la sesión) y la verificación es
+    independiente (`verifier`).
+  - **Contexto (diagnóstico, 2026-10-17):** el bronce dev acumula snapshots
+    del landing leídos por el checkpoint nuevo. LinkedIn: 9.569.896 filas para
+    13.376 `job_id` distintos (~715 copias por oferta) y silver dev >92,9 min
+    (cancelada); multisite: 225.796 filas para 10.489 `job_id` (~21 copias).
+    En prod, LinkedIn (16.371 filas) tarda 5,9 min y multisite 11.562 filas.
+  - **Objetivo:** que las silvers de LinkedIn y multisite conserven solo la
+    última captura de cada oferta (`job_id`; `site` + `job_id` en multisite)
+    antes de `enrich()` y de la tabla de compañías, sin cambiar el contrato de
+    columnas de salida ni la dedup semántica final por `_key`.
+  - **Decisiones (persona, 2026-10-17, tras auditar el bronce por SQL):**
+    - Módulo importable `databricks_notebooks/Deduplicate_Job_Offers.py` con
+      `keep_latest_by(df, keys, order_by=("scraped_at", "_ingest_date"))`:
+      `Window` + `row_number` + `desc_nulls_last` (no `dropDuplicates`, que
+      conserva una fila arbitraria).
+    - Llamadas: LinkedIn `["job_id"]`; multisite `["site", "job_id"]`, justo
+      tras leer el bronce (antes del rename de columnas).
+    - Filas con clave nula o vacía: passthrough sin tocar (auditoría:
+      0 nulos y 0 vacíos en las 4 tablas; queda como guarda preventiva y se
+      cubre con test).
+    - Orden por `scraped_at` (string ISO-8601, offset único `+00:00` ⇒ el
+      orden lexicográfico equivale al cronológico) y `_ingest_date`; en
+      empates exactos, cualquiera de las filas empatadas es válida.
+    - La dedup final por `_key` y el contrato de columnas no se tocan.
+      La decisión de fondo «append vs carga completa diaria» sigue en 008/009.
+  - **Hecho cuando:** la lógica vive en un módulo importable con tests, ambos
+    notebooks la usan, las suites existentes siguen verdes y el diff pasa la
     revisión independiente.
-  - **Evidencia:** diff, salida de tests y tiempo de la silver en el run dev
-    de T-10.
+  - **Evidencia:** diff impreso y revisado por la persona, salida de tests y
+    tiempo de la silver en el run dev de T-10.
 
 - [ ] **T-10 — Run dev end-to-end** (~35 min)
   - **RF:** RF-4.
