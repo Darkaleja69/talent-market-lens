@@ -23,6 +23,24 @@ temario al proyecto Talent Market Lens, no en abstracto.
 | 6. Observabilidad: Spark UI, Query Profile, system tables, event logs, job monitoring | 010 | System tables, event log del job, alertas y monitorización del run diario |
 | 7. Seguridad y gobernanza: Unity Catalog, ACLs, herencia, row filters, column masks | 011 | Grants por capa, least privilege del service principal, row filter y column mask de demo |
 
+## Backlog de prácticas (temario → proyecto)
+
+Todo lo que se aprenda en el curso se aplica al proyecto; lo que no encaje en
+una spec planificada se anota aquí y se encaja al planificar la siguiente.
+
+- **Cuarentena en la ingesta (tablas Delta).** Guardar las filas con estructura
+  o valores inválidos en `bronze.<fuente>_quarantine` (fuente, motivo, fecha) y
+  tratarlas después (corregir o descartar con evidencia), en vez de dejarlas
+  pasar o perderlas. Caso real: `company_name` con valores tipo `4,0` (ratings
+  de empresa desplazados a esa columna). Ya existen cuarentenas en el pipeline
+  local (scrapers) y de ficheros en el landing; falta la capa Delta y su
+  tratamiento en la ELT. Candidata: 008 (ingesta e incrementalidad) y/o 011
+  (calidad).
+- **CHECK constraints de Delta (data quality).** Aplicar constraints en
+  silver/gold (`job_id` no nulo, `salary_min <= salary_max`, fechas
+  razonables…) y registrar/decidir qué se hace al incumplir (cuarentena,
+  descarte o marca). Candidata: 008 (Delta) y/o 011 (gobernanza).
+
 ## Calendario
 
 | Semana | Fechas | Foco | Estado |
@@ -45,6 +63,9 @@ Contingencias:
 
 ## Método de estudio
 
+- **Aplicar el temario al proyecto:** cada práctica del curso se lleva al
+  proyecto; si no encaja en una spec planificada, se anota en el backlog de
+  prácticas y se encaja al planificar la siguiente.
 - **Formato de tarea:** objetivo → preguntas guía → pistas y documentación →
   hecho cuando → evidencia. La persona implementa; el asistente pregunta,
   orienta y revisa (tests y revisión independiente del diff antes del commit).
@@ -75,3 +96,4 @@ Contingencias:
 | 2026-10-12 | Recon T-02–T-04 completado | Edición Premium/Enterprise inferida por UC; job: 7 tareas, schedule `50 0 23 * * ?` (Europe/Madrid), cluster `tm-lens-job`; Git folder con pull manual, hoy en la rama de la 006 |
 | 2026-10-12 | 006 mergeada a `main`; rama 007 sincronizada | Merge `314b99c`; pendiente poner la Git folder del workspace en `main` (pull manual) |
 | 2026-10-17 | Diagnóstico de rendimiento dev vs prod; arreglo T-10a aprobado en la 007 | Bronce dev LinkedIn: 9.569.896 filas para 13.376 `job_id` (~715 copias por snapshot acumulativo del landing); prod: 16.371 filas y run completo de 20,4 min. Dedup temprano en la silver dentro de la 007; semilla estructural (append vs carga completa) a 008/009 |
+| 2026-10-17 | Backlog del temario anotado: cuarentena de ingesta y check constraints | La cuarentena local/landing ya existe (ficheros y filas en los scrapers); falta la capa Delta (`bronze.<fuente>_quarantine`) y su tratamiento en la ELT. CHECK constraints de Delta para data quality en silver/gold. Candidatas: 008/011 |
