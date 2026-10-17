@@ -40,6 +40,12 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
   silver/gold (`job_id` no nulo, `salary_min <= salary_max`, fechas
   razonables…) y registrar/decidir qué se hace al incumplir (cuarentena,
   descarte o marca). Candidata: 008 (Delta) y/o 011 (gobernanza).
+- **Bronce deduplicado en la ingesta (paso B).** Planificado como primera
+  tarea de la 008: bronce = estado actual (upsert con `MERGE` por clave, gana
+  la captura más reciente), sin historial de cambios y sin expiración técnica
+  (el filtro de «último mes» es de negocio, en gold/BI). Claves: `job_id` y
+  `site + job_id` (multi_site). Incluye migración/compactación de lo ya
+  acumulado y validación en dev antes de prod.
 
 ## Calendario
 
@@ -47,7 +53,7 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
 |---|---|---|---|
 | 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | en curso |
 | 2–3 | 19 oct – 1 nov | **Spec 007 (código):** bundle, entorno dev, CI y cutover a prod | pendiente |
-| 4–6 | 2–22 nov | **Spec 008:** Delta + arquitectura incremental | pendiente |
+| 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (arranca con el bronce upsert, paso B) | pendiente |
 | 7–8 | 23 nov – 6 dic | **Spec 009:** rendimiento y layout físico | pendiente |
 | 9 | 7–13 dic | **Spec 010:** streaming y observabilidad | pendiente |
 | 10 | 14–20 dic | **Spec 011:** seguridad y gobernanza + repaso | pendiente |
@@ -97,3 +103,4 @@ Contingencias:
 | 2026-10-12 | 006 mergeada a `main`; rama 007 sincronizada | Merge `314b99c`; pendiente poner la Git folder del workspace en `main` (pull manual) |
 | 2026-10-17 | Diagnóstico de rendimiento dev vs prod; arreglo T-10a aprobado en la 007 | Bronce dev LinkedIn: 9.569.896 filas para 13.376 `job_id` (~715 copias por snapshot acumulativo del landing); prod: 16.371 filas y run completo de 20,4 min. Dedup temprano en la silver dentro de la 007; semilla estructural (append vs carga completa) a 008/009 |
 | 2026-10-17 | Backlog del temario anotado: cuarentena de ingesta y check constraints | La cuarentena local/landing ya existe (ficheros y filas en los scrapers); falta la capa Delta (`bronze.<fuente>_quarantine`) y su tratamiento en la ELT. CHECK constraints de Delta para data quality en silver/gold. Candidatas: 008/011 |
+| 2026-10-17 | Decisiones de la 008: bronce upsert (paso B) como primera tarea | Sin historial (CDF) ni expiración técnica; claves `job_id` y `site + job_id`; gana el `scraped_at` más reciente; migración incluida. Orden acordado: la 007 estrena el mecanismo seguro y la 008 cambia la ingesta |
