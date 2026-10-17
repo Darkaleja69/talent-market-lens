@@ -24,6 +24,17 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - No modifiques archivos dentro de specs/ salvo petición explícita.
 - Si modificas algo importante del proyecto, que no concuerda con la spec, debes modificar la spec correspondiente.
 
+### Trabajo guiado de las specs (bloque local de este worktree; no debe llegar a `main`)
+
+- La persona implementa los cambios de código (notebooks, scripts) y ejecuta el
+  bundle (deploy/run) para comprobar. El asistente prepara las tareas, orienta
+  con preguntas y pistas, verifica los resultados y commitea tras la
+  verificación; no implementa código ni llama al bundle salvo petición explícita.
+- Estas instrucciones son propias del trabajo de especificación (estas specs y
+  sus worktrees), no del proyecto real: al fusionar esta rama a `main`
+  —checkpoint o cierre—, restaurar `AGENTS.md` de `main` antes de cerrar el
+  merge (`git checkout main -- AGENTS.md`) para que este bloque no se fusione.
+
 ## Commits
 - Un commit atómico por tarea completada, cuando su comprobación pasa (tests en verde).
 - Mensaje convencional (`feat`/`fix`/`test`/`docs`/`chore`) con la intención y la tarea (p. ej. `feat(verification): T-14 regla de progreso`).
