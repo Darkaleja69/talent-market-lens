@@ -21,6 +21,10 @@ cuya hoja de ruta (`docs/databricks-de/roadmap.md`) se versiona aquí.
 
 El trabajo no toca los scrapers, el pipeline local, la landing ni los
 dashboards (Power BI y web); solo la definición del job ELT y su entorno.
+Excepción aprobada por la persona el 2026-10-17: el arreglo puntual de
+rendimiento de la silver de LinkedIn (T-10a) entra en esta spec, porque T-10
+quedó bloqueada por un bronce dev con ~715 copias por oferta; la optimización
+estructural de la ELT sigue en las specs 008–011.
 
 ## Usuarios
 
@@ -176,7 +180,8 @@ verde.
 
 ## Fuera de alcance
 
-- Cambios de lógica, física o incrementalidad de la ELT (specs 008–011).
+- Cambios de lógica, física o incrementalidad de la ELT (specs 008–011),
+  salvo el arreglo puntual de T-10a (dedup temprano de la silver de LinkedIn).
 - CI/CD de los scrapers, la landing o el dashboard web (spec 006).
 - Terraform, multi-workspace y automatización del cutover (sigue siendo un paso
   humano validado).
@@ -220,3 +225,9 @@ verde.
   tras su cierre.
 - El roadmap y las notas del track viven en `docs/databricks-de/` dentro de
   esta spec; las siguientes specs los actualizan.
+- 2026-10-17: la regla «esta spec no toca notebooks» se retira solo para
+  T-10a; el resto de la lógica de los notebooks sigue en las specs 008–011.
+- 2026-10-17: la decisión de fondo «append incremental vs carga completa
+  diaria» de la ingesta (el landing acumula snapshots y un checkpoint nuevo
+  los relee todos) queda trasladada a las specs 008/009; ver el diagnóstico
+  en `evidence.md`.

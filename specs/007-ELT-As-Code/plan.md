@@ -6,7 +6,9 @@ Convertir la definición del job `Git Based ELT` —hoy configurada a mano en el
 workspace— en un Asset Bundle versionado, con un target dev aislado, un target
 prod que reproduce el comportamiento actual, validación en CI y un cutover
 reversible. No cambia la lógica de los notebooks, ni el pipeline local, ni los
-dashboards.
+dashboards. Excepción (2026-10-17): T-10a corrige el rendimiento de la silver
+de LinkedIn (dedup temprano por `job_id`) para desbloquear T-10; el detalle
+vive en `tasks.md`.
 
 ## 2. Estado de partida (se confirma en T-02–T-04)
 
@@ -166,6 +168,7 @@ artefacto del bundle, no lo que esté sincronizado en la carpeta.
 | PAT de CI caducado | Rotación documentada; el fallo es visible en el workflow |
 | Doble ejecución durante la ventana | `max_concurrent_runs: 1` + checklist (manual apagado antes de encender bundle) |
 | Coste del entorno dev | Job pausado por defecto; un run por iteración; compute pequeño o serverless |
+| Bronce dev acumula snapshots duplicados (LinkedIn: ~715 copias por oferta) | T-10a (dedup temprano en la silver) + normalización one-off del bronce dev; la decisión estructural (append incremental vs carga completa diaria) pasa a 008/009 |
 
 ## 13. Decisiones y alternativas descartadas
 

@@ -209,9 +209,46 @@ completo —incluida la tarea de export web— en el bundle.
     limpio (solo notebooks).
   - **Evidencia:** captura + resumen.
 
+- [ ] **T-10a — Arreglo de rendimiento de la silver de LinkedIn (dedup temprano por `job_id`)** (~35 min)
+  - **RF:** RF-4 (desbloquea T-10).
+  - **Depende de:** T-09; **precede a** T-10.
+  - **La implementa la persona** (formato guiado); el asistente prepara
+    preguntas y pistas, y revisa el diff con el verificador. El asistente no
+    escribe el código de esta tarea ni llama al bundle por ti.
+  - **Contexto (diagnóstico, 2026-10-17):** el bronce dev de LinkedIn quedó con
+    9.569.896 filas para 13.376 `job_id` distintos (~715 copias por oferta:
+    los ficheros del landing son snapshots acumulativos y el checkpoint nuevo
+    los leyó todos). La silver dev superó los 92,9 min y se canceló; en prod
+    (16.371 filas, los mismos 13.376 `job_id`) tarda 5,9 min.
+  - **Objetivo:** que la silver conserve solo la última captura de cada oferta
+    (`job_id`) antes de `enrich()` y de la tabla de compañías, sin cambiar el
+    contrato de columnas de salida ni la dedup semántica final por `_key`.
+  - **Preguntas guía:** ¿por qué hay ~715 copias de cada oferta en el bronce?
+    ¿Dónde conviene desduplicar para que `enrich()` (regex sobre
+    `description_clean`) no pague los duplicados: antes o después? ¿Qué fila
+    debe sobrevivir de cada `job_id` y con qué orden (`scraped_at`,
+    `_ingest_date`)? ¿Qué haces con las filas de `job_id` nulo? ¿Por qué la
+    dedup final por `_key` sigue haciendo falta? ¿Cómo lo probarías en local
+    sin llamar a Databricks?
+  - **Pistas y docs:** el notebook ya usa `Window.partitionBy(...).orderBy(...)`
+    + `row_number` para la dedup por `_key`: el mismo patrón vale particionando
+    por `job_id`; deja la lógica en un módulo importable junto a los notebooks
+    (como `Enrich_Job_Offers_Dataframes.py`) y añade tests en
+    `databricks_notebooks/tests/` (pytest + Spark local; cada sesión tarda
+    ~7–10 min en Windows). La decisión de fondo «append vs carga completa
+    diaria» no se toca aquí (specs 008/009).
+  - **Decisión (persona, 2026-10-17):** la restricción de alcance «esta spec no
+    toca notebooks» se retira para esta tarea; la implementación y las llamadas
+    al bundle son de la persona; el asistente orienta y verifica.
+  - **Hecho cuando:** la lógica vive en un módulo importable con tests, el
+    notebook la usa, las suites existentes siguen verdes y el diff pasa la
+    revisión independiente.
+  - **Evidencia:** diff, salida de tests y tiempo de la silver en el run dev
+    de T-10.
+
 - [ ] **T-10 — Run dev end-to-end** (~35 min)
   - **RF:** RF-4.
-  - **Depende de:** T-09 (y datos recientes en la landing).
+  - **Depende de:** T-09, T-10a (y datos recientes en la landing).
   - **Objetivo:** ejecutar la ELT completa contra el entorno dev.
   - **Preguntas guía:** ¿todas las tareas en verde? ¿Los conteos por tabla
     cuadran con producción para los mismos datos de origen? ¿Se escribieron los
@@ -351,5 +388,9 @@ completo —incluida la tarea de export web— en el bundle.
   - **Pasos:** consolidar `evidence.md`; suites existentes en verde; revisar
     `git log -p` del último grupo; actualizar la bitácora del roadmap; solicitar
     la revisión final de la persona (push/merge solo con su OK).
+  - **Merge a `main` (excepción):** la sección «Trabajo guiado de las specs» de
+    `AGENTS.md` es local de este worktree; al fusionar la rama (checkpoint o
+    cierre), restaurar el fichero de `main` antes de cerrar el merge
+    (`git checkout main -- AGENTS.md`).
   - **Hecho cuando:** suites verdes + evidencia completa + revisión solicitada.
   - **Evidencia:** salidas + revisión.
