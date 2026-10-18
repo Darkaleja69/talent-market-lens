@@ -1,5 +1,5 @@
 # Cookies del perfil persistente del scraper (solo nombres y fechas; SIN valores)
-# Origen: multi_site_job_scraper/auth/profile/irishjobs/Default/Network/Cookies
+# Origen: <PROFILE_DIR>/irishjobs/Default/Network/Cookies
 # Leído en modo solo-lectura con sqlite3 (script temporal; no se modificó nada).
 # Hosts *.irishjobs.ie. Fechas en UTC (epoch de Chrome convertido).
 

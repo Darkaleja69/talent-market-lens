@@ -8,7 +8,7 @@
   **6 cargas de documento**; se consumieron **3**. Una pasada por variante, sin
   reintentos. Ningún CAPTCHA visible en ninguna carga (no hubo que pausar ni
   resolver nada). Sin servicios de pago.
-- **Perfiles scratch nuevos** (dentro de `<REPO>/multi_site_job_scraper/auth/profile/`):
+- **Perfiles scratch nuevos** (dentro de `<PROFILE_DIR>/`):
   `irishjobs_probe` (variante A) e `irishjobs_probe_b` (reservado para B, no se
   llegó a usar). No se tocaron `irishjobs` ni `irishjobs_flagged_20261017`.
 - **Hora local (+02:00):** variante A a las 18:31:44; variante A2 (portada
@@ -20,7 +20,7 @@
 Variante A (réplica exacta de `launch_context` de `src/core/browser.py` más el
 canal):
 
-- `user_data_dir=<REPO>/multi_site_job_scraper/auth/profile/irishjobs_probe`,
+- `user_data_dir=<PROFILE_DIR>/irishjobs_probe`,
   `headless=False`, `viewport={"width":1536,"height":864}`, `locale="en-GB"`,
   `timezone_id="Europe/Dublin"`, `timeout=300000`,
   `ignore_default_args=["--enable-automation"]`, args:
