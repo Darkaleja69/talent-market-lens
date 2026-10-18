@@ -84,49 +84,104 @@ locales de usuario se escriben como <HOME>.
 <!-- record:section:changes -->
 ## Cambios realizados
 
-_(Pendiente: módulos y ficheros modificados, diseño elegido y dependencias
-nuevas justificadas, si las hay.)_
+- **`scraper/parser.py`**
+  - Enriquecimiento: con `rate >= 1.0` se intentan todas las candidatas (sin
+    recorte aleatorio); con `rate < 1` se registran las saltadas (INFO); al
+    morder `max_enrich` se emite WARNING con las pendientes y el recorte es
+    determinista (prefijo en orden de tarjetas).
+  - Reintento de clic (`_click_card_with_retry`): 2 intentos (5 s; si falla,
+    scroll + espera 1–1,9 s + 10 s); el `jk` solo se registra como fallido tras
+    agotar ambos y no se cosechan condiciones de otra oferta. Cierre
+    best-effort del banner OneTrust antes del bucle.
+  - `work_mode`: HYBRID se comprueba antes que REMOTE (`REMOTE_HYBRID` →
+    `hybrid`, `REMOTE_WORK_FROM_HOME`/`REMOTE` → `remote`); `remoteWorkModel.text`
+    como respaldo; heurístico solo como último recurso, sin pisar un modelo
+    explícito.
+  - `job_type`: `translatedAttributes` primero; si no aporta, primer `jobTypes[]`
+    (string u objeto). Sin cambio de esquema.
+- **`scraper/runner.py`**: `_dedup` fusiona campos del duplicado cuando el
+  objeto conservado los tiene vacíos (`description_html/text`, `snippet`,
+  `benefits`, `contract_type`, `schedule`, `workplace_type`) y adopta la señal
+  remota positiva (`is_remote`) sin degradarla; deriva `snippet`. Cubre los 4
+  duplicados enriquecidos después (cache intra-run).
+- **`scraper/config.py`**: toda URL con `start` contiene `&start=N&` (página 1
+  `&start=0`), alineada con `Allow: /*&start=N&` de robots.txt (RFC 9309);
+  páginas >1 sin cambio.
+- **`main.py`**: ayuda de `--enrich-rate` actualizada (1.0 = todas hasta el
+  tope).
+- **`run_nightly_indeed.ps1`**: `$EnrichRate = 1.0`.
+- **`start_chrome_cdp.ps1`**: ejemplo final con `--enrich-rate 1.0`.
+- **`quality_before.json`**: `salary` y `work_mode` sin meta (el portal solo los
+  publica parcialmente; plan §9 / RF-16), mismo criterio que la reparación de
+  2026-10-10.
+- **Dependencias nuevas:** ninguna (se mantienen patchright, Playwright y
+  stdlib; pytest solo en tests).
 <!-- /record:section:changes -->
 
 <!-- record:section:tests -->
 ## Pruebas: tests
 
-_(Pendiente: suites ejecutadas del scraper afectado y del diagnóstico, y su
-resultado.)_
+Desde `indeed_jobs_scraper`: `python -m pytest tests -q` → **126 passed**
+(98 → 126; nuevos/actualizados en `tests/test_enrich.py`, `tests/test_parser.py`,
+`tests/test_runner.py` y `tests/test_config.py`; sensibilidad de los tests nuevos
+comprobada contra el commit base). Desde la raíz:
+`python -m pytest scrapers-pipeline/tests -q` → **1133 passed**. Verificación
+independiente del diff (2026-10-18): **APTO** en dos rondas (diff completo y
+delta), sin bloqueantes; auditoría de higiene `records.audit_records()` → 0
+findings.
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+Comando: `python main.py --country IE --cities Dublin --term data --pages 1
+--fromage 7 --cdp 9222 --enrich --enrich-rate 1.0 --enrich-max 15` (desde
+`indeed_jobs_scraper`); 1 país × 1 término × 1 página, Chrome CDP 9222 con perfil
+dedicado (handshake OK antes y después; sin CAPTCHA/challenge), sin `--limit`,
+sin Azure, sin landing ni merge.
+
+- **2026-10-18 18:55:32–18:56:47 (+02), 74,2 s, exit 0**; **15 ofertas únicas**
+  frente al **umbral 12** (mejor verificado 11 + 1): alcanzado.
+- `description_filled 15/15`: 1 auto-open embebido + 13 desde desc-cache (0
+  clics) + 1 clic de panel; `enrich 1/1` (rate=100 %, `max_enrich` no recortó);
+  latido PROGRESS presente; único WARNING `fake_useragent`.
+- Descripciones en el parquet 15/15, longitud mín./media/máx.
+  1.551/5.364,5/7.137 caracteres.
+- Calidad: `quality_after.json` medido con `repair.cli quality`; veredicto
+  **OK** (obligatorios 100 %; sin regresión: salary 36,2 → 80,0 %, work_mode
+  16,4 → 26,7 %; skills sin meta).
+- Evidencia: `evidence/live-test-20261018.md` y
+  `evidence/run-log-indeed-live-test-20261018-extract.txt`; artefactos
+  operativos (gitignored) en `indeed_jobs_scraper/output/`
+  (`log_20261018_1855.log`, `scrape_metadata_20261018_1855.json`,
+  `indeed_jobs_20261018_1855.parquet`).
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | 87.9 % | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | 36.2 % | pendiente | pendiente | 100.0 % | pendiente |
-| skills | no | 0.0 % | pendiente | pendiente | sin meta | pendiente |
-| work_mode | no | 16.4 % | pendiente | pendiente | 100.0 % | pendiente |
-| location | no | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | 100.0 % | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| title | sí | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| company | sí | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| description | sí | 87.9 % | 100.0 % | +12.1 pp | 100.0 % | cumple |
+| salary | no | 36.2 % | 80.0 % | +43.8 pp | sin meta | no aplica |
+| skills | no | 0.0 % | 0.0 % | +0.0 pp | sin meta | no aplica |
+| work_mode | no | 16.4 % | 26.7 % | +10.3 pp | sin meta | no aplica |
+| location | no | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
+| posted_date | no | 100.0 % | 100.0 % | +0.0 pp | 100.0 % | cumple |
 
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** Reparación probada: 15 ofertas verificadas (umbral 12 = mayor verificado 11 + 1) en la prueba en vivo acotada (1 país × 1 término × 1 página, IE/Dublin/data), con description al 100 % en el alcance y puerta de calidad OK sin regresión. Causa raíz del 87,9 %: el muestreo --enrich-rate 0.9 saltaba candidatas por SERP (13 en el run), 1 clic sin reintento y 4 duplicados enriquecidos sin fusionar; ahora se intentan todas las candidatas (rate 1.0), el clic se reintenta y la deduplicación fusiona campos.
+- **Ofertas verificadas:** 15
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->
