@@ -224,6 +224,6 @@ Veredicto de `quality.py`: **OK**.
 
 - **Resultado:** Reparación probada: 24 ofertas verificadas (umbral 24 = mayor verificado 23 + 1) en la prueba en vivo acotada (1 rol × 1 página, mismo alcance que la del 15-oct). Causa del run vacío del 18-oct: incidente transitorio de recursos del host (no un bloqueo de Glassdoor). El fallo total de navegación ahora termina con exit ≠ 0 (navigation_failed, aborto temprano y un único relanzamiento acotado). Puerta de calidad OK: obligatorios e id/location/posted_date al 100 %; salary 66,7 %, skills 79,2 % y work_mode 4,2 % sin meta (lo que expone el portal).
 - **Ofertas verificadas:** 24
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->
