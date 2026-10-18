@@ -172,42 +172,47 @@ locales de usuario se escriben como <HOME>.
 <!-- record:section:tests -->
 ## Pruebas: tests
 
-_(Pendiente: suites ejecutadas del scraper afectado y del diagnóstico, y su
-resultado.)_
+- `python -m pytest tests -q` (multi_site_job_scraper): **146 passed**.
+- `python -m pytest scrapers-pipeline/tests -q` (desde la raíz): **1133 passed**.
+- `python -m pytest databricks_notebooks/tests -q`: **72 passed, 1 skipped**.
+- Nota de la verificación independiente (verifier, 2026-10-18): sin hallazgos bloqueantes; correcciones de registro y saneado aplicadas antes del cierre; sin red.
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+- **Alcance:** 1 rol («Data Analyst») × 13 combos (1 por ciudad de la config) × 1 página por combo (`--max-pages 1`), tope `--max-total 60`; solo irishjobs; headful con canal Chrome; sin Azure, landing ni merge.
+- **Comando:** `python -m src.irishjobs --role "Data Analyst" --max-pages 1 --max-total 60` (desde `multi_site_job_scraper`).
+- **Resultado:** 12 ofertas nuevas/únicas (≥ umbral 1); 162 tarjetas parseadas; 13 líneas `PROGRESS` (una por combo); cierre `DONE: 12 ofertas nuevas, 12 total, 12 detalles`; 821,6 s; exit 0; stderr vacío; sin `BLOCKED`, sin volcado `blocked_*.txt` nuevo, sin CAPTCHA.
+- **Contexto:** la tentativa del 17-10 quedó bloqueada (403 Akamai) y las sondas del 17-10 fijaron el canal; el run nocturno del 18-10 corrobora el canal con `DONE: 93` (pipeline completo con subida/merge, no prueba acotada).
+- **Evidencia:** `evidence/live-test-20261018.md`, `evidence/run-log-irishjobs-live-test-20261018-extract.txt`, `evidence/run-log-irishjobs-nightly-20261018-extract.txt` y `quality_after.json`.
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | sin dato | pendiente | pendiente | 85.0 % | pendiente |
-| skills | no | sin dato | pendiente | pendiente | sin meta | pendiente |
-| work_mode | no | sin dato | pendiente | pendiente | 60.0 % | pendiente |
-| location | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| title | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| company | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| description | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| salary | no | sin dato | 100.0 % | sin dato | 85.0 % | cumple |
+| skills | no | sin dato | 0.0 % | sin dato | sin meta | no aplica |
+| work_mode | no | sin dato | 66.7 % | sin dato | 60.0 % | cumple |
+| location | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| posted_date | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
 
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** Reparación probada: 12 ofertas verificadas (umbral 1) en la prueba en vivo acotada, ya sin bloqueo gracias al canal Chrome; puerta de calidad OK (obligatorios 100 %, salary 100 %, work_mode 66,7 %).
+- **Ofertas verificadas:** 12
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->
