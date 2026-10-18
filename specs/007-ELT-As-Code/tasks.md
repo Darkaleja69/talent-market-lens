@@ -252,7 +252,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Evidencia:** diff impreso y revisado por la persona, salida de tests y
     tiempo de la silver en el run dev de T-10.
 
-- [ ] **T-10 — Run dev end-to-end** (~35 min)
+- [x] **T-10 — Run dev end-to-end** (~35 min)
   - **RF:** RF-4.
   - **Depende de:** T-09, T-10a (y datos recientes en la landing).
   - **Objetivo:** ejecutar la ELT completa contra el entorno dev.
@@ -263,6 +263,16 @@ completo —incluida la tarea de export web— en el bundle.
   - **Pistas y docs:** lanzar desde la UI o `databricks bundle run -t dev
     <key>`; guardar capturas de Spark UI de la primera ejecución (serán
     útiles en la spec 009).
+  - **Resultado (2026-10-18):** run `540330014336242` SUCCESS en 17 m 43 s
+    (bronze 7 m 36 s, indeed 4 m 50 s, infojobs 8 m 46 s, linkedin 6 m 11 s,
+    multi_site 5 m 24 s, gold 55 s, export 26 s), tras la normalización one-off
+    del bronce dev (LinkedIn 9,57 M filas y multi_site 0,23 M → 1 por clave; el
+    dedup de la silver de LinkedIn pasó de 12 GB/22 GB a 32 MB/43 MB). Conteos
+    dev vs prod: ≤1 % salvo indeed (+3,8 % / +3,7 %) y `fact_offer_skills`
+    (+1,7 %), coherentes con las ofertas nuevas del 18-oct; dimensiones y
+    contrato de columnas idénticos; el desfase de un ciclo (dev hasta el
+    18-oct, prod hasta el 17-oct) explica el resto. Tabla y detalle en
+    `evidence.md`.
   - **Hecho cuando:** run verde + tabla de conteos dev vs prod para la misma
     fecha + evidencia registrada.
   - **Evidencia:** run id, duración, tabla de conteos, capturas.
