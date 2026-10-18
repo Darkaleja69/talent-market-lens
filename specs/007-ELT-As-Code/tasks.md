@@ -334,7 +334,7 @@ completo —incluida la tarea de export web— en el bundle.
     borró.
   - **Evidencia:** URLs en `evidence.md`.
 
-- [ ] **T-14 — [extra] Deploy dev por `workflow_dispatch`** (~25 min)
+- [x] **T-14 — [extra] Deploy dev por `workflow_dispatch`** (~25 min)
   - **RF:** RF-5.
   - **Depende de:** T-12.
   - **Objetivo (opcional, si el tiempo lo permite):** practicar automatización
@@ -343,7 +343,16 @@ completo —incluida la tarea de export web— en el bundle.
     de CI?
   - **Hecho cuando:** un dispatch despliega dev (y solo dev) con el workflow en
     verde.
-  - **Evidencia:** URL + nota.
+  - **Resultado (2026-10-18):** workflow `.github/workflows/databricks-bundle-deploy-dev.yml`
+    (`workflow_dispatch`, solo dev: `bundle deploy -t dev`; guard de rama
+    `main`/`spec/007-elt-as-code`; `concurrency` sin cancelar; `timeout-minutes:
+    15`; PAT acotado al step). Entorno de GitHub **`dev`** con *required
+    reviewers* → el dispatch espera aprobación antes de desplegar. Para que el
+    botón «Run workflow» aparezca hubo que mergear la rama a `main` (checkpoint
+    `ada90e4`, con `AGENTS.md` de `main` restaurado). El deploy no arranca
+    compute: solo sube ficheros y actualiza la definición del job dev (aplica el
+    timeout de T-11).
+  - **Evidencia:** URL en `evidence.md`.
 
 ## 4. Producción y cutover
 
