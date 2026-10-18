@@ -17,12 +17,13 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    env:
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
         with:
           version: 1.21.0
       - run: databricks bundle validate -t dev
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
