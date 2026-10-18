@@ -1,0 +1,49 @@
+# Términos de uso de IrishJobs — cláusula relevante (texto público)
+# Página: https://www.irishjobs.ie/about/terms-and-conditions
+# Título: "Terms and conditions | IrishJobs"
+# Operador: The Stepstone Group Ireland Recruit Limited (company number 260762).
+# Capturado: 2026-10-17 con el Chrome de la sonda. Sin credenciales.
+
+## Sección 4.8 UNLAWFUL & PROHIBITED USE (literal)
+
+"4.8.1 You may only use the Website and/or the Website Services for lawful
+purposes when seeking employment or help with your career, or when recruiting
+staff. You must not under any circumstances seek to undermine the security of
+the Website or any information submitted to or available through it. In
+particular, but without limitation, you must not seek to access, alter or
+delete any information on the Website to which you do not have authorised
+access, seek to overload the Website system via spamming or flooding, take any
+action or use any device, routine or software to crash, delay, damage or
+otherwise interfere with the operation of the Website or attempt to decipher,
+disassemble or modify any of the software, coding or information comprised in
+the Website. You are also responsible for ensuring that all information, data
+and files are free of viruses or other routines or engines that may damage or
+interfere with any system or data prior to being submitted to the Website.
+
+4.8.2 You are prohibited from using the Website and/or Website Services in any
+manner deemed to be in competition with our business activities (as determined
+by us at our sole discretion).
+
+4.8.3 You are prohibited from using or removing any Content from the Website by
+any means for any purposes deemed to be in competition with our business
+activities (as determined by us at our sole discretion)."
+
+## Búsqueda de términos específicos en todo el texto de la página
+
+- "robot", "spider", "crawl", "scrap", "harvest": no aparecen (búsqueda
+  insensible a mayúsculas sobre el texto de la página).
+- "automated": solo en una cláusula sobre valoraciones de empleadores (4.7.1),
+  sin relación con el acceso automatizado.
+- "extract": solo en el texto del banner de consentimiento de cookies.
+
+## Lectura para la reparación (RF-6)
+
+- No hay una prohibición explícita de rastreo/scraping en los términos; las
+  obligaciones relevantes son: no interferir/sobrecargar el servicio (4.8.1) y
+  no usar el contenido "in competition" con su negocio (4.8.2/4.8.3).
+- La vía actual (SERP + detalle públicos, ritmo humano, pocas peticiones) no
+  contradice 4.8.1 mientras el volumen se mantenga bajo el umbral que ya aplica
+  el scraper. La valoración de "competencia" (4.8.3) queda para la persona.
+- robots.txt del grupo `*` permite SERP y detalle (ver robots-irishjobs.txt);
+  la paginación del scraper con `action=paging_next` SÍ incumple
+  `Disallow: /*&action=` y debe sustituirse por el enlace propio del sitio.

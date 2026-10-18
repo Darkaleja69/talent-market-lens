@@ -1,0 +1,45 @@
+# Resumen de red de la visita a irishjobs.ie (solo nombres/URLs; sin cookies ni cabeceras personales)
+# Sonda: Chrome de agent-browser, 2026-10-17. Contexto: la sesión del navegador de la sonda
+# conserva entradas de una visita anterior a glassdoor.ie; aquí solo se listan las de irishjobs.ie.
+
+Document   200 GET https://www.irishjobs.ie/robots.txt
+Document   200 GET https://www.irishjobs.ie/jobs/python-data?age=7
+Document   200 GET https://www.irishjobs.ie/jobs/bi-developer/in-dundalk?age=7
+Document   200 GET https://www.irishjobs.ie/jobs/zzzqqq-nonexistent-role-xyz?age=7
+Document   200 GET https://www.irishjobs.ie/job/staff-data-engineer/reperio-human-capital-ltd-job108057919
+Document   200 GET https://www.irishjobs.ie/about/terms-and-conditions
+
+# Recursos de la SERP (extracto):
+Script     200 GET https://www.irishjobs.ie/viewlets/res/resultlist-renderer/uk/1_399_0__f65554b71/unifiedResultlist.js
+Script     200 GET https://www.irishjobs.ie/viewlets/searchbarrenderer/search-bar-renderer/uk/1_73_0__dd2f545/client.761c99ac4ac6e0c775ad.js
+Script     200 GET https://www.irishjobs.ie/sharedassets/@stepstone/dresscode-react/5.12.0/irishjobs.js
+Script     200 GET https://www.irishjobs.ie/sharedassets/@stepstone-genesis/dresscode-420/4.2.0/core.js
+Script     200 GET https://www.irishjobs.ie/headerfooter/client-bundle.4.116.0-9f1f6853.js
+
+# XHR/Fetch de datos y sesión (no hay endpoint JSON del listado de resultados):
+XHR        401 GET  https://www.irishjobs.ie/header-footer-bff/latest-search-track
+XHR        200 GET  https://www.irishjobs.ie/header-footer-bff/candidate/auth
+XHR        200 GET  https://www.irishjobs.ie/candidate-auth/whoami
+XHR        401 GET  https://www.irishjobs.ie/header-footer-bff/saved-jobs-count
+Fetch      200 GET  https://www.irishjobs.ie/analytics/api/v2/tracking
+
+# Anti-bot (Akamai) y telemetría presente en cada carga:
+Script     200 GET  https://www.irishjobs.ie/akam/13/4461d845
+XHR        201 POST https://www.irishjobs.ie/jXY_/vCxv/pKOl/4Oar/0Q/Vim7zkVLQtzwSb/Bz5ACz8D/KzU7L/QVIQ3I   (sensor Akamai)
+XHR        200 GET  https://www.irishjobs.ie/jXY_/vCxv/pKOl/4Oar/0Q/Vim7zkVLQtzwSb/Bz5ACz8D/KzU7L/QVIQ3I
+XHR        200 POST https://www.irishjobs.ie/akam/13/pixel_4461d845
+Ping       204 POST https://0217991d.akstat.io/
+
+# Terceros (analítica/consentimiento), irrelevantes para la reparación:
+XHR        200 GET  https://cdn.optimizely.com/datafiles/RZfJwxie5Bd3ERev9wJ4y.json
+XHR        200 POST https://www.irishjobs.ie/akam/13/pixel_4461d845
+Script     200 GET  https://tags.stepstone.com/utag/uk/prod/utag.js
+Script     200 GET  https://tags.tiqcdn.com/utag/stepstone/stepstone-uk/prod/utag.245.js
+XHR        200 GET  https://data-ssl.irishjobs.ie/id?d_visid_ver=5.5.0&...   (Adobe demdex; parámetros personales omitidos)
+XHR        200 POST https://collect.stepstone.co.uk/stepstone/main/2/i.gif
+
+# Observaciones:
+# - El listado de resultados viene en el HTML del documento (SSR) y lo hidrata
+#   unifiedResultlist.js; no se observó ninguna XHR con el JSON de la búsqueda.
+# - Las XHR `*-bff` son de sesión/cabecera (auth, saved jobs, tracking), no del listado.
+# - El POST del sensor Akamai usa una ruta ofuscada de 8 segmentos.

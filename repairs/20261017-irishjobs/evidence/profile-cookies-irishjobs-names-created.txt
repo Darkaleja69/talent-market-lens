@@ -1,0 +1,35 @@
+# Cookies del perfil persistente del scraper (solo nombres y fechas; SIN valores)
+# Origen: <PROFILE_DIR>/irishjobs/Default/Network/Cookies
+# Leído en modo solo-lectura con sqlite3 (script temporal; no se modificó nada).
+# Hosts *.irishjobs.ie. Fechas en UTC (epoch de Chrome convertido).
+
+www.irishjobs.ie | VISITOR_ID                              | created=2026-07-17T10:33:52Z | updated=2026-07-17T10:33:52Z
+www.irishjobs.ie | AnonymousUser                           | created=2026-07-17T10:33:53Z | updated=2026-07-17T10:33:53Z
+.irishjobs.ie    | anonymousUserId                         | created=2026-07-17T10:33:53Z | updated=2026-10-01T02:46:35Z
+.irishjobs.ie    | sc_vid                                  | created=2026-07-17T10:33:56Z | updated=2026-07-17T10:33:56Z
+www.irishjobs.ie | AMCV_...%40AdobeOrg                     | created=2026-07-17T10:34:00Z | updated=2026-07-17T10:34:00Z
+www.irishjobs.ie | optimizelySession                       | created=2026-07-17T10:34:07Z | updated=2026-07-17T10:34:07Z
+.irishjobs.ie    | EXP_aad5f1469b_identity                 | created=2026-07-17T10:34:07Z | updated=2026-07-17T10:34:07Z
+.irishjobs.ie    | CONSENTMGR                              | created=2026-07-17T10:34:07Z | updated=2026-07-17T10:34:07Z
+.irishjobs.ie    | _twpid                                  | created=2026-07-17T10:34:09Z | updated=2026-07-17T10:34:09Z
+.irishjobs.ie    | _fbp                                    | created=2026-07-17T10:34:10Z | updated=2026-10-01T02:46:37Z
+www.irishjobs.ie | STEPSTONEV5LANG                         | created=2026-07-17T10:34:39Z | updated=2026-10-01T02:14:59Z
+.irishjobs.ie    | optimizelySession                       | created=2026-07-17T11:04:38Z | updated=2026-07-29T13:46:47Z
+.irishjobs.ie    | AMP_aad5f1469b                          | created=2026-10-01T02:46:25Z | updated=2026-10-01T02:46:25Z
+.irishjobs.ie    | AMCV_...%40AdobeOrg                     | created=2026-10-01T02:46:34Z | updated=2026-10-01T02:46:34Z
+www.irishjobs.ie | g_state                                 | created=2026-10-01T02:46:35Z | updated=2026-10-01T02:46:35Z
+.irishjobs.ie    | utag_main                               | created=2026-10-01T02:46:36Z | updated=2026-10-01T02:46:36Z
+.irishjobs.ie    | _uetvid                                 | created=2026-10-01T02:46:37Z | updated=2026-10-01T02:46:37Z
+.irishjobs.ie    | cto_bundle                              | created=2026-10-01T02:46:39Z | updated=2026-10-01T02:46:39Z
+.irishjobs.ie    | _twsid                                  | created=2026-10-01T02:47:23Z | updated=2026-10-01T02:47:23Z
+.irishjobs.ie    | _abck                                   | created=2026-10-11T22:40:40Z | updated=2026-10-11T22:40:40Z   <-- Akamai Bot Manager
+
+# Lectura:
+# - La última escritura "normal" de cookies del perfil es del 2026-10-01 02:47Z
+#   (el último run sano: PROGRESS parsed=1166 a las 04:47 locales = 02:47Z).
+# - Durante los runs fallidos (2026-10-02 a 2026-10-17) el sitio NO volvió a
+#   emitir/renovar las cookies habituales (AMP_*, utag_main, _fbp, etc.).
+# - La única cookie creada en ese periodo es `_abck` de Akamai Bot Manager, el
+#   2026-10-11 22:40Z, y no se ha vuelto a actualizar (updated == created): el
+#   flujo de sensor/validación no llegó a renovarla.
+# - No se han leído valores (cifrados) ni se ha usado la sesión de la persona.

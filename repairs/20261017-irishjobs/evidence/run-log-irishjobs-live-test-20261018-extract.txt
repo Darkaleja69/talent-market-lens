@@ -1,0 +1,142 @@
+# Extracto de multi_site_job_scraper/data/irishjobs/run.log (saneado: rutas <REPO>)
+# Tramo completo de la prueba acotada del 2026-10-18: banner -> DONE (140 lineas).
+11:46:04 INFO    irishjobs: === IrishJobs Scraper ===
+11:46:04 INFO    src.core.store: Reanudacion: 93 job_ids cargados de <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\state.json
+11:46:04 INFO    irishjobs: Combinaciones: 1 roles x 13 ciudades = 13
+11:46:06 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-GB tz=Europe/Dublin profile=irishjobs
+11:46:22 INFO    irishjobs: Warmup: portada cargada (status=200).
+11:46:22 INFO    irishjobs: --- [1/13] 'Data Analyst' en Ireland (nationwide) (acumulado: 0, detalles: 0) ---
+11:46:23 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst?age=7
+11:46:38 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+11:46:44 INFO    src.irishjobs.serp: Tarjetas validas: 25
+11:46:44 INFO    irishjobs: Filtro titulo page 1: 13 de 25 no son roles data
+11:46:44 INFO    irishjobs: Page 1: 25 tarjetas (25 nuevas en esta pagina)
+11:53:24 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115323_irishjobs_Data_Analyst_Ireland__nationwide__p1_10.csv (10 filas)
+11:53:24 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115323_irishjobs_Data_Analyst_Ireland__nationwide__p1_10.csv (10 ofertas)
+11:54:35 INFO    irishjobs: PROGRESS source=irishjobs parsed=25 new=12 ts=2026-10-18T09:54:35+00:00
+11:54:35 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115435_irishjobs_Data_Analyst_Ireland__nationwide__p1.csv (12 filas)
+11:54:35 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115435_irishjobs_Data_Analyst_Ireland__nationwide__p1.csv (12 ofertas)
+11:54:35 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:54:41 INFO    irishjobs: --- [2/13] 'Data Analyst' en Dublin (acumulado: 12, detalles: 12) ---
+11:54:42 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-dublin?age=7
+11:54:56 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+11:55:02 INFO    src.irishjobs.serp: Tarjetas validas: 25
+11:55:02 INFO    irishjobs: Filtro titulo page 1: 17 de 25 no son roles data
+11:55:02 INFO    irishjobs: Page 1: 25 tarjetas (25 nuevas en esta pagina)
+11:55:02 INFO    irishjobs: PROGRESS source=irishjobs parsed=50 new=12 ts=2026-10-18T09:55:02+00:00
+11:55:02 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115502_irishjobs_Data_Analyst_Dublin_p1.csv (12 filas)
+11:55:02 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115502_irishjobs_Data_Analyst_Dublin_p1.csv (12 ofertas)
+11:55:02 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:55:07 INFO    irishjobs: --- [3/13] 'Data Analyst' en Cork (acumulado: 12, detalles: 12) ---
+11:55:07 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-cork?age=7
+11:55:21 INFO    src.irishjobs.serp: Tarjetas encontradas: 8
+11:55:23 INFO    src.irishjobs.serp: Tarjetas validas: 8
+11:55:23 INFO    irishjobs: Filtro titulo page 1: 6 de 8 no son roles data
+11:55:23 INFO    irishjobs: Page 1: 8 tarjetas (8 nuevas en esta pagina)
+11:55:23 INFO    irishjobs: PROGRESS source=irishjobs parsed=58 new=12 ts=2026-10-18T09:55:23+00:00
+11:55:23 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115523_irishjobs_Data_Analyst_Cork_p1.csv (12 filas)
+11:55:23 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115523_irishjobs_Data_Analyst_Cork_p1.csv (12 ofertas)
+11:55:23 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:55:28 INFO    irishjobs: --- [4/13] 'Data Analyst' en Limerick (acumulado: 12, detalles: 12) ---
+11:55:28 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-limerick?age=7
+11:55:41 INFO    src.irishjobs.serp: Tarjetas encontradas: 7
+11:55:42 INFO    src.irishjobs.serp: Tarjetas validas: 7
+11:55:42 INFO    irishjobs: Filtro titulo page 1: 5 de 7 no son roles data
+11:55:42 INFO    irishjobs: Page 1: 7 tarjetas (7 nuevas en esta pagina)
+11:55:42 INFO    irishjobs: PROGRESS source=irishjobs parsed=65 new=12 ts=2026-10-18T09:55:42+00:00
+11:55:42 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115542_irishjobs_Data_Analyst_Limerick_p1.csv (12 filas)
+11:55:42 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115542_irishjobs_Data_Analyst_Limerick_p1.csv (12 ofertas)
+11:55:42 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:55:49 INFO    irishjobs: --- [5/13] 'Data Analyst' en Galway (acumulado: 12, detalles: 12) ---
+11:55:49 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-galway?age=7
+11:56:09 INFO    src.irishjobs.serp: Tarjetas encontradas: 2
+11:56:09 INFO    src.irishjobs.serp: Tarjetas validas: 2
+11:56:09 INFO    irishjobs: Filtro titulo page 1: 1 de 2 no son roles data
+11:56:09 INFO    irishjobs: Page 1: 2 tarjetas (2 nuevas en esta pagina)
+11:56:09 INFO    irishjobs: PROGRESS source=irishjobs parsed=67 new=12 ts=2026-10-18T09:56:09+00:00
+11:56:09 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115609_irishjobs_Data_Analyst_Galway_p1.csv (12 filas)
+11:56:09 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115609_irishjobs_Data_Analyst_Galway_p1.csv (12 ofertas)
+11:56:09 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:56:14 INFO    irishjobs: --- [6/13] 'Data Analyst' en Waterford (acumulado: 12, detalles: 12) ---
+11:56:15 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-waterford?age=7
+11:56:34 INFO    src.irishjobs.serp: Tarjetas encontradas: 3
+11:56:35 INFO    src.irishjobs.serp: Tarjetas validas: 3
+11:56:35 INFO    irishjobs: Filtro titulo page 1: 2 de 3 no son roles data
+11:56:35 INFO    irishjobs: Page 1: 3 tarjetas (3 nuevas en esta pagina)
+11:56:35 INFO    irishjobs: PROGRESS source=irishjobs parsed=70 new=12 ts=2026-10-18T09:56:35+00:00
+11:56:35 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115635_irishjobs_Data_Analyst_Waterford_p1.csv (12 filas)
+11:56:35 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115635_irishjobs_Data_Analyst_Waterford_p1.csv (12 ofertas)
+11:56:35 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:56:43 INFO    irishjobs: --- [7/13] 'Data Analyst' en Sligo (acumulado: 12, detalles: 12) ---
+11:56:43 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-sligo?age=7
+11:56:56 INFO    src.irishjobs.serp: Tarjetas encontradas: 10
+11:56:59 INFO    src.irishjobs.serp: Tarjetas validas: 10
+11:56:59 INFO    irishjobs: Filtro titulo page 1: 10 de 10 no son roles data
+11:56:59 INFO    irishjobs: Titulos descartados (muestra): 'Senior Data Operations Engineer' | 'Senior Oracle Developer' | 'Data Engineer III (Databricks)' | 'Senior Oracle PL/SQL Developer' | 'Senior Oracle Developer' | 'Lead Software Engineer (Databricks)'
+11:56:59 INFO    irishjobs: Page 1: 10 tarjetas (10 nuevas en esta pagina)
+11:56:59 INFO    irishjobs: PROGRESS source=irishjobs parsed=80 new=12 ts=2026-10-18T09:56:59+00:00
+11:56:59 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115659_irishjobs_Data_Analyst_Sligo_p1.csv (12 filas)
+11:56:59 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115659_irishjobs_Data_Analyst_Sligo_p1.csv (12 ofertas)
+11:56:59 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:57:07 INFO    irishjobs: --- [8/13] 'Data Analyst' en Drogheda (acumulado: 12, detalles: 12) ---
+11:57:07 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-drogheda?age=7
+11:57:21 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+11:57:27 INFO    src.irishjobs.serp: Tarjetas validas: 25
+11:57:27 INFO    irishjobs: Filtro titulo page 1: 17 de 25 no son roles data
+11:57:27 INFO    irishjobs: Page 1: 25 tarjetas (25 nuevas en esta pagina)
+11:57:27 INFO    irishjobs: PROGRESS source=irishjobs parsed=105 new=12 ts=2026-10-18T09:57:27+00:00
+11:57:27 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115727_irishjobs_Data_Analyst_Drogheda_p1.csv (12 filas)
+11:57:27 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115727_irishjobs_Data_Analyst_Drogheda_p1.csv (12 ofertas)
+11:57:27 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:57:37 INFO    irishjobs: --- [9/13] 'Data Analyst' en Dundalk (acumulado: 12, detalles: 12) ---
+11:57:37 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-dundalk?age=7
+11:57:50 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+11:57:56 INFO    src.irishjobs.serp: Tarjetas validas: 25
+11:57:56 INFO    irishjobs: Filtro titulo page 1: 17 de 25 no son roles data
+11:57:56 INFO    irishjobs: Page 1: 25 tarjetas (25 nuevas en esta pagina)
+11:57:56 INFO    irishjobs: PROGRESS source=irishjobs parsed=130 new=12 ts=2026-10-18T09:57:56+00:00
+11:57:56 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115756_irishjobs_Data_Analyst_Dundalk_p1.csv (12 filas)
+11:57:56 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115756_irishjobs_Data_Analyst_Dundalk_p1.csv (12 ofertas)
+11:57:56 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:58:03 INFO    irishjobs: --- [10/13] 'Data Analyst' en Kilkenny (acumulado: 12, detalles: 12) ---
+11:58:03 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-kilkenny?age=7
+11:58:24 INFO    src.irishjobs.serp: Tarjetas encontradas: 3
+11:58:25 INFO    src.irishjobs.serp: Tarjetas validas: 3
+11:58:25 INFO    irishjobs: Filtro titulo page 1: 2 de 3 no son roles data
+11:58:25 INFO    irishjobs: Page 1: 3 tarjetas (3 nuevas en esta pagina)
+11:58:25 INFO    irishjobs: PROGRESS source=irishjobs parsed=133 new=12 ts=2026-10-18T09:58:25+00:00
+11:58:25 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115825_irishjobs_Data_Analyst_Kilkenny_p1.csv (12 filas)
+11:58:25 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115825_irishjobs_Data_Analyst_Kilkenny_p1.csv (12 ofertas)
+11:58:25 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:58:30 INFO    irishjobs: --- [11/13] 'Data Analyst' en Athlone (acumulado: 12, detalles: 12) ---
+11:58:30 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-athlone?age=7
+11:58:50 INFO    src.irishjobs.serp: Tarjetas encontradas: 1
+11:58:50 INFO    src.irishjobs.serp: Tarjetas validas: 1
+11:58:50 INFO    irishjobs: Page 1: 1 tarjetas (1 nuevas en esta pagina)
+11:58:50 INFO    irishjobs: PROGRESS source=irishjobs parsed=134 new=12 ts=2026-10-18T09:58:50+00:00
+11:58:50 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115850_irishjobs_Data_Analyst_Athlone_p1.csv (12 filas)
+11:58:50 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115850_irishjobs_Data_Analyst_Athlone_p1.csv (12 ofertas)
+11:58:50 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:58:57 INFO    irishjobs: --- [12/13] 'Data Analyst' en Navan (acumulado: 12, detalles: 12) ---
+11:58:57 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-navan?age=7
+11:59:09 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+11:59:15 INFO    src.irishjobs.serp: Tarjetas validas: 25
+11:59:15 INFO    irishjobs: Filtro titulo page 1: 17 de 25 no son roles data
+11:59:15 INFO    irishjobs: Page 1: 25 tarjetas (25 nuevas en esta pagina)
+11:59:15 INFO    irishjobs: PROGRESS source=irishjobs parsed=159 new=12 ts=2026-10-18T09:59:15+00:00
+11:59:15 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115915_irishjobs_Data_Analyst_Navan_p1.csv (12 filas)
+11:59:15 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115915_irishjobs_Data_Analyst_Navan_p1.csv (12 ofertas)
+11:59:15 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:59:21 INFO    irishjobs: --- [13/13] 'Data Analyst' en Wexford (acumulado: 12, detalles: 12) ---
+11:59:21 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst/in-wexford?age=7
+11:59:39 INFO    src.irishjobs.serp: Tarjetas encontradas: 3
+11:59:39 INFO    src.irishjobs.serp: Tarjetas validas: 3
+11:59:39 INFO    irishjobs: Filtro titulo page 1: 2 de 3 no son roles data
+11:59:39 INFO    irishjobs: Page 1: 3 tarjetas (3 nuevas en esta pagina)
+11:59:39 INFO    irishjobs: PROGRESS source=irishjobs parsed=162 new=12 ts=2026-10-18T09:59:39+00:00
+11:59:40 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115939_irishjobs_Data_Analyst_Wexford_p1.csv (12 filas)
+11:59:40 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\progress_20261018_115939_irishjobs_Data_Analyst_Wexford_p1.csv (12 ofertas)
+11:59:40 INFO    irishjobs: Limite de paginas (1) alcanzado.
+11:59:42 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\output\jobs.csv (12 filas)
+11:59:42 INFO    src.core.store: Parquet escrito: <REPO>\multi_site_job_scraper\data\irishjobs\output\jobs.parquet (12 filas, esquema tipado)
+11:59:42 INFO    irishjobs: === IRISHJOBS DONE: 12 ofertas nuevas, 12 total, 12 detalles ===

@@ -1,0 +1,22 @@
+# Estado del watchdog de irishjobs tras el run 2026-10-17
+# Origen: multi_site_job_scraper/data/irishjobs/.watchdog.json (copia saneada; sin cambios)
+
+{
+  "source": "irishjobs",
+  "pid": 992,
+  "stream": "<REPO>/multi_site_job_scraper/data/irishjobs/run.log",
+  "started_at": "2026-10-17T00:01:16.431850",
+  "last_parsed": 0,
+  "last_progress_at": "2026-10-17T00:01:16.431850",
+  "stopped": true,
+  "stop_reason": "watchdog_no_progress"
+}
+
+# Lectura:
+# - `last_parsed` sigue en 0 y `last_progress_at` es el ancla de arranque: el
+#   watchdog NUNCA vio un latido para irishjobs (no hubo ninguna línea PROGRESS).
+# - Regla aplicada: verification/progress.py — se declara blocked si `parsed` no
+#   crece en 40 min (DEFAULT_INACTIVITY_SECONDS = 40*60; sin overrides).
+# - Arranque del watchdog 00:01:16; el log termina a las 00:41:39, coherente con
+#   el stop por inactividad (0,5 min de margen sobre los 40 min).
+# - Exit del portal: 75 (verification/supervisor.py, WATCHDOG_EXIT_CODE).

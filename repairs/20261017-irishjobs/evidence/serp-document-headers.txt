@@ -1,0 +1,28 @@
+# Cabeceras de la respuesta del documento SERP (saneadas)
+# Capturado: 2026-10-17 ~07:37 UTC con el Chrome propio de agent-browser.
+# Petición: GET https://www.irishjobs.ie/jobs/python-data?age=7
+# Navegación directa (sin calentamiento de homepage). Sin cookies de la persona.
+
+HTTP/1.1 200
+
+content-type: text/html; charset=utf-8
+cache-control: no-cache, no-store, must-revalidate, max-age=0
+expires: 0
+pragma: no-cache
+vary: Accept-Encoding
+strict-transport-security: max-age=15552000; includeSubDomains; preload;
+
+# Marcadores de Akamai:
+server-timing: cdn-cache; desc=HIT
+server-timing: edge; dur=452
+server-timing: ak_p; desc="1792222658607_389797778_193407013_45180_21458_13_27_255";dur=1
+x-akamai-transformed: 9 - 0 pmb=mRUM,2
+
+# Cabeceras de la petición (observadas por la sonda):
+#   User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+#               (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36
+#   Accept-Language: es-ES,es;q=0.9
+#   sec-ch-ua-platform: "Windows"
+#
+# La página sirvió el SERP completo (188 ofertas, 25 tarjetas en la página 1):
+# no hubo challenge visible, CAPTCHA ni redirección. No se incluyen cookies.

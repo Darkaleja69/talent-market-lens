@@ -1,0 +1,237 @@
+# robots.txt de www.irishjobs.ie
+# Capturado: 2026-10-17 ~07:34 UTC con el Chrome propio de agent-browser.
+# URL: https://www.irishjobs.ie/robots.txt
+# Texto público; se reproduce tal cual (sin credenciales).
+# last-modified de la respuesta: Wed, 25 Mar 2026 14:31:22 GMT
+
+#irishjobs.ie
+# last updated 25 03 26 JM
+
+User-agent: adidxbot # GA 13/04/23
+#User-agent: AdsBot-Google # GA 13/04/23 RD 10/9/24
+User-agent: Twitterbot
+#User-agent: Mediapartners-Google  RD 10/9/24
+
+Allow: /$ # GA 13/04/23
+Allow: /job/ # GA 13/04/23
+Allow: /jobs/ # GA 13/04/23
+Allow: /account/register$ # GA 13/04/23
+Allow: /careeradvice/ # GA 13/04/23
+Allow: /*?WT.mc_id= # GA 13/04/23
+Allow: /*&WT.mc_id= # GA 13/04/23
+Allow: /*DCMP= # GA 13/04/23
+Allow: /*campaign-id=* # GA 13/04/23
+Allow: /*cid=* # RD 26/02/24
+Allow: /recruiters/ # GA 13/04/23
+Allow: /recruiters-news/ # MA 13/04/23
+Disallow: /  #RD
+Allow: /sharedcontent/img/ # RD 13/2/24
+
+
+User-agent: Applebot 
+User-agent: Bingbot
+User-agent: BingPreview
+User-agent: MSNBot
+User-agent: Slurp
+
+Allow: /$
+Allow: /JobSearch/
+Allow: /job/
+Disallow: /job/*?
+Allow: /jobs/
+Allow: /jobs/*?q=
+Disallow: /jobs/*?q=*&
+Disallow: /jobs/*?
+Allow: /jobs-at/
+Disallow: /jobs-at/*?
+Allow: /careeradvice/ # GA 15/11/22
+Disallow: /careeradvice/*? # GA 15/11/22
+Disallow: /salary-checker/ # GA 15/11/22
+Disallow: /salary-checker/*?
+Allow: /recruiters/
+Disallow: /recruiters/*?
+Disallow: /insidejob/ # GA 15/11/22
+Disallow: /insidejob/*?
+Allow: /courses/
+Disallow: /courses/*?
+Disallow: /
+Allow: /.well-known/ # RD 25/8/22
+
+User-agent: *
+
+Allow: /jobs/work-from-home # GA 29/05/23  RD 25/10/23
+Allow: /jobs/temporary # GA 29/05/23  RD 25/10/23
+Disallow: /jobs/permanent # GA 29/05/23
+Allow: /jobs/contract # GA 29/05/23  RD 25/10/23
+Allow: /jobs/part-time # GA 29/05/23  RD 25/10/23
+
+Disallow: /jobs/work-from-home/*/in-* #  RD 31/10/23
+Disallow: /jobs/temporary/*/in-* #  RD 31/10/23
+Disallow: /jobs/contract/*/in-* #  RD 31/10/23
+Disallow: /jobs/part-time/*/in-* #  RD 31/10/23
+
+
+Allow: /*?*&crawl=true$
+Allow: /*WT.mc_id=A_RE_GOOORG* 
+Allow: /*WT.mc_id=A_SE_Go* # added 28/01/2020
+Allow: /*WT.mc_id=R_AE_* # added 05/05/2020
+Allow: /*WT.mc_id=B2B-* # added 06/05/2021 RD
+
+Disallow: /*WT.mc_id= 
+Disallow: /courses/search-results?
+Disallow: /CompanySearch/CompanyLogoLink.asp
+Disallow: /CompanySearch/CompanyVacancies.aspx
+Disallow: /LearnDirect/
+Disallow: /*w=*&as=
+Disallow: /*DCMP=
+Disallow: /*campaign-id=
+Disallow: /*utm_medium=
+Disallow: /browse-jobs?redir=*&CompanyTerm=
+Disallow: /browse-jobs?redir=*&Keywords=&
+Disallow: /*/main.asp
+Disallow: /entry
+Disallow: /*Visitor-Source=
+Allow: /*?q*&page=  # 8/9/2017
+Disallow: /*==$  #  2/11/2016
+Disallow: /*.ashx$
+Disallow: /*&page=  # this is where there is a page parameter on a facited link - its a catch all
+Disallow: /*similarjobsmodal=
+Disallow: /*entryUrl= # 5/10/18 RD
+Disallow: /*entryurl= # 5/10/18 RD
+Disallow: /job/*Visitor-Source= # 5/10/18 RD
+Disallow: /jsd/
+Disallow: /insidejob/wp-admin/
+Disallow: /*/apply?
+Disallow: /*/apply$
+Disallow: /Login/
+Disallow: /savedjobs
+Disallow: /personalisation/
+Disallow: /Accessible/
+Disallow: /Authenticated/
+Disallow: /authenticated/
+Disallow: /cannedsearch/
+Disallow: /CannedSearch/
+Disallow: /CompanySearch/CompanyProfileFrameset.aspx
+Disallow: /*/JobSearch/JobContactDetails.aspx
+Disallow: /*/JobSearch/JobPrinterFriendlyDetails.aspx
+Disallow: /*/JobSearch/Results.aspx
+Disallow: /*/JobSearch/SendToAFriend.aspx
+Disallow: /*/JobSearch/UnAuthApplyOnline.aspx
+Disallow: /*Broaden=
+Disallow: /*Rate=
+Disallow: /*RateType=
+Disallow: /*ValidFromDay=
+Disallow: /*CompanyType=
+Disallow: /*JobTitle=
+Disallow: /*Discipline=
+Disallow: /*JobType1=
+Disallow: /*JobType=
+Disallow: /*Radius=
+Disallow: /*companytype=  # 5/10/18 RD
+Disallow: /*&radius=
+Disallow: /*?radius=
+Disallow: /*industry=  # 2/12/20 RD
+Disallow: /*Industry=
+Disallow: /*salary=
+Disallow: /*Salary=
+Disallow: /*jobtype=
+Disallow: /*postedwithin=
+Disallow: /*PostedWithin=
+Disallow: /*duration=  # 9/4/19 RD
+#Disallow: /jobs/*&r= # 5/10/18 RD
+#Disallow: /jobs/*?r= # 5/10/18 RD
+Disallow: /JobSearch/JobBasket.aspx
+Disallow: /JobSearch/JobContactDetails.aspx
+Disallow: /JobSearch/JobPrinterFriendlyDetails.aspx
+Disallow: /JobSearch/jobs-on-a-map.aspx
+Disallow: /JobSearch/PromotedClick.aspx
+Disallow: /JobSearch/SendToAFriend.aspx
+Disallow: /JobSearch/UnAuthApplyOnline.aspx
+Disallow: /JobSearch/PreExternalApplyOnline.aspx
+Disallow: /JobSearch/JobsByEmailSetup.aspx
+Disallow: /Jobsearch/Results.aspx
+Disallow: /JobSearch/*/api/
+Disallow: /jobsearch/*/api/
+Disallow: /help/
+Disallow: */articledetail.asp
+Disallow: */archivedetails.asp
+Disallow: /LocationHub/
+Disallow: /jobs-at/jobs/in-
+Disallow: /jobs-at/*/jobs/part-time/
+Disallow: /jobs-at/*/jobs/permanent/
+Disallow: /jobs-at/*/jobs/contract/
+Disallow: /jobs-at/*/jobs/temporary/
+Disallow: /mail_rd.asp
+Disallow: /newwave_rd.asp
+Disallow: /sitecore/*/www.
+Disallow: /careeradvice/*/www. # GA 15/11/22
+Disallow: /JobSearch/LocationSelect.aspx
+Disallow: /JobSearch/EmailLink.aspx
+Disallow: /JobSearch/JobMailRecruiter.aspx
+Disallow: /*.swf$
+Disallow: /*/jbe/
+Disallow: /JobsByEmail/
+Disallow: /JobSearch/AdvancedJobSearch.aspx
+Disallow: /account/ # updated 01/02/15 RD
+Allow: /account/signin # updated 02/12/22 GA
+Disallow: /Account/ # updated 17/07/16 RD
+Allow: /Account/signin # updated 02/12/22 GA
+Disallow: /*/similarjobs/*
+Disallow: /Jobsearch/ApplyViaDocuments.aspx
+Disallow: /~
+Disallow: /login/
+Disallow: /Help/
+Disallow: /SalaryChecker/SalaryCheckerResults.aspx
+Disallow: /jobseekers/*_new.asp
+Disallow: /tag/
+Disallow: /jobwidget/
+Allow: /advertise- # GA 15/11/22
+Disallow: /JobSearch/RSS.aspx
+Disallow: /MSN/
+Disallow: /pgl/
+Disallow: /pjb_ui/
+Disallow: /WebServices/
+Disallow: /Webservices/
+Disallow: /Maintenance.aspx
+Disallow: /service/nolayout.aspx
+# 2/12/20 RD
+Disallow: /jobs-at/*/jobs/work-from-home/
+Disallow: /harm/
+Disallow: /*?action=
+Disallow: /*&action=
+
+Disallow: /recruiters/campaign-*
+
+# 13/06/22 RD
+Disallow: /membersarea/
+Disallow: /membersarea
+Disallow: /headerfooter/
+
+# 26/7/22 RD
+Disallow: /mya/
+Disallow: /optimizely-edge/
+
+# 21/01/23 JM
+Disallow: /analytics/analytics-library.js
+
+# 18/12/23 RD
+Disallow:/application/
+
+# 24/04/24 RD - removed 10/05/24 JM
+# Disallow: /jobs/*/in-*?*cmp=*
+
+Disallow: /job/*/apply/* # 25 03 26 JM
+
+# ---------------------------------------------------------------------------
+# Lectura para la reparación (interpretación, no parte del fichero original):
+# - El grupo `User-agent: *` NO veta `/jobs/` en bloque (a diferencia de los
+#   grupos de bots con nombre, que sí tienen `Disallow: /`).
+# - La SERP `/jobs/<rol>?age=7` y el detalle `/job/<slug>-job<id>` no casan con
+#   ningún `Disallow` del grupo `*` -> permitidos.
+# - `Disallow: /*?action=` y `/*&action=` vetan la URL de paginación que
+#   construye hoy el scraper (`?page=2&action=paging_next&age=7`).
+# - `Disallow: /*&page=` veta un parámetro `page` precedido de `&`; el enlace
+#   propio del sitio es `?page=N&ag=7` (page como primer parámetro) -> permitido.
+# - `Disallow: /JobSearch/*/api/` y `/jobsearch/*/api/` vetan APIs internas de
+#   búsqueda si existieran.
+# ---------------------------------------------------------------------------
