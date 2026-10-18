@@ -30,6 +30,11 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
   bundle (deploy/run) para comprobar. El asistente prepara las tareas, orienta
   con preguntas y pistas, verifica los resultados y commitea tras la
   verificación; no implementa código ni llama al bundle salvo petición explícita.
+- La verificación se limita al diff de la tarea y a la comprobación del
+  componente afectado: solo configuración del bundle (`databricks.yml`,
+  `resources/*.yml`) → diff + `databricks bundle validate` del target afectado,
+  sin suites; cambios en notebooks/módulos → diff + tests del componente. No se
+  re-ejecutan suites no afectadas.
 - Estas instrucciones son propias del trabajo de especificación (estas specs y
   sus worktrees), no del proyecto real: al fusionar esta rama a `main`
   —checkpoint o cierre—, restaurar `AGENTS.md` de `main` antes de cerrar el
