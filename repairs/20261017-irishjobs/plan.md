@@ -213,6 +213,6 @@ Veredicto de `quality.py`: **OK**.
 
 - **Resultado:** Reparación probada: 12 ofertas verificadas (umbral 1) en la prueba en vivo acotada, ya sin bloqueo gracias al canal Chrome; puerta de calidad OK (obligatorios 100 %, salary 100 %, work_mode 66,7 %).
 - **Ofertas verificadas:** 12
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->
