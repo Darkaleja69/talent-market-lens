@@ -162,8 +162,12 @@ locales de usuario se escriben como <HOME>.
 <!-- record:section:tests -->
 ## Pruebas: tests
 
-_(Pendiente: suites ejecutadas del scraper afectado y del diagnóstico, y su
-resultado.)_
+Desde `multi_site_job_scraper`: `python -m pytest tests -q` → **157 passed**
+(incluye `tests/test_glassdoor_navigation_failure.py`, 11 tests nuevos, sin
+red). Desde la raíz: `python -m pytest scrapers-pipeline/tests -q` → **1133
+passed**. Verificación independiente del diff (2026-10-18): **APTO**, sin
+hallazgos bloqueantes; auditoría de higiene del registro
+(`records.audit_records()`) → 0 findings.
 <!-- /record:section:tests -->
 
 <!-- record:section:live_test -->
@@ -198,28 +202,28 @@ Azure, landing ni merge.
 <!-- record:section:quality -->
 ## Calidad
 
-Tabla antes/después por campo (`quality_before.json` listo; `quality_after.json` pendiente de la prueba en vivo):
+Tabla antes/después por campo (`quality_before.json` → `quality_after.json`):
 
 | Campo | Obligatorio | Antes | Después | Delta | Meta | Estado |
 |---|---|---|---|---|---|---|
-| id | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| title | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| company | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| description | sí | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| salary | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| skills | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| work_mode | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| location | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
-| posted_date | no | sin dato | pendiente | pendiente | 100.0 % | pendiente |
+| id | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| title | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| company | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| description | sí | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| salary | no | sin dato | 66.7 % | sin dato | sin meta | no aplica |
+| skills | no | sin dato | 79.2 % | sin dato | sin meta | no aplica |
+| work_mode | no | sin dato | 4.2 % | sin dato | sin meta | no aplica |
+| location | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
+| posted_date | no | sin dato | 100.0 % | sin dato | 100.0 % | cumple |
 
-_(Pendiente: veredicto de `quality.py` y `quality_after.json`.)_
+Veredicto de `quality.py`: **OK**.
 <!-- /record:section:quality -->
 
 <!-- record:section:result -->
 ## Resultado y estado
 
-- **Resultado:** (pendiente)
-- **Estado:** planificado (al crear, `planificado`; al terminar, `probado`,
-  `descartado` o `escalado`)
+- **Resultado:** Reparación probada: 24 ofertas verificadas (umbral 24 = mayor verificado 23 + 1) en la prueba en vivo acotada (1 rol × 1 página, mismo alcance que la del 15-oct). Causa del run vacío del 18-oct: incidente transitorio de recursos del host (no un bloqueo de Glassdoor). El fallo total de navegación ahora termina con exit ≠ 0 (navigation_failed, aborto temprano y un único relanzamiento acotado). Puerta de calidad OK: obligatorios e id/location/posted_date al 100 %; salary 66,7 %, skills 79,2 % y work_mode 4,2 % sin meta (lo que expone el portal).
+- **Ofertas verificadas:** 24
 - **Validación del push:** pendiente de la persona (RF-12)
+- **Estado:** probado
 <!-- /record:section:result -->
