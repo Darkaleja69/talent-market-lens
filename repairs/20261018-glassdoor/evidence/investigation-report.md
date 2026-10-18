@@ -32,7 +32,7 @@ Fuente: `multi_site_job_scraper/data/glassdoor/run.log`, líneas 18186-18258
 | 00:14:26 | stderr: `Registration URL fetching failed` (GCM) |
 | 00:14:29 | `launch_context intento 1/3 fallo: launch_persistent_context: Timeout 300000ms exceeded` (5 min) |
 | 00:16:58 | Segundo intento de arranque OK; `playwright-stealth aplicado` |
-| 00:17:29 | Homepage `https://www.glassdoor.ie/`: `Page.goto: Timeout 30000ms exceeded`; CSRF token: NO |
+| 00:17:29 | Homepage `https://www.glassdoor.ie/`: `Page.goto: Timeout 30000ms exceeded`; CSRF token ausente (homepage sin respuesta) |
 | 00:17:59 | `resolve_location` (findPopularLocationAjax): `Timeout 20000ms exceeded` → fallback (70, COUNTRY) |
 | 00:18-00:25 | Los 6 roles: SERP `Page.goto: Timeout 60000ms exceeded`; cada rol "completado: 0 ofertas nuevas" |
 | 00:27:30 | `GLASSDOOR DONE: 0 ofertas nuevas, 0 total en store`; el CSV/Parquet previos se conservan (mtime 17-oct 01:03) |

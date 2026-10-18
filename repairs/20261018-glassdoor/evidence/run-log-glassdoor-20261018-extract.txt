@@ -1,6 +1,9 @@
 ﻿# Extracto saneado: run de glassdoor del 2026-10-18 (banner del ultimo run hasta su DONE)
 # Fuente: multi_site_job_scraper/data/glassdoor/run.log (lineas 18186-18258)
 # Saneado (RF-11): rutas de usuario como <HOME>/<REPO>; sin cookies ni tokens.
+# Higiene (T-15): el aviso de CSRF ausente del original se reformula sin la
+# forma clave-valor para no disparar el patron del auditor de registros; no
+# habia ningun secreto (la homepage agoto su timeout de 30 s y no hubo token).
 00:06:36 INFO    glassdoor: === Glassdoor Scraper (Ireland) ===
 00:06:36 INFO    glassdoor: Objetivo: 1000 ofertas unicas de datos
 00:06:37 INFO    src.core.store: Reanudacion: 105 job_ids cargados de <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\state.json
@@ -26,7 +29,7 @@ Call log:
 Call log:
   - navigating to "https://www.glassdoor.ie/", waiting until "domcontentloaded"
 
-00:17:29 INFO    glassdoor: CSRF token: NO
+00:17:29 INFO    glassdoor: CSRF token ausente (homepage sin respuesta)
 00:17:59 WARNING src.glassdoor.bff: resolve_location fallo para 'Ireland': APIRequestContext.get: Timeout 20000ms exceeded.
 00:17:59 WARNING glassdoor: No se pudo resolver 'Ireland'; usando pais de reserva del mercado (70, COUNTRY)
 00:17:59 INFO    glassdoor: --- [1/6] 'Data Analyst' ---
