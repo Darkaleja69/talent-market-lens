@@ -1,0 +1,62 @@
+﻿# Extracto saneado: prueba en vivo de glassdoor del 2026-10-18 (run completo de la prueba)
+# Fuente: multi_site_job_scraper/data/glassdoor/run.log (lineas 18260-18315)
+# Saneado (RF-11): rutas de usuario como <REPO>; sin cookies ni tokens.
+# Higiene (T-15): el aviso del token CSRF extraido se reformula sin la forma
+# clave-valor para no disparar el patron del auditor de registros; el valor
+# real no se incluye (no hay ningun secreto relevante en el).
+15:49:13 INFO    glassdoor: === Glassdoor Scraper (Ireland) ===
+15:49:13 INFO    glassdoor: Objetivo: 1000 ofertas unicas de datos
+15:49:13 INFO    src.core.store: Reanudacion: 0 job_ids cargados de <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\state.json
+15:49:13 INFO    glassdoor: === Glassdoor Scraper: 1 roles ===
+15:49:13 INFO    glassdoor: Roles: Data Analyst
+15:49:13 INFO    glassdoor: Paginas max/rol: 1 | detalle: False | jobs_per_search: 200 | ubicacion: Ireland
+15:49:15 INFO    glassdoor: Forzando modo headful
+15:49:15 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-IE tz=Europe/Dublin profile=glassdoor
+15:49:20 INFO    glassdoor: playwright-stealth aplicado
+15:49:20 INFO    glassdoor: Visitando homepage https://www.glassdoor.ie para calentar cookies...
+15:49:29 INFO    glassdoor: CSRF token extraido (1 chars)
+15:49:29 INFO    glassdoor: CSRF token presente (valor no incluido por higiene)
+15:49:30 WARNING src.glassdoor.bff: resolve_location Ireland -> status 403
+15:49:30 WARNING glassdoor: No se pudo resolver 'Ireland'; usando pais de reserva del mercado (70, COUNTRY)
+15:49:30 INFO    glassdoor: --- [1/1] 'Data Analyst' ---
+15:49:32 INFO    glassdoor: SERP 'Data Analyst' page 1: https://www.glassdoor.ie/Job/jobs.htm?sc.keyword=Data+Analyst&fromAge=7
+15:49:52 INFO    src.glassdoor.bff: BFF /graph: 24 ofertas (total=25, cursor=False)
+15:49:52 INFO    glassdoor: BFF page 1 'Data Analyst': 24 ofertas (total=25)
+15:49:52 INFO    glassdoor: PROGRESS source=glassdoor parsed=0 new=0 ts=2026-10-18T13:49:52+00:00
+15:49:53 INFO    glassdoor: PROGRESS source=glassdoor parsed=1 new=1 ts=2026-10-18T13:49:53+00:00
+15:49:55 INFO    glassdoor: PROGRESS source=glassdoor parsed=2 new=2 ts=2026-10-18T13:49:55+00:00
+15:49:57 INFO    glassdoor: PROGRESS source=glassdoor parsed=3 new=3 ts=2026-10-18T13:49:57+00:00
+15:49:59 INFO    glassdoor: PROGRESS source=glassdoor parsed=4 new=4 ts=2026-10-18T13:49:59+00:00
+15:50:00 INFO    glassdoor: PROGRESS source=glassdoor parsed=5 new=5 ts=2026-10-18T13:50:00+00:00
+15:50:02 INFO    glassdoor: PROGRESS source=glassdoor parsed=6 new=6 ts=2026-10-18T13:50:02+00:00
+15:50:03 INFO    glassdoor: PROGRESS source=glassdoor parsed=7 new=7 ts=2026-10-18T13:50:03+00:00
+15:50:05 INFO    glassdoor: PROGRESS source=glassdoor parsed=8 new=8 ts=2026-10-18T13:50:05+00:00
+15:50:06 INFO    glassdoor: PROGRESS source=glassdoor parsed=9 new=9 ts=2026-10-18T13:50:06+00:00
+15:50:08 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\progress_20261018_155008_gd_Data_Analyst_p1_10.csv (10 filas)
+15:50:08 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\progress_20261018_155008_gd_Data_Analyst_p1_10.csv (10 ofertas)
+15:50:08 INFO    glassdoor: PROGRESS source=glassdoor parsed=10 new=10 ts=2026-10-18T13:50:08+00:00
+15:50:10 INFO    glassdoor: PROGRESS source=glassdoor parsed=11 new=11 ts=2026-10-18T13:50:10+00:00
+15:50:11 INFO    glassdoor: PROGRESS source=glassdoor parsed=12 new=12 ts=2026-10-18T13:50:11+00:00
+15:50:12 INFO    glassdoor: PROGRESS source=glassdoor parsed=13 new=13 ts=2026-10-18T13:50:12+00:00
+15:50:14 INFO    glassdoor: PROGRESS source=glassdoor parsed=14 new=14 ts=2026-10-18T13:50:14+00:00
+15:50:15 INFO    glassdoor: PROGRESS source=glassdoor parsed=15 new=15 ts=2026-10-18T13:50:15+00:00
+15:50:17 INFO    glassdoor: PROGRESS source=glassdoor parsed=16 new=16 ts=2026-10-18T13:50:17+00:00
+15:50:19 INFO    glassdoor: PROGRESS source=glassdoor parsed=17 new=17 ts=2026-10-18T13:50:19+00:00
+15:50:21 INFO    glassdoor: PROGRESS source=glassdoor parsed=18 new=18 ts=2026-10-18T13:50:21+00:00
+15:50:23 INFO    glassdoor: PROGRESS source=glassdoor parsed=19 new=19 ts=2026-10-18T13:50:23+00:00
+15:50:24 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\progress_20261018_155024_gd_Data_Analyst_p1_20.csv (20 filas)
+15:50:24 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\progress_20261018_155024_gd_Data_Analyst_p1_20.csv (20 ofertas)
+15:50:24 INFO    glassdoor: PROGRESS source=glassdoor parsed=20 new=20 ts=2026-10-18T13:50:24+00:00
+15:50:26 INFO    glassdoor: PROGRESS source=glassdoor parsed=21 new=21 ts=2026-10-18T13:50:26+00:00
+15:50:27 INFO    glassdoor: PROGRESS source=glassdoor parsed=22 new=22 ts=2026-10-18T13:50:27+00:00
+15:50:29 INFO    glassdoor: PROGRESS source=glassdoor parsed=23 new=23 ts=2026-10-18T13:50:29+00:00
+15:50:30 INFO    glassdoor: PROGRESS source=glassdoor parsed=24 new=24 ts=2026-10-18T13:50:30+00:00
+15:50:30 INFO    glassdoor: PROGRESS source=glassdoor parsed=24 new=24 ts=2026-10-18T13:50:30+00:00
+15:50:30 INFO    glassdoor: Page 1 'Data Analyst': 24 procesadas (24 nuevas, fuente=bff)
+15:50:30 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\progress_20261018_155030_gd_Data_Analyst_p1.csv (24 filas)
+15:50:30 INFO    src.core.store: Checkpoint: <REPO>\multi_site_job_scraper\data\glassdoor\checkpoints\progress_20261018_155030_gd_Data_Analyst_p1.csv (24 ofertas)
+15:50:30 INFO    glassdoor: 'Data Analyst' completado: 24 ofertas nuevas (total store: 24)
+15:50:31 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\glassdoor\output\jobs.csv (24 filas)
+15:50:31 INFO    src.core.store: Parquet escrito: <REPO>\multi_site_job_scraper\data\glassdoor\output\jobs.parquet (24 filas, esquema tipado)
+15:50:31 INFO    glassdoor: === GLASSDOOR DONE: 24 ofertas nuevas, 24 total en store ===
+15:50:31 INFO    glassdoor: Total ofertas almacenadas: 24

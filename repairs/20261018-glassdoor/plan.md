@@ -169,8 +169,30 @@ resultado.)_
 <!-- record:section:live_test -->
 ## Pruebas: prueba en vivo
 
-_(Pendiente: alcance acotado y repetible, comando, recuento de ofertas, umbral
-exigido, restricciones respetadas —sin Azure, landing ni merge— y evidencia.)_
+Comando: `python -m src.glassdoor --role "Data Analyst" --max-pages 1` (desde
+`multi_site_job_scraper`); 1 rol × 1 página (mismo alcance que la prueba del
+2026-10-15), solo glassdoor, navegador headful con el perfil persistente; sin
+Azure, landing ni merge.
+
+- **2026-10-18 15:49:12–15:50:31 (+02), 78,9 s, exit 0**; **24 ofertas nuevas**
+  frente al **umbral 24** confirmado con `repair.cli threshold --source
+  glassdoor` (mejor verificado 23 + 1): el umbral se alcanza.
+- **Latido comprobado:** 26 líneas `PROGRESS source=glassdoor` intercaladas en
+  el bucle de tarjetas (parsed 0→24, hueco máximo ≈ 2 s; primer latido 20 s
+  tras el goto de la SERP). Sin `navigation_failed` y sin marcadores
+  anti-bot/CAPTCHA; únicos WARNING: el autocompletado retirado (403) y el
+  fallback de país declarado (70, COUNTRY).
+- Descripciones 24/24 completas dentro del presupuesto (2000), longitud
+  mín./media/máx. 1.560/5.405/8.592 caracteres (no snippets).
+- Calidad: `quality_after.json` medido con `repair.cli quality`; veredicto
+  **OK** (obligatorios 100 %; `id`/`location`/`posted_date` 100 %; `salary`
+  66,7 %, `skills` 79,2 %, `work_mode` 4,2 % sin meta, solo medición).
+- Evidencia: `evidence/live-test-20261018.md` y
+  `evidence/run-log-glassdoor-live-test-20261018-extract.txt`; artefactos
+  operativos (gitignored) en `multi_site_job_scraper/data/glassdoor/`
+  (`live_test_20261018_stdout.txt`, `live_test_20261018_meta.txt`,
+  `output/jobs.parquet` con 24 filas y checkpoints `..._p1*.csv`), con backup
+  previo `*.bak-20261018-livepretest`.
 <!-- /record:section:live_test -->
 
 <!-- record:section:quality -->
