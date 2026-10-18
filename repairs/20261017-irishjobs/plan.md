@@ -107,8 +107,8 @@ locales de usuario se escriben como <HOME>.
   - `multi_site_job_scraper/src/irishjobs/config_ie.py` — `detect_block: true`,
     `max_consecutive_empty_combos: 25`, `warmup: true` y
     `browser_channel: "chrome"` (las cuatro claves solo las activa irishjobs;
-    sin ellas, la clase compartida mantiene guarda, warm-up y canal
-    desactivados).
+    sin ellas, la clase compartida mantiene detección de bloqueo, guarda,
+    warm-up y canal desactivados).
   - `multi_site_job_scraper/src/irishjobs/scraper.py` — `_launch_browser` lee
     `browser_channel` de la config y lo pasa a `launch_context`; el
     relanzamiento de `_ensure_browser_alive` pasa por ahí y conserva el canal.
@@ -135,28 +135,37 @@ locales de usuario se escriben como <HOME>.
 - **Diseño:** la detección de bloqueo, la guarda de combos vacíos y el warm-up
   solo se activan donde están auditados (claves `detect_block`, `warmup` y
   `max_consecutive_empty_combos` de la config, fijadas en `config_ie.py`).
-  `stepstone_nl` comparte la clase y **solo** recibe el cambio de latido
-  (`PROGRESS` por página, incluida la vacía, y contador pre-filtro de título),
-  que vive en el módulo común; su detección de bloqueo, su parada por combos
-  vacíos y su calentamiento de sesión siguen desactivados por defecto y quedan
-  para su propia reparación. El portal se detiene con el motivo en la primera
-  página mitigada y vuelca `data/irishjobs/blocked_*.txt` (título, URL, status,
-  marcadores, recorte de texto; sin cookies ni scripts). La guarda de combos
-  vacíos queda en 25 para irishjobs, y solo cuenta un combo como vacío si
-  ninguna de sus páginas trajo tarjetas. El calentamiento navega la portada y
-  descarta el banner de consentimiento con el mismo perfil persistente; **no**
-  se usa el formulario de búsqueda (su envío es JS y no se verificó en vivo:
-  usarlo a ciegas añadiría fragilidad al arranque), justificación registrada
-  aquí. El canal de navegador (`browser_channel`) sigue la misma regla de
-  aislamiento: solo lo declara irishjobs y `stepstone_nl` no lo hereda (con
-  test explícito).
+  `stepstone_nl` comparte la clase (`src/stepstone_nl/__main__.py` instancia
+  `IrishJobsScraper`) y hereda todo lo que vive en los módulos comunes: el
+  latido (`PROGRESS` por página, incluida la vacía, y contador pre-filtro de
+  título) y también la **paginación nueva** de `src/irishjobs/serp.py`
+  (`?page=N` como primer parámetro, sin `action=`, basada en el `href` propio
+  del sitio), porque la clase la usa sin distinguir el portal. Lo que sí queda
+  desactivado por config para él es la detección de bloqueo, la parada por
+  combos vacíos, el warm-up y el canal de navegador. Limitación honesta: la
+  página 2+ de `stepstone_nl` no se ha ejercitado con la paginación nueva
+  (queda para su propia reparación, T-36). El portal se detiene con el motivo
+  en la primera página mitigada y vuelca `data/irishjobs/blocked_*.txt`
+  (título, URL, status, marcadores, recorte de texto; sin cookies ni scripts).
+  La guarda de combos vacíos queda en 25 para irishjobs, y solo cuenta un
+  combo como vacío si ninguna de sus páginas trajo tarjetas. El calentamiento
+  navega la portada y descarta el banner de consentimiento con el mismo perfil
+  persistente; **no** se usa el formulario de búsqueda (su envío es JS y no se
+  verificó en vivo: usarlo a ciegas añadiría fragilidad al arranque),
+  justificación registrada aquí. El canal de navegador (`browser_channel`)
+  sigue la misma regla de aislamiento: solo lo declara irishjobs y
+  `stepstone_nl` no lo hereda (con test explícito).
 - **Metas de calidad:** refinadas según la auditoría del informe
   (`quality_before.json`): salary 85.0, work_mode 60.0 y skills sin meta. El
   brief original proponía 100 y queda superado por `quality_before.json`, que
   es la fuente del gate.
-- **Limitación conocida:** la parada por bloqueo no cambia el código de salida
-  del proceso (sigue 0); la evidencia queda en la línea `BLOCKED` y en el
-  volcado `multi_site_job_scraper/data/irishjobs/blocked_*.txt`.
+- **Limitación conocida:** el canal `browser_channel: "chrome"` es un
+  requisito operativo del host: exige Chrome instalado en la máquina; si no
+  está, el lanzamiento de irishjobs falla (los reintentos de `launch_context`
+  vuelven a aplicar el `channel` declarado y no caen al binario empaquetado).
+  La parada por bloqueo no cambia el código de salida del proceso (sigue 0);
+  la evidencia queda en la línea `BLOCKED` y en el volcado
+  `multi_site_job_scraper/data/irishjobs/blocked_*.txt`.
 - **Dependencias nuevas:** ninguna.
 <!-- /record:section:changes -->
 
