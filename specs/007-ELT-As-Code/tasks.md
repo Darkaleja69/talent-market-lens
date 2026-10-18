@@ -378,7 +378,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Evidencia:** `job-prod-bundle.json` saneado + `bundle summary -t prod` +
     `jobs list-runs` vacío; tabla en `evidence.md`.
 
-- [ ] **T-16 — Backup y plan de rollback** (~25 min)
+- [x] **T-16 — Backup y plan de rollback** (~25 min)
   - **RF:** RF-6.
   - **Depende de:** T-15.
   - **Objetivo:** escribir `specs/007-ELT-As-Code/cutover.md` con precondiciones,
@@ -387,7 +387,17 @@ completo —incluida la tarea de export web— en el bundle.
     folder (en `main`, solo consulta: el job ya no la usa).
   - **Hecho cuando:** el plan queda revisado y aprobado explícitamente por la
     persona.
-  - **Evidencia:** `cutover.md` + OK registrado.
+  - **Resultado (2026-10-18):** `cutover.md` escrito con precondiciones, IDs
+    (manual `704156530681034`, bundle `916863262593632`, dev
+    `320947022571947`), resumen de deploys/runs, pasos exactos, verificación de
+    la noche, criterios de aborto, rollback con tiempos y estado final de la
+    Git folder (ya en `main`, 74 commits por detrás). Rollback por definición +
+    deploy (el job es `UI_LOCKED`). **Aprobado por la persona el 2026-10-18
+    ≈22:40** con la Opción B: dry-run T-17 esta noche (18-oct, 23:05) y cutover
+    a continuación, tras el run manual; primer run del bundle el lunes
+    19-oct a las 23:00 y T-19 el martes 20. Verificación independiente sin
+    bloqueantes.
+  - **Evidencia:** `cutover.md` (§11 con el OK) + fila en `evidence.md`.
 
 - [ ] **T-17 — Dry-run del cutover** (~25 min)
   - **RF:** RF-6, RF-9.
