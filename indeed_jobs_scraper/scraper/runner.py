@@ -51,6 +51,51 @@ from . import exporters
 log = logging.getLogger(__name__)
 
 
+# Campos que un duplicado posterior puede aportar al objeto conservado cuando
+# este los tiene vacios (reparacion 2026-10-18): el enrich del panel rellena
+# estos campos y el primer job_key visto puede haber quedado sin ellos; sin
+# fusion, el parquet exportaba el objeto pobre y perdia la descripcion de los
+# duplicados enriquecidos despues (4 casos reales del run 2026-10-18).
+_DEDUP_MERGE_FIELDS = (
+    "description_html",
+    "description_text",
+    "snippet",
+    "benefits",
+    "contract_type",
+    "schedule",
+    "workplace_type",
+)
+
+
+def _merge_duplicate_offer(kept: JobOffer, duplicate: JobOffer) -> int:
+    """Copia al objeto conservado los campos vacios que el duplicado si trae.
+
+    Devuelve cuantos campos se fusionaron. Nunca pisa un valor existente.
+    La senal remota positiva (`is_remote=True`) se adopta junto con el resto
+    de la informacion del duplicado; nunca se degrada un `True` ya presente
+    (`is_remote` es booleano y no pasa por `_DEDUP_MERGE_FIELDS`).
+    """
+    merged = 0
+    for name in _DEDUP_MERGE_FIELDS:
+        if getattr(kept, name, "") or "":
+            continue
+        value = getattr(duplicate, name, "") or ""
+        if value:
+            setattr(kept, name, value)
+            merged += 1
+    # Coherencia con `workplace_type`: si el duplicado trae la senal remota
+    # positiva (remote/hybrid) y el conservado no, se adopta; el sentido
+    # inverso nunca ocurre (un True previo jamas se pone a False).
+    if not kept.is_remote and duplicate.is_remote:
+        kept.is_remote = True
+        merged += 1
+    # Coherencia interna: si la descripcion vino del duplicado sin snippet,
+    # se deriva igual que hace el enrich.
+    if not kept.snippet and kept.description_text:
+        kept.snippet = kept.description_text[:500]
+    return merged
+
+
 class ScraperRunner:
     def __init__(self, country_code: str, cities: list[str], terms: list[str], pages: int, output_dir: Path, limit: int = 0, login: bool = False, use_chrome_profile: bool = False, cdp_port: int = 0, enrich: bool = False, fromage: int = 0, remote: bool = False, job_type: str = "", pause_every: int = 0, pause_min: float = 5.0, pause_max: float = 8.0, enrich_rate: float = 0.0, enrich_max: int = 0):
         self.country: CountryConfig = COUNTRIES[country_code]
@@ -308,15 +353,32 @@ class ScraperRunner:
 
     # --- Helpers -----------------------------------------------------------
     def _dedup(self, offers: list[JobOffer]) -> list[JobOffer]:
-        seen: set[str] = set()
+        """Deduplica por job_key fusionando campos del duplicado en el primero.
+
+        El objeto conservado es el primero visto por job_key; cada duplicado
+        posterior aporta los campos que el conservado tenga vacios (descripcion,
+        snippet, beneficios, condiciones), para que un enrich tardio en otra
+        SERP no se pierda en el export.
+        """
+        by_key: dict[str, JobOffer] = {}
         unique: list[JobOffer] = []
+        duplicates = 0
+        merged_fields = 0
         for o in offers:
-            if not o.job_key or o.job_key in seen:
+            if not o.job_key:
                 continue
-            seen.add(o.job_key)
-            unique.append(o)
-        if len(unique) < len(offers):
-            log.info("dedup: %d -> %d ofertas unicas", len(offers), len(unique))
+            kept = by_key.get(o.job_key)
+            if kept is None:
+                by_key[o.job_key] = o
+                unique.append(o)
+                continue
+            duplicates += 1
+            merged_fields += _merge_duplicate_offer(kept, o)
+        if duplicates or len(unique) < len(offers):
+            log.info(
+                "dedup: %d -> %d ofertas unicas (%d duplicados, %d campos fusionados)",
+                len(offers), len(unique), duplicates, merged_fields,
+            )
         return unique
 
     def _verify_cdp_session(self, session) -> bool:

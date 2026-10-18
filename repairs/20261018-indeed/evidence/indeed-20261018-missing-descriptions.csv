@@ -1,0 +1,15 @@
+job_key,first_search_term,first_city_query,first_page,title,company,location,cause
+34f3927e462082ba,data,Dublin,2,"Senior Real Estate Transaction Manager , DCC Communities",Amazon Data Services Ireland Limited,"Dublin, County Dublin",rate_sample_skip
+1a1c22fdb4e8d0c8,data,Dublin,2,"Sr Software Development Engineer, CloudWatch Collectors",Amazon Data Services Ireland Limited,"Dublin, County Dublin",rate_sample_skip (later duplicate enriched; dedup kept first)
+901dd88dbe172f42,data,Cork,1,Operations Finance Analyst - 15 months contract,Apple,"Cork, County Cork",rate_sample_skip (later duplicate enriched; dedup kept first)
+8c66d6c5c853f013,data engineer,Dublin,1,Chef De Partie,BaxterStorey IRL,"Dublin, County Dublin",rate_sample_skip
+6a9892b63fcaf292,data engineer,Dublin,2,"Senior Product Manager (Technical), Intelligent Cloud Hosting (ICON)",Amazon Development Centre Ireland Limited,"Dublin, County Dublin",rate_sample_skip
+3bf7a02edbfa31ea,data engineer,Cork,1,Chef de Partie,Lumi Midleton,"Midleton, County Cork",rate_sample_skip
+3a8c91f14177f18a,data engineer,Cork,2,Solutions Architect,DAA,"Dublin, County Dublin",click_timeout_after_sample
+1d6a7c412c7013d1,data engineer,Cork,2,Direct Entry Captain - Pilot,Emirates,"Dublin, County Dublin",rate_sample_skip (later duplicate enriched; dedup kept first)
+97871e2b39768a48,data analyst,Dublin,1,Microsoft Security Engineer,Integrity360,"Dublin, County Dublin",rate_sample_skip
+089f5dda4cffc687,data analyst,Dublin,2,Bug Bounty Analyst,Global Payments UK Ltd,"Dublin, County Dublin",rate_sample_skip
+b1124aa142402548,data analyst,Cork,1,EMEA Corporation Tax Manager,Dell,"Dublin, County Dublin",rate_sample_skip
+03c788416d54e360,data analyst,Cork,2,SCOR Actuarial Graduate Program - Intake September 2027,SCOR,"Dublin, County Dublin",rate_sample_skip (later duplicate enriched; dedup kept first)
+4488962327854656,data scientist,Dublin,1,Quality Expert Reviewer - Portuguese Speaker,Teleperformance,"Dublin, County Dublin",rate_sample_skip
+ebf9dffea9e49470,data scientist,Cork,1,Senior Implementation Consultant,iplicit Ireland,"Dublin, County Dublin",rate_sample_skip

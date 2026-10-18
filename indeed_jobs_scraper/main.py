@@ -118,7 +118,7 @@ def parse_args() -> argparse.Namespace:
         "--enrich-rate",
         type=float,
         default=0.0,
-        help="Fraccion de ofertas a enriquecer (0.0-1.0). Ej: 0.3 = 30%%. Menos clicks = menos riesgo CAPTCHA. Ideal para nightly.",
+        help="Fraccion de candidatas a enriquecer (0.0-1.0). 1.0 = todas las candidatas sin descripcion, hasta el tope --enrich-max (recomendado: el cache persistente evita repetir clics entre runs). Valores <1 solo para prorratear de forma explicita el riesgo anti-bot.",
     )
     p.add_argument(
         "--enrich-max",

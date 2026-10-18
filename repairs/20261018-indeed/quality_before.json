@@ -1,0 +1,73 @@
+{
+  "completeness_scope": "run",
+  "fields": [
+    {
+      "current_pct": 100.0,
+      "field": "id",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": 100.0,
+      "field": "title",
+      "is_focus": false,
+      "required": true,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": 100.0,
+      "field": "company",
+      "is_focus": false,
+      "required": true,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": 87.93103448275862,
+      "field": "description",
+      "is_focus": false,
+      "required": true,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": 36.206896551724135,
+      "field": "salary",
+      "is_focus": false,
+      "required": false,
+      "target_pct": null
+    },
+    {
+      "current_pct": 0.0,
+      "field": "skills",
+      "is_focus": false,
+      "required": false,
+      "target_pct": null
+    },
+    {
+      "current_pct": 16.379310344827587,
+      "field": "work_mode",
+      "is_focus": false,
+      "required": false,
+      "target_pct": null
+    },
+    {
+      "current_pct": 100.0,
+      "field": "location",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    },
+    {
+      "current_pct": 100.0,
+      "field": "posted_date",
+      "is_focus": false,
+      "required": false,
+      "target_pct": 100.0
+    }
+  ],
+  "offers_current_run": 116,
+  "offers_snapshot": null,
+  "run_date": "2026-10-18",
+  "schema_version": 1,
+  "source": "indeed"
+}
