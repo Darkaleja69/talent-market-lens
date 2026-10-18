@@ -40,6 +40,11 @@ targets:
     workspace:
       host: https://adb-7405619889654446.6.azuredatabricks.net
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      user_name: ${workspace.current_user.userName}
+    permissions:
+      - user_name: ${workspace.current_user.userName}
+        level: CAN_MANAGE
     variables:
       catalog: job_offers
       storage_account: joboffershns
@@ -51,7 +56,7 @@ targets:
       jobs:
         elt:
           schedule:
-            pause_status: PAUSED
+            pause_status: UNPAUSED
             quartz_cron_expression: 50 0 23 * * ?
             timezone_id: Europe/Madrid
 sync:

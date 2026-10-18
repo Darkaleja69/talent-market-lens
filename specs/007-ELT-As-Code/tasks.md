@@ -334,7 +334,7 @@ completo —incluida la tarea de export web— en el bundle.
     borró.
   - **Evidencia:** URLs en `evidence.md`.
 
-- [ ] **T-14 — [extra] Deploy dev por `workflow_dispatch`** (~25 min)
+- [x] **T-14 — [extra] Deploy dev por `workflow_dispatch`** (~25 min)
   - **RF:** RF-5.
   - **Depende de:** T-12.
   - **Objetivo (opcional, si el tiempo lo permite):** practicar automatización
@@ -343,11 +343,20 @@ completo —incluida la tarea de export web— en el bundle.
     de CI?
   - **Hecho cuando:** un dispatch despliega dev (y solo dev) con el workflow en
     verde.
-  - **Evidencia:** URL + nota.
+  - **Resultado (2026-10-18):** workflow `.github/workflows/databricks-bundle-deploy-dev.yml`
+    (`workflow_dispatch`, solo dev: `bundle deploy -t dev`; guard de rama
+    `main`/`spec/007-elt-as-code`; `concurrency` sin cancelar; `timeout-minutes:
+    15`; PAT acotado al step). Entorno de GitHub **`dev`** con *required
+    reviewers* → el dispatch espera aprobación antes de desplegar. Para que el
+    botón «Run workflow» aparezca hubo que mergear la rama a `main` (checkpoint
+    `ada90e4`, con `AGENTS.md` de `main` restaurado). El deploy no arranca
+    compute: solo sube ficheros y actualiza la definición del job dev (aplica el
+    timeout de T-11).
+  - **Evidencia:** URL en `evidence.md`.
 
 ## 4. Producción y cutover
 
-- [ ] **T-15 — Target prod** (~30 min)
+- [x] **T-15 — Target prod** (~30 min)
   - **RF:** RF-2, RF-6.
   - **Depende de:** T-10, T-13.
   - **Objetivo:** dejar producción lista para el cutover, pero pausada.
@@ -358,9 +367,18 @@ completo —incluida la tarea de export web— en el bundle.
     prod`; comparar con `job-actual.json`. **No habilitar nada todavía.**
   - **Hecho cuando:** validate verde, job prod desplegado **en pausa** y
     diferencias con el manual documentadas.
-  - **Evidencia:** summary + captura de la pausa.
+  - **Resultado (2026-10-18):** target prod con `run_as` y `permissions` de la
+    persona (production mode exige ambos; se mantiene el owner/run_as actual y
+    el service principal queda como mejora documentada). `bundle validate -t
+    prod` OK; `bundle deploy -t prod` crea el job `916863262593632` (`Git Based
+    ELT`), **PAUSED**, misma cron/TZ, 7 tareas con paths al bundle y variables
+    de prod, `timeout_seconds: 1800`, `max_concurrent_runs: 1` y **0 runs**. El
+    job manual `704156530681034` queda intacto y UNPAUSED. Diferencias con el
+    manual en `evidence.md`.
+  - **Evidencia:** `job-prod-bundle.json` saneado + `bundle summary -t prod` +
+    `jobs list-runs` vacío; tabla en `evidence.md`.
 
-- [ ] **T-16 — Backup y plan de rollback** (~25 min)
+- [x] **T-16 — Backup y plan de rollback** (~25 min)
   - **RF:** RF-6.
   - **Depende de:** T-15.
   - **Objetivo:** escribir `specs/007-ELT-As-Code/cutover.md` con precondiciones,
@@ -369,15 +387,32 @@ completo —incluida la tarea de export web— en el bundle.
     folder (en `main`, solo consulta: el job ya no la usa).
   - **Hecho cuando:** el plan queda revisado y aprobado explícitamente por la
     persona.
-  - **Evidencia:** `cutover.md` + OK registrado.
+  - **Resultado (2026-10-18):** `cutover.md` escrito con precondiciones, IDs
+    (manual `704156530681034`, bundle `916863262593632`, dev
+    `320947022571947`), resumen de deploys/runs, pasos exactos, verificación de
+    la noche, criterios de aborto, rollback con tiempos y estado final de la
+    Git folder (ya en `main`, 74 commits por detrás). Rollback por definición +
+    deploy (el job es `UI_LOCKED`). **Aprobado por la persona el 2026-10-18
+    ≈22:40** con la Opción B: dry-run T-17 esta noche (18-oct, 23:05) y cutover
+    a continuación, tras el run manual; primer run del bundle el lunes
+    19-oct a las 23:00 y T-19 el martes 20. Verificación independiente sin
+    bloqueantes.
+  - **Evidencia:** `cutover.md` (§11 con el OK) + fila en `evidence.md`.
 
-- [ ] **T-17 — Dry-run del cutover** (~25 min)
+- [x] **T-17 — Dry-run del cutover** (~25 min)
   - **RF:** RF-6, RF-9.
   - **Objetivo:** desplegar prod en pausa y comprobar que no dispara.
   - **Preguntas guía:** ¿El job en pausa no se dispara a su hora? ¿Tareas y
     dependencias coinciden con el manual?
   - **Hecho cuando:** tras unas horas no hay ningún run del job del bundle.
-  - **Evidencia:** capturas de "sin runs" + checklist del cutover.md marcado.
+  - **Resultado (2026-10-18):** el deploy en pausa ya lo hizo T-15 (job
+    `916863262593632`, `PAUSED`, cron `50 0 23 * * ?`/`Europe/Madrid`). A las
+    **23:05**, pasada la hora programada, `jobs list-runs` del bundle devuelve
+    `[]` (**0 runs**); el job manual `704156530681034` lanzó su run periódico
+    `364055615164423` a las 23:00:51 (RUNNING). No se desplegó ni ejecutó nada
+    nuevo para esta comprobación.
+  - **Evidencia:** salida de `jobs list-runs` (bundle vacío y run manual) + fila
+    en `evidence.md`.
 
 - [ ] **T-18 — Cutover real** (~30 min)
   - **RF:** RF-6.
