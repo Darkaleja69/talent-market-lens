@@ -501,19 +501,19 @@ Después de que T-19 confirme la noche en verde:
 
 | Paso | Hora (Madrid) | Quién | ID / commit | Resultado |
 |---|---|---|---|---|
-| Dry-run T-17 (bundle 0 runs) | | | `916863262593632` | |
-| Baseline de conteos y `meta.json` | | | | |
-| Run manual del domingo `SUCCEEDED` | | | `704156530681034` | |
-| Manual `PAUSED` | | | `704156530681034` | |
-| Merge de la spec a `main` + push (T-15..T-17 + `UNPAUSED`) | | | | |
-| CI verde sobre `main` | | | | |
-| `bundle deploy -t prod` | | | | |
-| Bundle `UNPAUSED` verificado | | | `916863262593632` | |
-| Run de las 23:00 | | | | |
-| Run `SUCCEEDED` + conteos + `meta.json` | | | | |
-| Rollback en seco (T-20) | | | | |
-| Restauración del cutover tras T-20 | | | | |
-| Git folder actualizada a `main` | | | | |
+| Dry-run T-17 (bundle 0 runs) | 2026-10-18 23:05 | asistente | `916863262593632` | 0 runs |
+| Baseline de conteos y `meta.json` | pendiente antes del lunes 23:00 | persona | — | se captura con el estado post-run manual, sin runs entre medias |
+| Run manual del domingo `SUCCEEDED` | 23:00:51–23:19:28 | schedule | `364055615164423` | SUCCESS |
+| Manual `PAUSED` | 23:21 | persona (UI) | `704156530681034` | PAUSED |
+| Merge de la spec a `main` + push (T-15..T-18) | 23:21:46 | asistente | `5635c89` | merge OK |
+| CI verde sobre `main` | 23:21:50–23:22:02 | CI | `39167501125` | success |
+| `bundle deploy -t prod` | ≈23:24 | persona | — | deploy OK (no ejecuta nada) |
+| Bundle `UNPAUSED` verificado | 23:24:40 | asistente | `916863262593632` | UNPAUSED, 7 tareas, 0 runs |
+| Run de las 23:00 | lunes 19, 23:00 | schedule | — | pendiente |
+| Run `SUCCEEDED` + conteos + `meta.json` | martes 20, mañana | persona | — | pendiente |
+| Rollback en seco (T-20) | martes 20 o miércoles 21 | persona | — | pendiente |
+| Restauración del cutover tras T-20 | — | persona | — | pendiente |
+| Git folder actualizada a `main` | tras T-19 | persona | — | pendiente |
 
 ---
 

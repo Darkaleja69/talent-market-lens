@@ -414,7 +414,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Evidencia:** salida de `jobs list-runs` (bundle vacío y run manual) + fila
     en `evidence.md`.
 
-- [ ] **T-18 — Cutover real** (~30 min)
+- [x] **T-18 — Cutover real** (~30 min)
   - **RF:** RF-6.
   - **Depende de:** T-17.
   - **Objetivo:** el bundle pasa a ser la fuente de verdad del job de producción.
@@ -422,7 +422,18 @@ completo —incluida la tarea de export web— en el bundle.
     hora e ids.
   - **Hecho cuando:** solo el job del bundle está activo con la programación; no
     queda ningún job manual habilitado.
-  - **Evidencia:** captura + ids + hora en `evidence.md`.
+  - **Resultado (2026-10-18):** run manual `364055615164423` **SUCCESS**
+    (23:00:51–23:19:28); manual `704156530681034` **PAUSED** a las 23:21; merge
+    de la rama a `main` `5635c89` (T-15..T-18, `AGENTS.md` de `main`
+    restaurado) y push; CI verde `39167501125`; `bundle deploy -t prod` a las
+    23:24 → bundle `916863262593632` **UNPAUSED**, misma cron/TZ
+    (`50 0 23 * * ?`/`Europe/Madrid`), 7 tareas, `timeout_seconds: 1800`,
+    `max_concurrent_runs: 1` y **0 runs**. Solo el bundle queda programado; el
+    manual queda pausado y conservado como rollback. Primer run del bundle:
+    lunes 19-oct a las 23:00.
+  - **Evidencia:** `jobs get` + `jobs list-runs` (bundle vacío, manual con el run
+    SUCCESS), CI `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39167501125`,
+    merge `5635c89`, tabla §10 de `cutover.md` y fila en `evidence.md`.
 
 - [ ] **T-19 — Noche real en verde** (~20 min, a la mañana siguiente)
   - **RF:** RF-6.
