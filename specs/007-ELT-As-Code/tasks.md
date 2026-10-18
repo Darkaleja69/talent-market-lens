@@ -399,13 +399,20 @@ completo —incluida la tarea de export web— en el bundle.
     bloqueantes.
   - **Evidencia:** `cutover.md` (§11 con el OK) + fila en `evidence.md`.
 
-- [ ] **T-17 — Dry-run del cutover** (~25 min)
+- [x] **T-17 — Dry-run del cutover** (~25 min)
   - **RF:** RF-6, RF-9.
   - **Objetivo:** desplegar prod en pausa y comprobar que no dispara.
   - **Preguntas guía:** ¿El job en pausa no se dispara a su hora? ¿Tareas y
     dependencias coinciden con el manual?
   - **Hecho cuando:** tras unas horas no hay ningún run del job del bundle.
-  - **Evidencia:** capturas de "sin runs" + checklist del cutover.md marcado.
+  - **Resultado (2026-10-18):** el deploy en pausa ya lo hizo T-15 (job
+    `916863262593632`, `PAUSED`, cron `50 0 23 * * ?`/`Europe/Madrid`). A las
+    **23:05**, pasada la hora programada, `jobs list-runs` del bundle devuelve
+    `[]` (**0 runs**); el job manual `704156530681034` lanzó su run periódico
+    `364055615164423` a las 23:00:51 (RUNNING). No se desplegó ni ejecutó nada
+    nuevo para esta comprobación.
+  - **Evidencia:** salida de `jobs list-runs` (bundle vacío y run manual) + fila
+    en `evidence.md`.
 
 - [ ] **T-18 — Cutover real** (~30 min)
   - **RF:** RF-6.
