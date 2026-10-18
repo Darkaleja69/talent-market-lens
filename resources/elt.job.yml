@@ -131,5 +131,5 @@ resources:
       performance_target: PERFORMANCE_OPTIMIZED
       queue:
         enabled: true
-      timeout_seconds: 0
+      timeout_seconds: 1800
       webhook_notifications: {}

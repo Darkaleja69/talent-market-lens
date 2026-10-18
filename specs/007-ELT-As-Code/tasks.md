@@ -277,7 +277,7 @@ completo —incluida la tarea de export web— en el bundle.
     fecha + evidencia registrada.
   - **Evidencia:** run id, duración, tabla de conteos, capturas.
 
-- [ ] **T-11 — Ajustes de compute y límites** (~20 min)
+- [x] **T-11 — Ajustes de compute y límites** (~20 min)
   - **RF:** RF-2, RF-3.
   - **Depende de:** T-10.
   - **Objetivo:** dejar el entorno dev barato y seguro.
@@ -286,6 +286,13 @@ completo —incluida la tarea de export web— en el bundle.
     disponible?
   - **Hecho cuando:** cambios aplicados, validate verde y una tarea de prueba
     vuelve a correr bien (si cambió el compute).
+  - **Resultado (2026-10-18):** compute de dev sin cambios (mismo job cluster
+    `tm-lens-job`, `Standard_D4ds_v4` single node; serverless descartado por
+    alcance y la única policy de jobs prohíbe el single-node, así que no se
+    aplica); `timeout_seconds` del job de `0` a **1800 s (30 min)** en el
+    recurso base → dev **y** prod, con las 7 tareas a `0` y
+    `max_concurrent_runs: 1` intacto; validate dev/prod en verde. Desviación
+    deliberada de prod (el job manual no tenía timeout) a listar en T-15.
   - **Evidencia:** diff + nota de coste en `evidence.md`.
 
 ## 3. Validación continua (CI)
