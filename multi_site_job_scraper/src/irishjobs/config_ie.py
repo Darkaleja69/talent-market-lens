@@ -66,6 +66,11 @@ DEFAULT_CONFIG = {
     "max_consecutive_empty_combos": 25,
     # Calentamiento de sesion (portada + consentimiento) antes de los combos.
     "warmup": True,
+    # Canal de navegador opt-in (T-34, sonda 2026-10-17): Akamai rechaza el
+    # Chromium empaquetado de patchright con 403 y acepta el Chrome real
+    # instalado (200 con tarjetas). Sin la clave, launch_context usa el
+    # binario por defecto (resto de portales sin cambios).
+    "browser_channel": "chrome",
 
     "delays": {
         "between_scrolls": [1.5, 3.0],

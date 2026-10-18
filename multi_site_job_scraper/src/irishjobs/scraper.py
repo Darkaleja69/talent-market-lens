@@ -206,8 +206,14 @@ class IrishJobsScraper:
     def _launch_browser(self, locale: str, timezone: str, profile_name: str) -> None:
         if self._context:
             close_context(self._context)
+        # Canal de navegador opt-in (T-34): irishjobs lo fija en su config
+        # (`browser_channel: "chrome"`) porque Akamai rechaza el Chromium
+        # empaquetado con 403; sin la clave se usa el binario por defecto.
+        # El relanzamiento de `_ensure_browser_alive` pasa por aqui, asi que
+        # hereda el mismo canal.
         self._context = launch_context(self._pw, locale=locale, timezone=timezone,
-                                       profile_name=profile_name)
+                                       profile_name=profile_name,
+                                       channel=self.config.get("browser_channel"))
         self._context.on("page", self._handle_popup)
         try:
             self._context.add_init_script("""

@@ -43,11 +43,18 @@ def _resolve_headless() -> bool:
 
 def launch_context(pw: Playwright, locale: str = "en-GB",
                    timezone: str = "Europe/Zurich",
-                   profile_name: str = "default") -> BrowserContext:
+                   profile_name: str = "default",
+                   channel: str | None = None) -> BrowserContext:
     """Lanza Chromium con perfil persistente.
 
     profile_name permite que cada scraper use su propio perfil aislado
     para ejecucion en paralelo sin conflictos.
+
+    channel permite lanzar un navegador instalado en vez del Chromium
+    empaquetado de patchright (p. ej. channel="chrome"); `None` mantiene el
+    binario por defecto y no cambia el comportamiento de los demas portales.
+    Solo lo activa donde esta auditado (irishjobs: Akamai rechaza el
+    fingerprint del empaquetado con 403 y el Chrome real recibe 200).
     """
     headless = _resolve_headless()
     profile_dir = PROFILE_DIR / profile_name
@@ -73,6 +80,8 @@ def launch_context(pw: Playwright, locale: str = "en-GB",
         ],
         ignore_default_args=["--enable-automation"],
     )
+    if channel is not None:
+        launch_kwargs["channel"] = channel
 
     # Reintentos: lanzar varios Chromium a la vez (run_all en paralelo) puede
     # saturar la maquina y colgar el arranque. Timeout generoso + retry.
