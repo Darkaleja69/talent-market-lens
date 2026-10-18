@@ -1,0 +1,80 @@
+Incidencia del run IE 2026-10-18 (indeed_jobs_scraper/output/log_20261018_0219.log)
+Objetivo: explicar 102/116 descripciones (14 sin descripcion).
+
+Hechos de cabecera:
+- offers total_offers_raw=172, unicas=116 (metadata scrape_metadata_20261018_0219.json)
+- desc-cache cargado al inicio: 650 entradas; guardado final: 706
+- autoOpen embebido (sanitizedJobDescription): 1 por SERP en las 16 SERPs
+- enrich_attempted=52, enrich_success=51 (metadata); rate=0.9; max_enrich=15 (nunca actuo: max. candidatas=13)
+
+Tabla por SERP (derivada del log; 'parseadas', 'desc-cache', 'enriquecimiento limitado', 'enriquecidas'):
+
+ # | termino        | ciudad   | pag | parseadas | autoOpen | cache_fill | candidatas | intentadas |  ok | fallo_click | saltadas_rate
+--------------------------------------------------------------------------------------------------------------------------------------
+ 1 | data           | Dublin   |   1 |        15 |        1 |         13 |          1 |          1 |   1 |          0 |             0
+ 2 | data           | Dublin   |   2 |        15 |        1 |          1 |         13 |         11 |  11 |          0 |             2
+ 3 | data           | Cork     |   1 |        10 |        1 |          7 |          2 |          1 |   1 |          0 |             1
+ 4 | data           | Cork     |   2 |        10 |        1 |          8 |          1 |          1 |   1 |          0 |             0
+ 5 | data engineer  | Dublin   |   1 |        15 |        1 |          5 |          9 |          8 |   8 |          0 |             1
+ 6 | data engineer  | Dublin   |   2 |        15 |        1 |          7 |          7 |          6 |   6 |          0 |             1
+ 7 | data engineer  | Cork     |   1 |        15 |        1 |         10 |          4 |          3 |   3 |          0 |             1
+ 8 | data engineer  | Cork     |   2 |         8 |        1 |          0 |          7 |          6 |   5 |          1 |             1
+ 9 | data analyst   | Dublin   |   1 |        15 |        1 |         10 |          4 |          3 |   3 |          0 |             1
+10 | data analyst   | Dublin   |   2 |        10 |        1 |          2 |          7 |          6 |   6 |          0 |             1
+11 | data analyst   | Cork     |   1 |         7 |        1 |          3 |          3 |          2 |   2 |          0 |             1
+12 | data analyst   | Cork     |   2 |         7 |        1 |          4 |          2 |          1 |   1 |          0 |             1
+13 | data scientist | Dublin   |   1 |        10 |        1 |          7 |          2 |          1 |   1 |          0 |             1
+14 | data scientist | Dublin   |   2 |        10 |        1 |          8 |          1 |          1 |   1 |          0 |             0
+15 | data scientist | Cork     |   1 |         5 |        1 |          2 |          2 |          1 |   1 |          0 |             1
+16 | data scientist | Cork     |   2 |         5 |        1 |          4 |          0 |          0 |   0 |          0 |             0
+--------------------------------------------------------------------------------------------------------------------------------------
+   | TOTAL          |          |     |       172 |       16 |         91 |         65 |         52 |  51 |          1 |            13
+
+Aritmetica exacta:
+- candidatas sin descripcion (tras cache+autoOpen): 65 (suma por SERP, con repeticiones entre SERPs)
+- intentadas (clics): 52  == enrich_attempted del metadata
+- exitosas: 51 ; fallos de clic: 1  (log WARNING 'Locator.click: Timeout 5000ms exceeded')
+- saltadas por el sampler rate=0.9: 13
+
+Comprobacion del muestreo (parser.py): sample_size = max(1, int(len(candidates) * rate))
+  - candidatas 1 -> int(0.9)=0 -> max(1,0)=1           (intenta 1, saltadas 0)
+  - candidatas 2 -> int(1.8)=1                          (intenta 1, saltadas 1)
+  - candidatas 13 -> int(11.7)=11                       (intenta 11, saltadas 2)
+  Con rate=0.9 el int() por defecto + max(1,...) garantiza saltarse 1 candidata en casi todos los SERPs pequenos.
+
+Cuadre final:
+  65 candidatas (suma por SERP) = 52 intentadas + 13 saltadas
+  descripciones finales: 102/116 ; perdidas: 14 = 13 saltadas + 1 fallo de clic
+
+Mapeo 1:1 de las 14 perdidas (primera aparicion segun columnas search_term/city_query/page del parquet):
+
+jk                 | SERP primera aparicion       | causa
+901dd88dbe172f42   | data|Cork|p1                 | rate_sample_skip (later duplicate enriched; dedup kept first)
+34f3927e462082ba   | data|Dublin|p2               | rate_sample_skip
+1a1c22fdb4e8d0c8   | data|Dublin|p2               | rate_sample_skip (later duplicate enriched; dedup kept first)
+b1124aa142402548   | data analyst|Cork|p1         | rate_sample_skip
+03c788416d54e360   | data analyst|Cork|p2         | rate_sample_skip (later duplicate enriched; dedup kept first)
+97871e2b39768a48   | data analyst|Dublin|p1       | rate_sample_skip
+089f5dda4cffc687   | data analyst|Dublin|p2       | rate_sample_skip
+3bf7a02edbfa31ea   | data engineer|Cork|p1        | rate_sample_skip
+3a8c91f14177f18a   | data engineer|Cork|p2        | click_timeout_after_sample
+1d6a7c412c7013d1   | data engineer|Cork|p2        | rate_sample_skip (later duplicate enriched; dedup kept first)
+8c66d6c5c853f013   | data engineer|Dublin|p1      | rate_sample_skip
+6a9892b63fcaf292   | data engineer|Dublin|p2      | rate_sample_skip
+ebf9dffea9e49470   | data scientist|Cork|p1       | rate_sample_skip
+4488962327854656   | data scientist|Dublin|p1     | rate_sample_skip
+
+Casos con entrada en el cache del run (creada DESPUES de la primera aparicion por una copia duplicada):
+  - 1a1c22fdb4e8d0c8: cached_at=2026-10-18T00:51:11+00:00 desc_html_len=15989
+  - 901dd88dbe172f42: cached_at=2026-10-18T00:36:13+00:00 desc_html_len=14515
+  - 1d6a7c412c7013d1: cached_at=2026-10-18T01:36:23+00:00 desc_html_len=12295
+  - 03c788416d54e360: cached_at=2026-10-18T01:59:43+00:00 desc_html_len=13102
+  (el export deduplica quedandose con el PRIMER objeto por job_key y no mezcla campos;
+   la copia enriquecida posterior no llega al parquet, aunque si al cache para el run siguiente)
+
+Metricas del metadata:
+  enrich_success_rate = 51/52 (98%) -> alto, pero cuenta solo la muestra intentada
+  description_filled_rate = 102/116 (87.9%) -> metrica honesta; la diferencia son las 13 saltadas + 1 fallo
+
+Fuentes: log_20261018_0219.log (lineas 'parseadas', 'desc-cache', 'enriquecimiento limitado',
+'enriquecidas', WARNING 'enriquecimiento fallido'), scrape_metadata_20261018_0219.json, parquet del run.

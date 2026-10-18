@@ -74,7 +74,11 @@ locales de usuario se escriben como <HOME>.
 - **Receta:** enrich_success is 0/53-0/72: the right-panel wait times out and the code continues before the /viewjob fallback; page 2 asks for login and --limit triggers Cloudflare. Check the real panel, /viewjob with the real session, page-2 behaviour and mosaic-data. Reorder the fallback, update selectors, emit progress during enrichment and resolve or document login and --limit.
 - **Alcance de prueba propuesto:** 1 country x 1 term x 1 page
 - **Restricciones:** no Azure upload; no landing update; no merge
-- **Pendiente:** comprobar robots.txt y términos de uso, separar hechos de hipótesis y confirmar la causa probable (RF-3).
+- **Investigación completada:** 2026-10-18 (offline + navegador propio; sin ejecutar el scraper).
+- **Causa raíz (combinada):** 13 de las 14 descripciones perdidas las saltó el muestreo `rate=0.9` (`int()` + mínimo forzado saltan 1-2 candidatas por SERP pequeña); 1 clic agotó su timeout sin reintento (`jk=3a8c91f14177f18a`); 4 duplicados enriquecidos después no llegaron al parquet porque `_dedup` no fusionaba campos. El panel derecho y el auto-open sí traen descripción de todas las ofertas observadas.
+- **Auditoría de campos:** `salary` = exactamente lo publicado por el portal (36,2 %; el resto es "Pay information not provided"); `work_mode` parcial y con `REMOTE_HYBRID` mal mapeado a `remote`; `skills` no existe como campo publicado (se deriva de la descripción en Databricks).
+- **Meta de calidad propuesta:** `description` 100 % del alcance (obligatoria); `salary` y `work_mode` sin meta (`target_pct: null`) + regla de no-regresión (el portal solo los publica parcialmente); `skills` sin meta.
+- **Evidencias y detalle:** `evidence/investigation-report.md` (§3 causa raíz, §4 auditoría, §6 cambio recomendado) y `evidence/indeed-20261018-*.txt|md|csv` (aritmética del enrich, extracto del log, 14 filas perdidas, observaciones en vivo y robots/TOS).
 <!-- /record:section:investigation -->
 
 <!-- record:section:changes -->
