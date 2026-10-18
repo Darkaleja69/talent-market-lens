@@ -1,7 +1,7 @@
 resources:
   jobs:
     elt:
-      name: ${var.job_name}
+      name: ${var.job_name_t13_typo}
       job_clusters:
         - job_cluster_key: tm-lens-job
           new_cluster:
