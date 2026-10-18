@@ -1,0 +1,31 @@
+name: databricks-bundle-deploy-dev
+
+# Manual, dev-only deploy. The `dev` environment is protected (required
+# reviewers), so a dispatch waits for approval before deploying.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-dev:
+    # Only allow dispatching from the spec branch or main.
+    if: github.ref_name == 'spec/007-elt-as-code' || github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+        with:
+          version: 1.21.0
+      - name: Deploy bundle (dev)
+        run: databricks bundle deploy -t dev
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
