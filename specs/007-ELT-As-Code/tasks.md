@@ -297,7 +297,7 @@ completo —incluida la tarea de export web— en el bundle.
 
 ## 3. Validación continua (CI)
 
-- [ ] **T-12 — Workflow de validación** (~30 min)
+- [x] **T-12 — Workflow de validación** (~30 min)
   - **RF:** RF-3, RF-5.
   - **Objetivo:** validar el bundle automáticamente en cada cambio.
   - **Preguntas guía:** ¿qué secrets necesita el runner y con qué alcance
@@ -307,7 +307,15 @@ completo —incluida la tarea de export web— en el bundle.
     `DATABRICKS_HOST` y `DATABRICKS_TOKEN` de dev; `concurrency` para no
     solapar.
   - **Hecho cuando:** el workflow pasa en un push real de esta rama.
-  - **Evidencia:** URL del run en `evidence.md`.
+  - **Resultado (2026-10-18):** workflow `.github/workflows/databricks-bundle-validate.yml`
+    (CLI 1.21.0 fijada; dispara en `pull_request`/`push` con filtro de rutas
+    —`databricks.yml`, `resources/**`, `databricks_notebooks/**` y el propio
+    workflow— más `workflow_dispatch`; `concurrency` y `contents: read`; solo
+    valida dev, sin deploy). Secretos de repo `DATABRICKS_HOST`/`DATABRICKS_TOKEN`;
+    el PAT apareció en claro al crear el fichero (nunca commiteado) y se rotó;
+    endurecido moviendo el PAT al step de validación y con `timeout-minutes: 10`.
+    Run verde en un push real; verificación independiente sin bloqueantes.
+  - **Evidencia:** URLs de los runs en `evidence.md`.
 
 - [ ] **T-13 — Probar rojo y verde** (~20 min)
   - **RF:** RF-5.
