@@ -317,13 +317,21 @@ completo —incluida la tarea de export web— en el bundle.
     Run verde en un push real; verificación independiente sin bloqueantes.
   - **Evidencia:** URLs de los runs en `evidence.md`.
 
-- [ ] **T-13 — Probar rojo y verde** (~20 min)
+- [x] **T-13 — Probar rojo y verde** (~20 min)
   - **RF:** RF-5.
   - **Depende de:** T-12.
   - **Objetivo:** comprobar que el CI detecta un bundle inválido.
   - **Pistas y docs:** PR con un error intencionado (variable inexistente),
     ver el rojo, revertir y ver el verde.
   - **Hecho cuando:** quedan registrados los dos runs (rojo y verde).
+  - **Resultado (2026-10-18):** PR #1 desde `test/t13-bundle-invalido` con error
+    intencionado (`resources/elt.job.yml` → `${var.job_name_t13_typo}`): la CI
+    falló en `pull_request` (rojo); revertido con `git revert` y run en verde.
+    Nota: al revertir, el diff de la PR queda vacío en las rutas filtradas por
+    `paths`, así que el verde lo produce el trigger `push` (el filtro de
+    `pull_request` no dispara si no hay cambios netos en esas rutas). La rama de
+    la spec quedó restaurada (el merge anula el error) y la rama de prueba se
+    borró.
   - **Evidencia:** URLs en `evidence.md`.
 
 - [ ] **T-14 — [extra] Deploy dev por `workflow_dispatch`** (~25 min)
