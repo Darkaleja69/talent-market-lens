@@ -1,0 +1,32 @@
+# Extracto de multi_site_job_scraper/data/irishjobs/run.log (saneado: rutas <REPO>)
+# Tramo de la prueba en vivo acotada de T-34 (rama repair/irishjobs-20261017):
+# lineas 92.866-92.881 del fichero append-only, desde el banner de arranque
+# (2026-10-17 11:38:01 local, +02:00) hasta la ultima linea del run
+# (11:38:45). No hay lineas posteriores: el fichero quedo cerrado tras DONE.
+#
+# Hechos del tramo:
+#   - Solo se proceso la combinacion [1/13] ('Data Analyst' en Ireland
+#     (nationwide)): el portal se detuvo solo al detectar el bloqueo (diseno T-34).
+#   - 1 linea PROGRESS (latido con 0 tarjetas: parsed=1; el watchdog no lo
+#     habria matado).
+#   - 1 linea BLOCKED: reason=challenge:access_denied, status=403.
+#   - 0 ofertas y 0 detalles; el store conserva el output previo (run sin datos).
+#   - Cierre normal con === IRISHJOBS DONE: 0 ofertas nuevas, 0 total, 0 detalles ===
+#     (sin exit 75: el watchdog no intervino).
+
+11:38:01 INFO    irishjobs: === IrishJobs Scraper ===
+11:38:01 INFO    src.core.store: Reanudacion: 92 job_ids cargados de <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\state.json
+11:38:01 INFO    irishjobs: Combinaciones: 1 roles x 13 ciudades = 13
+11:38:09 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-GB tz=Europe/Dublin profile=irishjobs
+11:38:33 INFO    irishjobs: Warmup: portada cargada (status=200).
+11:38:33 INFO    irishjobs: --- [1/13] 'Data Analyst' en Ireland (nationwide) (acumulado: 0, detalles: 0) ---
+11:38:33 INFO    irishjobs: SERP page 1/1: https://www.irishjobs.ie/jobs/data-analyst?age=7
+11:38:40 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+11:38:40 INFO    src.irishjobs.serp: Tarjetas validas: 0
+11:38:40 ERROR   irishjobs: BLOCKED source=irishjobs reason=challenge:access_denied url=https://www.irishjobs.ie/jobs/data-analyst?age=7 status=403
+11:38:41 INFO    irishjobs: Evidencia de bloqueo escrita: <REPO>\multi_site_job_scraper\data\irishjobs\blocked_20261017_113840.txt
+11:38:41 INFO    irishjobs: PROGRESS source=irishjobs parsed=1 new=0 ts=2026-10-17T09:38:41+00:00
+11:38:41 ERROR   irishjobs: Bloqueo detectado en 'Data Analyst' (challenge:access_denied): parando el portal.
+11:38:45 WARNING src.core.store: CSV: run sin datos; se conserva el output previo <REPO>\multi_site_job_scraper\data\irishjobs\output\jobs.csv
+11:38:45 WARNING src.core.store: Parquet: run sin datos; se conserva el output previo <REPO>\multi_site_job_scraper\data\irishjobs\output\jobs.parquet
+11:38:45 INFO    irishjobs: === IRISHJOBS DONE: 0 ofertas nuevas, 0 total, 0 detalles ===

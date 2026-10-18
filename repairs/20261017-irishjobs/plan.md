@@ -76,6 +76,7 @@ locales de usuario se escriben como <HOME>.
 - **Investigación completada (2026-10-17):** informe en `evidence/investigation-report.md`, con sondas de navegador real sobre `www.irishjobs.ie` (SERP nacional y de ciudad, SERP vacía, ficha de detalle, robots.txt y TOS).
   - **Hechos:** un navegador normal recibe el SERP completo por SSR (25 tarjetas con los selectores actuales, que **no** han rotado); el navegador del scraper lleva 15 noches con 0 tarjetas en todos los combos y sin ninguna línea `PROGRESS`, con `page.goto` sin error. El perfil del scraper no renovó cookies normales desde el run sano del 2026-10-01: solo acumuló `_abck` (Akamai) el 11-10 sin actualizarla. El sitio está tras Akamai Bot Manager (`ak_p`, sensor ofuscado).
   - **Causa primaria (probable):** bloqueo silencioso de Akamai al navegador del scraper (respuesta mitigada sin listado). **Causa secundaria (defectos confirmados):** sin latido si la página no trae tarjetas (el watchdog mata a los 40 min), contador basado en tarjetas post-filtro, sin detección de bloqueo, paginación con `action=paging_next` (vetada por robots.txt) y `description_full` del JSON-LD sobrescrita por el DOM.
+  - **Iteración 2 (2026-10-17, sonda `channel="chrome"`):** nuevo hecho que afina la causa primaria: con el mismo equipo e IP y perfil scratch nuevo, el **Chrome real instalado (155)** recibe **200 con 25 tarjetas** en carga directa y tras el flujo de warmup; el Chromium empaquetado de patchright (148) seguía recibiendo 403 `challenge:access_denied` ese mismo día (11:38 y 11:47, también con perfil renovado). No es el perfil ni la IP: es el **binario/fingerprint del navegador empaquetado**. Evidencia: `evidence/probe-chrome-channel-20261017.md`.
   - **Veredictos de hipótesis (§6.4):** H1 parcial (contenido intacto al navegador normal; bloqueo al del scraper); H2 refutada (no hay API interna de listado y robots veta `/JobSearch/*/api/`); H3 refutada (selectores vigentes); H4 confirmada (latido por página, 0 tarjetas también avanza); H5 refutada (`stepstone_nl` comparte clase y sí parsea); H6 confirmada (los descartes del filtro de título congelan el contador); H7 refutada (la descripción completa está en el JSON-LD del detalle, pero el DOM la sobrescribe).
   - **robots.txt/TOS:** SERP (`/jobs/...`) y detalle (`/job/...`) permitidos para `User-agent: *`; `Disallow: /*?action=`/`/*&action=` y `/*&page=` vetan la paginación actual (se sustituye por el `href` propio del sitio); los TOS no prohíben el rastreo de forma explícita, sí interferir/sobrecargar (4.8.1) y el uso "in competition" (4.8.2/4.8.3) — se mantiene ritmo humano y volumen bajo.
   - **Riesgo:** el cuerpo exacto de la respuesta mitigada no se pudo observar en la investigación (no se ejecutan scrapers); la prueba en vivo lo confirmará con el volcado `blocked_*.txt` y la línea `BLOCKED`.
@@ -104,19 +105,33 @@ locales de usuario se escriben como <HOME>.
     (`REMOTE_WORKING`/`TELECOMMUTE` → Remote, `HYBRID` → Hybrid); `datePosted`
     prioritario para `posted_datetime` cuando existe (ya lo era).
   - `multi_site_job_scraper/src/irishjobs/config_ie.py` — `detect_block: true`,
-    `max_consecutive_empty_combos: 25` y `warmup: true` (las tres claves solo
-    las activa irishjobs; sin ellas, la clase compartida queda desactivada).
+    `max_consecutive_empty_combos: 25`, `warmup: true` y
+    `browser_channel: "chrome"` (las cuatro claves solo las activa irishjobs;
+    sin ellas, la clase compartida mantiene guarda, warm-up y canal
+    desactivados).
+  - `multi_site_job_scraper/src/irishjobs/scraper.py` — `_launch_browser` lee
+    `browser_channel` de la config y lo pasa a `launch_context`; el
+    relanzamiento de `_ensure_browser_alive` pasa por ahí y conserva el canal.
   - `multi_site_job_scraper/src/core/progress.py` — solo docstring: `parsed`
     crece con las tarjetas parseadas de cada página o, como mínimo, 1 por
     página procesada (aunque no traiga tarjetas); una página vacía es progreso
     y el formato de la línea no cambia.
   - `multi_site_job_scraper/src/core/browser.py` — retirado el parche manual de
     `navigator.webdriver` (patchright ya lo cubre y era una inconsistencia de
-    huella); módulo compartido, sin cambios de firma.
+    huella) y añadido el parámetro **opt-in** `channel`: se reenvía a
+    `launch_persistent_context` **solo cuando no es `None`**, de modo que el
+    resto de portales mantiene el binario empaquetado. Se activa para irishjobs
+    (`browser_channel: "chrome"`) porque, según la sonda del mismo día
+    (`evidence/probe-chrome-channel-20261017.md`, misma IP y equipo, perfil
+    scratch nuevo), el Chromium empaquetado (148) es rechazado por Akamai con
+    403 mientras el Chrome real instalado (155) recibe 200 con 25 tarjetas,
+    tanto en carga directa como tras el warmup (3 de 6 cargas del presupuesto;
+    variante B no necesaria).
   - `multi_site_job_scraper/tests/` — suites nuevas
     (`test_irishjobs_serp.py`, `test_irishjobs_heartbeat.py`,
-    `test_irishjobs_detail.py`), helper `fake_dom.py` (lxml, ya en el stack) y
-    4 fixtures HTML saneadas en `tests/fixtures/`.
+    `test_irishjobs_detail.py`, `test_irishjobs_browser_channel.py`), helper
+    `fake_dom.py` (lxml, ya en el stack) y 4 fixtures HTML saneadas en
+    `tests/fixtures/`.
 - **Diseño:** la detección de bloqueo, la guarda de combos vacíos y el warm-up
   solo se activan donde están auditados (claves `detect_block`, `warmup` y
   `max_consecutive_empty_combos` de la config, fijadas en `config_ie.py`).
@@ -132,7 +147,9 @@ locales de usuario se escriben como <HOME>.
   descarta el banner de consentimiento con el mismo perfil persistente; **no**
   se usa el formulario de búsqueda (su envío es JS y no se verificó en vivo:
   usarlo a ciegas añadiría fragilidad al arranque), justificación registrada
-  aquí.
+  aquí. El canal de navegador (`browser_channel`) sigue la misma regla de
+  aislamiento: solo lo declara irishjobs y `stepstone_nl` no lo hereda (con
+  test explícito).
 - **Metas de calidad:** refinadas según la auditoría del informe
   (`quality_before.json`): salary 85.0, work_mode 60.0 y skills sin meta. El
   brief original proponía 100 y queda superado por `quality_before.json`, que
