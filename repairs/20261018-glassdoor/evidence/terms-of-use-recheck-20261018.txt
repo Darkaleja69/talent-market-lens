@@ -1,0 +1,19 @@
+# Re-comprobacion de Terminos de Uso de Glassdoor — 2026-10-18 (~12:0x +02)
+# Metodo: navegador real (agent-browser), URL https://www.glassdoor.com/about/terms/
+# (la misma que el registro 20261012; una sola carga de pagina, sin interaccion).
+# Resultado: pagina cargada (titulo "Terms of Use | Glassdoor").
+# Cláusula relevante (conducta prohibida), texto vigente hoy:
+
+"Introduce software or automated agents to the services, or access the
+services so as to produce multiple accounts, generate automated messages, or
+to scrape, strip, or mine data from the services without our express written
+permission;"
+
+# Nota: es la misma clausula registrada el 2026-10-12 en
+# repairs/20261012-glassdoor/evidence/terms-of-use-clause.txt; no hay cambio
+# nuevo. La decision de la persona (2026-10-12, RF-6, opcion A: continuar con
+# la via BFF /graph asumiendo el conflicto con robots.txt/TOS) se mantiene y no
+# se propone nada que amplie su alcance.
+# robots.txt de glassdoor.ie (2026-10-18): /graph sigue en Disallow, igual que
+# /api/, /api-web/, /autocomplete y */*Ajax.htm; el SERP /Job/jobs.htm?sc.keyword=
+# no esta en Disallow.

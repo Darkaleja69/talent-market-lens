@@ -1,0 +1,18 @@
+﻿# Cabeceras saneadas de GET https://www.glassdoor.ie/robots.txt (2026-10-18; set-cookie redactada)
+HTTP/1.1 200 OK
+Date: Sun, 18 Oct 2026 11:46:33 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+vary: Accept-Encoding
+content-security-policy: frame-ancestors 'self'
+referrer-policy: unsafe-url
+set-cookie: __cf_bm=<redactado>; HttpOnly; SameSite=None; Secure; Path=/; Domain=glassdoor.ie; Expires=Sun, 18 Oct 2026 12:16:33 GMT
+Cache-Control: public, max-age=1800
+last-modified: Sun, 18 Oct 2026 11:46:33 GMT
+expires: Sun, 18 Oct 2026 12:16:33 GMT
+cf-cache-status: EXPIRED
+Server: cloudflare
+CF-RAY: a4c74d9cbf230863-MAD
+alt-svc: h3=":443"; ma=86400
+

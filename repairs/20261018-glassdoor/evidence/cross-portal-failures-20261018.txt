@@ -1,0 +1,56 @@
+# Fallos de navegacion de otros portales en la misma noche (2026-10-17/18)
+# Fuente: multi_site_job_scraper/data/<portal>/run.log (ultimos tramos) y
+# scrapers-pipeline/logs/upload-2026-10-18.log. Rutas saneadas.
+
+## Ventana del fallo: ~00:05-00:31 (+02)
+
+- nvb (equipo con Chromium propio):
+  00:05:22 banner; 00:05:54 "Lanzando Chromium"; 00:07:05 "Cargando
+  https://www.nationalevacaturebank.nl para cookies Akamai..."; 00:09:38
+  "ERROR nvb: Error en scraper: Page.goto: Timeout 60000ms exceeded".
+- jobs_ch (Chromium propio):
+  00:05:24 banner; 00:11:10 y 00:18:38 "Error navegando a SERP (intento 1):
+  Page.goto: Timeout 60000ms exceeded"; 00:19:46 y 00:22:05 errores de
+  intento 2; 00:25:56 "JOBS_CH DONE: 0 ofertas nuevas".
+- stepstone_nl (mismo modulo que irishjobs):
+  00:10:19 y 00:28:55 "SERP fallido tras 3 intentos: Page.goto: Timeout
+  60000ms exceeded"; tambien 01:14:20; aun asi termino 01:57:52 con
+  "STEPSTONE_NL DONE: 4 ofertas nuevas" (se recupero).
+- irishjobs:
+  timeouts de detalle (30 s) a las 00:07:59, 00:09:07, 00:13:13, 00:14:26,
+  00:17:47; su salida si se actualizo en el run y acabo con exit 0
+  (outputs_merged la incluye).
+- devitjobs (sin navegador, API HTTP):
+  00:04:44-00:05:41 funciono con normalidad (16 ofertas; el API respondio a
+  las 00:04:55). No hay SSL/timeouts en su ultimo run.
+
+## Resultado agregado del run (data/merged/last_run.json)
+- results: {stepstone_nl: 0, devitjobs: 0, glassdoor: 0, jobs_ch: 0, nvb: 1,
+  irishjobs: 0}  (los valores son exit codes de cada portal)
+- outputs_merged: [irishjobs, stepstone_nl, devitjobs] -> glassdoor, nvb y
+  jobs_ch NO actualizaron salida; el merge parcial excluyo sus outputs viejos.
+- watchdog_blocked: [] (el watchdog no detuvo ningun portal; glassdoor salio
+  con exit 0).
+- El pipeline subio 1 parcial de multi_site (56 ofertas nuevas de 113 filas).
+
+## Cronico vs incidente (mtime de la ultima salida valida por portal)
+- glassdoor: 17/10 01:03:30 (ultimo run con datos: 105 ofertas).
+- stepstone_nl: 18/10 01:57:52 (este mismo run, se recupero).
+- devitjobs: 18/10 00:05:41 (este mismo run).
+- irishjobs: 18/10 11:59:42 (prueba del dia posterior; su rama de reparacion
+  T-34 se fusiono el 18/10 por la tarde).
+- nvb: 10/10 00:18:17 -> lleva ~1 semana fallando con goto timeout (no es
+  especifico de esta noche).
+- jobs_ch: 05/10 00:53:19 -> lleva fallando desde el 5-oct (tampoco es
+  especifico de esta noche).
+
+## Lectura
+- La noche del fallo, TRES portales con navegador (nvb, jobs_ch, glassdoor)
+  fallaron por timeouts de navegacion en la misma franja; un cuarto
+  (stepstone_nl) sufrio timeouts y se recupero despues; irishjobs sufrio
+  timeouts de detalle.
+- nvb y jobs_ch ya fallaban de forma cronica (comprobar en su reparacion
+  cuando toque); su fallo esa noche NO demuestra por si solo un incidente
+  general, pero refuerza que la franja 00:05-00:31 fue especialmente adversa.
+- Los eventos de Windows (Tcpip 4231 a las 00:29, UDP 4266 a las 00:58)
+  documentan agotamiento de puertos efimeros del equipo en esa ventana.
