@@ -1,0 +1,42 @@
+# Eventos de Windows relevantes para el run 2026-10-17/18 (equipo del proyecto)
+# Fuente: registro de eventos System/Application del equipo (consultas locales,
+# ventana 2026-10-17 22:00 - 2026-10-18 05:00). Sin rutas de usuario.
+
+## Agotamiento de puertos efimeros (Tcpip)
+- 18/10/2026 00:29:12  Id 4231 (Advertencia)
+  "Error en una solicitud para asignar un numero de puerto efimero del espacio
+  de puertos TCP global porque todos los puertos estan en uso."
+  (el evento se emite una vez por episodio; la presion de puertos puede
+  precederlo sin volver a registrarse)
+- 18/10/2026 00:58:02  Id 4266 (Advertencia)
+  idem para el espacio de puertos UDP global.
+- Historial: Id 4231 tambien el 12/10/2026 22:37; Id 4266 los dias 10, 11, 13
+  y 15/10 -> la presion de puertos es recurrente en este equipo, no un hecho
+  aislado del 18-oct.
+
+Configuracion TCP del equipo (consultada hoy):
+- Rango dinamico TCP/UDP: inicio 49152, 16384 puertos (valor por defecto).
+- Sin `MaxUserPort` ni `TcpTimedWaitDelay` en HKLM\SYSTEM\CurrentControlSet\
+  Services\Tcpip\Parameters (sin ajuste).
+- Conexiones en el momento de la consulta: TIME_WAIT=2, ESTABLISHED=85.
+
+## Wi-Fi (Intel Netwtw08)
+- 18/10/2026 00:31:21  Id 7003 "Roam Complete" x3 (roaming de la Wi-Fi).
+- Otros roams: 17/10 22:14, 22:50, 23:29, 23:32; 18/10 02:17.
+- No hay eventos de desconexion DHCP/DNS en la ventana del fallo.
+
+## Actualizaciones de Windows
+- 17/10 22:01 y 23:01: descargas/instalaciones de pequenas actualizaciones
+  (inteligencia de seguridad, apps Xbox/People) -> actividad de disco/red la
+  tarde/noche previa al run.
+- 18/10 01:34-01:36 y 02:46: mas instalaciones, ya despues de la ventana del
+  fallo de glassdoor (00:06-00:27).
+
+## Estado del equipo (consultado hoy, contexto)
+- RAM total: 8.373.960.704 bytes (7,8 GiB); memoria libre en la consulta:
+  ~648 MB; 32 procesos chrome.exe (Chrome de la persona + sesion
+  agent-browser) + 5 msedge.exe.
+- Ultimo arranque: 15/10/2026 08:37 (sin reinicios en la noche del fallo).
+- No hay eventos de Application Error/Windows Error Reporting de chrome.exe o
+  python en la ventana del fallo (la caida del "Network service" de Chromium
+  queda solo en el stderr del navegador que recoge Playwright).

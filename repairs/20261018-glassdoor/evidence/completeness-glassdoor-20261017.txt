@@ -1,0 +1,29 @@
+# Cobertura de campos de la ultima muestra con datos de glassdoor (run 17-oct)
+# Medida con `verification.completeness` (el modulo de la spec 001/004), sobre
+# el parquet conservado del run anterior:
+#   multi_site_job_scraper/data/glassdoor/output/jobs.parquet
+# (105 ofertas unicas; mismo mercado IE, misma config que el run fallido).
+# Comando (desde scrapers-pipeline): leer parquet con pq.read_table y
+# `measure_completeness(table, "glassdoor")`.
+
+readable=True rows=105 missing_columns=() error=None
+total_offers=105
+
+| campo        | obligatorio | valid | absent | invalid | pct   |
+|--------------|-------------|-------|--------|---------|-------|
+| id           | no          | 105   | 0      | 0       | 100.0 |
+| title        | si          | 105   | 0      | 0       | 100.0 |
+| company      | si          | 105   | 0      | 0       | 100.0 |
+| description  | si          | 105   | 0      | 0       | 100.0 |
+| salary       | no          | 70    | 35     | 0       | 66.7  |
+| skills       | no          | 83    | 22     | 0       | 79.0  |
+| work_mode    | no          | 9     | 96     | 0       | 8.6   |
+| location     | no          | 105   | 0      | 0       | 100.0 |
+| posted_date  | no          | 105   | 0      | 0       | 100.0 |
+
+# Referencia adicional: la prueba en vivo del 15-oct (23 ofertas, 1 rol x
+# 1 pagina; registro 20261012) midio salary 65.2 %, skills 91.3 %,
+# work_mode 13.0 %. Ambas muestras son coherentes: los obligatorios al 100 %,
+# opcionales parciales por lo que expone el portal.
+# El run fallido del 18-oct no tiene datos (quality_before.json: current_pct
+# null en todos los campos).

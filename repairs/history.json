@@ -2,9 +2,9 @@
   "schema_version": 1,
   "sources": {
     "glassdoor": {
-      "best_verified_offers": 23,
+      "best_verified_offers": 24,
       "last_result": "probado",
-      "last_run_date": "2026-10-12",
+      "last_run_date": "2026-10-18",
       "quality_delta_pp": null,
       "quality_ok": true
     },
