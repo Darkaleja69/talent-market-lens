@@ -188,6 +188,103 @@ class TestMapItemToOffer:
         assert offer.page == 2
         assert offer.scraped_at != ""
 
+    # --- work_mode (reparacion 2026-10-18) --------------------------------
+
+    def test_remote_hybrid_maps_to_hybrid(self):
+        item = {
+            "jobkey": "jk1",
+            "remoteWorkModel": {"type": "REMOTE_HYBRID", "text": "Hybrid work"},
+        }
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.workplace_type == "hybrid"
+        assert offer.is_remote is True
+
+    def test_remote_work_from_home_maps_to_remote(self):
+        item = {
+            "jobkey": "jk2",
+            "remoteWorkModel": {"type": "REMOTE_WORK_FROM_HOME", "text": "Remote"},
+        }
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.workplace_type == "remote"
+
+    def test_explicit_remote_model_not_overridden_by_heuristic(self):
+        # Titulo y localizacion dicen "remote", pero el modelo explicito manda.
+        item = {
+            "jobkey": "jk3",
+            "displayTitle": "Remote Data Analyst",
+            "formattedLocation": "Remote",
+            "remoteWorkModel": {"type": "REMOTE_HYBRID", "text": "Hybrid work"},
+        }
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.workplace_type == "hybrid"
+
+    def test_remote_model_text_used_when_type_missing(self):
+        item = {
+            "jobkey": "jk4",
+            "displayTitle": "Remote Data Analyst",
+            "remoteWorkModel": {"text": "Hybrid work"},
+        }
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.workplace_type == "hybrid"
+
+    def test_heuristic_still_applies_without_remote_model(self):
+        item = {"jobkey": "jk5", "displayTitle": "Trabajo remoto"}
+        offer = _map_item_to_offer(item, "ES", "Madrid", "data", 1, "es.indeed.com")
+        assert offer is not None
+        assert offer.workplace_type == "remote"
+
+    # --- job_type desde jobTypes (reparacion 2026-10-18) -------------------
+
+    def test_job_type_from_job_types_when_translated_attributes_empty(self):
+        item = {"jobkey": "jk6", "translatedAttributes": [], "jobTypes": ["Contract"]}
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.job_type == "Contract"
+
+    def test_job_type_uses_first_job_type(self):
+        item = {"jobkey": "jk7", "jobTypes": ["Full-time", "Permanent"]}
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.job_type == "Full-time"
+
+    def test_job_type_from_job_types_object_form(self):
+        item = {"jobkey": "jk8", "jobTypes": [{"text": "Permanent"}]}
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.job_type == "Permanent"
+
+    def test_translated_attributes_wins_over_job_types(self):
+        item = {
+            "jobkey": "jk9",
+            "translatedAttributes": [{"text": "Jornada completa"}],
+            "jobTypes": ["Contract"],
+        }
+        offer = _map_item_to_offer(item, "ES", "Madrid", "data", 1, "es.indeed.com")
+        assert offer is not None
+        assert offer.job_type == "Jornada completa"
+
+    def test_job_type_falls_back_when_translated_attributes_lack_text(self):
+        # Borde: translatedAttributes presente pero sin text/label (dict con
+        # otras claves) -> cae al primer jobTypes de la tarjeta.
+        item = {
+            "jobkey": "jk11",
+            "translatedAttributes": [{"foo": "bar"}],
+            "jobTypes": ["Contract"],
+        }
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.job_type == "Contract"
+
+    def test_job_type_empty_without_any_source(self):
+        item = {"jobkey": "jk10"}
+        offer = _map_item_to_offer(item, "IE", "Dublin", "data", 1, "ie.indeed.com")
+        assert offer is not None
+        assert offer.job_type == ""
+
 
 class TestExtractJobcardsResults:
     def test_valid_mosaic_data(self):
