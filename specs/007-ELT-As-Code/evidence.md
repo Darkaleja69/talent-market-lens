@@ -26,6 +26,7 @@ salidas saneadas se guardan junto a este fichero o en las rutas indicadas.
 | 2026-10-18 | T-12 | `.github/workflows/databricks-bundle-validate.yml`: CI que ejecuta `databricks bundle validate -t dev` (CLI 1.21.0 fijada) en `pull_request`/`push` con filtro de rutas (`databricks.yml`, `resources/**`, `databricks_notebooks/**`, el propio workflow) y `workflow_dispatch`; `concurrency` + `contents: read`; sin deploy. Secretos de repo `DATABRICKS_HOST`/`DATABRICKS_TOKEN` (PAT rotado al detectarse en claro en el fichero, sin llegar a commitearse); endurecido con el PAT acotado al step de validación (`timeout-minutes: 10`) | runs verdes en push real: `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39131570631` (commit `23bbe9c`) y `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39132271179` (commit `9b3c7ba`, tras el endurecimiento); verificación independiente sin bloqueantes |
 | 2026-10-18 | T-13 | Prueba rojo/verde del CI con la PR #1 (rama `test/t13-bundle-invalido`) y un error intencionado en `resources/elt.job.yml` (`${var.job_name}` → `${var.job_name_t13_typo}`): la CI falla en `pull_request`; revertido con `git revert` y run en verde. Gotcha del filtro `paths`: al revertir, el diff de la PR queda vacío en las rutas filtradas y no se dispara otro run de `pull_request`, así que el verde lo captura el trigger `push`. La línea quedó restaurada en la rama de la spec (el merge anula el error) y la rama de prueba se borró | rojo: `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39137910107` (`event: pull_request`, `conclusion: failure`, commit `9e9573d`); verde: `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39138005258` (`event: push`, `conclusion: success`, commit `57de0a1`) |
 | 2026-10-18 | T-14 | `.github/workflows/databricks-bundle-deploy-dev.yml`: deploy manual (`workflow_dispatch`) que ejecuta `databricks bundle deploy -t dev` (solo dev, hardcoded); guard de rama (`main`/`spec/007-elt-as-code`), `concurrency` sin cancelar, `timeout-minutes: 15`, PAT acotado al step. Entorno de GitHub `dev` con *required reviewers* (el dispatch espera aprobación). Para que «Run workflow» aparezca hubo que mergear la rama a `main` (checkpoint `ada90e4`, `AGENTS.md` de `main` restaurado). `deploy` no arranca compute: solo sube ficheros y actualiza la definición del job dev (aplica el timeout de T-11) | run verde: `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39147636829` (`event: workflow_dispatch`, `conclusion: success`, rama `main`, step `Deploy bundle (dev)` OK) |
+| 2026-10-18 | T-15 | Target `prod` con `run_as` y `permissions` de la persona (production mode exige ambos; se mantiene el owner/run_as actual y el service principal queda como mejora documentada). `bundle validate -t prod` → `Validation OK!`; `bundle deploy -t prod` crea el job `916863262593632` (`Git Based ELT`), **PAUSED**, `50 0 23 * * ?`/`Europe/Madrid`, 7 tareas con paths al bundle y variables de prod, `timeout_seconds: 1800`, `max_concurrent_runs: 1`; `jobs list-runs` vacío (0 runs). El job manual `704156530681034` sigue intacto y UNPAUSED | hecho; diferencias con el manual en la tabla de «T-15 — Job prod del bundle vs job manual»; ACL: owner `IS_OWNER`, admins `CAN_MANAGE` heredado |
 
 ## T-10 — Conteos dev vs prod (2026-10-18)
 
@@ -65,3 +66,36 @@ linkedin/indeed/infojobs y 29 pares residuales en multi_site.
   ventana de prod desde 2026-07-27 (multi_site), 2026-09-01 (linkedin) y
   2026-09-16 (indeed, infojobs).
 - Capturas Spark UI del intento sobre el bronce inflado: `capturas/`.
+
+## T-15 — Job prod del bundle vs job manual (2026-10-18)
+
+`bundle summary -t prod`:
+`https://adb-7405619889654446.6.azuredatabricks.net/jobs/916863262593632`.
+Definición desplegada saneada en `job-prod-bundle.json` (sin correos ni rutas de
+usuario reales). `jobs list-runs --job-id 916863262593632` devuelve `[]`: el
+deploy no ha lanzado ningún run y el job queda pausado hasta T-17/T-18.
+
+| Aspecto | Manual `704156530681034` | Bundle `916863262593632` |
+|---|---|---|
+| Nombre | `Git Based ELT` | `Git Based ELT` (mismo nombre; se distinguen por ID hasta el cutover) |
+| Programación | `UNPAUSED`, `50 0 23 * * ?`, `Europe/Madrid` | **`PAUSED`** (deliberado hasta T-18), misma cron y zona |
+| Tareas | 7 (bronze → 4 silver → gold → export) | idénticas: mismos `task_key` y `depends_on` (el orden del JSON cambia, no la topología) |
+| Notebooks | Git folder `…/talent-market-lens/databricks_notebooks/…` (sin extensión) | bundle prod `…/.bundle/talent-market-lens/prod/files/databricks_notebooks/….ipynb` |
+| `base_parameters` | Bronze y export solo `storage_account`; silvers/gold sin parámetros | las 7 con variables de prod (`catalog`, `storage_account`, `container`, `checkpoints_root`, `export_prefix`); valores efectivos idénticos a los defaults actuales |
+| Timeout del job | `0` | `1800` (desviación deliberada de T-11) |
+| `run_as` | usuario (implícito en el owner) | usuario (explícito); `run_as_user_name` idéntico |
+| ACL | owner usuario | owner `IS_OWNER`; `admins` `CAN_MANAGE` heredado; la declaración `permissions` de target satisface la validación de producción sin cambiar el owner |
+| Compute | `tm-lens-job`, `Standard_D4ds_v4`, single node | idéntico (`num_workers: 0` explícito) |
+| `max_concurrent_runs` | `1` | `1` |
+| Notificación de fallo | email de la persona | idéntica |
+| `git_source` | no | no |
+| Metadatos | — | `deployment.kind: BUNDLE`, `edit_mode: UI_LOCKED` (gestionado por el bundle) |
+
+El job manual sigue habilitado y con su programación; el job del bundle está
+pausado. No hay riesgo de doble ejecución en esta fase.
+
+Nota para T-16/T-18: `pause_status: PAUSED` vive en el override del target
+`prod`, así que habilitar el job en el cutover exige cambiar el override a
+`UNPAUSED` y redesplegar; des-pausarlo solo por la UI no sirve (el siguiente
+`bundle deploy -t prod` lo volvería a pausar). El orden seguro es deshabilitar
+el job manual primero y después desplegar el bundle des-pausado.

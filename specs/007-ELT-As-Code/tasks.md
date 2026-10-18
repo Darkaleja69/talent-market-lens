@@ -356,7 +356,7 @@ completo —incluida la tarea de export web— en el bundle.
 
 ## 4. Producción y cutover
 
-- [ ] **T-15 — Target prod** (~30 min)
+- [x] **T-15 — Target prod** (~30 min)
   - **RF:** RF-2, RF-6.
   - **Depende de:** T-10, T-13.
   - **Objetivo:** dejar producción lista para el cutover, pero pausada.
@@ -367,7 +367,16 @@ completo —incluida la tarea de export web— en el bundle.
     prod`; comparar con `job-actual.json`. **No habilitar nada todavía.**
   - **Hecho cuando:** validate verde, job prod desplegado **en pausa** y
     diferencias con el manual documentadas.
-  - **Evidencia:** summary + captura de la pausa.
+  - **Resultado (2026-10-18):** target prod con `run_as` y `permissions` de la
+    persona (production mode exige ambos; se mantiene el owner/run_as actual y
+    el service principal queda como mejora documentada). `bundle validate -t
+    prod` OK; `bundle deploy -t prod` crea el job `916863262593632` (`Git Based
+    ELT`), **PAUSED**, misma cron/TZ, 7 tareas con paths al bundle y variables
+    de prod, `timeout_seconds: 1800`, `max_concurrent_runs: 1` y **0 runs**. El
+    job manual `704156530681034` queda intacto y UNPAUSED. Diferencias con el
+    manual en `evidence.md`.
+  - **Evidencia:** `job-prod-bundle.json` saneado + `bundle summary -t prod` +
+    `jobs list-runs` vacío; tabla en `evidence.md`.
 
 - [ ] **T-16 — Backup y plan de rollback** (~25 min)
   - **RF:** RF-6.
