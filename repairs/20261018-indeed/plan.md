@@ -182,6 +182,6 @@ Veredicto de `quality.py`: **OK**.
 
 - **Resultado:** Reparación probada: 15 ofertas verificadas (umbral 12 = mayor verificado 11 + 1) en la prueba en vivo acotada (1 país × 1 término × 1 página, IE/Dublin/data), con description al 100 % en el alcance y puerta de calidad OK sin regresión. Causa raíz del 87,9 %: el muestreo --enrich-rate 0.9 saltaba candidatas por SERP (13 en el run), 1 clic sin reintento y 4 duplicados enriquecidos sin fusionar; ahora se intentan todas las candidatas (rate 1.0), el clic se reintenta y la deduplicación fusiona campos.
 - **Ofertas verificadas:** 15
-- **Validación del push:** pendiente de la persona (RF-12)
+- **Validación del push:** validada por la persona (RF-12)
 - **Estado:** probado
 <!-- /record:section:result -->
