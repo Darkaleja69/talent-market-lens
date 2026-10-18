@@ -1,0 +1,28 @@
+name: databricks-bundle-validate
+
+on:
+  pull_request:
+    paths: [databricks.yml, "resources/**", "databricks_notebooks/**", ".github/workflows/databricks-bundle-validate.yml"]
+  push:
+    paths: [databricks.yml, "resources/**", "databricks_notebooks/**", ".github/workflows/databricks-bundle-validate.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+        with:
+          version: 1.21.0
+      - run: databricks bundle validate -t dev
