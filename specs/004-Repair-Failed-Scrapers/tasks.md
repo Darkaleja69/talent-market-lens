@@ -348,7 +348,7 @@ reparación descartada o escalada se registra y no bloquea a las demás.
     mejoran hasta lo que la web/API exponga; sin regresión; prueba en vivo con
     umbral y calidad; tests en verde.
 
-- [ ] **T-34 — Reparar IrishJobs (playbook §6.4)** (ciclo completo)
+- [X] **T-34 — Reparar IrishJobs (playbook §6.4)** (ciclo completo)
   - **RF:** RF-1–RF-12.
   - **Hecho cuando:** el registro de `repair/irishjobs-<fecha>` queda probado;
     la causa raíz (bloqueo o cambio de HTML) está evidenciada; el scraper emite
