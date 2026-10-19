@@ -471,14 +471,24 @@ completo —incluida la tarea de export web— en el bundle.
 
 ## 5. Cierre
 
-- [ ] **T-21 — Documentación operativa y nota del dominio** (~35 min)
+- [x] **T-21 — Documentación operativa y nota del dominio** (~35 min)
   - **RF:** RF-7, RF-8.
   - **Objetivo:** dejar el proyecto documentado y la nota `05-cicd.md` escrita.
   - **Hecho cuando:** RUNBOOK y README documentan bundle, targets, variables,
     deploy y cutover/rollback; la propuesta de `AGENTS.md` está presentada (sin
     aplicar sin OK); y `docs/databricks-de/notes/05-cicd.md` está escrita con lo
     aprendido.
-  - **Evidencia:** commits + nota.
+  - **Resultado (2026-10-19):** `docs/RUNBOOK.md` y `docs/es/RUNBOOK.md` con una
+    sección §9 nueva (targets y variables, deploy con `bundle validate/deploy/
+    summary`, CI, programación/monitorización/rollback con los tiempos de
+    `cutover.md`, y la deuda del correo), más el paso 9 de la checklist;
+    `README.md` y `docs/es/README.md` con `databricks.yml`/`resources/` en el
+    layout y un paso 6 que enlaza al §9; nota `05-cicd.md` escrita y marcada en
+    el índice de notas. Propuesta de `AGENTS.md` presentada a la persona
+    (pendiente de OK; no aplicada). Verificación independiente: PASA en los dos
+    bloques, sin bloqueantes.
+  - **Evidencia:** commit `14a0e09`; `docs/databricks-de/notes/05-cicd.md`; texto
+    de la propuesta en `evidence.md` (fila T-21).
 
 - [ ] **T-22 — Evidencia y comprobación real** (~25 min)
   - **RF:** RF-8, RF-9.
