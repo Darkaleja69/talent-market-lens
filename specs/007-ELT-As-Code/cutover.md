@@ -170,6 +170,12 @@ manual durante el cutover: es la pieza de rollback.
 > de notificación de fallo. Ya estaba en `main` y el cutover no lo cambia. Si
 > se quiere dejar de publicar en el repo, es una decisión aparte (el repo es
 > público) que debe tomarse antes o después del cutover.
+>
+> **Decisión (2026-10-19, persona):** se **mantiene** la notificación de fallo
+> al correo en el job del bundle, tal cual está en `resources/elt.job.yml`. El
+> correo es preexistente (no lo introduce esta spec) y el job que se ejecuta
+> desde hoy lo conserva; queda como deuda aceptada del repo público y se
+> documenta en el RUNBOOK de T-21.
 
 ---
 
