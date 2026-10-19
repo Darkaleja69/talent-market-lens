@@ -367,8 +367,9 @@ commit `UNPAUSED` de una sola vez.
 - [ ] Las 7 tareas en verde; sin reintentos inesperados.
 - [ ] Conteos de §2.3: las tablas **avanzan** (no caen) de forma coherente con
       el landing del día.
-- [ ] `meta.json` del export tiene un `generated_at` nuevo y `data_date`
-      actualizada; la web muestra datos frescos.
+- [ ] `meta.json` del export tiene un `generated_at` nuevo y `tables` = gold;
+      `data_date` (= `max(posted_date)`, ver nota de §2.3) puede no moverse; la
+      web muestra datos frescos.
 - [ ] El job manual sigue `PAUSED` y sin runs nuevos.
 - [ ] El pipeline local de la madrugada del martes cerró con `Fin pipeline`
       (`logs/upload-<fecha>.log`).
