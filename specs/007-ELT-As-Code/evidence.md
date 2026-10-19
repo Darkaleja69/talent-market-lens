@@ -29,8 +29,9 @@ salidas saneadas se guardan junto a este fichero o en las rutas indicadas.
 | 2026-10-18 | T-15 | Target `prod` con `run_as` y `permissions` de la persona (production mode exige ambos; se mantiene el owner/run_as actual y el service principal queda como mejora documentada). `bundle validate -t prod` → `Validation OK!`; `bundle deploy -t prod` crea el job `916863262593632` (`Git Based ELT`), **PAUSED**, `50 0 23 * * ?`/`Europe/Madrid`, 7 tareas con paths al bundle y variables de prod, `timeout_seconds: 1800`, `max_concurrent_runs: 1`; `jobs list-runs` vacío (0 runs). El job manual `704156530681034` sigue intacto y UNPAUSED | hecho; diferencias con el manual en la tabla de «T-15 — Job prod del bundle vs job manual»; ACL: owner `IS_OWNER`, admins `CAN_MANAGE` heredado |
 | 2026-10-18 | T-16 | `cutover.md` con precondiciones, IDs, resumen de deploys/runs, pasos exactos, verificación de la noche, criterios de aborto, rollback con tiempos (pausa efectiva <5 min; reconciliación <10 min) y estado final de la Git folder (ya en `main`, 74 commits por detrás). Rollback por definición + deploy porque el job es `UI_LOCKED`. `bundle validate -t prod` OK; verificación independiente del documento sin bloqueantes | **hecho; plan aprobado por la persona el 2026-10-18 ≈22:40 (Opción B): dry-run T-17 esta noche a las 23:05 y cutover a continuación, tras el run manual; primer run del bundle el lunes 19-oct a las 23:00 y T-19 el martes 20** |
 | 2026-10-18 | T-17 | Dry-run con el job del bundle `916863262593632` en `PAUSED` (deploy de T-15) y cron `50 0 23 * * ?`/`Europe/Madrid`: a las **23:05**, pasada la hora programada, `jobs list-runs` del bundle devuelve `[]`; el job manual `704156530681034` lanzó su run periódico `364055615164423` a las 23:00:51 (RUNNING) | **hecho; 0 runs del bundle; no se desplegó ni ejecutó nada para comprobarlo** |
-| 2026-10-18 | T-18 | Cutover real: run manual `364055615164423` **SUCCESS** (23:00:51–23:19:28); manual `704156530681034` → **PAUSED** (23:21); merge de la rama a `main` `5635c89` (T-15..T-18, `AGENTS.md` de `main` restaurado) + push; CI verde `39167501125`; `bundle deploy -t prod` (23:24) → bundle `916863262593632` **UNPAUSED**, `50 0 23 * * ?`/`Europe/Madrid`, 7 tareas, `timeout_seconds: 1800`, `max_concurrent_runs: 1`, **0 runs**; manual verificado `PAUSED` | **hecho; solo el job del bundle queda programado; el manual queda pausado como rollback. Primer run del bundle: lunes 19-oct a las 23:00** |
+| 2026-10-18 | T-18 | Cutover real: run manual `364055615164423` **SUCCESS** (23:00:51–23:19:03); manual `704156530681034` → **PAUSED** (23:21); merge de la rama a `main` `5635c89` (T-15..T-18, `AGENTS.md` de `main` restaurado) + push; CI verde `39167501125`; `bundle deploy -t prod` (23:24) → bundle `916863262593632` **UNPAUSED**, `50 0 23 * * ?`/`Europe/Madrid`, 7 tareas, `timeout_seconds: 1800`, `max_concurrent_runs: 1`, **0 runs**; manual verificado `PAUSED` | **hecho; solo el job del bundle queda programado; el manual queda pausado como rollback. Primer run del bundle: lunes 19-oct a las 23:00** |
 | 2026-10-19 | T-19 (parte 1) | Baseline previo al primer run del bundle (`cutover.md` §2.3): 14 conteos de `job_offers` por consulta de solo lectura en el warehouse (statement `01f1cbf7-1ea3-1ad7-a547-c816ebc2976b`, `SUCCEEDED`) y lectura de `gold/web_export/meta.json` (sin escribir nada). Capturado a las **21:53–21:55** (Europe/Madrid), sin runs entre el manual del 18 y las 23:00 del 19 | hecho; `meta.json`: `generated_at 2026-10-18T21:18:50Z` (23:18:50 Madrid, el del run manual), `data_date 2026-10-17`, `mode full`, 3.345.996 bytes y `tables` = gold de la tabla de abajo (42200/24563/2907/95) ⇒ el export aún no refleja el landing de hoy; detalle en «T-19 — Baseline (2026-10-19)» |
+| 2026-10-19 | T-19 | Primer run programado del job del bundle `471695262858572`: **SUCCESS** (23:00:53–23:20:38, 19 m 45 s), `trigger: PERIODIC`, primer intento y 7/7 tareas en verde (bronze 9 m 03 s; las 4 silver en paralelo, 3 m 53 s–9 m 12 s; gold 1 m 00 s; export 29 s). `jobs list-runs` del bundle = 1 run; el manual `704156530681034` sigue **`PAUSED`** y sin runs nuevos (último `364055615164423`, 18-oct). Conteos vs baseline: ninguna tabla cae; +429 `fact_offers` (24.563 → 24.992), +927 `fact_offer_skills` (42.200 → 43.127), +139 `companies_complete_catalog`, +2 `dim_calendar`; indeed plano (0) como se esperaba (`no_data`). `meta.json` nuevo: `generated_at 2026-10-19T21:20:25Z`, `data_date 2026-10-19`, `tables` = gold y `sources` suma 24.992 | **hecho; comprobación real de la spec cumplida. Pendiente solo el pull de la Git folder (persona, UI)** |
 
 ## T-10 — Conteos dev vs prod (2026-10-18)
 
@@ -152,7 +153,7 @@ manual `364055615164423` del 2026-10-18.
 
 - El export cuadra exactamente con gold ⇒ no hay escritura posterior al run
   manual; `generated_at` (23:18:50 Madrid) cae dentro de `364055615164423`
-  (23:00:51–23:19:28).
+  (23:00:51–23:19:03).
 - Contexto para leer los conteos de T-19: el pipeline local de la madrugada del
   19 cerró `Fin pipeline` a las 03:45 con `Fallos: 1`
   (`C:\Users\<user>\Documents\projects\scrapers-pipeline\logs\upload-2026-10-19.log`,
@@ -166,3 +167,66 @@ manual `364055615164423` del 2026-10-18.
 - Baseline válido hasta las 23:00 de hoy: no hay runs intermedios desde el run
   manual del 18-oct (el cutover solo cambia la definición del job, no escribe
   datos).
+
+## T-19 — Noche real (2026-10-19)
+
+Primer run programado del job del bundle **`471695262858572`**: **`SUCCESS`**,
+lanzado por el schedule (`trigger: PERIODIC`, `run_type: JOB_RUN`) a las
+**23:00:53** y terminado a las **23:20:38** (Europe/Madrid) ⇒ **19 m 45 s**.
+Primer intento (`original_attempt_run_id` = el propio run, sin reintentos), 7/7
+tareas en `SUCCESS` (duración de pared por tarea, `end_time − start_time`):
+
+| Tarea | Estado | Duración |
+|---|---|---:|
+| `Bronze_Ingestion` | SUCCESS | 9 m 03 s |
+| `Silver_Linkedin` | SUCCESS | 5 m 02 s |
+| `Silver_Infojobs` | SUCCESS | 9 m 12 s |
+| `Silver_Multi_site` | SUCCESS | 4 m 14 s |
+| `Silver_Indeed` | SUCCESS | 3 m 53 s |
+| `Gold_Complete_Catalog` | SUCCESS | 1 m 00 s |
+| `Build_for_Web-Dashboard` | SUCCESS | 29 s |
+
+- **Un único run** del bundle (`jobs list-runs` → 1; salida saneada en
+  `run-t19-bundle.json`) y **ningún** run nuevo del job manual: su último sigue
+  siendo `364055615164423` (2026-10-18 23:00:51) y su
+  `schedule.pause_status` es **`PAUSED`** (`jobs get`).
+- Estados tras la noche: bundle `916863262593632` `UNPAUSED`, cron
+  `50 0 23 * * ?`/`Europe/Madrid`, 7 tareas, `timeout_seconds: 1800`,
+  `max_concurrent_runs: 1`; los 7 `notebook_path` apuntan a
+  `.bundle/talent-market-lens/prod/files/databricks_notebooks/…` (ninguno a la
+  Git folder).
+- Conteos (statement `01f1cc03-1615-1d0b-88ae-889c817f75a7`, solo lectura)
+  frente al baseline del 19-oct 21:53:
+
+| Capa | Tabla | Baseline | Después | Δ |
+|---|---|---:|---:|---:|
+| silver | offers_linkedin | 11.734 | 11.750 | +16 |
+| silver | offers_multi_site | 9.533 | 9.942 | +409 |
+| silver | offers_indeed | 2.748 | 2.748 | 0 |
+| silver | offers_infojobs | 2.287 | 2.354 | +67 |
+| silver | companies_linkedin | 3.881 | 3.890 | +9 |
+| silver | companies_multi_site | 4.312 | 4.447 | +135 |
+| silver | companies_indeed | 1.311 | 1.311 | 0 |
+| silver | companies_infojobs | 956 | 986 | +30 |
+| gold | fact_offers | 24.563 | 24.992 | +429 |
+| gold | fact_offer_skills | 42.200 | 43.127 | +927 |
+| gold | companies_complete_catalog | 9.454 | 9.593 | +139 |
+| gold | dim_currency | 19 | 19 | 0 |
+| gold | dim_skill_list | 95 | 95 | 0 |
+| gold | dim_calendar | 2.907 | 2.909 | +2 |
+
+- Ninguna tabla cae; indeed queda plano, como se esperaba (su pipeline de la
+  madrugada del 19 fue `no_data`); `dim_calendar` suma los dos días nuevos.
+- `meta.json` nuevo (`gold/web_export/meta.json`): `generated_at`
+  **`2026-10-19T21:20:25Z`** (23:20:25 Madrid, dentro del run), `data_date`
+  **`2026-10-19`** (avanzó desde el 17), `mode full`, `size_bytes` 3.386.309 y
+  `tables` = gold (24.992 / 43.127 / 2.909 / 95); la suma de `sources`
+  (24.992) sigue cuadrando con `fact_offers`.
+- Pipeline local que alimenta este ciclo (`upload-2026-10-19.log`): cerró
+  `Fin pipeline` a las 03:45:15 con `Fallos: 1` (indeed `no_data`), ya
+  documentado en el baseline; coherente con los conteos planos de indeed.
+- **Pendiente (persona, UI):** pull de la Git folder `talent-market-lens` a
+  `main` (`cutover.md` §9). El job ya no la usa; es solo referencia.
+
+Run:
+`https://adb-7405619889654446.6.azuredatabricks.net/?o=7405619889654446#job/916863262593632/run/471695262858572`

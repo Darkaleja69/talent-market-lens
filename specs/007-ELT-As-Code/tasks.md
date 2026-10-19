@@ -423,7 +423,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Hecho cuando:** solo el job del bundle está activo con la programación; no
     queda ningún job manual habilitado.
   - **Resultado (2026-10-18):** run manual `364055615164423` **SUCCESS**
-    (23:00:51–23:19:28); manual `704156530681034` **PAUSED** a las 23:21; merge
+    (23:00:51–23:19:03); manual `704156530681034` **PAUSED** a las 23:21; merge
     de la rama a `main` `5635c89` (T-15..T-18, `AGENTS.md` de `main`
     restaurado) y push; CI verde `39167501125`; `bundle deploy -t prod` a las
     23:24 → bundle `916863262593632` **UNPAUSED**, misma cron/TZ
@@ -435,7 +435,7 @@ completo —incluida la tarea de export web— en el bundle.
     SUCCESS), CI `https://github.com/Darkaleja69/talent-market-lens/actions/runs/39167501125`,
     merge `5635c89`, tabla §10 de `cutover.md` y fila en `evidence.md`.
 
-- [ ] **T-19 — Noche real en verde** (~20 min, a la mañana siguiente)
+- [x] **T-19 — Noche real en verde** (~20 min)
   - **RF:** RF-6.
   - **Objetivo:** verificar el primer ciclo real.
   - **Preguntas guía:** ¿Hubo un único run? ¿Verde? ¿Las tablas avanzaron
@@ -443,7 +443,20 @@ completo —incluida la tarea de export web— en el bundle.
     ¿El pipeline local cerró con `Fin pipeline`?
   - **Hecho cuando:** evidencia completa del ciclo. Si algo falla: rollback
     (T-20) y análisis del fallo dentro de esta spec.
-  - **Evidencia:** run id, hora, duración, conteos, `meta.json`.
+  - **Resultado (2026-10-19):** run `471695262858572` **SUCCESS** (23:00:53–
+    23:20:38, 19 m 45 s, `trigger: PERIODIC`, primer intento) con 7/7 tareas en
+    verde; **un único** run del bundle y **ningún** run nuevo del manual, que
+    sigue `PAUSED`; conteos vs baseline (14 tablas) sin caídas: `fact_offers`
+    24.563 → 24.992, `fact_offer_skills` 42.200 → 43.127,
+    `companies_complete_catalog` 9.454 → 9.593, `dim_calendar` +2, indeed plano
+    (`no_data` en el pipeline del 19); `meta.json` nuevo con
+    `generated_at 2026-10-19T21:20:25Z`, `data_date 2026-10-19` y `tables` =
+    gold. Los 7 `notebook_path` del job apuntan al bundle prod. **Comprobación
+    real de la spec cumplida.** Pendiente solo el pull de la Git folder
+    (persona, UI; §9 de `cutover.md`).
+  - **Evidencia:** `evidence.md` («T-19 — Baseline» y «T-19 — Noche real») +
+    `cutover.md` §1/§10 + run
+    `https://adb-7405619889654446.6.azuredatabricks.net/?o=7405619889654446#job/916863262593632/run/471695262858572`.
 
 - [ ] **T-20 — Rollback en seco** (~20 min)
   - **RF:** RF-6.

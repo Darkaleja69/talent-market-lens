@@ -55,7 +55,7 @@ $dbx = "databricks"   # o la ruta completa a databricks.exe
 - Si a las **23:45** sigue vivo, cancelarlo (§8.2). No se lanza el manual
   mientras el run del bundle esté activo.
 
-## 3. Mañana martes — cierre (08:00 en adelante)
+## 3. Cierre del ciclo (tras el run)
 
 ```powershell
 & $dbx jobs get-run <run_id> --profile vs_code --output json
@@ -137,8 +137,10 @@ Checklist de cierre (`cutover.md` §6.3):
       `cutover.md` §2.3).
 - [ ] El manual sigue `PAUSED` (`jobs get` → `schedule.pause_status`) y sin runs
       nuevos.
-- [ ] El pipeline local cerró `Fin pipeline`:
-      `Select-String -Path C:\Users\<user>\Documents\projects\scrapers-pipeline\logs\upload-2026-10-20.log -Pattern "Fin pipeline"`
+- [ ] El pipeline local de la madrugada que alimenta **este** ciclo cerró
+      `Fin pipeline` (en el ciclo del 19-oct es `upload-2026-10-19.log`; el
+      `upload-2026-10-20.log` corresponde al ciclo siguiente):
+      `Select-String -Path C:\Users\<user>\Documents\projects\scrapers-pipeline\logs\upload-2026-10-1*.log -Pattern "Fin pipeline"`
       (si hubo fallos, anotar cuáles y si son preexistentes).
 - [ ] La web pública muestra datos frescos (proxy: `meta.json` con `tables` =
       gold y `generated_at` nuevo).
@@ -155,7 +157,8 @@ Checklist de cierre (`cutover.md` §6.3):
 3. Salida de `jobs get 704156530681034` (que el manual siga `PAUSED`).
 4. Los 14 conteos de después (o la tabla rellena).
 5. El `meta.json` nuevo.
-6. La confirmación del `Fin pipeline` del martes y del pull de la Git folder.
+6. La confirmación del `Fin pipeline` del ciclo (19-oct) y del pull de la Git
+   folder.
 
 Con eso actualizo `evidence.md` (fila + sección), `cutover.md` §1 (estado
 post-cutover), §10 y `tasks.md` (T-19 → `[x]`), y hago el commit de cierre.
