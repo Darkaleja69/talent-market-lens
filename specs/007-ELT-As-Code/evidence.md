@@ -30,6 +30,7 @@ salidas saneadas se guardan junto a este fichero o en las rutas indicadas.
 | 2026-10-18 | T-16 | `cutover.md` con precondiciones, IDs, resumen de deploys/runs, pasos exactos, verificación de la noche, criterios de aborto, rollback con tiempos (pausa efectiva <5 min; reconciliación <10 min) y estado final de la Git folder (ya en `main`, 74 commits por detrás). Rollback por definición + deploy porque el job es `UI_LOCKED`. `bundle validate -t prod` OK; verificación independiente del documento sin bloqueantes | **hecho; plan aprobado por la persona el 2026-10-18 ≈22:40 (Opción B): dry-run T-17 esta noche a las 23:05 y cutover a continuación, tras el run manual; primer run del bundle el lunes 19-oct a las 23:00 y T-19 el martes 20** |
 | 2026-10-18 | T-17 | Dry-run con el job del bundle `916863262593632` en `PAUSED` (deploy de T-15) y cron `50 0 23 * * ?`/`Europe/Madrid`: a las **23:05**, pasada la hora programada, `jobs list-runs` del bundle devuelve `[]`; el job manual `704156530681034` lanzó su run periódico `364055615164423` a las 23:00:51 (RUNNING) | **hecho; 0 runs del bundle; no se desplegó ni ejecutó nada para comprobarlo** |
 | 2026-10-18 | T-18 | Cutover real: run manual `364055615164423` **SUCCESS** (23:00:51–23:19:28); manual `704156530681034` → **PAUSED** (23:21); merge de la rama a `main` `5635c89` (T-15..T-18, `AGENTS.md` de `main` restaurado) + push; CI verde `39167501125`; `bundle deploy -t prod` (23:24) → bundle `916863262593632` **UNPAUSED**, `50 0 23 * * ?`/`Europe/Madrid`, 7 tareas, `timeout_seconds: 1800`, `max_concurrent_runs: 1`, **0 runs**; manual verificado `PAUSED` | **hecho; solo el job del bundle queda programado; el manual queda pausado como rollback. Primer run del bundle: lunes 19-oct a las 23:00** |
+| 2026-10-19 | T-19 (parte 1) | Baseline previo al primer run del bundle (`cutover.md` §2.3): 14 conteos de `job_offers` por consulta de solo lectura en el warehouse (statement `01f1cbf7-1ea3-1ad7-a547-c816ebc2976b`, `SUCCEEDED`) y lectura de `gold/web_export/meta.json` (sin escribir nada). Capturado a las **21:53–21:55** (Europe/Madrid), sin runs entre el manual del 18 y las 23:00 del 19 | hecho; `meta.json`: `generated_at 2026-10-18T21:18:50Z` (23:18:50 Madrid, el del run manual), `data_date 2026-10-17`, `mode full`, 3.345.996 bytes y `tables` = gold de la tabla de abajo (42200/24563/2907/95) ⇒ el export aún no refleja el landing de hoy; detalle en «T-19 — Baseline (2026-10-19)» |
 
 ## T-10 — Conteos dev vs prod (2026-10-18)
 
@@ -102,3 +103,66 @@ Nota para T-16/T-18: `pause_status: PAUSED` vive en el override del target
 `UNPAUSED` y redesplegar; des-pausarlo solo por la UI no sirve (el siguiente
 `bundle deploy -t prod` lo volvería a pausar). El orden seguro es deshabilitar
 el job manual primero y después desplegar el bundle des-pausado.
+
+## T-19 — Baseline (2026-10-19)
+
+Capturado **antes** del primer run del bundle (lunes 19-oct, 23:00). Solo
+lectura: `count(*)` por tabla en el warehouse serverless (`53d8e3e91af6749c`) y
+lectura del `meta.json` del export por HTTPS con SAS de landing (sin escribir ni
+lanzar nada). Estado de partida: el último que escribió en prod fue el run
+manual `364055615164423` del 2026-10-18.
+
+| Capa | Tabla | filas | meta.json |
+|---|---|---:|---:|
+| silver | offers_linkedin | 11.734 | — |
+| silver | offers_multi_site | 9.533 | — |
+| silver | offers_indeed | 2.748 | — |
+| silver | offers_infojobs | 2.287 | — |
+| silver | companies_linkedin | 3.881 | — |
+| silver | companies_multi_site | 4.312 | — |
+| silver | companies_indeed | 1.311 | — |
+| silver | companies_infojobs | 956 | — |
+| gold | fact_offers | 24.563 | 24.563 |
+| gold | fact_offer_skills | 42.200 | 42.200 |
+| gold | companies_complete_catalog | 9.454 | — |
+| gold | dim_currency | 19 | — |
+| gold | dim_skill_list | 95 | 95 |
+| gold | dim_calendar | 2.907 | 2.907 |
+
+`meta.json` del export:
+
+```json
+{
+  "data_date": "2026-10-17",
+  "export_version": 1,
+  "generated_at": "2026-10-18T21:18:50Z",
+  "mode": "full",
+  "size_bytes": 3345996,
+  "sources": {
+    "Indeed": 2403, "Linkedin": 10685, "devitjobs": 67, "glassdoor": 5909,
+    "infojobs": 2260, "irishjobs": 1839, "jobs_ch": 323, "nvb": 889,
+    "stepstone_nl": 188
+  },
+  "tables": {
+    "dim_calendar": 2907, "dim_skill_list": 95,
+    "fact_offer_skills": 42200, "fact_offers": 24563
+  }
+}
+```
+
+- El export cuadra exactamente con gold ⇒ no hay escritura posterior al run
+  manual; `generated_at` (23:18:50 Madrid) cae dentro de `364055615164423`
+  (23:00:51–23:19:28).
+- Contexto para leer los conteos de T-19: el pipeline local de la madrugada del
+  19 cerró `Fin pipeline` a las 03:45 con `Fallos: 1`
+  (`C:\Users\<user>\Documents\projects\scrapers-pipeline\logs\upload-2026-10-19.log`,
+  líneas 257-261) — **indeed** quedó en `no_data` (0 ficheros subidos); el resto
+  subió normal (infojobs 14, linkedin 1, multi_site 1). Se espera que
+  bronze/silver de indeed no crezcan por el landing de hoy y que el resto avance.
+- `data_date` es `max(posted_date)` (`Prepare_Web_Export.py`), así que su avance
+  no es un criterio duro: se espera que se mueva al 18/19-oct (o se quede en
+  17/18 si todas las ofertas nuevas traen fecha real anterior), y lo que sí debe
+  cambiar es `generated_at`.
+- Baseline válido hasta las 23:00 de hoy: no hay runs intermedios desde el run
+  manual del 18-oct (el cutover solo cambia la definición del job, no escribe
+  datos).

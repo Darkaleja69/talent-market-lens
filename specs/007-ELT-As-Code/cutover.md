@@ -131,6 +131,13 @@ print(dbutils.fs.head(
 Anotar `generated_at`, `data_date`, `tables` y `mode`. El baseline se guarda en
 la tabla de §10 o en `evidence.md`.
 
+> **Nota (2026-10-19):** este baseline se capturó el **lunes 19 a las
+> 21:53–21:55**, después del cutover y antes del primer run del bundle. Sigue
+> siendo válido: el cutover solo cambia la definición del job (no escribe
+> datos) y no hubo runs entre el run manual del domingo y esa hora. `data_date`
+> es `max(posted_date)`, así que puede no moverse aunque el ciclo sea correcto;
+> el criterio duro es `generated_at` nuevo.
+
 ### 2.4 Ventana y personas
 
 - [ ] Ventana confirmada y sin otras tareas programadas ese día.
@@ -233,7 +240,8 @@ lectura (warehouse o notebook con acceso a ADLS); no lanzan la ELT.
    El bundle debe devolver `[]`; el manual debe mostrar el run de las 23:00.
 
 2. Confirmar que el run manual termina `SUCCEEDED` antes de tocar nada.
-3. **Baseline de §2.3** y comprobación de precondiciones de §2.2.
+3. **Baseline de §2.3** (capturado el lunes 19 a las 21:53; ver la nota de §2.3)
+   y comprobación de precondiciones de §2.2.
 4. **No** cambiar todavía `pause_status`: el job del bundle sigue pausado y el
    manual sigue programado.
 
@@ -502,13 +510,13 @@ Después de que T-19 confirme la noche en verde:
 | Paso | Hora (Madrid) | Quién | ID / commit | Resultado |
 |---|---|---|---|---|
 | Dry-run T-17 (bundle 0 runs) | 2026-10-18 23:05 | asistente | `916863262593632` | 0 runs |
-| Baseline de conteos y `meta.json` | pendiente antes del lunes 23:00 | persona | — | se captura con el estado post-run manual, sin runs entre medias |
 | Run manual del domingo `SUCCEEDED` | 23:00:51–23:19:28 | schedule | `364055615164423` | SUCCESS |
 | Manual `PAUSED` | 23:21 | persona (UI) | `704156530681034` | PAUSED |
 | Merge de la spec a `main` + push (T-15..T-18) | 23:21:46 | asistente | `5635c89` | merge OK |
 | CI verde sobre `main` | 23:21:50–23:22:02 | CI | `39167501125` | success |
 | `bundle deploy -t prod` | ≈23:24 | persona | — | deploy OK (no ejecuta nada) |
 | Bundle `UNPAUSED` verificado | 23:24:40 | asistente | `916863262593632` | UNPAUSED, 7 tareas, 0 runs |
+| Baseline de conteos y `meta.json` | 2026-10-19 21:53–21:55 | asistente (solo lectura) | statement `01f1cbf7-1ea3-1ad7-a547-c816ebc2976b` | 14 conteos + `generated_at 2026-10-18T21:18:50Z`, `data_date 2026-10-17`, `mode full` (detalle en `evidence.md`) |
 | Run de las 23:00 | lunes 19, 23:00 | schedule | — | pendiente |
 | Run `SUCCEEDED` + conteos + `meta.json` | martes 20, mañana | persona | — | pendiente |
 | Rollback en seco (T-20) | martes 20 o miércoles 21 | persona | — | pendiente |
