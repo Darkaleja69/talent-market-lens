@@ -458,7 +458,7 @@ completo —incluida la tarea de export web— en el bundle.
     `cutover.md` §1/§10 + run
     `https://adb-7405619889654446.6.azuredatabricks.net/?o=7405619889654446#job/916863262593632/run/471695262858572`.
 
-- [ ] **T-20 — Rollback en seco** (~20 min)
+- [x] **T-20 — Rollback en seco** (~20 min)
   - **RF:** RF-6.
   - **Depende de:** T-19.
   - **Objetivo:** probar que volver atrás es rápido y seguro (en ventana sin
@@ -467,7 +467,18 @@ completo —incluida la tarea de export web— en el bundle.
     volver al estado de cutover. Cronometrar.
   - **Hecho cuando:** procedimiento ejecutado sin sorpresas y tiempos
     actualizados en `cutover.md`.
-  - **Evidencia:** registro con tiempos.
+  - **Resultado (2026-10-20):** ejecutado 09:05:44–09:16:48 (11 m 04 s) con la
+    guía `t20-rollback.md`. Fase 1: bundle `PAUSED` (deploy `6f18844`, merge
+    `48dede3`) y manual reanudado; verificado a las 09:12:08 (0 runs activos,
+    sin runs nuevos). Fase 2: manual pausado **antes** del deploy; bundle
+    `UNPAUSED` (deploy `ed7bf18`, merge `5e08c0b`) y verificado a las 09:16:48
+    (cron, 7 tareas, timeout 1800 y `max_concurrent_runs: 1` intactos; 1 run,
+    el del 19-oct; 0 activos). Sin sorpresas. Reconciliación de la Fase 1:
+    6 m 24 s (git + validate 1 m 17 s); restauración: 1 m 45 s. La pausa
+    efectiva no se midió al segundo (fin del deploy); anotado en `cutover.md`
+    §8.3.
+  - **Evidencia:** `cutover.md` §8.3 y §10, fila en `evidence.md` y estado final
+    saneado en `t20-estado-final.json` (snapshot 09:28:58).
 
 ## 5. Cierre
 
