@@ -13,6 +13,7 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - Reparación de scrapers caídos (spec 004): comando `/repair` para el flujo completo, o la CLI desde `scrapers-pipeline/`:
     - Refresco del diagnóstico (paso 0): `python -m verification.verify_run --offline`.
     - CLI de reparaciones: `python -m repair.cli targets|brief|threshold|quality|record`.
+- Bundle (Databricks Asset Bundles): `databricks bundle validate -t dev|prod --profile <perfil>`, `databricks bundle deploy -t dev|prod --profile <perfil>` y `databricks bundle summary -t <target> --profile <perfil>`. El deploy **no ejecuta** el job: solo sube ficheros y actualiza su definición.
 - Tests: No hay tests generales. Cada scraper tiene su propio test, y los notebooks de Databricks tienen el suyo:
     - Tests scrapers: `python -m pytest tests -q`
     - Test databricks: `python -m pytest databricks_notebooks/tests -q`
@@ -26,6 +27,9 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - Lee docs/constitution.md y la spec activa antes de tocar código.
 - No modifiques archivos dentro de specs/ salvo petición explícita.
 - Si modificas algo importante del proyecto, que no concuerda con la spec, debes modificar la spec correspondiente.
+- El job de producción lo gestiona el bundle (`edit_mode: UI_LOCKED`): no se edita en la UI. Para pausar o reanudar, se cambia `pause_status` en el target `prod` de `databricks.yml` y se despliega.
+- CI del bundle: validación en PR/push (`.github/workflows/databricks-bundle-validate.yml`) y deploy de dev manual por dispatch con aprobación (`.github/workflows/databricks-bundle-deploy-dev.yml`); producción siempre manual y validada.
+- Rollback de producción: procedimiento, IDs y registro en `specs/007-ELT-As-Code/cutover.md`; el job manual pausado (`704156530681034`) se conserva como vía de vuelta.
 
 ## Commits
 - Un commit atómico por tarea completada, cuando su comprobación pasa (tests en verde).

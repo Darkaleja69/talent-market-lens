@@ -1,0 +1,49 @@
+{
+    "observed_at_madrid":  "2026-10-20 09:28:58",
+    "bundle":  {
+                   "job_id":  916863262593632,
+                   "pause_status":  "UNPAUSED",
+                   "cron":  "50 0 23 * * ?",
+                   "timezone":  "Europe/Madrid",
+                   "tasks":  7,
+                   "timeout_seconds":  1800,
+                   "max_concurrent_runs":  1,
+                   "runs":  [
+                                {
+                                    "run_id":  471695262858572,
+                                    "result_state":  "SUCCESS",
+                                    "run_type":  "JOB_RUN",
+                                    "start_time_madrid":  "2026-10-19 23:00:53",
+                                    "end_time_madrid":  "2026-10-19 23:20:38"
+                                }
+                            ]
+               },
+    "manual":  {
+                   "job_id":  704156530681034,
+                   "pause_status":  "PAUSED",
+                   "runs":  [
+                                {
+                                    "run_id":  364055615164423,
+                                    "result_state":  "SUCCESS",
+                                    "run_type":  "JOB_RUN",
+                                    "start_time_madrid":  "2026-10-18 23:00:51",
+                                    "end_time_madrid":  "2026-10-18 23:19:03"
+                                },
+                                {
+                                    "run_id":  642340624740960,
+                                    "result_state":  "SUCCESS",
+                                    "run_type":  "JOB_RUN",
+                                    "start_time_madrid":  "2026-10-17 23:00:53",
+                                    "end_time_madrid":  "2026-10-17 23:19:59"
+                                },
+                                {
+                                    "run_id":  929704239353258,
+                                    "result_state":  "SUCCESS",
+                                    "run_type":  "JOB_RUN",
+                                    "start_time_madrid":  "2026-10-16 23:00:52",
+                                    "end_time_madrid":  "2026-10-16 23:21:15"
+                                }
+                            ]
+               },
+    "active_runs":  0
+}

@@ -33,6 +33,8 @@ salidas saneadas se guardan junto a este fichero o en las rutas indicadas.
 | 2026-10-19 | T-19 (parte 1) | Baseline previo al primer run del bundle (`cutover.md` §2.3): 14 conteos de `job_offers` por consulta de solo lectura en el warehouse (statement `01f1cbf7-1ea3-1ad7-a547-c816ebc2976b`, `SUCCEEDED`) y lectura de `gold/web_export/meta.json` (sin escribir nada). Capturado a las **21:53–21:55** (Europe/Madrid), sin runs entre el manual del 18 y las 23:00 del 19 | hecho; `meta.json`: `generated_at 2026-10-18T21:18:50Z` (23:18:50 Madrid, el del run manual), `data_date 2026-10-17`, `mode full`, 3.345.996 bytes y `tables` = gold de la tabla de abajo (42200/24563/2907/95) ⇒ el export aún no refleja el landing de hoy; detalle en «T-19 — Baseline (2026-10-19)» |
 | 2026-10-19 | T-19 | Primer run programado del job del bundle `471695262858572`: **SUCCESS** (23:00:53–23:20:38, 19 m 45 s), `trigger: PERIODIC`, primer intento y 7/7 tareas en verde (bronze 9 m 03 s; las 4 silver en paralelo, 3 m 53 s–9 m 12 s; gold 1 m 00 s; export 29 s). `jobs list-runs` del bundle = 1 run (salida en `run-t19-bundle.json`); el manual `704156530681034` sigue **`PAUSED`** y sin runs nuevos (último `364055615164423`, 18-oct). Conteos vs baseline: ninguna tabla cae; +429 `fact_offers` (24.563 → 24.992), +927 `fact_offer_skills` (42.200 → 43.127), +139 `companies_complete_catalog`, +2 `dim_calendar`; indeed plano (0) como se esperaba (`no_data`). `meta.json` nuevo: `generated_at 2026-10-19T21:20:25Z`, `data_date 2026-10-19`, `tables` = gold y `sources` suma 24.992 | **hecho; comprobación real de la spec cumplida. Pendiente solo el pull de la Git folder (persona, UI)** |
 | 2026-10-19 | T-21 | `docs/RUNBOOK.md` + `docs/es/RUNBOOK.md`: sección §9 (targets y variables, deploy, CI, programación/rollback y deuda del correo) y paso 9 de la checklist; `README.md` + `docs/es/README.md`: `databricks.yml`/`resources/` en el layout y paso 6 con enlace al §9; `docs/databricks-de/notes/05-cicd.md` escrita (plantilla del índice) y marcada en él | hecho; verificación independiente PASA en RUNBOOK/README y en la nota, sin bloqueantes. Propuesta de `AGENTS.md` presentada (pendiente de OK, sin aplicar) |
+| 2026-10-20 | T-20 | Rollback en seco completo (09:05:44–09:16:48, 11 m 04 s): Fase 1 bundle `PAUSED` (deploy `6f18844`/merge `48dede3`) + manual reanudado, verificado 09:12:08 (0 runs activos, sin runs nuevos); Fase 2 manual pausado **antes** del deploy + bundle `UNPAUSED` (deploy `ed7bf18`/merge `5e08c0b`), verificado 09:16:48 (cron, 7 tareas, timeout 1800 y `max_concurrent_runs: 1`; 1 run del bundle, 0 activos) | hecho; sin sorpresas. Reconciliación Fase 1 6 m 24 s (git + validate 1 m 17 s); restauración 1 m 45 s. La pausa efectiva no se midió al segundo (fin del deploy), anotado en `cutover.md` §8.3. Estado final y runs en `t20-estado-final.json` (snapshot 09:28:58) |
+| 2026-10-20 | T-22 | Suites existentes en verde: `scrapers-pipeline` **768 passed** (374 s, 2026-10-19 23:52–23:58); `databricks_notebooks` **81 passed, 1 skipped** (515 s, 2026-10-20 00:03–00:11; el skip es el preexistente de Windows). Revisión de `git log --stat` del grupo T-19–T-22: 10 commits, todos dentro de `specs/007-ELT-As-Code/`, `docs/`, `README.md` y `databricks.yml` (dos líneas de `pause_status`); sin cambios fuera de alcance. Bitácora y calendario del roadmap actualizados | hecho; evidencia consolidada y revisión solicitada a la persona. Pendiente su OK para merge final, tag `spec-007` y borrado del worktree |
 
 ## T-10 — Conteos dev vs prod (2026-10-18)
 
@@ -231,3 +233,26 @@ tareas en `SUCCESS` (duración de pared por tarea, `end_time − start_time`):
 
 Run:
 `https://adb-7405619889654446.6.azuredatabricks.net/?o=7405619889654446#job/916863262593632/run/471695262858572`
+
+## T-22 — Cierre (2026-10-20)
+
+- **Suites:**
+  - `python -m pytest scrapers-pipeline/tests -q` → **768 passed** en 374 s
+    (2026-10-19 23:52–23:58).
+  - `python -m pytest databricks_notebooks/tests -q` → **81 passed, 1 skipped**
+    en 515 s (2026-10-20 00:03–00:11). El `skip` es el preexistente de Windows
+    (no es una regresión de esta spec).
+- **Revisión del grupo:** `git log --stat 9a8c084..HEAD` → 10 commits antes de
+  este (baseline y guía de T-19, cierre de T-19, decisión del correo, T-21 con
+  RUNBOOK EN/ES, README EN/ES y nota `05-cicd`, guía de T-20, los dos cambios de
+  `pause_status` y el cierre documental de T-20; los merges `48dede3` y `5e08c0b`
+  viven en `main`). Todo dentro de `specs/007-ELT-As-Code/`, `docs/`,
+  `README.md` y `databricks.yml`; nada de notebooks ni del pipeline.
+- **Comprobación real:** cumplida en T-19 (ciclo nocturno completo) y probada la
+  vuelta atrás en T-20 (11 m 04 s, sin sorpresas).
+- **Cierre formal:** pendiente del OK de la persona para el push, el merge final
+  a `main`, el tag `spec-007` y el borrado del worktree. El bloque local de
+  `AGENTS.md` se restaura con `git checkout main -- AGENTS.md` en cada merge.
+- **Deuda aceptada:** el correo de notificación sigue en `resources/elt.job.yml`
+  (repo público); decisión del 2026-10-19, documentada en `cutover.md` §3 y en el
+  RUNBOOK §9.

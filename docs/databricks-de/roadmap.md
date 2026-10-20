@@ -51,8 +51,8 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
 
 | Semana | Fechas | Foco | Estado |
 |---|---|---|---|
-| 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | en curso |
-| 2–3 | 19 oct – 1 nov | **Spec 007 (código):** bundle, entorno dev, CI y cutover a prod | pendiente |
+| 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | hecha |
+| 2–3 | 19 oct – 1 nov | **Spec 007 (código):** bundle, entorno dev, CI y cutover a prod | hecha (cierre formal tras el OK de la persona) |
 | 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (arranca con el bronce upsert, paso B) | pendiente |
 | 7–8 | 23 nov – 6 dic | **Spec 009:** rendimiento y layout físico | pendiente |
 | 9 | 7–13 dic | **Spec 010:** streaming y observabilidad | pendiente |
@@ -104,3 +104,6 @@ Contingencias:
 | 2026-10-17 | Diagnóstico de rendimiento dev vs prod; arreglo T-10a aprobado en la 007 | Bronce dev LinkedIn: 9.569.896 filas para 13.376 `job_id` (~715 copias por snapshot acumulativo del landing); prod: 16.371 filas y run completo de 20,4 min. Dedup temprano en la silver dentro de la 007; semilla estructural (append vs carga completa) a 008/009 |
 | 2026-10-17 | Backlog del temario anotado: cuarentena de ingesta y check constraints | La cuarentena local/landing ya existe (ficheros y filas en los scrapers); falta la capa Delta (`bronze.<fuente>_quarantine`) y su tratamiento en la ELT. CHECK constraints de Delta para data quality en silver/gold. Candidatas: 008/011 |
 | 2026-10-17 | Decisiones de la 008: bronce upsert (paso B) como primera tarea | Sin historial (CDF) ni expiración técnica; claves `job_id` y `site + job_id`; gana el `scraped_at` más reciente; migración incluida. Orden acordado: la 007 estrena el mecanismo seguro y la 008 cambia la ingesta |
+| 2026-10-18 | Cutover a producción: el job del bundle es la fuente de verdad | Manual `704156530681034` → `PAUSED` (23:21); bundle `916863262593632` → `UNPAUSED` (23:24) con la misma cron; merge `5635c89` y CI verde; sin runs nuevos hasta la noche siguiente |
+| 2026-10-19 | Primer run programado del bundle en verde (T-19) | Run `471695262858572` SUCCESS (19 m 45 s, 7/7 tareas); 1 único run y manual sin runs; conteos al alza (`fact_offers` 24.563 → 24.992) y `meta.json` con `data_date` 19-oct |
+| 2026-10-20 | Rollback en seco (T-20) y documentación operativa (T-21) | Ida y vuelta en 11 m 04 s sin runs nuevos ni sorpresas; RUNBOOK §9, README, nota `05-cicd.md`; propuesta de `AGENTS.md` presentada (pendiente de OK) |

@@ -491,6 +491,31 @@ siempre antes de las 23:00:
    también la restauración.
 4. Anotar los tiempos reales en §10 y corregir este documento si algo difiere.
 
+**Ejecutada el 2026-10-20 (09:05–09:17):**
+
+- Fase 1 (rollback): estado de partida verificado 09:05:44; commit del `PAUSED`
+  09:06:11; merge 09:06:48 y push 09:06:51; `validate` 09:07:01; deploy y reanudación del
+  manual por la persona; estados verificados 09:12:08 (bundle `PAUSED`, manual
+  `UNPAUSED`, 0 runs activos). Reconciliación completa: **6 m 24 s**; la parte
+  de git + validate, **1 m 17 s**.
+- Fase 2 (restauración): manual pausado y verificado 09:15:03; commit del
+  `UNPAUSED` 09:15:25; merge 09:15:31 y push 09:15:34; `validate` 09:15:42; deploy por la
+  persona; estado final verificado 09:16:48 (bundle `UNPAUSED` con cron, 7
+  tareas, `timeout_seconds: 1800` y `max_concurrent_runs: 1`; manual `PAUSED`;
+  1 run del bundle, el del 19-oct; 0 activos). Restauración: **1 m 45 s**.
+- Total de la prueba: **11 m 04 s**. Sin sorpresas: los deploys no lanzaron
+  ningún run y no hubo que abortar.
+- Matiz de medida: el criterio de **pausa efectiva < 5 min** no se cronometró al segundo
+  porque depende del fin del `bundle deploy`, que no deja marca de hora
+  consultable en ese momento; lo medido es git + validate (1 m 17 s) y la
+  reconciliación completa (6 m 24 s). En la próxima prueba, anotar la hora al
+  terminar el deploy.
+- Corrección del estado de partida: el manual estaba `PAUSED` y el bundle
+  `UNPAUSED`; la Fase 2 pausó el manual **antes** de desplegar el `UNPAUSED`,
+  de modo que nunca hubo dos jobs programados a la vez (la guía
+  `t20-rollback.md` ya lo recoge en ese orden). Estado final y runs saneados en
+  `t20-estado-final.json` (snapshot 09:28:58).
+
 ---
 
 ## 9. Estado final de la Git folder
@@ -536,8 +561,8 @@ Después de que T-19 confirme la noche en verde:
 | Baseline de conteos y `meta.json` | 2026-10-19 21:53–21:55 | asistente (solo lectura) | statement `01f1cbf7-1ea3-1ad7-a547-c816ebc2976b` | 14 conteos + `generated_at 2026-10-18T21:18:50Z`, `data_date 2026-10-17`, `mode full` (detalle en `evidence.md`) |
 | Run del bundle de las 23:00 | 2026-10-19 23:00:53–23:20:38 | schedule | `471695262858572` | SUCCESS, 19 m 45 s, 7/7 tareas, primer intento |
 | Conteos + `meta.json` de la noche | 2026-10-19 23:21–23:22 | asistente (solo lectura) | statement `01f1cc03-1615-1d0b-88ae-889c817f75a7` | tablas avanzan (ninguna cae); `generated_at 2026-10-19T21:20:25Z`, `data_date 2026-10-19`, `tables` = gold |
-| Rollback en seco (T-20) | martes 20 o miércoles 21 | persona | — | pendiente |
-| Restauración del cutover tras T-20 | — | persona | — | pendiente |
+| T-20 rollback en seco (pausar bundle, reanudar manual) | 2026-10-20 09:05:44–09:12:08 | persona (deploy y UI) + asistente (git) | cambio `6f18844`, deploy desde `48dede3` | bundle `PAUSED`, manual `UNPAUSED`, 0 runs activos; reconciliación 6 m 24 s (git + validate: 1 m 17 s) |
+| T-20 restauración del cutover | 2026-10-20 09:15:03–09:16:48 | persona (deploy y UI) + asistente (git) | cambio `ed7bf18`, deploy desde `5e08c0b` | bundle `UNPAUSED` (cron/7 tareas/timeout intactos), manual `PAUSED`, 1 run del bundle (el del 19-oct), 0 activos; 1 m 45 s |
 | Git folder actualizada a `main` | tras T-19 | persona | — | pendiente |
 
 ---
