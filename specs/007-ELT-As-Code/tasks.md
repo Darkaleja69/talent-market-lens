@@ -501,7 +501,7 @@ completo —incluida la tarea de export web— en el bundle.
   - **Evidencia:** commit `14a0e09`; `docs/databricks-de/notes/05-cicd.md`; texto
     de la propuesta en `evidence.md` (fila T-21).
 
-- [ ] **T-22 — Evidencia y comprobación real** (~25 min)
+- [x] **T-22 — Evidencia y comprobación real** (~25 min)
   - **RF:** RF-8, RF-9.
   - **Objetivo:** cerrar la spec con todo verificable.
   - **Pasos:** consolidar `evidence.md`; suites existentes en verde; revisar
@@ -512,4 +512,11 @@ completo —incluida la tarea de export web— en el bundle.
     cierre), restaurar el fichero de `main` antes de cerrar el merge
     (`git checkout main -- AGENTS.md`).
   - **Hecho cuando:** suites verdes + evidencia completa + revisión solicitada.
-  - **Evidencia:** salidas + revisión.
+  - **Resultado (2026-10-20):** `scrapers-pipeline` 768 passed (23:52–23:58 del
+    19) y `databricks_notebooks` 81 passed/1 skipped preexistente (00:03–00:11
+    del 20); evidencia consolidada (baseline, noche real, rollback en seco y
+    cierre); revisión de `git log --stat` del grupo T-19–T-22 sin cambios fuera
+    de alcance; bitácora y calendario del roadmap actualizados. Revisión final
+    solicitada a la persona; merge, push y tag quedan a su OK.
+  - **Evidencia:** salidas de suites en `evidence.md` («T-22 — Cierre») + commits
+    del grupo.
