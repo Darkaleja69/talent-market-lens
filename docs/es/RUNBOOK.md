@@ -135,6 +135,9 @@ Bronze (4 fuentes) → Silver Indeed / InfoJobs / LinkedIn / MultiSite (paralelo
 Recomendaciones de orquestación: tareas independientes por fuente, reintentos,
 fuente, reintentos, sensor de llegada de ficheros y registro `success/partial/failed`.
 
+La orquestación real de producción está versionada como código (Databricks Asset
+Bundle): ver §9.
+
 ---
 
 ## 6. Tests
@@ -178,3 +181,82 @@ conecta el modelo a las tablas `job_offers.gold.*`. El modelo usa
 6. Lanzar Oro → `gold.fact_offers`, `fact_offer_skills`, dims y `companies_complete_catalog`.
 7. Abrir el PBIP y validar el informe.
 8. `pytest` en verde antes de publicar.
+9. Desplegar el job ELT programado como Asset Bundle (§9) y dejar que corra a diario.
+
+---
+
+## 9. La ELT como código: Databricks Asset Bundle, CI/CD y cutover
+
+El job ELT de producción —**un job con 7 tareas**: Bronze → 4 Silver (en
+paralelo) → Oro → export web— está **versionado como código** en el repositorio y
+se despliega con la CLI de Databricks. `databricks.yml` contiene el bundle, sus
+targets y la programación (la sobreescribe el target `prod`);
+`resources/elt.job.yml`, la definición del job (tareas, `depends_on`, compute,
+timeout y notificaciones). Los notebooks se referencian desde los ficheros
+sincronizados del bundle, no desde una Git folder.
+
+### 9.1 Targets y variables
+
+Misma definición para ambos entornos; solo cambian las variables:
+
+| Variable | `dev` | `prod` |
+|---|---|---|
+| `catalog` | `job_offers_dev` | `job_offers` |
+| `checkpoints_root` | `<storage>/_checkpoints_dev` | `<storage>/_checkpoints` |
+| `export_prefix` | `gold/web_export_dev` | `gold/web_export` |
+| `job_name` | `Git Based ELT Dev` (el bundle antepone `[dev <usuario>]` al desplegar) | `Git Based ELT` |
+| Programación | ninguna (solo runs manuales) | `50 0 23 * * ?`, `Europe/Madrid`, `UNPAUSED` |
+
+El `sync` está acotado a `databricks_notebooks`, así que un deploy sube solo lo
+que ejecuta el job.
+
+### 9.2 Deploy
+
+```powershell
+databricks bundle validate -t dev  --profile <perfil>
+databricks bundle deploy   -t dev  --profile <perfil>
+databricks bundle summary  -t dev  --profile <perfil>   # comprobar paths y variables
+
+databricks bundle validate -t prod --profile <perfil>
+databricks bundle deploy   -t prod --profile <perfil>
+```
+
+`bundle deploy` **no ejecuta** el job: solo sube ficheros y actualiza la
+definición. Los despliegues de producción son siempre manuales y validados; el
+target de producción exige `run_as` y `permissions` (production mode).
+
+### 9.3 Integración continua
+
+- `.github/workflows/databricks-bundle-validate.yml`: ejecuta
+  `databricks bundle validate -t dev` en `pull_request` / `push` que tocan
+  `databricks.yml`, `resources/**`, `databricks_notebooks/**` o el propio
+  workflow. Solo valida; nunca despliega. Secretos de repo: `DATABRICKS_HOST`,
+  `DATABRICKS_TOKEN` (alcance dev).
+- `.github/workflows/databricks-bundle-deploy-dev.yml`: deploy manual
+  (`workflow_dispatch`) **solo a dev**, detrás del entorno `dev` de GitHub
+  (*required reviewers*). El job dev no tiene programación, así que no correrá
+  solo tras un deploy.
+
+### 9.4 Programación, monitorización y rollback
+
+La programación vive en el target `prod` (`pause_status` es un override, así que
+pausar desde la UI no basta: el siguiente `bundle deploy -t prod` restauraría el
+valor de la definición). Para cambiar el estado, se edita `databricks.yml`, se
+commitea, se mergea y se despliega.
+
+- Comprobación diaria: `databricks jobs list-runs --job-id <id del job prod> --limit 5`
+  (esperado: exactamente un run al día, a las 23:00, `SUCCESS`).
+- Fallos: el job notifica por correo (`on_failure` en `resources/elt.job.yml`).
+- **Rollback** (volver al job manual anterior, conservado en pausa como
+  respaldo): poner `pause_status: PAUSED` en el target `prod`, commit, merge,
+  deploy (`bundle deploy -t prod`), verificar que el job del bundle queda
+  `PAUSED` y reanudar la programación del job manual. Esperado: pausa efectiva
+  < 5 min; reconciliación completa (git + deploy) < 10 min.
+- El procedimiento completo de cutover/rollback, los IDs y el registro de
+  ejecución de la spec 007 viven en `specs/007-ELT-As-Code/cutover.md`. Los ids
+  de los jobs en uso están ahí; el job manual pausado no se borra mientras sea
+  la vía de rollback.
+
+> **Deuda conocida:** `resources/elt.job.yml` versiona el correo de notificación
+> de fallo. Es previo al bundle y el repositorio es público; queda como deuda
+> aceptada (decisión del 2026-10-19). Pasarlo a secreto está pendiente.

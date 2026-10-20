@@ -1,0 +1,11 @@
+[{
+    "run_id":  471695262858572,
+    "job_id":  916863262593632,
+    "run_name":  "Git Based ELT",
+    "run_type":  "JOB_RUN",
+    "trigger":  "PERIODIC",
+    "state":  "TERMINATED/SUCCESS",
+    "start_time_madrid":  "2026-10-19 23:00:53",
+    "end_time_madrid":  "2026-10-19 23:20:38",
+    "run_duration_s":  1185.4
+}]

@@ -197,6 +197,8 @@ talent-market-lens/
 ├── infojobs_jobs_scraper/      # Scraper: InfoJobs
 ├── multi_site_job_scraper/     # Scraper: IrishJobs, StepStone (NL), Jobs.ch, Glassdoor
 ├── Job_Offers_Dashboard.pbip   # Proyecto Power BI (informe + modelo semántico + mapas)
+├── databricks.yml              # Databricks Asset Bundle: targets dev/prod
+├── resources/                  # Job ELT como código (7 tareas, timeout, notificaciones)
 ├── requirements.txt
 └── ROADMAP.md                  # Planes y próximas versiones
 ```
@@ -221,6 +223,7 @@ Después, en Databricks:
 3. Ejecuta **Bronze** (pasa `storage_account` y el resto de widgets).
 4. Ejecuta los cuatro notebooks **Silver**.
 5. Ejecuta **Gold** y conecta `Job_Offers_Dashboard.pbip` a las tablas `gold.*`.
+6. Despliega el job ELT programado como **Databricks Asset Bundle** (targets `dev`/`prod`, variables, CI y rollback en [RUNBOOK §9](RUNBOOK.md)).
 
 > La configuración está externalizada: cuenta de almacenamiento, contenedor, catálogo, esquemas y checkpoints son parámetros (widgets de notebook o variables de entorno). No se almacenan credenciales en el repositorio.
 

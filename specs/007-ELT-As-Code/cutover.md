@@ -1,13 +1,15 @@
 # Plan de cutover y rollback — spec 007 (ELT como código)
 
-- **Estado:** **aprobado por la persona el 2026-10-18** para ejecutarlo esta
-  misma noche (Opción B: después del run manual).
+- **Estado:** **aprobado por la persona el 2026-10-18** y **ejecutado** esa
+  misma noche (Opción B: después del run manual). Cutover verificado (T-18) y
+  primer run programado del bundle en verde (T-19, 2026-10-19 23:00:53–23:20:38).
 - **Redactado:** 2026-10-18.
 - **Alcance:** pasar la fuente de verdad del job de producción del job manual
   `Git Based ELT` al job del Asset Bundle, sin doble ejecución y con rollback
   probado.
 - **Ventana:** **domingo 18-oct-2026, tras terminar el run manual
-  (≈23:20–23:50, Europe/Madrid)**.
+  (≈23:20–23:50, Europe/Madrid)**. Ejecutada: manual `PAUSED` a las 23:21,
+  merge `5635c89`, CI verde y deploy a las ≈23:24.
   - Límite de aborto: **23:55**; el pipeline local de scrapers arranca a las
     00:00 (no bloquea el cutover, que no ejecuta nada, pero conviene cerrar
     antes).
@@ -15,7 +17,9 @@
 - **Dry-run (T-17):** **esta noche, 18-oct, a las 23:05**; el job del bundle
   sigue pausado mientras corre el manual. Se confirma que el bundle no dispara.
 - **Primer run del job del bundle (T-19):** **lunes 19-oct a las 23:00**;
-  verificación el martes 20 por la mañana.
+  verificación adelantada al **2026-10-19 23:21** (el run terminó a las
+  23:20:38). **Verificado:** run `471695262858572` SUCCESS (19 m 45 s),
+  conteos y `meta.json` avanzan.
 
 > Horas en `Europe/Madrid`. El pipeline local de scrapers se lanza a las
 > **00:00**; la ventana de esta noche termina antes de ese arranque. La ELT de
@@ -29,8 +33,8 @@
 
 | Elemento | Valor |
 |---|---|
-| Job manual (producción actual) | `704156530681034`, `Git Based ELT`, `UNPAUSED` |
-| Job del bundle (producción) | `916863262593632`, `Git Based ELT`, `PAUSED` |
+| Job manual (rollback) | `704156530681034`, `Git Based ELT`, **`PAUSED`** desde 2026-10-18 23:21 (último run `364055615164423`, SUCCESS) |
+| Job del bundle (producción) | `916863262593632`, `Git Based ELT`, **`UNPAUSED`** desde 2026-10-18 23:24:40; primer run `471695262858572` **SUCCESS** (2026-10-19 23:00:53–23:20:38) |
 | Job del bundle (dev, referencia) | `320947022571947`, `[dev …] Git Based ELT Dev`, sin programación |
 | Programación de prod | `50 0 23 * * ?`, `Europe/Madrid` (23:00 diaria) |
 | Bundle / target | `talent-market-lens` / `prod` |
@@ -131,6 +135,13 @@ print(dbutils.fs.head(
 Anotar `generated_at`, `data_date`, `tables` y `mode`. El baseline se guarda en
 la tabla de §10 o en `evidence.md`.
 
+> **Nota (2026-10-19):** este baseline se capturó el **lunes 19 a las
+> 21:53–21:55**, después del cutover y antes del primer run del bundle. Sigue
+> siendo válido: el cutover solo cambia la definición del job (no escribe
+> datos) y no hubo runs entre el run manual del domingo y esa hora. `data_date`
+> es `max(posted_date)`, así que puede no moverse aunque el ciclo sea correcto;
+> el criterio duro es `generated_at` nuevo.
+
 ### 2.4 Ventana y personas
 
 - [ ] Ventana confirmada y sin otras tareas programadas ese día.
@@ -163,6 +174,12 @@ manual durante el cutover: es la pieza de rollback.
 > de notificación de fallo. Ya estaba en `main` y el cutover no lo cambia. Si
 > se quiere dejar de publicar en el repo, es una decisión aparte (el repo es
 > público) que debe tomarse antes o después del cutover.
+>
+> **Decisión (2026-10-19, persona):** se **mantiene** la notificación de fallo
+> al correo en el job del bundle, tal cual está en `resources/elt.job.yml`. El
+> correo es preexistente (no lo introduce esta spec) y el job que se ejecuta
+> desde hoy lo conserva; queda como deuda aceptada del repo público y se
+> documenta en el RUNBOOK de T-21.
 
 ---
 
@@ -177,8 +194,9 @@ manual durante el cutover: es la pieza de rollback.
 Nunca se invierte el orden: si el bundle se habilita antes de pausar el manual,
 ambos podrían dispararse a las 23:00.
 
-T-18 se ejecuta en la ventana; T-19 se verifica esa noche y a la mañana
-siguiente; T-20 es el rollback en seco de la mañana siguiente. Sus evidencias
+T-18 se ejecuta en la ventana; T-19 se verifica esa misma noche, al terminar el
+run (adelantada al 2026-10-19 23:21); T-20 es el rollback en seco de la mañana
+siguiente. Sus evidencias
 se commitean en la rama de la spec; el deploy de producción sale siempre de
 `main`, y la rama se mergea al cerrar (T-22). El cambio de `pause_status` se
 prepara en la rama y se mergea en la ventana, nunca se commitea directamente en
@@ -201,7 +219,7 @@ bundle desplegado y pausado, así que el cutover no repite ese paso: solo cambia
 | Domingo 18, ≈23:20 | Pausar el job manual en la UI | No | No |
 | Domingo 18, ≈23:30 | **`bundle deploy -t prod` con `UNPAUSED`** | **Sí (1)** | No |
 | Lunes 19, 23:00 | Ejecución programada del job del bundle (T-19) | No | **Sí, automática** |
-| Martes 20, mañana | Verificar el run, conteos y `meta.json` | No | No |
+| Lunes 19, 23:21 (adelantada) | Verificar el run, conteos y `meta.json` | No | No |
 | Martes 20, ventana (p. ej. 21:00) | **T-20:** deploy con `PAUSED` + reanudar el manual | **Sí (2)** | No |
 | Martes 20, tras T-20 | Restaurar el cutover: deploy con `UNPAUSED` | **Sí (3)** | No |
 
@@ -233,7 +251,8 @@ lectura (warehouse o notebook con acceso a ADLS); no lanzan la ELT.
    El bundle debe devolver `[]`; el manual debe mostrar el run de las 23:00.
 
 2. Confirmar que el run manual termina `SUCCEEDED` antes de tocar nada.
-3. **Baseline de §2.3** y comprobación de precondiciones de §2.2.
+3. **Baseline de §2.3** (capturado el lunes 19 a las 21:53; ver la nota de §2.3)
+   y comprobación de precondiciones de §2.2.
 4. **No** cambiar todavía `pause_status`: el job del bundle sigue pausado y el
    manual sigue programado.
 
@@ -330,6 +349,11 @@ commit `UNPAUSED` de una sola vez.
 
 ## 6. Verificación de la noche (T-19: lunes 19 → martes 20)
 
+> **Ejecutada el 2026-10-19 a las 23:21**, una vez terminado el run
+> (`471695262858572`, 23:00:53–23:20:38): el arranque y el avance de §6.1/§6.2
+> se comprobaron de una vez, ya con el ciclo cerrado. Resultado en
+> `evidence.md` («T-19 — Noche real»).
+
 ### 6.1 Lunes 19, 23:05–23:15
 
 ```powershell
@@ -353,17 +377,18 @@ commit `UNPAUSED` de una sola vez.
   (bronze → 4 silver → gold → export).
 - Duración esperada: ~18 min (referencia dev: 17 m 43 s).
 
-### 6.3 Martes 20, a las 08:00
+### 6.3 Martes 20, a las 08:00 (adelantada al 19-oct 23:21)
 
 - [ ] El run terminó `SUCCEEDED` y sigue siendo el único de la noche.
 - [ ] Las 7 tareas en verde; sin reintentos inesperados.
 - [ ] Conteos de §2.3: las tablas **avanzan** (no caen) de forma coherente con
       el landing del día.
-- [ ] `meta.json` del export tiene un `generated_at` nuevo y `data_date`
-      actualizada; la web muestra datos frescos.
+- [ ] `meta.json` del export tiene un `generated_at` nuevo y `tables` = gold;
+      `data_date` (= `max(posted_date)`, ver nota de §2.3) puede no moverse; la
+      web muestra datos frescos.
 - [ ] El job manual sigue `PAUSED` y sin runs nuevos.
-- [ ] El pipeline local de la madrugada del martes cerró con `Fin pipeline`
-      (`logs/upload-<fecha>.log`).
+- [ ] El pipeline local de la madrugada que alimenta el ciclo cerró con
+      `Fin pipeline` (`upload-2026-10-19.log` en este ciclo).
 - [ ] Registrar run id, hora, duración, conteos y `meta.json` en `evidence.md`.
 
 Si algo falla → §7 y §8. No se reintenta a ciegas.
@@ -501,19 +526,19 @@ Después de que T-19 confirme la noche en verde:
 
 | Paso | Hora (Madrid) | Quién | ID / commit | Resultado |
 |---|---|---|---|---|
-| Dry-run T-17 (bundle 0 runs) | | | `916863262593632` | |
-| Baseline de conteos y `meta.json` | | | | |
-| Run manual del domingo `SUCCEEDED` | | | `704156530681034` | |
-| Manual `PAUSED` | | | `704156530681034` | |
-| Merge de la spec a `main` + push (T-15..T-17 + `UNPAUSED`) | | | | |
-| CI verde sobre `main` | | | | |
-| `bundle deploy -t prod` | | | | |
-| Bundle `UNPAUSED` verificado | | | `916863262593632` | |
-| Run de las 23:00 | | | | |
-| Run `SUCCEEDED` + conteos + `meta.json` | | | | |
-| Rollback en seco (T-20) | | | | |
-| Restauración del cutover tras T-20 | | | | |
-| Git folder actualizada a `main` | | | | |
+| Dry-run T-17 (bundle 0 runs) | 2026-10-18 23:05 | asistente | `916863262593632` | 0 runs |
+| Run manual del domingo `SUCCEEDED` | 23:00:51–23:19:03 | schedule | `364055615164423` | SUCCESS |
+| Manual `PAUSED` | 23:21 | persona (UI) | `704156530681034` | PAUSED |
+| Merge de la spec a `main` + push (T-15..T-18) | 23:21:46 | asistente | `5635c89` | merge OK |
+| CI verde sobre `main` | 23:21:50–23:22:02 | CI | `39167501125` | success |
+| `bundle deploy -t prod` | ≈23:24 | persona | — | deploy OK (no ejecuta nada) |
+| Bundle `UNPAUSED` verificado | 23:24:40 | asistente | `916863262593632` | UNPAUSED, 7 tareas, 0 runs |
+| Baseline de conteos y `meta.json` | 2026-10-19 21:53–21:55 | asistente (solo lectura) | statement `01f1cbf7-1ea3-1ad7-a547-c816ebc2976b` | 14 conteos + `generated_at 2026-10-18T21:18:50Z`, `data_date 2026-10-17`, `mode full` (detalle en `evidence.md`) |
+| Run del bundle de las 23:00 | 2026-10-19 23:00:53–23:20:38 | schedule | `471695262858572` | SUCCESS, 19 m 45 s, 7/7 tareas, primer intento |
+| Conteos + `meta.json` de la noche | 2026-10-19 23:21–23:22 | asistente (solo lectura) | statement `01f1cc03-1615-1d0b-88ae-889c817f75a7` | tablas avanzan (ninguna cae); `generated_at 2026-10-19T21:20:25Z`, `data_date 2026-10-19`, `tables` = gold |
+| Rollback en seco (T-20) | martes 20 o miércoles 21 | persona | — | pendiente |
+| Restauración del cutover tras T-20 | — | persona | — | pendiente |
+| Git folder actualizada a `main` | tras T-19 | persona | — | pendiente |
 
 ---
 
@@ -526,7 +551,7 @@ Sin esta aprobación no se ejecuta T-18.
 - **Ventana confirmada:** domingo 18-oct-2026, tras el run manual
   (≈23:20–23:50). Opción B: dry-run esta noche y cutover a continuación.
 - **Observaciones:** primer run del bundle el lunes 19 a las 23:00; T-19 el
-  martes 20 por la mañana; T-20 en la siguiente ventana sin riesgo (martes 20 o
-  miércoles 21).
+  martes 20 por la mañana (se adelantó al 2026-10-19 23:21, al terminar el run);
+  T-20 en la siguiente ventana sin riesgo (martes 20 o miércoles 21).
 
 Aprobación registrada también en `evidence.md` y en `tasks.md` (T-16).
