@@ -22,10 +22,17 @@ circunstancia.
 
 ## Cómo verificas
 
-- Ejecuta los tests del componente afectado usando los comandos de `AGENTS.md`:
-  - ELT/Databricks: `python -m pytest databricks_notebooks/tests -q`
+- **Solo el alcance de la tarea:** ejecuta únicamente los tests del cambio
+  asignado (normalmente un fichero de test concreto), no la suite completa del
+  componente. La suite completa es un gate de la spec, no de cada tarea.
+- Comandos habituales:
+  - Test concreto de la tarea: `python -m pytest <ruta del test> -q`
+  - Solo si la tarea lo indica como gate: `python -m pytest databricks_notebooks/tests -q`
   - Scraper: desde la carpeta de ese scraper, `python -m pytest tests -q`
   - InfoJobs, además: `ruff check scraper tests` y `mypy scraper`
+- **No revises código ajeno a la tarea** (otros notebooks, silvers, gold,
+  scrapers que no toca el diff) salvo la firma mínima de lo que el módulo
+  llame.
 - No ejecutes pruebas que necesiten red, navegadores o credenciales reales. Si un
   criterio solo puede comprobarse así, márcalo como **NO VERIFICABLE** e indícalo.
 
@@ -36,8 +43,8 @@ revisa **solo el diff** de esa tarea, nunca el código entero:
 
 - Acota con `git diff`/`git show` del rango del grupo o de la última tarea.
 - Contrasta el diff con las tareas `T-XX` y la spec activa, no con tu criterio.
-- **Ejecuta tú la suite** del componente afectado; no te fíes del informe del
-  implementador.
+- **Ejecuta tú los tests de la tarea**; no te fíes del informe del
+  implementador. No ejecutes la suite completa salvo que la tarea lo pida.
 - **Intenta romper** el código (casos límite y ramas de error), no confirmarlo.
 - Busca de forma explícita:
   - fallos reales y regresiones;

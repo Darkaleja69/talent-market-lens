@@ -31,12 +31,17 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - CI del bundle: validación en PR/push (`.github/workflows/databricks-bundle-validate.yml`) y deploy de dev manual por dispatch con aprobación (`.github/workflows/databricks-bundle-deploy-dev.yml`); producción siempre manual y validada.
 - Rollback de producción: procedimiento, IDs y registro en `specs/007-ELT-As-Code/cutover.md`; el job manual pausado (`704156530681034`) se conserva como vía de vuelta.
 
-### Trabajo guiado de las specs (bloque local de este worktree; no debe llegar a `main`)
+### Trabajo de las specs (bloque local de este worktree; no debe llegar a `main`)
 
-- La persona implementa los cambios de código (notebooks, scripts) y ejecuta el
-  bundle (deploy/run) para comprobar. El asistente prepara las tareas, orienta
-  con preguntas y pistas, verifica los resultados y commitea tras la
-  verificación; no implementa código ni llama al bundle salvo petición explícita.
+- **La persona decide** (alcance, diseño, alternativas) y **revisa** lo escrito;
+  el asistente prepara las tareas, **implementa el código** (notebooks, módulos,
+  tests), lo explica y lo commitea tras la verificación independiente.
+- La persona ejecuta el **bundle** (deploy/run) y las consultas contra el
+  workspace para las comprobaciones reales; el asistente no llama al bundle ni
+  al workspace salvo petición explícita.
+- **Alcance de la verificación:** el `verifier` revisa solo el diff de la tarea
+  y ejecuta solo los tests de ese cambio. La suite completa es un gate de la
+  spec (tarea de validación), no de cada tarea.
 - Estas instrucciones son propias del trabajo de especificación (estas specs y
   sus worktrees), no del proyecto real: al fusionar esta rama a `main`
   —checkpoint o cierre—, restaurar `AGENTS.md` de `main` antes de cerrar el
