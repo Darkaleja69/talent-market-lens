@@ -134,6 +134,9 @@ Bronze (4 sources) → Silver Indeed / InfoJobs / LinkedIn / MultiSite (parallel
 Orchestration recommendations: independent tasks per source, retries,
 retries, file-arrival sensors and a `success/partial/failed` run log.
 
+The real production orchestration is versioned as code (Databricks Asset
+Bundle): see §9.
+
 ---
 
 ## 6. Tests
@@ -176,3 +179,80 @@ and connect the model to the `job_offers.gold.*` tables. The model uses
 6. Run Gold → `gold.fact_offers`, `fact_offer_skills`, the dimensions and `companies_complete_catalog`.
 7. Open the PBIP and validate the report.
 8. `pytest` green before publishing.
+9. Deploy the scheduled ELT job as an Asset Bundle (§9) and let it run daily.
+
+---
+
+## 9. ELT as code: Databricks Asset Bundle, CI/CD and cutover
+
+The production ELT job —**one job with 7 tasks**: Bronze → 4 Silver (parallel) →
+Gold → web export— is **versioned as code** in the repository and deployed with
+the Databricks CLI. `databricks.yml` holds the bundle, its targets and the
+schedule (the `prod` target overrides it); `resources/elt.job.yml` holds the job
+definition (tasks, `depends_on`, compute, timeout and notifications). Notebooks
+are referenced from the bundle's own synced files, not from a Git folder.
+
+### 9.1 Targets and variables
+
+Same job definition for both environments; only the variables change:
+
+| Variable | `dev` | `prod` |
+|---|---|---|
+| `catalog` | `job_offers_dev` | `job_offers` |
+| `checkpoints_root` | `<storage>/_checkpoints_dev` | `<storage>/_checkpoints` |
+| `export_prefix` | `gold/web_export_dev` | `gold/web_export` |
+| `job_name` | `Git Based ELT Dev` (the bundle prefixes `[dev <user>]` on deploy) | `Git Based ELT` |
+| Schedule | none (manual runs only) | `50 0 23 * * ?`, `Europe/Madrid`, `UNPAUSED` |
+
+`sync` is limited to `databricks_notebooks`, so a deploy uploads only what the
+job runs.
+
+### 9.2 Deploy
+
+```powershell
+databricks bundle validate -t dev  --profile <profile>
+databricks bundle deploy   -t dev  --profile <profile>
+databricks bundle summary  -t dev  --profile <profile>   # check paths and variables
+
+databricks bundle validate -t prod --profile <profile>
+databricks bundle deploy   -t prod --profile <profile>
+```
+
+`bundle deploy` **does not run** the job: it only uploads files and updates the
+job definition. Production deploys are always manual and validated; the
+production target requires `run_as` and `permissions` (production mode).
+
+### 9.3 Continuous integration
+
+- `.github/workflows/databricks-bundle-validate.yml`: runs
+  `databricks bundle validate -t dev` on `pull_request` / `push` touching
+  `databricks.yml`, `resources/**`, `databricks_notebooks/**` or the workflow
+  itself. Validates only; it never deploys. Repository secrets:
+  `DATABRICKS_HOST`, `DATABRICKS_TOKEN` (dev scope).
+- `.github/workflows/databricks-bundle-deploy-dev.yml`: manual
+  (`workflow_dispatch`) deploy **to dev only**, behind the GitHub `dev`
+  environment (required reviewers). The dev job has no schedule, so it will not
+  run on its own after a deploy.
+
+### 9.4 Schedule, monitoring and rollback
+
+The schedule lives in the `prod` target (`pause_status` is an override, so
+pausing in the UI is not enough: the next `bundle deploy -t prod` would restore
+the definition's value). To change the state, edit `databricks.yml`, commit,
+merge and deploy.
+
+- Day-to-day check: `databricks jobs list-runs --job-id <prod job id> --limit 5`
+  (expected: exactly one run per day, started at 23:00, `SUCCESS`).
+- Failures: the job notifies by email (`on_failure` in `resources/elt.job.yml`).
+- **Rollback** (return to the previous manual job, kept paused as a fallback):
+  set `pause_status: PAUSED` in the `prod` target, commit, merge, deploy
+  (`bundle deploy -t prod`), verify the bundle job is `PAUSED` and resume the
+  manual job's schedule. Expected: pause effective < 5 min, full reconciliation
+  (git + deploy) < 10 min.
+- The full cutover/rollback procedure, IDs and execution log of spec 007 live in
+  `specs/007-ELT-As-Code/cutover.md`. The job ids in use are recorded there; the
+  paused manual job must not be deleted while it is the rollback path.
+
+> **Known debt:** `resources/elt.job.yml` versions the failure-notification
+> email. It predates the bundle and the repository is public; it is an accepted
+> debt (decision of 2026-10-19). Moving it to a secret is pending.

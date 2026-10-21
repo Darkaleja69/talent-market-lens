@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "source": "irishjobs",
+  "kind": "multi_site",
+  "role": "primary",
+  "field": null,
+  "trigger": null,
+  "run_date": "2026-10-17",
+  "offers_current_run": null,
+  "offers_snapshot": null,
+  "completeness_scope": "run",
+  "reason": {
+    "outcome": "error",
+    "failures": [
+      "sin evidencia suficiente para confirmar la fuente"
+    ],
+    "summary": "error: technical failure or non-zero exit (1 diagnostic failure reason(s))"
+  },
+  "evidence": [
+    "estado del pipeline: ok (subidos=1, rechazados=0)",
+    "resultado de la ejecución: error técnico (error)",
+    "error registrado: exit=75",
+    "detalle: exit=75 merge_exit=0 output_merged=False"
+  ],
+  "evidence_paths": [
+    "multi_site_job_scraper/data/merged/last_run.json",
+    "multi_site_job_scraper/data/irishjobs/run.log",
+    "scrapers-pipeline/logs/diagnostic_last.json",
+    "scrapers-pipeline/logs/upload-2026-10-17.log"
+  ],
+  "evidence_paths_base": "repository_root",
+  "playbook": {
+    "section": "6.4",
+    "title": "IrishJobs - 0 cards and watchdog exit",
+    "recipe": "0 cards in every combination, no PROGRESS line and exit=75 watchdog; stepstone_nl shares the class and works. Check what the IE SERP returns in a real browser (challenge, different HTML, geo/rate) and whether an internal API exists. Update the selectors/parser, detect the block with a reason and emit PROGRESS per page (0 cards is also progress).",
+    "test_scope": {
+      "description": "affected portal only, 1 role, one page",
+      "parameters": {
+        "roles": 1,
+        "max_pages": 1,
+        "portals": [
+          "irishjobs"
+        ]
+      },
+      "constraints": [
+        "only the affected portal",
+        "no merge",
+        "no Azure upload",
+        "no landing update"
+      ],
+      "command": "python -m src.irishjobs --max-pages 1"
+    }
+  },
+  "quality": [
+    {
+      "field": "id",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "title",
+      "required": true,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "company",
+      "required": true,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "description",
+      "required": true,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "salary",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "skills",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "work_mode",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "location",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "posted_date",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    }
+  ],
+  "test_scope": {
+    "description": "affected portal only, 1 role, one page",
+    "parameters": {
+      "roles": 1,
+      "max_pages": 1,
+      "portals": [
+        "irishjobs"
+      ]
+    },
+    "constraints": [
+      "only the affected portal",
+      "no merge",
+      "no Azure upload",
+      "no landing update"
+    ],
+    "command": "python -m src.irishjobs --max-pages 1"
+  }
+}

@@ -1,0 +1,216 @@
+{
+  "created_time": 1792350791606,
+  "creator_user_name": "<user>",
+  "job_id": 916863262593632,
+  "run_as_user_name": "<user>",
+  "settings": {
+    "deployment": {
+      "kind": "BUNDLE",
+      "metadata_file_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/state/metadata.json"
+    },
+    "edit_mode": "UI_LOCKED",
+    "email_notifications": {
+      "no_alert_for_skipped_runs": false,
+      "on_failure": [
+        "<user>"
+      ]
+    },
+    "format": "MULTI_TASK",
+    "job_clusters": [
+      {
+        "job_cluster_key": "tm-lens-job",
+        "new_cluster": {
+          "custom_tags": {
+            "project": "talent-market-lens"
+          },
+          "data_security_mode": "DATA_SECURITY_MODE_DEDICATED",
+          "is_single_node": true,
+          "kind": "CLASSIC_PREVIEW",
+          "node_type_id": "Standard_D4ds_v4",
+          "num_workers": 0,
+          "runtime_engine": "STANDARD",
+          "spark_version": "17.3.x-scala2.13"
+        }
+      }
+    ],
+    "max_concurrent_runs": 1,
+    "name": "Git Based ELT",
+    "notification_settings": {
+      "no_alert_for_canceled_runs": false,
+      "no_alert_for_skipped_runs": false
+    },
+    "performance_target": "PERFORMANCE_OPTIMIZED",
+    "queue": {
+      "enabled": true
+    },
+    "run_as": {
+      "user_name": "<user>"
+    },
+    "schedule": {
+      "pause_status": "PAUSED",
+      "quartz_cron_expression": "50 0 23 * * ?",
+      "timezone_id": "Europe/Madrid"
+    },
+    "tasks": [
+      {
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers",
+            "checkpoints_root": "abfss://landing@joboffershns.dfs.core.windows.net/_checkpoints",
+            "container": "landing",
+            "storage_account": "joboffershns"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/bronze_ingest.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Bronze_Ingestion",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      },
+      {
+        "depends_on": [
+          {
+            "task_key": "Gold_Complete_Catalog"
+          }
+        ],
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers",
+            "container": "landing",
+            "export_prefix": "gold/web_export",
+            "storage_account": "joboffershns"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/web_export_build.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Build_for_Web-Dashboard",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      },
+      {
+        "depends_on": [
+          {
+            "task_key": "Silver_Multi_site"
+          },
+          {
+            "task_key": "Silver_Indeed"
+          },
+          {
+            "task_key": "Silver_Infojobs"
+          },
+          {
+            "task_key": "Silver_Linkedin"
+          }
+        ],
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/gold_build.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Gold_Complete_Catalog",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      },
+      {
+        "depends_on": [
+          {
+            "task_key": "Bronze_Ingestion"
+          }
+        ],
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/silver_indeed.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Silver_Indeed",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      },
+      {
+        "depends_on": [
+          {
+            "task_key": "Bronze_Ingestion"
+          }
+        ],
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/silver_infojobs.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Silver_Infojobs",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      },
+      {
+        "depends_on": [
+          {
+            "task_key": "Bronze_Ingestion"
+          }
+        ],
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/silver_linkedin.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Silver_Linkedin",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      },
+      {
+        "depends_on": [
+          {
+            "task_key": "Bronze_Ingestion"
+          }
+        ],
+        "disabled": false,
+        "email_notifications": {},
+        "job_cluster_key": "tm-lens-job",
+        "notebook_task": {
+          "base_parameters": {
+            "catalog": "job_offers"
+          },
+          "notebook_path": "/Workspace/Users/<user>/.bundle/talent-market-lens/prod/files/databricks_notebooks/silver_multisite.ipynb",
+          "source": "WORKSPACE"
+        },
+        "run_if": "ALL_SUCCESS",
+        "task_key": "Silver_Multi_site",
+        "timeout_seconds": 0,
+        "webhook_notifications": {}
+      }
+    ],
+    "timeout_seconds": 1800,
+    "webhook_notifications": {}
+  }
+}

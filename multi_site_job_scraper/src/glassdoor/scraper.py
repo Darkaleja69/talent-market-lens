@@ -54,6 +54,30 @@ _ANTIBOT_MARKERS = [
     "solo personas reales", "sistemas de seguridad avanzados",
 ]
 
+# Resultado de la primera SERP de cada rol (reparacion 20261018): `run()` lo
+# usa para no confundir "no pude cargar la SERP" con "el portal no tiene
+# ofertas". `ROLE_UNKNOWN` cubre roles interrumpidos antes de navegar.
+ROLE_LOADED = "loaded"
+ROLE_NAVIGATION_FAILED = "navigation_failed"
+ROLE_BLOCKED = "blocked"
+ROLE_UNKNOWN = "unknown"
+
+# Tras N roles consecutivos sin cargar la SERP (timeout o bloqueo) no tiene
+# sentido agotar el resto a ~70 s de timeouts por rol: se corta el bucle y se
+# decide con lo observado.
+MAX_CONSECUTIVE_NAVIGATION_FAILURES = 3
+
+
+class NavigationFailure(RuntimeError):
+    """Ningun rol llego a cargar su SERP en todo el run.
+
+    La lanza `GlassdoorScraper.run()` cuando todos los roles intentados
+    acabaron `navigation_failed` o `blocked`; `__main__` la convierte en
+    exit != 0 (con `store.write_all()`), de modo que el diagnostico del
+    pipeline lo lee como fallo tecnico (`error`) y no como portal sin
+    ofertas (`empty`).
+    """
+
 
 def _apply_stealth(page) -> None:
     """Aplica stealth playwright-stealth si esta disponible."""
@@ -91,6 +115,8 @@ class GlassdoorScraper:
         )
         self.target = self.config.get("target", 1000)
         self._sig_stop = False
+        # Estado de la primera SERP del rol en curso (ver `ROLE_*`).
+        self._role_outcome: str | None = None
         self._csrf_token = ""
         self._progress = RunProgressCounter(self.config.get("site", "glassdoor"))
 
@@ -102,6 +128,13 @@ class GlassdoorScraper:
         return line
 
     def run(self) -> int:
+        """Ejecuta el run completo y devuelve las ofertas nuevas.
+
+        Si ningun rol llega a cargar su SERP (todos `navigation_failed` o
+        `blocked`), registra el marcador `navigation_failed` y lanza
+        `NavigationFailure`; `__main__` la mapea a exit != 0 para que el
+        diagnostico lo lea como fallo tecnico y no como "sin ofertas".
+        """
         roles = self.config.get("roles", [])
         base_url = self.config["base_url"]
         search_path = self.config.get("search_path", "/Job/jobs.htm")
@@ -134,6 +167,12 @@ class GlassdoorScraper:
         total_new = 0
         browser_crashes = 0
         max_browser_restarts = 3
+        # Fallo honesto de navegacion (reparacion 20261018): un unico
+        # relanzamiento del navegador por run, aborto temprano tras N roles
+        # consecutivos sin SERP y fallo del run si ninguno cargo.
+        navigation_relaunch_used = False
+        consecutive_without_serp = 0
+        outcomes: list[str] = []
 
         try:
             from patchright.sync_api import sync_playwright
@@ -175,7 +214,6 @@ class GlassdoorScraper:
                             between_details=between_details,
                             site=site, country=country, country_name=country_name,
                         )
-                        break
                     except TargetClosedError:
                         log.warning("Navegador cerrado durante '%s'. Reintentando (%d/3)...",
                                     role, attempt + 1)
@@ -206,10 +244,48 @@ class GlassdoorScraper:
                         self.store.write_all()
                         n = 0
                         break
+                    else:
+                        # Un fallo de navegacion con el contexto vivo merece un
+                        # unico relanzamiento del navegador antes de dar el rol
+                        # por perdido (incidente transitorio del host).
+                        if (self._role_outcome == ROLE_NAVIGATION_FAILED
+                                and not navigation_relaunch_used
+                                and not self._sig_stop):
+                            navigation_relaunch_used = True
+                            log.warning(
+                                "Fallo de navegacion en '%s': unico "
+                                "relanzamiento del navegador con contexto "
+                                "nuevo y reintento del rol...", role)
+                            try:
+                                close_context(context)
+                            except Exception:
+                                pass
+                            time.sleep(random.uniform(5.0, 10.0))
+                            context, page = self._launch_browser(
+                                pw, locale, timezone, profile_name, clean=False)
+                            effective_base_url, self._csrf_token = self._warmup_homepage(
+                                page, base_url, search_path, date_filter)
+                            loc_id, loc_type = self._resolve_location_or_fail(
+                                context, effective_base_url, loc_term)
+                            continue
+                        break
 
                 total_new += n
                 log.info("'%s' completado: %d ofertas nuevas (total store: %d)",
                          role, n, len(self.store))
+
+                outcome = self._role_outcome or ROLE_UNKNOWN
+                outcomes.append(outcome)
+                if outcome == ROLE_LOADED:
+                    consecutive_without_serp = 0
+                else:
+                    consecutive_without_serp += 1
+                if consecutive_without_serp >= MAX_CONSECUTIVE_NAVIGATION_FAILURES:
+                    log.warning(
+                        "Aborto temprano tras %d roles consecutivos sin "
+                        "cargar la SERP; no se agotan los %d roles.",
+                        consecutive_without_serp, len(roles))
+                    break
 
                 if len(self.store) >= self.target:
                     log.info("Objetivo de %d ofertas alcanzado. Fin.", self.target)
@@ -217,6 +293,18 @@ class GlassdoorScraper:
 
                 if idx < len(roles) - 1 and not self._sig_stop:
                     delay(between_searches, label="between-searches")
+
+            failed_outcomes = [o for o in outcomes
+                               if o in (ROLE_NAVIGATION_FAILED, ROLE_BLOCKED)]
+            if (outcomes and ROLE_LOADED not in outcomes
+                    and len(failed_outcomes) == len(outcomes)):
+                reasons = ", ".join(dict.fromkeys(failed_outcomes))
+                log.error("navigation_failed: %d/%d roles sin SERP (motivos: %s)",
+                          len(failed_outcomes), len(roles), reasons)
+                raise NavigationFailure(
+                    "Ninguna SERP se pudo cargar (%d/%d roles sin SERP: %s); "
+                    "se sale con error para no reportar 'sin ofertas'."
+                    % (len(failed_outcomes), len(roles), reasons))
         except KeyboardInterrupt:
             interrupted = True
             log.warning("Ctrl+C recibido. Guardando lo encontrado y cerrando...")
@@ -290,6 +378,9 @@ class GlassdoorScraper:
                       max_pages, jobs_per_search, post_goto,
                       step_px, scroll_pause, between_pages,
                       between_details, site, country, country_name) -> int:
+        # La primera SERP decide el estado del rol (`ROLE_*`); `run()` lo lee
+        # para el fallo honesto y el aborto temprano.
+        self._role_outcome = None
         total = 0
         consecutive_empty = 0
         cursor: Optional[str] = None
@@ -331,11 +422,18 @@ class GlassdoorScraper:
                 except Exception:
                     pass
             except Exception as e:
+                if pg == 1:
+                    self._role_outcome = ROLE_NAVIGATION_FAILED
                 log.error("Error navegando a SERP '%s': %s", role, e)
                 break
 
             if self._check_blocked_or_landing(page, role):
+                if pg == 1:
+                    self._role_outcome = ROLE_BLOCKED
                 break
+
+            if pg == 1:
+                self._role_outcome = ROLE_LOADED
 
             time.sleep(random.uniform(1.0, 2.0))
             serp.dismiss_overlays(page)

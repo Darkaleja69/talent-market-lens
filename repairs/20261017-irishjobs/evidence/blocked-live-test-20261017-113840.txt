@@ -1,0 +1,16 @@
+# Copia saneada de multi_site_job_scraper/data/irishjobs/blocked_20261017_113840.txt
+# (volcado del fix T-34 durante la prueba en vivo del 2026-10-17 11:38:40 local,
+# +02:00; sin cookies, sin scripts y sin tokens; solo titulo/URL/status/marcadores
+# y recorte de texto de la pagina mitigada).
+# Sanitizado: rutas de usuario como <REPO>; no habia rutas en el original.
+
+# Sanitized blocked-page evidence (no cookies, no scripts)
+reason=challenge:access_denied
+url=https://www.irishjobs.ie/jobs/data-analyst?age=7
+status=403
+title=Access Denied
+markers_present=
+markers_absent=job_card,job_item,result_count,resultlist
+
+text_excerpt=
+Access Denied You don't have permission to access "http://www.irishjobs.ie/jobs/data-analyst?" on this server. Reference #18.a3d73b17.1792229913.475098c https://errors.edgesuite.net/18.a3d73b17.1792229913.475098c

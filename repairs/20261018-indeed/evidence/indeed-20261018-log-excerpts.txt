@@ -1,0 +1,112 @@
+# Extracto saneado del log del run IE 2026-10-18 (log_20261018_0219.log)
+# Filtrado a: cache, parse, autoOpen, muestreo del enrich, resultado por SERP y fallos de clic.
+# Sin credenciales, cookies ni rutas locales.
+
+2026-10-18 02:19:29,250 [INFO] scraper.desc_cache: desc-cache cargado: 650 descripciones
+2026-10-18 02:20:05,836 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data&l=Dublin&radius=25&fromage=7
+2026-10-18 02:20:57,649 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/15 ofertas
+2026-10-18 02:20:57,650 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-18 02:20:57,650 [INFO] scraper.desc_cache: desc-cache: 13 ofertas rellenadas sin clics
+2026-10-18 02:21:09,542 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 1, rate=90%, max_enrich=15)
+2026-10-18 02:21:09,586 [INFO] scraper.desc_cache: desc-cache: 2 entradas nuevas/actualizadas
+2026-10-18 02:21:57,196 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data&l=Dublin&radius=25&start=10&fromage=7
+2026-10-18 02:22:31,896 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/15 ofertas
+2026-10-18 02:22:31,897 [INFO] scraper.parser: parseadas 15 ofertas (pagina 2, IE/Dublin) via JSON embebido
+2026-10-18 02:22:31,902 [INFO] scraper.desc_cache: desc-cache: 1 ofertas rellenadas sin clics
+2026-10-18 02:22:31,904 [INFO] scraper.parser: enriquecimiento limitado a 11 clics (candidatas sin descripcion: 13, max_enrich=15)
+2026-10-18 02:24:39,397 [INFO] scraper.parser: enriquecidas 11/11 clics (con descripcion: 11, sin descripcion: 0; candidatas sin descripcion: 13, rate=90%, max_enrich=15)
+2026-10-18 02:24:39,397 [INFO] scraper.desc_cache: desc-cache: 12 entradas nuevas/actualizadas
+2026-10-18 02:34:02,473 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data&l=Cork&radius=25&fromage=7
+2026-10-18 02:34:35,221 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/10 ofertas
+2026-10-18 02:34:35,221 [INFO] scraper.parser: parseadas 10 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-18 02:34:35,239 [INFO] scraper.desc_cache: desc-cache: 7 ofertas rellenadas sin clics
+2026-10-18 02:34:35,239 [INFO] scraper.parser: enriquecimiento limitado a 1 clics (candidatas sin descripcion: 2, max_enrich=15)
+2026-10-18 02:34:46,514 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 2, rate=90%, max_enrich=15)
+2026-10-18 02:34:46,514 [INFO] scraper.desc_cache: desc-cache: 2 entradas nuevas/actualizadas
+2026-10-18 02:35:25,132 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data&l=Cork&radius=25&start=10&fromage=7
+2026-10-18 02:35:58,889 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/10 ofertas
+2026-10-18 02:35:58,889 [INFO] scraper.parser: parseadas 10 ofertas (pagina 2, IE/Cork) via JSON embebido
+2026-10-18 02:35:58,890 [INFO] scraper.desc_cache: desc-cache: 8 ofertas rellenadas sin clics
+2026-10-18 02:36:13,190 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 1, rate=90%, max_enrich=15)
+2026-10-18 02:36:13,190 [INFO] scraper.desc_cache: desc-cache: 1 entradas nuevas/actualizadas
+2026-10-18 02:45:48,001 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data engineer&l=Dublin&radius=25&fromage=7
+2026-10-18 02:46:47,642 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/15 ofertas
+2026-10-18 02:46:47,654 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-18 02:46:47,685 [INFO] scraper.desc_cache: desc-cache: 5 ofertas rellenadas sin clics
+2026-10-18 02:46:47,688 [INFO] scraper.parser: enriquecimiento limitado a 8 clics (candidatas sin descripcion: 9, max_enrich=15)
+2026-10-18 02:48:44,914 [INFO] scraper.parser: enriquecidas 8/8 clics (con descripcion: 8, sin descripcion: 0; candidatas sin descripcion: 9, rate=90%, max_enrich=15)
+2026-10-18 02:48:44,915 [INFO] scraper.desc_cache: desc-cache: 10 entradas nuevas/actualizadas
+2026-10-18 02:49:30,332 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data engineer&l=Dublin&radius=25&start=10&fromage=7
+2026-10-18 02:50:06,122 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/15 ofertas
+2026-10-18 02:50:06,123 [INFO] scraper.parser: parseadas 15 ofertas (pagina 2, IE/Dublin) via JSON embebido
+2026-10-18 02:50:06,148 [INFO] scraper.desc_cache: desc-cache: 7 ofertas rellenadas sin clics
+2026-10-18 02:50:06,167 [INFO] scraper.parser: enriquecimiento limitado a 6 clics (candidatas sin descripcion: 7, max_enrich=15)
+2026-10-18 02:51:11,578 [INFO] scraper.parser: enriquecidas 6/6 clics (con descripcion: 6, sin descripcion: 0; candidatas sin descripcion: 7, rate=90%, max_enrich=15)
+2026-10-18 02:51:11,579 [INFO] scraper.desc_cache: desc-cache: 7 entradas nuevas/actualizadas
+2026-10-18 03:01:24,669 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data engineer&l=Cork&radius=25&fromage=7
+2026-10-18 03:02:12,961 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/15 ofertas
+2026-10-18 03:02:12,972 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-18 03:02:12,977 [INFO] scraper.desc_cache: desc-cache: 10 ofertas rellenadas sin clics
+2026-10-18 03:02:12,977 [INFO] scraper.parser: enriquecimiento limitado a 3 clics (candidatas sin descripcion: 4, max_enrich=15)
+2026-10-18 03:02:54,648 [INFO] scraper.parser: enriquecidas 3/3 clics (con descripcion: 3, sin descripcion: 0; candidatas sin descripcion: 4, rate=90%, max_enrich=15)
+2026-10-18 03:02:54,665 [INFO] scraper.desc_cache: desc-cache: 4 entradas nuevas/actualizadas
+2026-10-18 03:03:34,199 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data engineer&l=Cork&radius=25&start=10&fromage=7
+2026-10-18 03:04:12,704 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/8 ofertas
+2026-10-18 03:04:12,713 [INFO] scraper.parser: parseadas 8 ofertas (pagina 2, IE/Cork) via JSON embebido
+2026-10-18 03:04:12,725 [INFO] scraper.parser: enriquecimiento limitado a 6 clics (candidatas sin descripcion: 7, max_enrich=15)
+2026-10-18 03:05:01,380 [WARNING] scraper.parser: enriquecimiento fallido jk=3a8c91f14177f18a: Locator.click: Timeout 5000ms exceeded.
+2026-10-18 03:05:20,487 [INFO] scraper.parser: enriquecidas 6/6 clics (con descripcion: 5, sin descripcion: 1; candidatas sin descripcion: 7, rate=90%, max_enrich=15)
+2026-10-18 03:05:20,490 [INFO] scraper.desc_cache: desc-cache: 6 entradas nuevas/actualizadas
+2026-10-18 03:18:10,737 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data analyst&l=Dublin&radius=25&fromage=7
+2026-10-18 03:19:05,253 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/15 ofertas
+2026-10-18 03:19:05,266 [INFO] scraper.parser: parseadas 15 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-18 03:19:05,270 [INFO] scraper.desc_cache: desc-cache: 10 ofertas rellenadas sin clics
+2026-10-18 03:19:05,270 [INFO] scraper.parser: enriquecimiento limitado a 3 clics (candidatas sin descripcion: 4, max_enrich=15)
+2026-10-18 03:19:39,071 [INFO] scraper.parser: enriquecidas 3/3 clics (con descripcion: 3, sin descripcion: 0; candidatas sin descripcion: 4, rate=90%, max_enrich=15)
+2026-10-18 03:19:39,071 [INFO] scraper.desc_cache: desc-cache: 3 entradas nuevas/actualizadas
+2026-10-18 03:20:19,319 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data analyst&l=Dublin&radius=25&start=10&fromage=7
+2026-10-18 03:20:56,726 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/10 ofertas
+2026-10-18 03:20:56,726 [INFO] scraper.parser: parseadas 10 ofertas (pagina 2, IE/Dublin) via JSON embebido
+2026-10-18 03:20:56,737 [INFO] scraper.desc_cache: desc-cache: 2 ofertas rellenadas sin clics
+2026-10-18 03:20:56,737 [INFO] scraper.parser: enriquecimiento limitado a 6 clics (candidatas sin descripcion: 7, max_enrich=15)
+2026-10-18 03:22:02,955 [INFO] scraper.parser: enriquecidas 6/6 clics (con descripcion: 6, sin descripcion: 0; candidatas sin descripcion: 7, rate=90%, max_enrich=15)
+2026-10-18 03:22:02,958 [INFO] scraper.desc_cache: desc-cache: 7 entradas nuevas/actualizadas
+2026-10-18 03:33:51,741 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data analyst&l=Cork&radius=25&fromage=7
+2026-10-18 03:34:27,729 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/7 ofertas
+2026-10-18 03:34:27,731 [INFO] scraper.parser: parseadas 7 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-18 03:34:27,731 [INFO] scraper.desc_cache: desc-cache: 3 ofertas rellenadas sin clics
+2026-10-18 03:34:27,731 [INFO] scraper.parser: enriquecimiento limitado a 2 clics (candidatas sin descripcion: 3, max_enrich=15)
+2026-10-18 03:34:51,152 [INFO] scraper.parser: enriquecidas 2/2 clics (con descripcion: 2, sin descripcion: 0; candidatas sin descripcion: 3, rate=90%, max_enrich=15)
+2026-10-18 03:34:51,158 [INFO] scraper.desc_cache: desc-cache: 2 entradas nuevas/actualizadas
+2026-10-18 03:35:42,389 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data analyst&l=Cork&radius=25&start=10&fromage=7
+2026-10-18 03:36:12,603 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/7 ofertas
+2026-10-18 03:36:12,608 [INFO] scraper.parser: parseadas 7 ofertas (pagina 2, IE/Cork) via JSON embebido
+2026-10-18 03:36:12,630 [INFO] scraper.desc_cache: desc-cache: 4 ofertas rellenadas sin clics
+2026-10-18 03:36:12,630 [INFO] scraper.parser: enriquecimiento limitado a 1 clics (candidatas sin descripcion: 2, max_enrich=15)
+2026-10-18 03:36:23,983 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 2, rate=90%, max_enrich=15)
+2026-10-18 03:36:23,988 [INFO] scraper.desc_cache: desc-cache: 1 entradas nuevas/actualizadas
+2026-10-18 03:45:43,841 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data scientist&l=Dublin&radius=25&fromage=7
+2026-10-18 03:46:30,094 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/10 ofertas
+2026-10-18 03:46:30,100 [INFO] scraper.parser: parseadas 10 ofertas (pagina 1, IE/Dublin) via JSON embebido
+2026-10-18 03:46:30,105 [INFO] scraper.desc_cache: desc-cache: 7 ofertas rellenadas sin clics
+2026-10-18 03:46:30,118 [INFO] scraper.parser: enriquecimiento limitado a 1 clics (candidatas sin descripcion: 2, max_enrich=15)
+2026-10-18 03:46:40,611 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 2, rate=90%, max_enrich=15)
+2026-10-18 03:46:40,614 [INFO] scraper.desc_cache: desc-cache: 2 entradas nuevas/actualizadas
+2026-10-18 03:47:32,216 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data scientist&l=Dublin&radius=25&start=10&fromage=7
+2026-10-18 03:48:06,704 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/10 ofertas
+2026-10-18 03:48:06,704 [INFO] scraper.parser: parseadas 10 ofertas (pagina 2, IE/Dublin) via JSON embebido
+2026-10-18 03:48:06,706 [INFO] scraper.desc_cache: desc-cache: 8 ofertas rellenadas sin clics
+2026-10-18 03:48:24,921 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 1, rate=90%, max_enrich=15)
+2026-10-18 03:48:24,950 [INFO] scraper.desc_cache: desc-cache: 1 entradas nuevas/actualizadas
+2026-10-18 03:59:10,466 [INFO] scraper.runner: navegando pagina 1 (start=0): https://ie.indeed.com/jobs?q=data scientist&l=Cork&radius=25&fromage=7
+2026-10-18 03:59:35,020 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/5 ofertas
+2026-10-18 03:59:35,021 [INFO] scraper.parser: parseadas 5 ofertas (pagina 1, IE/Cork) via JSON embebido
+2026-10-18 03:59:35,022 [INFO] scraper.desc_cache: desc-cache: 2 ofertas rellenadas sin clics
+2026-10-18 03:59:35,023 [INFO] scraper.parser: enriquecimiento limitado a 1 clics (candidatas sin descripcion: 2, max_enrich=15)
+2026-10-18 03:59:43,263 [INFO] scraper.parser: enriquecidas 1/1 clics (con descripcion: 1, sin descripcion: 0; candidatas sin descripcion: 2, rate=90%, max_enrich=15)
+2026-10-18 03:59:43,290 [INFO] scraper.desc_cache: desc-cache: 2 entradas nuevas/actualizadas
+2026-10-18 04:00:27,739 [INFO] scraper.runner: navegando pagina 2 (start=10): https://ie.indeed.com/jobs?q=data scientist&l=Cork&radius=25&start=10&fromage=7
+2026-10-18 04:00:54,615 [INFO] scraper.parser: descripciones from _initialData (autoOpen embedded JSON): 1/5 ofertas
+2026-10-18 04:00:54,616 [INFO] scraper.parser: parseadas 5 ofertas (pagina 2, IE/Cork) via JSON embebido
+2026-10-18 04:00:54,620 [INFO] scraper.desc_cache: desc-cache: 4 ofertas rellenadas sin clics
+2026-10-18 04:00:54,621 [INFO] scraper.desc_cache: desc-cache: 1 entradas nuevas/actualizadas

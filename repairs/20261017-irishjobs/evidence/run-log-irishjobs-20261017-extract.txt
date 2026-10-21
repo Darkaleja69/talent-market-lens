@@ -1,0 +1,87 @@
+# Extracto de multi_site_job_scraper/data/irishjobs/run.log (saneado: rutas <REPO>)
+# run.log es un fichero append-only con el historial de muchos runs (69 banners
+# "=== IrishJobs Scraper ===", 92.865 líneas). Sin fechas por línea (solo HH:MM:SS):
+# el orden de líneas es el orden real de runs.
+#
+# Estadísticas verificadas del fichero completo:
+#   - 69 banners de arranque de run.
+#   - 1.168 líneas `PROGRESS source=irishjobs` reales.
+#   - La ÚLTIMA línea PROGRESS real es la línea 86389 (2026-10-01 04:47:15 local):
+#       PROGRESS source=irishjobs parsed=1166 new=92 ts=2026-10-01T02:47:15+00:00
+#   - Después de ella hay 15 banners de run más y NINGUNA línea PROGRESS.
+
+## 1. Último run sano (2026-10-01, líneas 86367-86391): 25 tarjetas y latido
+
+04:44:54 INFO    src.core.store: Checkpoint: <REPO>/multi_site_job_scraper/data/irishjobs/checkpoints/progress_20261001_044454_irishjobs_Business_Intelligence_Wexford_p1.csv (92 ofertas)
+04:45:12 INFO    irishjobs: SERP page 2/15: https://www.irishjobs.ie/jobs/business-intelligence/in-wexford?age=7&page=2&action=paging_next
+04:45:45 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+04:45:48 INFO    src.irishjobs.serp: Tarjetas validas: 25
+04:45:48 INFO    irishjobs: Filtro titulo page 2: 24 de 25 no son roles data
+04:45:48 INFO    irishjobs: Page 2: 25 tarjetas (25 nuevas en esta pagina)
+04:45:48 INFO    irishjobs: PROGRESS source=irishjobs parsed=1164 new=92 ts=2026-10-01T02:45:48+00:00
+...
+04:47:15 INFO    irishjobs: PROGRESS source=irishjobs parsed=1166 new=92 ts=2026-10-01T02:47:15+00:00
+04:47:25 INFO    irishjobs: Navegacion a siguiente pagina fallida. Fin combo.
+04:47:53 INFO    src.core.store: Parquet escrito: <REPO>/multi_site_job_scraper/data/irishjobs/output/jobs.parquet (92 filas, esquema tipado)
+04:47:53 INFO    irishjobs: === IRISHJOBS DONE: 92 ofertas nuevas, 92 total, 92 detalles ===
+
+(Nota: la paginación del run sano ya usaba `?age=7&page=2&action=paging_next`,
+vetada por robots.txt: `Disallow: /*&action=`.)
+
+## 2. Run siguiente (2026-10-01/02, líneas 86393-86402): primer 0 persistente
+
+00:01:36 INFO    irishjobs: === IrishJobs Scraper ===
+00:01:36 INFO    src.core.store: Reanudacion: 92 job_ids cargados de <REPO>/multi_site_job_scraper/data/irishjobs/checkpoints/state.json
+00:01:36 INFO    irishjobs: Combinaciones: 13 roles x 13 ciudades = 169
+00:01:42 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-GB tz=Europe/Dublin profile=irishjobs
+00:02:53 INFO    irishjobs: --- [1/169] 'Data Analyst' en Ireland (nationwide) (acumulado: 0, detalles: 0) ---
+00:02:55 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/data-analyst?age=7
+00:03:18 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+00:03:18 INFO    src.irishjobs.serp: Tarjetas validas: 0
+00:03:18 INFO    irishjobs: Sin tarjetas en page 1. Fin.
+00:03:25 INFO    irishjobs: --- [2/169] 'Data Analyst' en Dublin (acumulado: 0, detalles: 0) ---
+00:03:25 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/data-analyst/in-dublin?age=7
+00:03:42 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+00:03:42 INFO    src.irishjobs.serp: Tarjetas validas: 0
+00:03:42 INFO    irishjobs: Sin tarjetas en page 1. Fin.
+
+## 3. Run de origen 2026-10-17 (último banner, desde la línea 92328; murió a mitad)
+
+00:01:50 INFO    irishjobs: === IrishJobs Scraper ===
+00:01:50 INFO    src.core.store: Reanudacion: 92 job_ids cargados de <REPO>/multi_site_job_scraper/data/irishjobs/checkpoints/state.json
+00:01:50 INFO    irishjobs: Combinaciones: 13 roles x 13 ciudades = 169
+00:01:53 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-GB tz=Europe/Dublin profile=irishjobs
+00:02:16 INFO    irishjobs: --- [1/169] 'Data Analyst' en Ireland (nationwide) (acumulado: 0, detalles: 0) ---
+00:02:17 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/data-analyst?age=7
+00:02:32 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+00:02:32 INFO    src.irishjobs.serp: Tarjetas validas: 0
+00:02:32 INFO    irishjobs: Sin tarjetas en page 1. Fin.
+...
+# Últimas 16 líneas del fichero (fin abrupto a las 00:41:39, sin línea del watchdog):
+00:40:09 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/bi-developer/in-wexford?age=7
+00:40:18 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+00:40:18 INFO    src.irishjobs.serp: Tarjetas validas: 0
+00:40:18 INFO    irishjobs: Sin tarjetas en page 1. Fin.
+00:40:26 INFO    irishjobs: --- [105/169] 'Python Data' en Ireland (nationwide) (acumulado: 0, detalles: 0) ---
+00:40:27 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/python-data?age=7
+00:40:58 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+00:40:58 INFO    src.irishjobs.serp: Tarjetas validas: 0
+00:40:58 INFO    irishjobs: Sin tarjetas en page 1. Fin.
+00:41:04 INFO    irishjobs: --- [106/169] 'Python Data' en Dublin (acumulado: 0, detalles: 0) ---
+00:41:04 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/python-data/in-dublin?age=7
+00:41:29 INFO    src.irishjobs.serp: Tarjetas encontradas: 0
+00:41:29 INFO    src.irishjobs.serp: Tarjetas validas: 0
+00:41:29 INFO    irishjobs: Sin tarjetas en page 1. Fin.
+00:41:36 INFO    irishjobs: --- [107/169] 'Python Data' en Cork (acumulado: 0, detalles: 0) ---
+00:41:39 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/python-data/in-cork?age=7
+<EOF>
+
+## 4. Lectura
+
+- No hay ninguna línea PROGRESS en los 15 runs posteriores al 2026-10-01.
+- Ningún run desde entonces paró por sí mismo: cada uno muere a mitad de combo
+  (aquí, combo 107/169) cuando el watchdog de progreso lo mata (exit=75).
+- `page.goto` no falla (no hay WARNING/ERROR de navegación): la página carga,
+  pero `parse_cards` no encuentra NINGUNA tarjeta en ningún combo, incluido el
+  nationwide con resultados reales (hoy la web sirve 188 ofertas para
+  `python-data`; ver serp-probe-facts.md).

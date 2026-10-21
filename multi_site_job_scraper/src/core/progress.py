@@ -3,10 +3,13 @@
 Format, kept literal so the pipeline supervisor can parse it:
     PROGRESS source=<source_id> parsed=<n> new=<n> ts=<iso>
 
-- ``parsed`` is the cumulative count of offers processed during the run for
-  *that portal*, including duplicates already known from previous runs. The
-  watchdog uses this field: an already-seen offer still proves the page keeps
-  being processed.
+- ``parsed`` is the cumulative count of work units processed during the run
+  for *that portal*: it grows with the cards parsed on each page (duplicates
+  already known from previous runs included) or, at minimum, by 1 for every
+  processed page, even when that page brought no cards. An empty page is
+  progress too, and a silent block must not look like a hang. The watchdog
+  uses this field: either an already-seen offer or a visited page proves the
+  scraper keeps working.
 - ``new`` is optional and counts only offers not seen before (informational).
 - ``ts`` is optional ISO timestamp.
 

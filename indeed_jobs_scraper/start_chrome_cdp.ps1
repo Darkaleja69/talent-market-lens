@@ -88,7 +88,7 @@ Write-Host ""
 Write-Host "  Cuando estes listo, ejecuta:"
 Write-Host "    powershell -ExecutionPolicy Bypass -File .\run_nightly_indeed.ps1"
 Write-Host "  o directamente:"
-Write-Host "    python main.py --cdp $CdpPort --term data --cities Madrid,Barcelona --pages 2 --fromage 7 --enrich-rate 0.9"
+Write-Host "    python main.py --cdp $CdpPort --term data --cities Madrid,Barcelona --pages 2 --fromage 7 --enrich-rate 1.0"
 Write-Host "=" * 62 -ForegroundColor Cyan
 Write-Host ""
 exit 0

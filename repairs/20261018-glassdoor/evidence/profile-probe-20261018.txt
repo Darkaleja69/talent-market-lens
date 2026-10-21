@@ -1,0 +1,104 @@
+# Sonda del perfil persistente del scraper — 2026-10-18 ~13:50 (+02)
+# Pregunta: el perfil `multi_site_job_scraper/auth/profile/glassdoor` presenta
+# lock/corrupcion? Un arranque del navegador con ese perfil y 1-2 navegaciones
+# reproducen el timeout del run del 18-oct?
+# Restriccion: sonda minima y documentada; no se ejecuto el scraper; no se
+# copio el perfil ni sus cookies a la evidencia (solo hechos saneados).
+
+## Estado del perfil (solo metadatos)
+- Tamano total: ~121,6 MB. Sin ficheros `Singleton*` ni `lock*` en la raiz del
+  perfil -> no hay lock visible.
+- `Last Version` = 148.0.7778.96; `Last Browser` apunta a
+  ...\ms-playwright\chromium-1223\chrome-win64\chrome.exe.
+- Marcas de tiempo coherentes con el run fallido: CertificateRevocation
+  00:11:24, Last Version 00:15:27, Last Browser 00:16:27, Default 00:27:14
+  (18-oct). El perfil se escribio durante el arranque lento de esa noche y no
+  se volvio a tocar hasta esta sonda.
+
+## Sonda ejecutada (dos veces; salida literal)
+Comando (desde multi_site_job_scraper, con PYTHONPATH=.):
+    python C:\Users\aleja\AppData\Local\Temp\opencode\gd_profile_probe.py
+
+Resultado 1.a ejecucion (solo homepage):
+    launch=OK seconds=4.0
+    goto=OK seconds=1.7 title='Glassdoor | Job Search and Career Community' url='https://www.glassdoor.ie/index.htm'
+    body_len=200
+
+Resultado 2.a ejecucion (homepage + 1 SERP):
+    launch=OK seconds=2.1
+    goto=OK seconds=1.4 title='Glassdoor | Job Search and Career Community' url='https://www.glassdoor.ie/index.htm'
+    body_len=200
+    serp_goto=OK seconds=2.0 title='187 Data analyst jobs in Ireland | Glassdoor' url='https://www.glassdoor.ie/Job/ireland-data-analyst-jobs-SRCH_IL.0,7_KO8,20.htm?sc.keyword=Data%2520Analyst'
+
+- Procesos Chromium del binario ms-playwright/chromium-1223 tras la sonda: 0
+  (el contexto se cerro limpiamente).
+- La sonda NO aplica playwright-stealth ni geolocalizacion (minima); usa
+  launch_context con locale=en-IE, tz=Europe/Dublin y perfil `glassdoor`.
+  Navegacion total de la sonda: 3 cargas de pagina.
+
+## Script usado (contenido integro, rutas saneadas con <HOME>)
+```python
+"""Sonda acotada (2026-10-18, fase de investigacion repair/glassdoor-20261018)."""
+from __future__ import annotations
+
+import time
+
+from src.core.browser import launch_context, close_context
+
+try:
+    from patchright.sync_api import sync_playwright
+except ImportError:
+    from playwright.sync_api import sync_playwright  # type: ignore
+
+
+def main() -> int:
+    t0 = time.time()
+    pw = sync_playwright().start()
+    context = None
+    try:
+        context = launch_context(
+            pw, locale="en-IE", timezone="Europe/Dublin",
+            profile_name="glassdoor")
+        print("launch=OK seconds=%.1f" % (time.time() - t0), flush=True)
+        page = context.new_page()
+        t1 = time.time()
+        try:
+            page.goto("https://www.glassdoor.ie/", wait_until="domcontentloaded",
+                      timeout=30000)
+            print("goto=OK seconds=%.1f title=%r url=%r"
+                  % (time.time() - t1, page.title(), page.url), flush=True)
+        except Exception as e:
+            print("goto=FAIL seconds=%.1f error=%s" % (time.time() - t1, e),
+                  flush=True)
+        t2 = time.time()
+        try:
+            page.goto("https://www.glassdoor.ie/Job/jobs.htm?sc.keyword=Data+Analyst&fromAge=7",
+                      wait_until="domcontentloaded", timeout=30000)
+            print("serp_goto=OK seconds=%.1f title=%r url=%r"
+                  % (time.time() - t2, page.title(), page.url), flush=True)
+        except Exception as e:
+            print("serp_goto=FAIL seconds=%.1f error=%s" % (time.time() - t2, e),
+                  flush=True)
+        try:
+            page.close()
+        except Exception:
+            pass
+        return 0
+    finally:
+        if context is not None:
+            close_context(context)
+        try:
+            pw.stop()
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+## Conclusion
+- Perfil integro y funcional: arranque en 2-4 s y navegacion normal; no
+  reproduce ni el timeout de arranque (5 min) ni los timeouts de navegacion.
+- El fallo del 18-oct fue transitorio/de entorno, no del perfil ni del
+  binario.

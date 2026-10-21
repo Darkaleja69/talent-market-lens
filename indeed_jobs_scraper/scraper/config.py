@@ -30,6 +30,13 @@ class CountryConfig:
         start=10  -> pagina 2
         start=20  -> pagina 3 ...
 
+        `start` va siempre en la URL (incluida la pagina 1, &start=0) y lleva
+        siempre el `&` de cierre, incluso cuando es el ultimo parametro, para
+        alinearse con `Allow: /*&start=0&` de robots.txt, cuyo matching incluye
+        la query (RFC 9309; decision de la reparacion 2026-10-18). Sin ese
+        cierre, una URL sin filtros terminaba en `&start=0` y no casaba con
+        `...&start=0&`, quedando bajo `Disallow: /*radius=`.
+
         limit>0 anade &limit=<N>. Debe quedarse en 0: el parametro limit dispara
         el challenge de Cloudflare de Indeed ('Security Check - Additional
         Verification Required') y no evita el login de la paginacion; el nightly
@@ -40,9 +47,7 @@ class CountryConfig:
         remote=True filtra solo ofertas remotas (param sc=0kf...).
         job_type filtra por tipo (fulltime, parttime, contract, etc.).
         """
-        params = f"q={term}&l={city}&radius={radius}"
-        if start > 0:
-            params += f"&start={start}"
+        params = f"q={term}&l={city}&radius={radius}&start={start}"
         if limit and limit > 0:
             params += f"&limit={limit}"
         if fromage > 0:
@@ -51,6 +56,12 @@ class CountryConfig:
             params += "&sc=0kf%3Aattr%28DSQF7%29%3B"
         if job_type:
             params += f"&jt={job_type}"
+        # Invariante `&start=N&` (reparacion 2026-10-18): si `start` quedo al
+        # final (p. ej. pagina 1 sin fromage), se anade el `&` de cierre para
+        # que la URL siga casando con `Allow: /*&start=N&` de robots.txt
+        # (matching con query, RFC 9309). Con filtros despues, el `&` ya existe.
+        if params.endswith(f"&start={start}"):
+            params += "&"
         return f"https://{self.domain}/jobs?{params}"
 
 

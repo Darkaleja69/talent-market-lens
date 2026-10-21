@@ -1,0 +1,92 @@
+# Indeed — robots.txt y TOS relevantes (comprobado 2026-10-18)
+
+Fuentes consultadas (fetch HTTPS desde esta máquina, 2026-10-18 ~17:05 local):
+
+- `https://ie.indeed.com/robots.txt`
+- `https://nl.indeed.com/robots.txt` (idéntico en las reglas relevantes)
+- `https://ie.indeed.com/legal` (Terms of Service, "Last Updated: September 29, 2026")
+
+## robots.txt — reglas relevantes para `User-agent: *`
+
+```text
+User-agent: *
+Allow: /
+Allow: /*&start=0&
+Allow: /*&start=10&
+Allow: /*&start=20&
+Allow: /*&start=30&
+Allow: /*&start=40&
+Allow: /*&start=50&
+Allow: /*&start=60&
+Allow: /*&start=70&
+Allow: /*&start=80&
+Allow: /*&start=90&
+Disallow: /*rt=nc
+Disallow: /*&alid=
+Disallow: /*&calert=
+Disallow: /*&iafilter=
+Disallow: /*&mna=
+Disallow: /*?rss
+Disallow: /*&serpstart=
+Disallow: /*/vaclk
+Disallow: /api/fetch/mc-anon
+Disallow: /api/getrecjobs
+Disallow: /graphql
+...
+Disallow: /m/viewjob
+...
+Disallow: /*radius=
+...
+Disallow: /*&start=
+...
+Disallow: /viewjob
+...
+```
+
+Hechos:
+
+1. **SERP y paginación permitidas**: `Allow: /` + `Allow: /*&start=0&` … `/*&start=90&`. La página 2 del scraper
+   (`...&radius=25&start=10&fromage=7`) coincide con `/*&start=10&` (patrón más específico que `/*&start=`).
+2. **Detalle directo prohibido**: `Disallow: /viewjob` y `Disallow: /m/viewjob` (para `*`). El fallback directo del
+   scraper (`allow_viewjob_fallback`) sigue desactivado por defecto (decisión vigente oct-2026).
+3. **Endpoint interno prohibido**: `Disallow: /graphql`.
+4. **Matiz `radius=`**: el scraper construye URLs con `radius=25`. Bajo RFC 9309 (§2.2.2), el matching incluye la query
+   string (ejemplo normativo `/foo/bar?baz=quz`); con "gana el match más específico (más octetos)":
+   - página 2: `Allow: /*&start=10&` (14 octetos) gana a `Disallow: /*radius=` (9) → permitida;
+   - página 1 (sin `&start=`): solo compiten `Allow: /` (1) y `Disallow: /*radius=` (9) → **la URL de página 1
+     `...&radius=25&fromage=7` queda técnicamente bajo el Disallow**.
+   Es un matiz preexistente (no lo introduce esta reparación) y la decisión de la persona de oct-2026 mantiene la
+   vía SERP+UI. Opción mínima de alineación si se quiere cerrar: emitir `&start=0` también en página 1 (la URL
+   pasaría a coincidir con `Allow: /*&start=0&`, más específico) o revisar el uso de `radius`. Decisión de la persona.
+5. **Sin cambios respecto a la evidencia del 10-10**: lo verificado entonces (`/viewjob`, `/graphql` vetados;
+   paginación `&start=` permitida) sigue vigente.
+
+No se hizo ninguna petición a rutas `Disallow`: la SERP se cargó con el navegador de investigación y el contenido
+del panel llegó por el POST que **la propia página** hace a `apis.indeed.com` (host distinto), no por una llamada
+directa del scraper.
+
+## TOS — "Prohibited Uses" (General Terms for All Users), extracto literal
+
+> **DO NOT**, directly or indirectly:
+>
+> - Access the Site through any means other than the public interfaces provided by Indeed;
+> - Access any data, especially personal data, by automated means or otherwise, without permission;
+> …
+> - Use any automated system (bots, scrapers, spiders, AI or Agentic AI) to access, data-mine, or submit content
+>   to the Site, in bulk or otherwise, without Indeed's express written permission (**we conditionally grant
+>   permission to crawl the Site solely as outlined in our robots.txt file**). You may not crawl, scrape, extract
+>   data from, reproduce, duplicate, copy, sell, exploit, trade or resell any part of the Site or access the Site
+>   for the development, training, fine-tuning, or improvement of any third-party machine learning model,
+>   artificial intelligence (AI) system, or any related software
+> …
+
+Lectura para esta reparación:
+
+- El permiso de crawling es **condicional a lo que delimita robots.txt**: SERP + `&start=` sí; `/viewjob` y
+  `/graphql` no.
+- La vía de descripción del scraper (clic en la tarjeta y lectura del panel, contenido que sirve la propia UI) es
+  la aceptada por la persona (RF-6, oct-2026); el fetch interno a `/viewjob?viewtype=embedded` lo dispara la
+  página, no el scraper. Cualquier cambio que implicara llamar directamente a `/viewjob` o `/graphql` **no
+  procede** (se mantiene el interruptor `allow_viewjob_fallback=False`).
+- No se detectó ningún cambio en TOS/robots que fuerce a parar la reparación: la reparación de descripciones no
+  necesita rutas nuevas.

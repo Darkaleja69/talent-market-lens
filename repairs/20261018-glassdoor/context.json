@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "source": "glassdoor",
+  "kind": "multi_site",
+  "role": "primary",
+  "field": null,
+  "trigger": null,
+  "run_date": "2026-10-18",
+  "offers_current_run": null,
+  "offers_snapshot": null,
+  "completeness_scope": "run",
+  "reason": {
+    "outcome": "empty",
+    "failures": [
+      "sin evidencia suficiente para confirmar la fuente"
+    ],
+    "summary": "empty: no offers captured in the run (1 diagnostic failure reason(s))"
+  },
+  "evidence": [
+    "estado del pipeline: ok (subidos=1, rechazados=0)",
+    "resultado de la ejecución: sin ofertas (empty)",
+    "detalle: exit=0 merge_exit=0 output_merged=False"
+  ],
+  "evidence_paths": [
+    "multi_site_job_scraper/data/merged/last_run.json",
+    "multi_site_job_scraper/data/glassdoor/run.log",
+    "scrapers-pipeline/logs/diagnostic_last.json",
+    "scrapers-pipeline/logs/upload-2026-10-18.log"
+  ],
+  "evidence_paths_base": "repository_root",
+  "playbook": {
+    "section": "6.5",
+    "title": "Glassdoor - watchdog during descriptions",
+    "recipe": "The BFF returns 30 offers; up to 30 x 60 s descriptions run without PROGRESS and the watchdog stops the job (exit=75). Check page timing with the real session, whether descriptions can be batched or fetched on demand, and the right description budget. Emit a heartbeat inside the loop and bound max_description_jobs or the timeout without losing coverage.",
+    "test_scope": {
+      "description": "affected portal only, 1 role, one page, watching time and PROGRESS",
+      "parameters": {
+        "roles": 1,
+        "max_pages": 1,
+        "portals": [
+          "glassdoor"
+        ]
+      },
+      "constraints": [
+        "only the affected portal",
+        "no merge",
+        "no Azure upload",
+        "no landing update"
+      ],
+      "command": "python -m src.glassdoor --max-pages 1"
+    }
+  },
+  "quality": [
+    {
+      "field": "id",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "title",
+      "required": true,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "company",
+      "required": true,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "description",
+      "required": true,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "salary",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "skills",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "work_mode",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "location",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    },
+    {
+      "field": "posted_date",
+      "required": false,
+      "current_pct": null,
+      "target_pct": 100.0,
+      "is_focus": false
+    }
+  ],
+  "test_scope": {
+    "description": "affected portal only, 1 role, one page, watching time and PROGRESS",
+    "parameters": {
+      "roles": 1,
+      "max_pages": 1,
+      "portals": [
+        "glassdoor"
+      ]
+    },
+    "constraints": [
+      "only the affected portal",
+      "no merge",
+      "no Azure upload",
+      "no landing update"
+    ],
+    "command": "python -m src.glassdoor --max-pages 1"
+  }
+}

@@ -1,0 +1,36 @@
+# Sonda de navegador real (agent-browser, perfil propio y limpio) — 2026-10-18 11:46-11:55 (+02)
+# Objetivo: comprobar si glassdoor.ie responde hoy a un navegador real sin sesion
+# del usuario. Peticiones acotadas; sin resolver challenges ni CAPTCHAs.
+
+[1] Homepage
+- URL final: https://www.glassdoor.ie/index.htm
+- Titulo: "Glassdoor | Job Search and Career Community"
+- Resultado: 200, sin challenge visible, sin CAPTCHA.
+
+[2] SERP
+- URL: https://www.glassdoor.ie/Job/jobs.htm?sc.keyword=Data+Analyst&fromAge=7
+- URL final: https://www.glassdoor.ie/Job/ireland-data-analyst-jobs-SRCH_IL.0,7_KO8,20.htm?sc.keyword=Data%2520Analyst
+- Titulo: "187 Data analyst jobs in Ireland | Glassdoor"
+- Resultado: carga correcta; 187 ofertas anunciadas; 30 tarjetas de oferta en el DOM (pagina 1).
+- Sin textos de challenge ("humans only", "just a moment", "verifying"): no.
+- Consola: 43 mensajes (25 log, 9 info, 6 warning, 3 error) + 2 errores de pagina
+  (React hydration error #418, ruido del framework; sin relacion con bloqueo).
+- Red: 137 peticiones; POST https://www.glassdoor.ie/graph x4 -> 200; POST BFF
+  adTransparencyQuery -> 200; ninguna respuesta >= 400.
+- Cookies presentes (solo nombres; valores no copiados): _dd_s, asst, gdId,
+  rl_page_init_referrer, cdArr, rl_session, __cf_bm, cf_clearance,
+  rl_anonymous_id, gdsid, rsSessionId, indeedCtk, _cfuvid, otGeoUS,
+  OptanonConsent, g_state, _optionalConsent, rsReferrerData.
+  Nota: cf_clearance emitida -> el challenge invisible de Cloudflare se resolvio
+  solo en el navegador real.
+
+[3] Captura
+- .opencode/.agent-screenshots/20261018-1155-gd-ie-serp-data-analyst.png
+  (188 KB; copiada desde la ruta tmp de agent-browser)
+
+[4] Metodo y limites
+- Sesion agent-browser con perfil temporal propio (no el perfil del scraper; no
+  la sesion de Chrome de la persona). 2 navegaciones efectivas + recursos
+  propios de las paginas.
+- No se resolvio ningun CAPTCHA (no aparecio ninguno). No se toco la cuenta ni
+  se hicieron acciones autenticadas.

@@ -1,0 +1,24 @@
+# Extracto saneado del run.log de irishjobs — run nocturno 2026-10-18 (saneado: rutas <REPO>)
+# Contexto: pipeline completo de la noche (con subida/merge), NO la prueba acotada de
+# T-34; corrobora que el canal Chrome funciona en produccion. Tramo completo: 2826 lineas
+# (00:00:53 -> 04:16:42), 285 PROGRESS, 0 BLOCKED.
+
+[cabecera]
+00:00:53 INFO    irishjobs: === IrishJobs Scraper ===
+00:00:53 INFO    src.core.store: Reanudacion: 92 job_ids cargados de <REPO>\multi_site_job_scraper\data\irishjobs\checkpoints\state.json
+00:00:53 INFO    irishjobs: Combinaciones: 13 roles x 13 ciudades = 169
+00:00:56 INFO    src.core.browser: Lanzando Chromium headless=False locale=en-GB tz=Europe/Dublin profile=irishjobs
+00:01:28 INFO    irishjobs: Warmup: portada cargada (status=200).
+00:01:28 INFO    irishjobs: --- [1/169] 'Data Analyst' en Ireland (nationwide) (acumulado: 0, detalles: 0) ---
+00:01:28 INFO    irishjobs: SERP page 1/15: https://www.irishjobs.ie/jobs/data-analyst?age=7
+00:02:09 INFO    src.irishjobs.serp: Tarjetas encontradas: 25
+[...]
+[ultimo PROGRESS del tramo]
+04:16:24 INFO    irishjobs: PROGRESS source=irishjobs parsed=4990 new=93 ts=2026-10-18T02:16:24+00:00
+[...]
+[cierre]
+04:16:30 INFO    irishjobs: Navegacion a siguiente pagina fallida. Fin combo.
+04:16:41 INFO    src.core.store: CSV escrito: <REPO>\multi_site_job_scraper\data\irishjobs\output\jobs.csv (93 filas)
+04:16:42 INFO    src.core.store: Parquet escrito: <REPO>\multi_site_job_scraper\data\irishjobs\output\jobs.parquet (93 filas, esquema tipado)
+04:16:42 INFO    irishjobs: === IRISHJOBS DONE: 93 ofertas nuevas, 93 total, 93 detalles ===
+

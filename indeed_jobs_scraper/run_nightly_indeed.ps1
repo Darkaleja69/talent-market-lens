@@ -32,7 +32,7 @@ $CdpPort            = 9222
 $SearchTerms        = "data,data engineer,data analyst,data scientist"
 $Pages              = 2
 $Fromage            = 7
-$EnrichRate         = 0.9         # objetivo ~80-90% de ofertas con detalle completo
+$EnrichRate         = 1.0         # todas las candidatas hasta el tope ($EnrichMax); el cache persistente evita repetir clics entre runs
 $EnrichMax          = 15          # tope de clics por SERP (mas bajo = mas seguro; el resto desde cache)
 $CooldownSec        = 300         # 5 min de enfriamiento entre paises
 # Watchdog de progreso (RF-15, T-19): la decision la toma el supervisor Python

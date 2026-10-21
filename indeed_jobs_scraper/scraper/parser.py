@@ -14,7 +14,8 @@ Estrategia (revisada tras diagnostico en produccion):
     companyReviewCount, companyOverviewLink, formattedLocation, jobLocationCity,
     jobLocationState, extractedSalary {min,max,type}, salarySnippet {text,...},
     formattedRelativeTime, createDate, pubDate, sponsored, snippet (HTML),
-    remoteWorkModel {text,type}, viewJobLink, link, title, translatedAttributes[].
+    remoteWorkModel {text,type}, viewJobLink, link, title, translatedAttributes[],
+    jobTypes[].
 
   Fallback: selectores HTML corregidos (div.cardOutline con [data-jk], ya que
   div[id^="job_"] ya no existe; a.jcs-JobTitle para titulo).
@@ -321,13 +322,23 @@ def _map_item_to_offer(
     location = item.get("formattedLocation") or ""
     smin, smax, stype, salary_text = _salary_from_item(item)
 
-    # job_type: primer texto de translatedAttributes (ej. "Jornada completa")
+    # job_type: primer texto de translatedAttributes (ej. "Jornada completa") y,
+    # si viene vacio (caso real: 15/15 en la SERP de 2026-10-18), primer
+    # jobTypes[] de la tarjeta (["Contract"], ["Full-time","Permanent"]).
     job_type = ""
     ta = item.get("translatedAttributes")
     if isinstance(ta, list) and ta:
         first = ta[0]
         if isinstance(first, dict):
             job_type = first.get("text", "") or first.get("label", "") or ""
+    if not job_type:
+        jts = item.get("jobTypes")
+        if isinstance(jts, list) and jts:
+            first = jts[0]
+            if isinstance(first, dict):
+                job_type = first.get("text", "") or first.get("label", "") or ""
+            elif isinstance(first, str):
+                job_type = first
 
     # remote
     remote_model = item.get("remoteWorkModel")
@@ -335,12 +346,23 @@ def _map_item_to_offer(
 
     workplace_type = ""
     if isinstance(remote_model, dict):
+        # HYBRID antes que REMOTE: `REMOTE_HYBRID` contiene ambas cadenas y es
+        # hibrida (bug corregido en la reparacion 2026-10-18). El texto del
+        # modelo solo se usa cuando el tipo no aporta nada.
         rtype = (remote_model.get("type") or "").upper()
-        if "REMOTE" in rtype:
-            workplace_type = "remote"
-        elif "HYBRID" in rtype:
+        if "HYBRID" in rtype:
             workplace_type = "hybrid"
+        elif "REMOTE" in rtype:
+            workplace_type = "remote"
+        if not workplace_type:
+            rtext = (remote_model.get("text") or "").upper()
+            if "HYBRID" in rtext:
+                workplace_type = "hybrid"
+            elif "REMOTE" in rtext:
+                workplace_type = "remote"
     if not workplace_type and is_remote:
+        # Heuristico de titulo/location solo como ultimo recurso: un
+        # remoteWorkModel explicito nunca se pisa.
         workplace_type = "remote"
 
     # apply_url: thirdPartyApplyUrl si existe (suele venir del GraphQL, no del plano)
@@ -615,6 +637,63 @@ def _wait_for_right_panel(page, jk: str) -> tuple[str, bool]:
     return "", card_active
 
 
+_CONSENT_BANNER_SELECTORS = (
+    # OneTrust: cierre (X) y, como respaldo, aceptar
+    # (`#onetrust-accept-btn-handler`), que PULSA ACEPTAR y por tanto otorga el
+    # consentimiento de cookies (el perfil persistente ya lo tiene; un perfil
+    # fresco muestra el banner).
+    "#onetrust-close-btn-container button",
+    "#onetrust-accept-btn-handler",
+)
+
+
+def _dismiss_consent_banner(page) -> bool:
+    """Cierra el banner de consentimiento (OneTrust) si esta visible (2026-10-18).
+
+    Best-effort: primero intenta cerrar (X); si no existe, el respaldo
+    `#onetrust-accept-btn-handler` PULSA ACEPTAR, es decir, otorga el
+    consentimiento de cookies (no solo cierra el banner). No altera nada mas de
+    la pagina (no navega ni toca el panel). Si no hay banner o el clic falla, se
+    continua (el reintento del clic cubre el caso de overlay). Devuelve True
+    solo si se llego a clickar un control del banner.
+    """
+    for selector in _CONSENT_BANNER_SELECTORS:
+        try:
+            el = page.locator(selector).first
+            if el.count() == 0 or not el.is_visible():
+                continue
+            el.click(timeout=3000)
+            log.info("banner de consentimiento cerrado (%s)", selector)
+            return True
+        except Exception as e:
+            log.debug("no se pudo cerrar el banner de consentimiento (%s): %s", selector, e)
+    return False
+
+
+def _click_card_with_retry(card_link, jk: str, sleep_fn) -> bool:
+    """Clica una tarjeta con 2 intentos (reparacion 2026-10-18).
+
+    El primer intento usa la espera actual (5 s); si expira, el segundo hace
+    scroll into view, espera breve (1-2 s) y reintenta con timeout 10 s (caso
+    real: `Locator.click: Timeout 5000ms` en jk=3a8c91f14177f18a; un banner
+    OneTrust pudo cubrir la tarjeta). Devuelve True si algun intento completo
+    el clic; False solo cuando ambos se agotan.
+    """
+    try:
+        card_link.click(timeout=5000)
+        return True
+    except Exception as e:
+        log.debug("primer clic fallido jk=%s: %s; reintentando", jk, e)
+    try:
+        card_link.scroll_into_view_if_needed()
+        sleep_fn(1.0 + (hash(jk) % 10) * 0.1)  # 1.0-1.9 s
+        card_link.click(timeout=10000)
+        return True
+    except Exception as e:
+        log.warning("clic fallido tras 2 intentos jk=%s: %s", jk, e)
+        return False
+
+
 def enrich_offers_via_right_panel(
     page: "Page",
     offers: list[JobOffer],
@@ -649,10 +728,22 @@ def enrich_offers_via_right_panel(
     Estrategia mixta y segura (cache + tope):
       1. Primero rellena desde `cache` (desc_cache) las ofertas ya conocidas: 0 clics.
       2. Solo las que siguen sin descripcion son candidatas a clic.
-      3. Se muestrea `rate` de las candidatas y se aplica el tope duro `max_enrich`
-         (0 = sin tope) para no disparar heuristicas anti-bot.
+      3. Se seleccionan las candidatas segun `rate` (>= 1.0: todas) y se aplica
+         el tope duro `max_enrich` (0 = sin tope) para no disparar heuristicas
+         anti-bot.
 
-    rate (0.0-1.0): fraccion de candidatas a enriquecer. 1.0 = todas.
+    Clic con reintento (2026-10-18): cada tarjeta se clica con hasta 2 intentos
+    (el 2o hace scroll + espera breve + timeout 10 s) y el jk solo se registra
+    como fallido tras agotar ambos; antes del bucle se descarta el banner de
+    consentimiento visible (OneTrust) como best-effort.
+
+    rate: fraccion de candidatas a clicar.
+      - >= 1.0: todas, sin muestreo que pueda saltarse ninguna.
+      - 0.0: todas solo si hay tope (`max_enrich > 0`), que recorta la lista;
+        sin tope no se hace ningun clic.
+      - 0 < rate < 1: muestreo explicito de la fraccion y registro INFO de
+        cuantas candidatas se saltan.
+    Si `max_enrich` recorta la muestra, se emite WARNING con las pendientes.
     state (RunState): se mantiene por compatibilidad; ya NO se usa para saltar
         ofertas (el cache es quien evita re-clicar entre runs).
     max_enrich: numero maximo de clics por SERP (0 = sin tope).
@@ -685,18 +776,34 @@ def enrich_offers_via_right_panel(
     if not candidates:
         return 0, 0
 
-    # 3) muestreo con rate + tope duro
-    if rate > 0:
-        sample_size = max(1, int(len(candidates) * rate))
+    # 3) seleccion por rate + tope duro
+    # Con rate >= 1.0 se intentan TODAS las candidatas (sin `int()` ni
+    # `_random.sample` que puedan saltarse alguna: causa raiz 13/14 del run
+    # 2026-10-18 con rate=0.9). rate == 0.0 tambien cae aqui como "todas"
+    # cuando hay tope (`max_enrich > 0`); sin tope el early return de arriba no
+    # hace ningun clic. rate < 1 (y > 0) solo prorratea de forma explicita y
+    # deja registro de cuantas candidatas se saltan.
+    if rate >= 1.0 or rate <= 0:
+        sample = list(candidates)
     else:
-        sample_size = len(candidates)
-    if max_enrich > 0:
-        sample_size = min(sample_size, max_enrich)
-    sample = _random.sample(candidates, min(sample_size, len(candidates)))
-    if max_enrich > 0 and len(candidates) > len(sample):
-        log.info(
-            "enriquecimiento limitado a %d clics (candidatas sin descripcion: %d, max_enrich=%d)",
-            len(sample), len(candidates), max_enrich,
+        sample_size = min(max(1, int(len(candidates) * rate)), len(candidates))
+        sample = _random.sample(candidates, sample_size)
+        skipped_by_rate = len(candidates) - len(sample)
+        if skipped_by_rate:
+            log.info(
+                "enriquecimiento: rate=%.0f%% salta %d candidatas sin descripcion "
+                "(se intentaran el resto; subir el rate o el tope las recupera)",
+                rate * 100, skipped_by_rate,
+            )
+    if max_enrich > 0 and len(sample) > max_enrich:
+        pending_due_to_max = len(sample) - max_enrich
+        sample = sample[:max_enrich]
+        # WARNING (no INFO): el tope deja ofertas sin descripcion que la web si
+        # publica; es una decision de volumen, no un exito silencioso.
+        log.warning(
+            "enriquecimiento limitado a %d clics (max_enrich=%d); quedan %d "
+            "candidatas sin descripcion pendientes (sin cache todavia)",
+            len(sample), max_enrich, pending_due_to_max,
         )
 
     cond_selectors = [
@@ -708,6 +815,12 @@ def enrich_offers_via_right_panel(
         'div[class*="qualifications"]',
         'ul[class*="jobDetails"]',
     ]
+
+    # Best-effort: descarta el banner de consentimiento visible (OneTrust) para
+    # que no cubra las tarjetas durante los clics (perfil fresco); el respaldo
+    # pulsa aceptar (otorga el consentimiento de cookies) y no altera nada mas
+    # de la pagina; no es bloqueante.
+    _dismiss_consent_banner(page)
 
     enriched = 0
     success = 0
@@ -736,86 +849,97 @@ def enrich_offers_via_right_panel(
             else:
                 card_link.scroll_into_view_if_needed()
                 time.sleep(0.8)
-                card_link.click(timeout=5000)
-                # pausa amplia y variable tras cada clic (perfil lento/seguro)
-                time.sleep(6.0 + (hash(jk) % 50) * 0.12)
-
-                # Cadena de esperas: ya no hay `continue` que aborte la oferta.
-                desc_html, card_active = _wait_for_right_panel(page, jk)
-
-                if desc_html:
-                    offer.description_html = desc_html
-                    offer.description_text = _clean_html(desc_html)
-                    offer.snippet = offer.description_text[:500]
-                elif allow_viewjob_fallback and domain:
-                    try:
-                        vj_url = f"https://{domain}/viewjob?jk={jk}"
-                        desc_page = page.context.new_page()
-                        try:
-                            desc_page.goto(vj_url, wait_until="domcontentloaded", timeout=15000)
-                            time.sleep(1.5)
-                            desc_el = desc_page.locator(
-                                "#jobDescriptionText, [data-testid='jobDescriptionText']"
-                            ).first
-                            if desc_el.count() > 0:
-                                vj_desc = desc_el.inner_html() or ""
-                                if vj_desc and len(vj_desc) > _MIN_DESC_HTML_LEN:
-                                    offer.description_html = vj_desc
-                                    offer.description_text = _clean_html(vj_desc)
-                                    offer.snippet = offer.description_text[:500]
-                                    desc_html = vj_desc
-                                    log.debug("descripcion obtenida via /viewjob para jk=%s", jk)
-                            for sel in cond_selectors:
-                                el = desc_page.locator(sel).first
-                                if el.count() > 0:
-                                    try:
-                                        vj_conditions += (el.inner_text() or "") + "\n"
-                                    except Exception:
-                                        pass
-                        finally:
-                            desc_page.close()
-                    except Exception as e:
-                        log.debug("fallback /viewjob fallo para jk=%s: %s", jk, e)
-
-                if not desc_html:
-                    # Se agoto la cadena de selectores: se registra el fallo y
-                    # se sigue (la oferta conserva lo que traia la SERP).
+                clicked = _click_card_with_retry(card_link, jk, time.sleep)
+                if not clicked:
+                    # Solo tras agotar los 2 intentos se registra el jk como
+                    # fallido (caso real: Locator.click Timeout 5000ms en
+                    # jk=3a8c91f14177f18a).
                     failed += 1
-                    active_note = "tarjeta activa" if card_active else "tarjeta sin vjs-highlight"
                     log.warning(
-                        "enriquecimiento fallido jk=%s: sin descripcion en el panel derecho "
-                        "tras la cadena de esperas (%s); se continua con la siguiente oferta",
-                        jk, active_note,
+                        "enriquecimiento fallido jk=%s: clic agotado tras 2 intentos; "
+                        "se continua con la siguiente oferta",
+                        jk,
                     )
+                else:
+                    # pausa amplia y variable tras cada clic (perfil lento/seguro)
+                    time.sleep(6.0 + (hash(jk) % 50) * 0.12)
 
-                for sel in cond_selectors:
-                    el = page.locator(sel).first
-                    if el.count() > 0:
+                    # Cadena de esperas: ya no hay `continue` que aborte la oferta.
+                    desc_html, card_active = _wait_for_right_panel(page, jk)
+
+                    if desc_html:
+                        offer.description_html = desc_html
+                        offer.description_text = _clean_html(desc_html)
+                        offer.snippet = offer.description_text[:500]
+                    elif allow_viewjob_fallback and domain:
                         try:
-                            conditions_text += (el.inner_text() or "") + "\n"
+                            vj_url = f"https://{domain}/viewjob?jk={jk}"
+                            desc_page = page.context.new_page()
+                            try:
+                                desc_page.goto(vj_url, wait_until="domcontentloaded", timeout=15000)
+                                time.sleep(1.5)
+                                desc_el = desc_page.locator(
+                                    "#jobDescriptionText, [data-testid='jobDescriptionText']"
+                                ).first
+                                if desc_el.count() > 0:
+                                    vj_desc = desc_el.inner_html() or ""
+                                    if vj_desc and len(vj_desc) > _MIN_DESC_HTML_LEN:
+                                        offer.description_html = vj_desc
+                                        offer.description_text = _clean_html(vj_desc)
+                                        offer.snippet = offer.description_text[:500]
+                                        desc_html = vj_desc
+                                        log.debug("descripcion obtenida via /viewjob para jk=%s", jk)
+                                for sel in cond_selectors:
+                                    el = desc_page.locator(sel).first
+                                    if el.count() > 0:
+                                        try:
+                                            vj_conditions += (el.inner_text() or "") + "\n"
+                                        except Exception:
+                                            pass
+                            finally:
+                                desc_page.close()
+                        except Exception as e:
+                            log.debug("fallback /viewjob fallo para jk=%s: %s", jk, e)
+
+                    if not desc_html:
+                        # Se agoto la cadena de selectores: se registra el fallo y
+                        # se sigue (la oferta conserva lo que traia la SERP).
+                        failed += 1
+                        active_note = "tarjeta activa" if card_active else "tarjeta sin vjs-highlight"
+                        log.warning(
+                            "enriquecimiento fallido jk=%s: sin descripcion en el panel derecho "
+                            "tras la cadena de esperas (%s); se continua con la siguiente oferta",
+                            jk, active_note,
+                        )
+
+                    for sel in cond_selectors:
+                        el = page.locator(sel).first
+                        if el.count() > 0:
+                            try:
+                                conditions_text += (el.inner_text() or "") + "\n"
+                            except Exception:
+                                pass
+
+                    if not conditions_text:
+                        try:
+                            extra_el = page.locator(
+                                '[data-testid="attribute_snippet_testid"], '
+                                'text="Jornada", text="Tipo de contrato", '
+                                'text="Beneficios", text="Horario", text="Salario base", '
+                                'text="Tipo de empleo"'
+                            ).first
+                            if extra_el.count() > 0:
+                                parent = extra_el.locator("xpath=ancestor::div[1]")
+                                if parent.count() > 0:
+                                    conditions_text = (parent.inner_text() or "")
                         except Exception:
                             pass
 
-                if not conditions_text:
-                    try:
-                        extra_el = page.locator(
-                            '[data-testid="attribute_snippet_testid"], '
-                            'text="Jornada", text="Tipo de contrato", '
-                            'text="Beneficios", text="Horario", text="Salario base", '
-                            'text="Tipo de empleo"'
-                        ).first
-                        if extra_el.count() > 0:
-                            parent = extra_el.locator("xpath=ancestor::div[1]")
-                            if parent.count() > 0:
-                                conditions_text = (parent.inner_text() or "")
-                    except Exception:
-                        pass
+                    if vj_conditions and vj_conditions.strip():
+                        conditions_text += vj_conditions
 
-                if vj_conditions and vj_conditions.strip():
-                    conditions_text += vj_conditions
-
-                if conditions_text and conditions_text.strip():
-                    _map_conditions_to_offer(offer, conditions_text)
+                    if conditions_text and conditions_text.strip():
+                        _map_conditions_to_offer(offer, conditions_text)
 
         except Exception as e:
             if not desc_html:
