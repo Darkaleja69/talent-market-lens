@@ -73,20 +73,24 @@ Claves por fuente (una tabla por fuente, sin cambios de nombre):
   ficheros del mismo microbatch se pisen en orden arbitrario).
 - Claves nulas o en blanco: hoy no existen (auditoría T-10a), pero el diseño
   debe fijar qué ocurre para no insertar duplicados sin clave en cada lote.
-  Opciones a valorar en T-01: descartarlas con contador en el log del
-  notebook / tabla de cuarentena (backlog del roadmap, fuera de esta spec).
+  **Decidido (D4):** van a `bronze.<fuente>_quarantine` con motivo
+  (`missing_key` / `missing_scraped_at`, `_quarantine_at` y `_source_file`),
+  escritas en el mismo `foreachBatch` y **deduplicadas por clave + motivo +
+  fichero** para que un reproceso no las repita. Se descartan del MERGE.
+  Columnas: las de la fuente + las tres de control; tabla append-only con
+  `mergeSchema`.
 - Columnas de control: `_ingest_date` y `_source_file` se actualizan al ganar
   la fila nueva (reflejan la última captura que escribió la fila).
 - Evolución de esquema: `mergeSchema` del stream intacto; en T-01 comprobar si
   el `MERGE` del runtime 17.3 evoluciona columnas nuevas solo
   (`spark.databricks.delta.schema.autoMerge.enabled`) o hay que activarlo, y
-  qué pasa con `_rescued_data`.
-- **Checkpoint:** hoy es append a la tabla. Pasar a `foreachBatch` con MERGE
-  **no deduplica lo ya escrito**, así que hacen falta las dos piezas: (a) una
-  one-off de migración (§5) y (b) decidir si se conserva el checkpoint actual
-  o se estrena uno (`.../ckpt_v2`). Reutilizarlo lee solo ficheros nuevos (sin
-  relectura de 14 GB); estrenarlo obliga a releer todo el landing. Se decide
-  en T-01 y se prueba en dev en T-03.
+  qué pasa con `_rescued_data`. Ojo: con `foreachBatch`, el
+  `.option("mergeSchema","true")` del `writeStream` ya no actúa sobre el sink.
+- **Checkpoint (decidido, D5):** plan A, conservar
+  `<checkpoints_root>/<fuente>/ckpt`. No se deduplica lo ya escrito, así que la
+  one-off de migración (§5) es obligatoria; a cambio no se relee el landing
+  (14,4 GB / 247 ficheros en dev). Plan B si el cambio de sink falla en T-03:
+  `ckpt_v2` (relectura completa) + `drop` y reconstrucción.
 
 ## 5. Migración del bronce acumulado (RF-2)
 
@@ -105,7 +109,8 @@ Claves por fuente (una tabla por fuente, sin cambios de nombre):
 
 - Tests del módulo (pytest + Spark local): gana el más reciente, empate,
   desorden, clave nula/en blanco, idempotencia y contrato de columnas
-  (mismo enfoque que los 9 tests de `test_dedup_job_offers.py`).
+  (mismo enfoque que los 9 tests de `test_dedup_job_offers.py`), más el
+  enrutado a cuarentena (motivo y no duplicación al reprocesar).
 - Ciclo dev en verde y **más rápido** que la línea base del §2, con
   idempotencia demostrada (segunda ejecución sin cambios de filas) y conteos
   comparados con prod para la misma ventana.

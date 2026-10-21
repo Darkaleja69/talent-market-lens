@@ -32,6 +32,30 @@ usa el mecanismo seguro estrenado en la 007 (bundle, CI y ventana).
   desordenados no cambia el resultado (idempotencia).
 - El crudo canónico sigue en el landing (constitución 5); bronce es derivado.
 
+## Decisiones (2026-10-21)
+
+- **Claves (D1):** se mantiene `job_id` (`site + job_id` en multi_site). El
+  dedup de negocio «misma oferta republicada con `job_id` nuevo» **no** vive
+  aquí: ya existe en oro (`gold_build.ipynb`, `_keep_best` por
+  `title_norm` + `company_norm` + `salary_filled`). Bronce conserva una fila
+  por anuncio. Limitación conocida de ese dedup (no incluye localización ni
+  fecha): se trata en una spec aparte, no en esta.
+- **Condición (D2):** la entrante gana si su `scraped_at` es estrictamente
+  mayor; empate → desempata `_ingest_date`; empate exacto → no se actualiza.
+  Una fila guardada con `scraped_at` nulo se repara con la primera captura
+  buena. Las filas entrantes con clave o `scraped_at` nulos/vacíos no entran
+  en el MERGE: van a cuarentena.
+- **Comparación (D3):** pendiente de confirmar; recomendado castear a
+  `timestamp` en la condición y dejar la fecha solo para BI.
+- **Cuarentena (D4):** tabla `bronze.<fuente>_quarantine`, escrita en el mismo
+  `foreachBatch` que el MERGE, deduplicada por clave + motivo + fichero. Su
+  tratamiento posterior (corregir o descartar) se profundizará en specs
+  futuras; aquí solo se captura el dato con su motivo.
+- **Checkpoint (D5):** plan A — se conserva `<checkpoints_root>/<fuente>/ckpt`
+  (sin relectura del landing) y el histórico se normaliza con una migración
+  one-off (RF-2). `ckpt_v2` (relectura completa) queda como plan B si el
+  cambio de sink falla en dev.
+
 ## Requisitos funcionales (borrador)
 
 ### RF-1 — Bronce como estado actual
@@ -60,6 +84,14 @@ ventana.
 **Criterio (EARS):** Cuando el ingest nuevo llegue a producción, deberá
 hacerse por el flujo de la 007 (CI en verde y ventana acordada), con rollback
 documentado y una noche real verificada.
+
+### RF-6 — Cuarentena de filas no fusionables
+**Criterio (EARS):** Cuando un lote traiga filas con clave (`job_id`, o
+`site + job_id`) o `scraped_at` nulos o en blanco, el ingest deberá
+escribirlas en `bronze.<fuente>_quarantine` con su motivo (`missing_key` /
+`missing_scraped_at`), la fecha de cuarentena y el fichero de origen, sin
+incluirlas en el MERGE y sin abortar el resto del lote. Reprocesar el mismo
+fichero no deberá duplicar la cuarentena (clave + motivo + fichero).
 
 ## Requisitos no funcionales (borrador)
 

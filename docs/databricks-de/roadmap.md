@@ -46,6 +46,14 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
   (el filtro de «último mes» es de negocio, en gold/BI). Claves: `job_id` y
   `site + job_id` (multi_site). Incluye migración/compactación de lo ya
   acumulado y validación en dev antes de prod.
+- **Dedup de negocio en oro sin localización (hallazgo 2026-10-21, spec 008).**
+  `gold_build.ipynb` deduplica ofertas por `title_norm + company_norm +
+  salary_filled` y **no** incluye localización ni fecha de publicación: dos
+  anuncios legítimos de la misma empresa con el mismo título y salario en
+  ciudades distintas se colapsan en uno, y una republicación con salario
+  distinto no se colapsa. Candidata a spec nueva (un único resultado: dedup de
+  negocio por oferta con localización y ventana temporal), no se corrige en la
+  008.
 
 ## Calendario
 
