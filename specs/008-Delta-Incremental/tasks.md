@@ -18,34 +18,37 @@
 ## 1. Bloque A — Bronce upsert
 
 - [ ] **T-01 — Diseño del upsert** (~30 min)
-  - **Objetivo:** fijar claves, condición de actualización, tratamiento de
-    llegadas desordenadas y de claves nulas, y estrategia de checkpoint (§4 del
-    plan).
-  - **Preguntas guía:** ¿qué clave por fuente (tabla de §3)? ¿qué condición
-    exacta decide que una captura reemplaza a la guardada, y cómo se rompe un
-    empate? ¿es fiable comparar `scraped_at` como texto (offset único
-    `+00:00`, T-10a) o conviene castear? ¿qué pasa si vuelve un fichero viejo?
-    ¿qué pasa con una clave nula o en blanco y con `scraped_at` nulo (tabla de
-    cuarentena, RF-6)? ¿se conserva el checkpoint actual o se estrena
-    `ckpt_v2` (decidido: plan A)? ¿el `MERGE` de 17.3 evoluciona el esquema
-    solo?
-  - **Hecho cuando:** nota de diseño (`design-upsert.md`) con 2–3 casos de
-    ejemplo resueltos (nuevo, más reciente, más viejo, fila a cuarentena), las
-    cinco decisiones cerradas, el esquema de la tabla de cuarentena y el
-    encaje con el dedup de oro (D1).
+  - **Objetivo:** fijar claves, columnas y tipos por fuente, condición de
+    actualización, tratamiento de llegadas desordenadas y de filas inválidas, y
+    estrategia de checkpoint (§4 del plan).
+  - **Preguntas guía:** ¿qué columna clave y temporal tiene cada tabla del
+    bronce (no se llaman igual)? ¿qué condición exacta decide que una captura
+    reemplaza a la guardada, y cómo se rompe un empate? ¿qué pasa con un blanco
+    o un valor imparseable con ANSI activo? ¿qué pasa si vuelve un fichero
+    viejo? ¿qué pasa con una clave o temporal nula (cuarentena, RF-6)? ¿se
+    conserva el checkpoint actual (plan A) o se estrena `ckpt_v2`? ¿cómo se
+    evoluciona el esquema con `foreachBatch`?
+  - **Hecho cuando:** `design-upsert.md` con el mapa de columnas (§D0), los
+    casos resueltos, las cinco decisiones cerradas, el esquema de cuarentena y
+    el encaje con el dedup de oro (D1); revisado por `verifier`.
   - **Evidencia:** nota en la spec, resultado de las consultas de auditoría
-    (duplicados de negocio y offset) y fila en `evidence.md`.
+    (duplicados de negocio y offsets) y fila en `evidence.md`.
+  - **Estado:** diseño escrito y revisado en tres rondas (nombres de columna por
+    fuente y riesgo de ANSI; sintaxis de `MERGE WITH SCHEMA EVOLUTION` y
+    desajustes spec/diseño; `_scraped_ts` auxiliar). **No se cierra** hasta
+    pegar la evidencia de auditoría en `evidence.md`.
 
 - [ ] **T-02 — Módulo de dedup/upsert + tests** (~45 min)
-  - **Objetivo:** lógica comprobable (dedup del lote, condición de merge y
-    enrutado a cuarentena) con tests pytest + Spark local. Reutilizar
-    `keep_latest_by` de `Deduplicate_Job_Offers.py` (007) en vez de duplicar
-    la ventana.
+  - **Objetivo:** lógica comprobable (mapa de columnas por fuente, dedup del
+    lote, condición de merge y enrutado a cuarentena) con tests pytest + Spark
+    local. Reutilizar la semántica de `keep_latest_by` de
+    `Deduplicate_Job_Offers.py` (007) sin modificar ese módulo.
   - **Hecho cuando:** tests en verde cubriendo: gana el más reciente, empate
     por `_ingest_date`, desorden, **misma clave con dos capturas del mismo día
     y horas distintas (gana la de hora posterior)**, clave nula/en blanco y
-    `scraped_at` nulo (motivo correcto), huella de fila + motivo + fichero no
-    se duplica al reprocesar, idempotencia y contrato de columnas.
+    temporal nula/blanca/imparseable (motivo correcto), clave nueva se inserta,
+    `site` nulo en multi_site, huella de fila + motivo + fichero no se duplica
+    al reprocesar, idempotencia y contrato de columnas.
     `python -m pytest databricks_notebooks/tests -q` en verde.
   - **Evidencia:** salida de la suite y fila en `evidence.md`.
 
@@ -62,10 +65,11 @@
     lote. Run dev y tiempos anotados.
   - **Evidencia:** id del run, tiempos y fila en `evidence.md`.
 
-- [ ] **T-04 — Migración del bronce dev** (~25 min)
+- [ ] **T-04 — Verificación del bronce dev** (~25 min)
   - **Hecho cuando:** las tablas dev quedan en el universo único con conteos
     verificables por fuente (partida: linkedin 13.376 y multi_site 10.489
-    claves, T-10 de la 007) y con la one-off aplicada solo si hace falta.
+    claves, T-10 de la 007) y con la one-off aplicada solo si hace falta. La
+    migración de **prod no va aquí: va en T-06**, antes del primer lote nuevo.
   - **Evidencia:** conteos antes/después y fila en `evidence.md`.
 
 - [ ] **T-05 — Validación en dev** (~30 min)
@@ -75,11 +79,14 @@
     con prod para la misma ventana.
   - **Evidencia:** tabla comparativa dev vs prod y fila en `evidence.md`.
 
-- [ ] **T-06 — Prod con el mecanismo seguro de la 007** (~30 min)
-  - **Hecho cuando:** ventana ejecutada con `bundle deploy -t prod` y rollback
-    disponible (§5 del plan), una noche real verificada y la bitácora del
-    roadmap actualizada.
-  - **Evidencia:** ids de deploy/run, estado final y fila en `evidence.md`.
+- [ ] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
+  - **Hecho cuando:** en la ventana acordada, la one-off de migración de prod
+    se ejecuta **antes** del primer lote del ingest nuevo (conteos
+    antes/después por fuente y `RESTORE` disponible), se hace
+    `bundle deploy -t prod` con rollback disponible (§5 del plan), hay una noche
+    real verificada y la bitácora del roadmap queda actualizada.
+  - **Evidencia:** ids de deploy/run, conteos, estado final y fila en
+    `evidence.md`.
 
 ## 2. Bloque B — Silvers/gold incrementales
 

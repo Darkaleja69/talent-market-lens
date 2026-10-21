@@ -27,34 +27,41 @@ usa el mecanismo seguro estrenado en la 007 (bundle, CI y ventana).
 - **Sin expiración técnica** en bronce; el «último mes» es un filtro de
   negocio, en gold/BI.
 - **Claves de dedup:** `job_id` (linkedin, indeed, infojobs); `site + job_id`
-  (multi_site).
+  (multi_site). *Nota: los nombres reales de columna en bronce son `job_key`
+  (indeed), `job_id` (linkedin), `id_oferta` (infojobs) y `site + job_id`
+  (multi_site); ver Decisiones 2026-10-21.*
 - **Gana el `scraped_at` más reciente**; reprocesar o recibir ficheros
   desordenados no cambia el resultado (idempotencia).
 - El crudo canónico sigue en el landing (constitución 5); bronce es derivado.
 
 ## Decisiones (2026-10-21)
 
-- **Claves (D1):** se mantiene `job_id` (`site + job_id` en multi_site). El
-  dedup de negocio «misma oferta republicada con `job_id` nuevo» **no** vive
-  aquí: ya existe en oro (`gold_build.ipynb`, `_keep_best` por
-  `title_norm` + `company_norm` + `salary_filled`). Bronce conserva una fila
-  por anuncio. Limitación conocida de ese dedup (no incluye localización ni
-  fecha): se trata en una spec aparte, no en esta.
-- **Condición (D2):** la entrante gana si su `scraped_at` es estrictamente
-  mayor; empate → desempata `_ingest_date`; empate exacto → no se actualiza.
-  Una fila guardada con `scraped_at` nulo se repara con la primera captura
-  buena. Las filas entrantes con clave o `scraped_at` nulos/vacíos no entran
-  en el MERGE: van a cuarentena.
-- **Comparación (D3):** la condición del MERGE castea `scraped_at` a
-  `timestamp` (`to_timestamp`), nunca a fecha: dos capturas del mismo día con
-  horas distintas deben ordenarse. La fecha es solo de presentación, en BI
-  (gold ya usa `to_date`).
+- **Claves (D1):** se mantiene la clave natural de cada fuente (`job_key` en
+  indeed, `job_id` en linkedin, `id_oferta` en infojobs, `site + job_id` en
+  multi_site; las silvers las renombran a `job_id`). El dedup de negocio «misma
+  oferta republicada con clave nueva» **no** vive aquí: ya existe en oro
+  (`gold_build.ipynb`, `_keep_best` por `title_norm` + `company_norm` +
+  `salary_filled`). Bronce conserva una fila por anuncio. Limitación conocida
+  de ese dedup (no incluye localización ni fecha): se trata en una spec aparte,
+  no en esta.
+- **Condición (D2):** la entrante gana si su instante de captura es
+  estrictamente mayor; empate → desempata `_ingest_date`; empate exacto → no se
+  actualiza. Una fila guardada sin temporal válida se repara con la primera
+  captura buena. Las filas entrantes con clave o temporal nulas, en blanco o
+  imparseables (columna según el mapa por fuente) no entran en el MERGE: van a
+  cuarentena.
+- **Comparación (D3):** la condición del MERGE castea la temporal de cada
+  fuente a `timestamp` con `try_to_timestamp` (nunca a fecha, y nunca
+  `to_timestamp`: con ANSI un valor malformado abortaría el lote): dos capturas
+  del mismo día con horas distintas deben ordenarse. La fecha es solo de
+  presentación: las silvers derivan `posted_date` con `to_date` y oro la
+  consume ya como `date`.
 - **Cuarentena (D4):** tabla `bronze.<fuente>_quarantine`, escrita en el mismo
   `foreachBatch` que el MERGE, deduplicada por huella de fila
-  (`sha2` de las columnas) + motivo + fichero — no por clave, porque las filas
-  con clave nula no tienen clave con la que deduplicar. Su tratamiento
-  posterior (corregir o descartar) se profundizará en specs futuras; aquí solo
-  se captura el dato con su motivo.
+  (`sha2(to_json(struct(columnas de la fuente))))` + motivo + fichero — no por
+  clave, porque las filas con clave nula no tienen clave con la que
+  deduplicar. Su tratamiento posterior (corregir o descartar) se profundizará
+  en specs futuras; aquí solo se captura el dato con su motivo.
 - **Checkpoint (D5):** plan A — se conserva `<checkpoints_root>/<fuente>/ckpt`
   (sin relectura del landing) y el histórico se normaliza con una migración
   one-off (RF-2). `ckpt_v2` (relectura completa) queda como plan B si el
@@ -64,9 +71,10 @@ usa el mecanismo seguro estrenado en la 007 (bundle, CI y ventana).
 
 ### RF-1 — Bronce como estado actual
 **Criterio (EARS):** Cuando la ingesta procese ficheros nuevos, cada clave
-(`job_id`, o `site + job_id` en multi_site) deberá quedar con una única fila
-—la de `scraped_at` más reciente— y reprocesar los mismos ficheros no deberá
-cambiar el resultado.
+(`job_key`, `job_id`, `id_oferta`, o `site + job_id` según la fuente) deberá
+quedar con una única fila —la del instante de captura más reciente (la columna
+temporal de cada fuente: `scraped_at` o `fecha_scraped`)— y reprocesar los
+mismos ficheros no deberá cambiar el resultado.
 
 ### RF-2 — Migración del bronce acumulado
 **Criterio (EARS):** Cuando se migre el bronce existente, cada tabla deberá
@@ -90,12 +98,14 @@ hacerse por el flujo de la 007 (CI en verde y ventana acordada), con rollback
 documentado y una noche real verificada.
 
 ### RF-6 — Cuarentena de filas no fusionables
-**Criterio (EARS):** Cuando un lote traiga filas con clave (`job_id`, o
-`site + job_id`) o `scraped_at` nulos o en blanco, el ingest deberá
-escribirlas en `bronze.<fuente>_quarantine` con su motivo (`missing_key` /
-`missing_scraped_at`), la fecha de cuarentena y el fichero de origen, sin
-incluirlas en el MERGE y sin abortar el resto del lote. Reprocesar el mismo
-fichero no deberá duplicar la cuarentena (huella de fila + motivo + fichero).
+**Criterio (EARS):** Cuando un lote traiga filas con la clave de su fuente
+(`job_key`, `job_id`, `id_oferta`, o `site` + `job_id`) o su columna temporal
+(`scraped_at` o `fecha_scraped`) nulas, en blanco o imparseables, el ingest
+deberá escribirlas en `bronze.<fuente>_quarantine` con su motivo
+(`missing_key` / `missing_scraped_at`), la fecha de cuarentena y el fichero de
+origen, sin incluirlas en el MERGE y sin abortar el resto del lote. Reprocesar
+el mismo fichero no deberá duplicar la cuarentena (huella de fila + motivo +
+fichero).
 
 ## Requisitos no funcionales (borrador)
 
