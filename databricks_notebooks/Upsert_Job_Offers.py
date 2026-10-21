@@ -198,23 +198,28 @@ def dedupe_batch(df: DataFrame, source: str) -> DataFrame:
     return latest.drop(SCRAPED_TS_COLUMN)
 
 
-def merge_sql(target_table: str, source: str) -> str:
+def merge_sql(
+    target_table: str, source: str, view_name: str = BATCH_VIEW_NAME
+) -> str:
     """Build the bronze upsert statement for one source.
 
     ``target_table`` is the fully qualified bronze table and ``source`` the
-    key in :data:`SOURCE_SPECS`; the microbatch is exposed as
-    :data:`BATCH_VIEW_NAME`. The incoming row wins only when its capture
-    instant is strictly newer, with ``_ingest_date`` as tie-breaker; a stored
-    row without a valid capture time is repaired by the first valid capture.
-    ``try_to_timestamp`` (never ``to_timestamp``) keeps ANSI mode from
-    aborting the batch on blank or malformed values.
+    key in :data:`SOURCE_SPECS`; the microbatch is exposed as ``view_name``,
+    which defaults to :data:`BATCH_VIEW_NAME`. The default keeps the old
+    behaviour; a caller that runs several sources concurrently must pass its
+    own view name so a stream never reads another one's batch. The incoming
+    row wins only when its capture instant is strictly newer, with
+    ``_ingest_date`` as tie-breaker; a stored row without a valid capture time
+    is repaired by the first valid capture. ``try_to_timestamp`` (never
+    ``to_timestamp``) keeps ANSI mode from aborting the batch on blank or
+    malformed values.
     """
     spec = get_source_spec(source)
     temporal = spec.scraped_at
     key_match = " AND ".join(f"t.{key} = s.{key}" for key in spec.keys)
     return (
         f"MERGE WITH SCHEMA EVOLUTION INTO {target_table} AS t\n"
-        f"USING {BATCH_VIEW_NAME} AS s\n"
+        f"USING {view_name} AS s\n"
         f"ON {key_match}\n"
         "WHEN MATCHED AND (\n"
         f"    try_to_timestamp(t.{temporal}) IS NULL\n"

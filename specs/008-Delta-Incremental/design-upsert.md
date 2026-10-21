@@ -113,10 +113,11 @@ Tabla por fuente, append-only y con evolución de esquema:
 ```
 <catalog>.bronze.<fuente>_quarantine
   <todas las columnas de la fuente, tal cual llegan>
-  _quarantine_reason  string    -- 'missing_key' | 'missing_scraped_at'
-  _quarantine_at      timestamp -- current_timestamp() del lote
+  _ingest_date        date     -- control del ingest (ya viene en el lote)
   _source_file        string
-  _row_hash           string    -- sha2(to_json(struct(columnas de la fuente)), 256)
+  _row_hash           string   -- sha2(to_json(struct(columnas de la fuente)), 256)
+  _quarantine_reason  string   -- 'missing_key' | 'missing_scraped_at'
+  _quarantine_at      timestamp -- current_timestamp() del lote
 ```
 
 - **Qué va a cuarentena:**

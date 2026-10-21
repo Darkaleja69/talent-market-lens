@@ -138,6 +138,7 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
 | Checkpoint reutilizado no reprocesa el histórico | One-off de migración (§5) separada del ingest |
 | MERGE por lote sobre tablas grandes en dev | Medir en T-03/T-05 con la línea base del §2 |
 | Migración de prod en caliente | Ventana, conteos antes/después y `RESTORE` documentado |
+| Merge en prod: la tabla destino debe existir (el MERGE ya no la crea como `toTable`) | Fail fast en el handler (`ValueError` claro) y runbook: las 4 tablas bronce deben existir antes del run |
 | CI: el deploy de dev solo admite `main`/`spec/007-elt-as-code` | Decidir en T-03: ampliar el guard a `spec/008-delta-incremental` o desplegar por CLI local (`--profile vs_code`) |
 
 ## 8. Secuencia

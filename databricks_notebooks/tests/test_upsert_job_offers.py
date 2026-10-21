@@ -550,6 +550,25 @@ def test_merge_sql_uses_the_source_key_and_capture_condition(
     assert "WHEN NOT MATCHED THEN INSERT *" in sql
 
 
+def test_merge_sql_uses_the_requested_view_name():
+    # The four streams run concurrently: a source must be able to merge from
+    # its own temporary view instead of the shared BATCH_VIEW_NAME.
+    target = "job_offers.bronze.linkedin"
+
+    default_sql = upsert.merge_sql(target, "linkedin")
+    assert f"USING {upsert.BATCH_VIEW_NAME} AS s" in default_sql
+
+    custom_sql = upsert.merge_sql(
+        target, "linkedin", view_name="__batch_linkedin"
+    )
+    assert "USING __batch_linkedin AS s" in custom_sql
+    assert f"USING {upsert.BATCH_VIEW_NAME} AS s" not in custom_sql
+    # Only the view changes: the rest of the statement is the same.
+    assert custom_sql == default_sql.replace(
+        f"USING {upsert.BATCH_VIEW_NAME} AS s", "USING __batch_linkedin AS s"
+    )
+
+
 def test_unknown_source_raises_value_error(spark):
     batch = _batch(spark, "linkedin", [])
     with pytest.raises(ValueError, match="Fuente desconocida"):

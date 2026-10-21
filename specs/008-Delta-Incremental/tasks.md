@@ -70,6 +70,12 @@
     inválida de prueba acaba en `bronze.<fuente>_quarantine` sin abortar el
     lote. Run dev y tiempos anotados.
   - **Evidencia:** id del run, tiempos y fila en `evidence.md`.
+  - **Estado:** implementado y verificado en local el 2026-10-21 (notebook con
+    `foreachBatch` + MERGE, cuarentena acotada por fichero, vista única por
+    fuente, `awaitTermination` final y fail fast si falta la tabla). **Pendiente
+    la prueba en dev** (persona): `bundle deploy -t dev`, run del job,
+    `DESCRIBE TABLE` de las 4 tablas, guardia de offsets, columna nueva, fila
+    inválida en cuarentena y tiempos.
 
 - [ ] **T-04 — Verificación del bronce dev** (~25 min)
   - **Hecho cuando:** las tablas dev quedan en el universo único con conteos
