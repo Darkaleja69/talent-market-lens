@@ -45,8 +45,10 @@ usa el mecanismo seguro estrenado en la 007 (bundle, CI y ventana).
   Una fila guardada con `scraped_at` nulo se repara con la primera captura
   buena. Las filas entrantes con clave o `scraped_at` nulos/vacíos no entran
   en el MERGE: van a cuarentena.
-- **Comparación (D3):** pendiente de confirmar; recomendado castear a
-  `timestamp` en la condición y dejar la fecha solo para BI.
+- **Comparación (D3):** la condición del MERGE castea `scraped_at` a
+  `timestamp` (`to_timestamp`), nunca a fecha: dos capturas del mismo día con
+  horas distintas deben ordenarse. La fecha es solo de presentación, en BI
+  (gold ya usa `to_date`).
 - **Cuarentena (D4):** tabla `bronze.<fuente>_quarantine`, escrita en el mismo
   `foreachBatch` que el MERGE, deduplicada por huella de fila
   (`sha2` de las columnas) + motivo + fichero — no por clave, porque las filas

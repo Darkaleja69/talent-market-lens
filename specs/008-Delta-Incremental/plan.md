@@ -66,9 +66,11 @@ Claves por fuente (una tabla por fuente, sin cambios de nombre):
   (string), sin normalizar: es la misma clave que ya usa la silver.
 - Condición de actualización: la fila entrante gana si su `scraped_at` es
   **estrictamente mayor** que el de la guardada; empate → gana `_ingest_date`
-  como desempate y, si también empata, no se actualiza (idempotencia). El
-  orden lexicográfico es válido porque el offset es único (`+00:00`, T-10a);
-  **confirmarlo en T-01** antes de apoyarse en él.
+  como desempate y, si también empata, no se actualiza (idempotencia). La
+  comparación castea el string a `timestamp` con `to_timestamp`
+  (**decidido, D3**): comparar como fecha perdería dos capturas del mismo día.
+  El desempate por `_ingest_date` es una fecha y solo actúa cuando los
+  instantes coinciden exactamente.
 - Dedup del lote **antes** del MERGE con `keep_latest_by` (evita que dos
   ficheros del mismo microbatch se pisen en orden arbitrario).
 - Claves nulas o en blanco: hoy no existen (auditoría T-10a), pero el diseño

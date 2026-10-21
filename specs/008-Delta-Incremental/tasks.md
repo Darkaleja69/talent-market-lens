@@ -42,9 +42,10 @@
     `keep_latest_by` de `Deduplicate_Job_Offers.py` (007) en vez de duplicar
     la ventana.
   - **Hecho cuando:** tests en verde cubriendo: gana el más reciente, empate
-    por `_ingest_date`, desorden, clave nula/en blanco y `scraped_at` nulo
-    (motivo correcto), huella de fila + motivo + fichero no se duplica al
-    reprocesar, idempotencia y contrato de columnas.
+    por `_ingest_date`, desorden, **misma clave con dos capturas del mismo día
+    y horas distintas (gana la de hora posterior)**, clave nula/en blanco y
+    `scraped_at` nulo (motivo correcto), huella de fila + motivo + fichero no
+    se duplica al reprocesar, idempotencia y contrato de columnas.
     `python -m pytest databricks_notebooks/tests -q` en verde.
   - **Evidencia:** salida de la suite y fila en `evidence.md`.
 
