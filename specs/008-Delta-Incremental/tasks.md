@@ -43,8 +43,8 @@
     la ventana.
   - **Hecho cuando:** tests en verde cubriendo: gana el más reciente, empate
     por `_ingest_date`, desorden, clave nula/en blanco y `scraped_at` nulo
-    (motivo correcto), clave + motivo + fichero no se duplica al reprocesar,
-    idempotencia y contrato de columnas.
+    (motivo correcto), huella de fila + motivo + fichero no se duplica al
+    reprocesar, idempotencia y contrato de columnas.
     `python -m pytest databricks_notebooks/tests -q` en verde.
   - **Evidencia:** salida de la suite y fila en `evidence.md`.
 

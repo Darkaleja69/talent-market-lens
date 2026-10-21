@@ -48,9 +48,11 @@ usa el mecanismo seguro estrenado en la 007 (bundle, CI y ventana).
 - **Comparación (D3):** pendiente de confirmar; recomendado castear a
   `timestamp` en la condición y dejar la fecha solo para BI.
 - **Cuarentena (D4):** tabla `bronze.<fuente>_quarantine`, escrita en el mismo
-  `foreachBatch` que el MERGE, deduplicada por clave + motivo + fichero. Su
-  tratamiento posterior (corregir o descartar) se profundizará en specs
-  futuras; aquí solo se captura el dato con su motivo.
+  `foreachBatch` que el MERGE, deduplicada por huella de fila
+  (`sha2` de las columnas) + motivo + fichero — no por clave, porque las filas
+  con clave nula no tienen clave con la que deduplicar. Su tratamiento
+  posterior (corregir o descartar) se profundizará en specs futuras; aquí solo
+  se captura el dato con su motivo.
 - **Checkpoint (D5):** plan A — se conserva `<checkpoints_root>/<fuente>/ckpt`
   (sin relectura del landing) y el histórico se normaliza con una migración
   one-off (RF-2). `ckpt_v2` (relectura completa) queda como plan B si el
@@ -91,7 +93,7 @@ documentado y una noche real verificada.
 escribirlas en `bronze.<fuente>_quarantine` con su motivo (`missing_key` /
 `missing_scraped_at`), la fecha de cuarentena y el fichero de origen, sin
 incluirlas en el MERGE y sin abortar el resto del lote. Reprocesar el mismo
-fichero no deberá duplicar la cuarentena (clave + motivo + fichero).
+fichero no deberá duplicar la cuarentena (huella de fila + motivo + fichero).
 
 ## Requisitos no funcionales (borrador)
 

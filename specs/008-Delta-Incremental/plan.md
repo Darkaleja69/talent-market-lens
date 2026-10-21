@@ -75,8 +75,10 @@ Claves por fuente (una tabla por fuente, sin cambios de nombre):
   debe fijar qué ocurre para no insertar duplicados sin clave en cada lote.
   **Decidido (D4):** van a `bronze.<fuente>_quarantine` con motivo
   (`missing_key` / `missing_scraped_at`, `_quarantine_at` y `_source_file`),
-  escritas en el mismo `foreachBatch` y **deduplicadas por clave + motivo +
-  fichero** para que un reproceso no las repita. Se descartan del MERGE.
+  escritas en el mismo `foreachBatch` y **deduplicadas por huella de fila
+  (`sha2` de las columnas) + motivo + fichero** para que un reproceso no las
+  repita (por clave no vale: las filas sin clave no tienen clave). Se
+  descartan del MERGE.
   Columnas: las de la fuente + las tres de control; tabla append-only con
   `mergeSchema`.
 - Columnas de control: `_ingest_date` y `_source_file` se actualizan al ganar
