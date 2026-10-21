@@ -38,7 +38,7 @@
     desajustes spec/diseño; `_scraped_ts` auxiliar). **No se cierra** hasta
     pegar la evidencia de auditoría en `evidence.md`.
 
-- [ ] **T-02 — Módulo de dedup/upsert + tests** (~45 min)
+- [x] **T-02 — Módulo de dedup/upsert + tests** (~45 min)
   - **Objetivo:** lógica comprobable (mapa de columnas por fuente, dedup del
     lote, condición de merge y enrutado a cuarentena) con tests pytest + Spark
     local. Reutilizar la semántica de `keep_latest_by` de
@@ -51,6 +51,10 @@
     al reprocesar, idempotencia y contrato de columnas.
     `python -m pytest databricks_notebooks/tests -q` en verde.
   - **Evidencia:** salida de la suite y fila en `evidence.md`.
+  - **Estado:** hecho el 2026-10-21. `Upsert_Job_Offers.py` + 24 tests; verificación
+    independiente PASA (24 passed en 1 m 51 s, SQL de las 4 fuentes parseado en
+    Spark 4.2). Pendiente para T-03: ejecución real del MERGE, orden
+    `split_quarantine` → `dedupe_batch` y `_source_file` siempre presente.
 
 - [ ] **T-03 — Ingesta con `foreachBatch` + MERGE (dev)** (~40 min)
   - **Objetivo:** cambiar `bronze_ingest` manteniendo Auto Loader, checkpoint
