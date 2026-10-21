@@ -17,7 +17,7 @@
 
 ## 1. Bloque A — Bronce upsert
 
-- [ ] **T-01 — Diseño del upsert** (~30 min)
+- [x] **T-01 — Diseño del upsert** (~30 min)
   - **Objetivo:** fijar claves, columnas y tipos por fuente, condición de
     actualización, tratamiento de llegadas desordenadas y de filas inválidas, y
     estrategia de checkpoint (§4 del plan).
@@ -35,8 +35,10 @@
     (duplicados de negocio y offsets) y fila en `evidence.md`.
   - **Estado:** diseño escrito y revisado en tres rondas (nombres de columna por
     fuente y riesgo de ANSI; sintaxis de `MERGE WITH SCHEMA EVOLUTION` y
-    desajustes spec/diseño; `_scraped_ts` auxiliar). **No se cierra** hasta
-    pegar la evidencia de auditoría en `evidence.md`.
+    desajustes spec/diseño; `_scraped_ts` auxiliar). **Cerrada** el 2026-10-21
+    con la auditoría de negocio pegada en `evidence.md` (25 grupos, todos
+    cross-site). Quedan pendientes las consultas de claves/temporales de indeed
+    e infojobs y los offsets, que se ejecutan en T-03.
 
 - [x] **T-02 — Módulo de dedup/upsert + tests** (~45 min)
   - **Objetivo:** lógica comprobable (mapa de columnas por fuente, dedup del

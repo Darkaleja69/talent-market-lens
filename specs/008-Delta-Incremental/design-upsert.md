@@ -48,10 +48,11 @@ mapa es parte del diseño.
 - El dedup de negocio («misma oferta republicada con clave nueva») **no** vive
   aquí: está en oro (`gold_build.ipynb`, `_keep_best` por
   `title_norm` + `company_norm` + `salary_filled`). Bronce conserva una fila
-  por anuncio. `[NO VERIFICADO]` Evidencia cualitativa de la persona
-  (2026-10-21, sin salida pegada): bastantes republicaciones cross-portal,
-  separadas desde 1 día hasta más de un mes; se anota como candidata a spec
-  propia (localización + ventana temporal), fuera de la 008.
+  por anuncio. Evidencia medida (silver dev, 2026-10-21; top 25, hay más): el
+  duplicado de negocio es **cross-portal** y con la **misma localización** en
+  todos los casos (2–3 fuentes), con separaciones entre capturas de 1 día a ~9
+  meses; se anota como candidata a spec propia (localización + ventana
+  temporal), fuera de la 008. Detalle en `evidence.md`.
 
 ## D2 — Condición de actualización
 
@@ -253,5 +254,5 @@ FROM <catalog>.bronze.linkedin;   -- repetir en multi_site
 | 2, las cuatro tablas | pendiente de pegar |
 | 3, LinkedIn y multi_site | pendiente de pegar |
 | 4, offsets (guardia) | pendiente; se ejecuta en T-03 |
-| Grupos de negocio con >1 clave (silver, dev) | pendiente de pegar; `[NO VERIFICADO]` cualitativamente: bastantes, también cross-site, separación 1 día – >1 mes |
+| Grupos de negocio con >1 clave (silver, dev) | **medido**: 25 grupos (top 25, hay más), todos cross-site y con la misma localización; separación 1 día – ~9 meses; detalle en `evidence.md` |
 
