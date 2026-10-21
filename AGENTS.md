@@ -42,6 +42,11 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - **Alcance de la verificación:** el `verifier` revisa solo el diff de la tarea
   y ejecuta solo los tests de ese cambio. La suite completa es un gate de la
   spec (tarea de validación), no de cada tarea.
+- **Aprobación previa (spec 008 en adelante):** antes de modificar un notebook
+  (`databricks_notebooks/**/*.ipynb`), un módulo de `databricks_notebooks/`
+  (`*.py`) o cualquier `.yml` (bundle, recursos, workflows), el asistente
+  presenta **fichero, celdas/claves afectadas, diff propuesto y motivo**, y
+  espera el OK de la persona. Los **tests quedan fuera** de esta regla.
 - Estas instrucciones son propias del trabajo de especificación (estas specs y
   sus worktrees), no del proyecto real: al fusionar esta rama a `main`
   —checkpoint o cierre—, restaurar `AGENTS.md` de `main` antes de cerrar el
