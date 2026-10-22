@@ -70,18 +70,22 @@
     inválida de prueba acaba en `bronze.<fuente>_quarantine` sin abortar el
     lote. Run dev y tiempos anotados.
   - **Evidencia:** id del run, tiempos y fila en `evidence.md`.
-  - **Estado:** implementado y verificado en local el 2026-10-21 (notebook con
-    `foreachBatch` + MERGE, cuarentena acotada por fichero, vista única por
-    fuente, `awaitTermination` final y fail fast si falta la tabla). **Pendiente
-    la prueba en dev** (persona): `bundle deploy -t dev`, run del job,
-    `DESCRIBE TABLE` de las 4 tablas, guardia de offsets, columna nueva, fila
-    inválida en cuarentena y tiempos.
+  - **Estado:** implementado y verificado en local el 2026-10-21; **run dev
+    `339441526455403` en verde** (13 m 39 s; bronze 5 m 11 s; 7/7 tareas). Tipos
+    y offsets confirmados. Queda: (a) columna nueva con evolución de esquema,
+    (b) reproceso idempotente (T-05) y (c) la cuarentena de punta a punta, que
+    **no** se prueba inyectando ficheros en el landing compartido (prod los
+    ingeriría): la ruta está cubierta por los tests de T-02.
 
 - [ ] **T-04 — Verificación del bronce dev** (~25 min)
   - **Hecho cuando:** las tablas dev quedan en el universo único con conteos
-    verificables por fuente (partida: linkedin 13.376 y multi_site 10.489
-    claves, T-10 de la 007) y con la one-off aplicada solo si hace falta. La
+    verificables por fuente, con la one-off aplicada donde hace falta. La
     migración de **prod no va aquí: va en T-06**, antes del primer lote nuevo.
+  - **Estado:** linkedin y multi_site ya están limpios (14.084 y 11.057 claves);
+    **indeed (9.430/2.959) e infojobs (43.972/2.587) necesitan la one-off**.
+    Orden: `INSERT OVERWRITE` por tabla (dedup por clave con
+    `try_to_timestamp(<temporal>)` y `_ingest_date` como desempate), conteos
+    antes/después y `RESTORE` anotado.
   - **Evidencia:** conteos antes/después y fila en `evidence.md`.
 
 - [ ] **T-05 — Validación en dev** (~30 min)

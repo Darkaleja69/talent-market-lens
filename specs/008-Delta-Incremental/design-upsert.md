@@ -16,7 +16,7 @@ mapa es parte del diseño.
 |---|---|---|---|
 | indeed | `job_key` | `scraped_at` | `timestamp` (UTC, `datetime64[ns, UTC]`) |
 | linkedin | `job_id` | `scraped_at` | `string` ISO-8601, offset `+00:00` |
-| infojobs | `id_oferta` | `fecha_scraped` | `timestamp` (local, sin zona) |
+| infojobs | `id_oferta` | `fecha_scraped` | `timestamp_ntz` (local, sin zona) |
 | multi_site | `site` + `job_id` | `scraped_at` | `string` ISO-8601 |
 
 - Fuente del mapa: `databricks_notebooks/silver_*.ipynb` (`withColumnsRenamed`),
@@ -86,6 +86,11 @@ WHEN NOT MATCHED THEN INSERT *
 - `try_to_timestamp(t.<temporal>) IS NULL` cubre tanto la fila guardada nula
   como la guardada con `''` o texto inválido (la rama `IS NULL` de la columna
   cruda no las cubría).
+- **El MERGE no colapsa duplicados preexistentes:** actualiza *todas* las filas
+  del destino que casan con la clave (comprobado en dev: indeed 9430 filas /
+  2959 claves, infojobs 43972 / 2587, todas actualizadas con el lote nuevo). Con
+  el destino limpio no pueden aparecer nuevos duplicados (el lote se deduplica
+  antes); la limpieza del histórico es la one-off de T-04 (dev) y T-06 (prod).
 
 ## D3 — Comparación por timestamp
 
