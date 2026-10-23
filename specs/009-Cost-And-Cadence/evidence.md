@@ -367,3 +367,22 @@ solo necesita el informe.
 - Nota: la comparación de conteos contra Gold por SQL no se hizo (habría
   despertado el warehouse); los conteos los produce el notebook al leer Gold y
   coinciden con `meta.json`.
+
+## T-14 — Deploy a prod y run manual (2026-10-23/24)
+
+- Warehouse antes/después: `STOPPED`, 0 clusters, 0 sesiones.
+- `bundle validate -t prod`: OK. `bundle deploy -t prod`: 8 tareas,
+  `Standard_D4ds_v4`, `CLASSIC_PREVIEW`, single node, `timeout_seconds: 1800`,
+  `max_concurrent_runs: 1`, cron `50 0 23 ? * SUN`, `Europe/Madrid`,
+  `UNPAUSED`.
+- Run manual `923443117247499`: **SUCCESS**, 18,93 min (23:43:02 → 00:01:58),
+  8/8 tareas. Bronze setup 6,87 min; `Silver_Infojobs` 8,95 min es la más larga.
+- `gold/pbi_export`: 7 ficheros (6 Parquet + `meta.json`), 32 962 272 B.
+  `meta.json`: `mode=full`, `audience=pbi`, `data_date=2026-10-22`,
+  `fact_offers: 25 695`, `fact_offer_skills: 44 132`, `dim_calendar: 2 912`,
+  `dim_companies: 9 801`, `dim_currency: 19`, `dim_skill_list: 95`.
+- `fact_offers.parquet`: 31 columnas × 25 695 filas.
+- `gold/web_export`: 5 ficheros, 3 561 208 B; `fact_offers` 20 columnas ×
+  25 695 filas.
+- Pendiente: refresh de PBI con el warehouse parado (T-10) y presupuesto
+  (T-13).

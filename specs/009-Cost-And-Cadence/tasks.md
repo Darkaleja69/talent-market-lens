@@ -265,7 +265,7 @@ el plan antes de cada commit.
 
 ## 6. Deploy a producción y cierre
 
-- [ ] **T-14 — Deploy a producción y cutover de cadencia** (~30 min)
+- [x] **T-14 — Deploy a producción y cutover de cadencia** (~30 min)
   - **RF:** RF-1, RF-5.
   - **Depende de:** T-04, T-10, T-12, T-13.
   - **Objetivo:** llevar todo a producción sin sorpresas.
@@ -279,9 +279,12 @@ el plan antes de cada commit.
     verde y los dos exports actualizados.
   - **Evidencia:** `jobs get` saneado, run id, duración, `meta.json` de ambos
     exports y URL de la web.
-  - **Hecho (2026-10-23):** deploy a prod ejecutado por la persona; `jobs get`
-    confirma `50 0 23 ? * SUN`, `Europe/Madrid`, `UNPAUSED`. Primer run
-    programado: domingo 25-oct 23:00. Pendiente comprobar ese run y el resto.
+  - **Hecho (2026-10-23/24):** deploy prod con 8 tareas y `D4ds_v4`; run
+    manual `923443117247499` **SUCCESS**, 18,93 min, 8/8 tareas; `gold/pbi_export`
+    (7 ficheros, 31 columnas, 25 695 filas) y `gold/web_export` (5 ficheros, 20
+    columnas) actualizados. Warehouse `STOPPED` antes y después.
+  - **Pendiente:** refresh de PBI con el warehouse parado (T-10), presupuesto
+    (T-13) y comprobar el run programado del domingo 25-oct.
 
 - [ ] **T-15 — Evidencia, documentación y comprobación real** (~30 min)
   - **RF:** RF-6, RF-7, RF-8.
