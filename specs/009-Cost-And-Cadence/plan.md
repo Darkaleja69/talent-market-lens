@@ -67,7 +67,7 @@ las estimadas, o esos días hubo también un despertar corto. T-01 lo resuelve c
 | Storage + discos + IP | céntimos | céntimos |
 | **Total** | **~50–65 €/mes** | **~1,5–2,5 €/mes** |
 
-Con `D2ds_v4`, el job baja a ~0,5-1 €/mes; serverless se evalúa en la 010. El
+Con `D2ds_v6`, el job baja a ~0,5-1 €/mes; serverless se evalúa en la 010. El
 techo de 3 €/mes deja margen para un
 run extra y una consulta manual al mes.
 
@@ -153,14 +153,14 @@ in
 
 ## 7. Compute del job
 
-En esta spec se aplica **`Standard_D2ds_v4`** (mitad de DBU y VM) y la
-comparación con serverless se traslada a la 010 (rendimiento), porque debe
-hacerse con el código definitivo de la ingesta (la 008 cambia `foreachBatch` y
-MERGE).
+En esta spec se aplica **`Standard_D2ds_v6`** (2 vCPU/8 GB; el workspace no
+ofrece `D2ds_v4`) y la comparación con serverless se traslada a la 010
+(rendimiento), porque debe hacerse con el código definitivo de la ingesta (la
+008 cambia `foreachBatch` y MERGE).
 
-1. **`Standard_D2ds_v4`** single node y limpieza de `kind: CLASSIC_PREVIEW`.
-   Riesgo: 2 vCPU para cuatro silvers en paralelo puede alargar el run; se mide
-   duración y coste.
+1. **`Standard_D2ds_v6`** single node; se mantiene `kind: CLASSIC_PREVIEW`
+   porque `is_single_node` lo exige. Riesgo: 2 vCPU para cuatro silvers en
+   paralelo puede alargar el run; se mide duración y coste.
 2. **Diferido a la 010:** serverless en modo Standard (`performance_target:
    STANDARD`), que elimina el aprovisionamiento de 6,9 min y factura por
    ejecución real. Riesgo: no soporta init scripts ni rutas relativas; hay que
@@ -230,13 +230,13 @@ specs/009-Cost-And-Cadence/                     esta spec
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| Serverless no soporta el patrón (cloudFiles, imports, autoreload) | Medio | Diferido a la 010; en la 009 se aplica `D2ds_v4` |
+| Serverless no soporta el patrón (cloudFiles, imports, autoreload) | Medio | Diferido a la 010; en la 009 se aplica `D2ds_v6` |
 | El refresh del informe no autentica en el Service | Alto | Probar credenciales antes del cutover; rollback al conector Databricks documentado |
 | El export del informe crece (> 25 MiB) | Medio | Modo `full` por diseño; medir tamaño y tiempo |
 | SAS caduca | Medio | Caducidad ≤ 1 año, rotación documentada y probada |
 | La 008 cambia el tiempo del job | Bajo | El techo es absoluto; repetir la medición al fusionar |
 | Cruce con la 008 (`AGENTS.md`, deploy-dev) | Bajo | Resolver a mano al fusionar |
-| `D2ds_v4` alarga el run por 2 vCPU | Medio | Medir; si empeora el coste total, volver a `D4ds_v4` |
+| `D2ds_v6` alarga el run por 2 vCPU | Medio | Medir; si empeora el coste total, volver a `D4ds_v4` |
 | Un run semanal falla y el dashboard publica datos viejos | Bajo | `meta.json` muestra la fecha; el workflow no publica a medias |
 
 ## 13. Decisiones y alternativas descartadas
@@ -294,7 +294,7 @@ specs/009-Cost-And-Cadence/                     esta spec
 
 El techo de 3 €/mes es de **producción**; el desarrollo también cuesta y puede
 superarlo. Medido: un run de dev en `D4ds_v4` cuesta ~0,24 € (0,13 € en
-`D2ds_v4`) y **una sesión de SQL cuesta ~1,29 €**. Un run corto es ~5× más
+`D2ds_v6`) y **una sesión de SQL cuesta ~1,29 €**. Un run corto es ~5× más
 barato que una consulta: esa relación ordena toda la política del track.
 
 **Tres entornos, tres usos:**
@@ -311,7 +311,7 @@ GPU. **Tampoco tiene Spark UI** (serverless no lo expone; la documentación
 remite al Query Profile), así que stages, shuffles, skew y executors se
 practican en cluster clásico. Esos temas se practican en el workspace pagado
 creando un cluster pequeño y terminándolo sin ejecutar nada (céntimos), con
-sesiones cortas de all-purpose `D2ds_v4` (~0,41 €/20 min) o con runs de dev
+sesiones cortas de all-purpose `D2ds_v6` (~0,41 €/20 min) o con runs de dev
 (~0,13 €), o en el laboratorio del curso si lo incluye. La cuenta del
 laboratorio usa un perfil de CLI propio (`free`) y nunca apunta a los targets
 del bundle del proyecto; el PAT del workspace pagado no se copia a un equipo
@@ -355,7 +355,7 @@ scale-to-zero y demo corta.
 Cada run de dev se anota en `tasks.md` con su motivo; si una tarea necesita más,
 se justifica y se descuenta de la siguiente. Para SQL ad hoc, preferir un run
 corto de un notebook en el job dev (0,03–0,13 €) antes que el SQL Editor
-(1,29 €). Dev usa `D2ds_v4` para que cada run cueste la mitad; serverless se evalúa en
+(1,29 €). Dev usa `D2ds_v6` para que cada run cueste la mitad; serverless se evalúa en
 la 010.
 
 **Dependencia nueva:** ninguna. `delta-spark` para ejecutar MERGE en local queda

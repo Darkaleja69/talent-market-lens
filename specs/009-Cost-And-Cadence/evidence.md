@@ -319,3 +319,14 @@ solo necesita el informe.
   validación, para que un run manual en dev no escriba en producción por
   olvido.
 - Pendiente: escritura real, 6+1 ficheros y conteos (T-07).
+
+## T-12 — Compute `D2ds_v6` (2026-10-23)
+
+- `Standard_D2ds_v4` no está en el catálogo del workspace; se usa
+  `Standard_D2ds_v6` (2 vCPU/8 GB, disponible y sin
+  `NotEnabledOnSubscription`).
+- `is_single_node: true` exige `kind: CLASSIC_PREVIEW`: se mantiene (la idea de
+  quitarlo era errónea; `bundle validate` no lo detecta).
+- `bundle validate -t dev/prod`: OK; `summary`: node=`Standard_D2ds_v6`,
+  kind=`CLASSIC_PREVIEW`, single=true, 8 tareas.
+- Pendiente: run de T-07 para medir duración y coste reales.

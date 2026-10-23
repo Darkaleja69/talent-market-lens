@@ -225,17 +225,18 @@ el plan antes de cada commit.
   (2026-10-23).
   - **Motivo:** la compatibilidad de serverless debe probarse con el código
     definitivo de la ingesta; la 008 cambia `foreachBatch` y MERGE. En la 009 se
-    aplica `D2ds_v4`, que no bloquea el ahorro.
+    aplica `D2ds_v6`, que no bloquea el ahorro.
   - **Destino:** spec 010 (rendimiento), junto con la medición de DBU y duración.
 
-- [ ] **T-12 — Aplicar `D2ds_v4`** (~20 min)
+- [ ] **T-12 — Aplicar `D2ds_v6`** (~20 min)
   - **RF:** RF-5.
   - **Depende de:** T-07.
   - **Objetivo:** bajar el coste por run a la mitad sin riesgo.
   - **Pasos:** en `resources/elt.job.yml`, cambiar `node_type_id` a
-    `Standard_D2ds_v4` y quitar `kind: CLASSIC_PREVIEW`; `bundle validate` en dev
-    y prod; run dev de comprobación; medir duración y coste. Si se aplica antes
-    de T-07, el run de T-07 sirve de comprobación y no hace falta otro.
+    `Standard_D2ds_v6` (el workspace no ofrece `D2ds_v4`) y **mantener**
+    `kind: CLASSIC_PREVIEW` (obligatorio con `is_single_node`); `bundle validate`
+    en dev y prod; run dev de comprobación; medir duración y coste. Si se aplica
+    antes de T-07, el run de T-07 sirve de comprobación y no hace falta otro.
   - **Hecho cuando:** run dev en verde en ≤ 30 min y coste por run menor que la
     línea base.
   - **Evidencia:** diff + medición antes/después.

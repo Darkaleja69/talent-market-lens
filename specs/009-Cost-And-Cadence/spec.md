@@ -16,7 +16,7 @@ Este trabajo baja el coste mensual de Azure a **≤ 3 €/mes** sin perder la
 comprobación real del pipeline, con tres palancas: ejecutar la ELT **una vez por
 semana** (el scraping local sigue diario y es gratis), **sacar el informe Power
 BI del SQL warehouse** (lee Parquet de ADLS en modo Import) y **abaratar el
-compute del job** (`Standard_D2ds_v4`; serverless se evalúa en la 010). Se mantiene
+compute del job** (`Standard_D2ds_v6`; serverless se evalúa en la 010). Se mantiene
 Databricks como plataforma de la ELT y el warehouse se conserva parado para
 consultas ad hoc.
 
@@ -94,8 +94,9 @@ documentados en el RUNBOOK.
 ### RF-5 — Compute del job más barato sin perder el run
 
 **Criterio de aceptación (EARS):** Cuando se ajuste el compute del job, deberá
-adoptarse `Standard_D2ds_v4` single node (mitad de DBU y VM que el
-`Standard_D4ds_v4` actual) y el run semanal deberá completarse en verde en
+adoptarse `Standard_D2ds_v6` single node (2 vCPU/8 GB: mitad de DBU y VM que el
+`Standard_D4ds_v4` actual; el workspace no ofrece `D2ds_v4`) y el run semanal
+deberá completarse en verde en
 **≤ 30 min**; el `timeout_seconds: 1800` se mantiene en dev y prod. La
 comparación con serverless Standard se traslada a la spec 010 (rendimiento),
 porque debe medirse con el código definitivo de la ingesta de la 008 y no debe
@@ -163,7 +164,7 @@ confirmación.
 - La spec 008 (delta incremental) cambia la duración del job: la medición se
   repite; el techo de coste no cambia.
 - La comparación con serverless se pospone a la 010: en la 009 se aplica
-  `D2ds_v4` (mitad de DBU y VM) sin riesgo y se documenta el motivo.
+  `D2ds_v6` (mitad de DBU y VM) sin riesgo y se documenta el motivo.
 - La SAS caduca: el refresh falla de forma visible; la rotación está
   documentada y probada.
 - Cruce con la 008 en `AGENTS.md` y en

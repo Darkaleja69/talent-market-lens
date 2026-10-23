@@ -11,7 +11,7 @@ resources:
             data_security_mode: DATA_SECURITY_MODE_DEDICATED
             is_single_node: true
             kind: CLASSIC_PREVIEW
-            node_type_id: Standard_D4ds_v4
+            node_type_id: Standard_D2ds_v6
             runtime_engine: STANDARD
             spark_version: 17.3.x-scala2.13
       tasks:
