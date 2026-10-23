@@ -272,18 +272,13 @@ table Fact_Offers
 		queryGroup: 'Fact Tables'
 		source =
 				let
-				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
-				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
-				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
-				    ofertas = gold_Schema{[Name="fact_offers",Kind="Table"]}[Data],
-				    conGeo = Table.AddColumn(ofertas, "GeoCountry", each let C = try Text.Trim([location_country]) otherwise "" in if C = "" or C = "(Not specified)" then "(Not specified)" else if List.Contains({"CA","FL","PA"}, C) then "United States" else if C = "Alemania" then "Germany" else if List.Contains({"Austria y Suiza","Austria and Switzerland"}, C) then "Austria" else if C = "Oriente Medio y África" then "Middle East & Africa" else C, type text),
-				    conRegPrep = Table.AddColumn(conGeo, "__C", each try Text.Trim([location_country]) otherwise "", type text),
-				    conRegPrep2 = Table.AddColumn(conRegPrep, "__R", each try Text.Trim([location_region]) otherwise "", type text),
-				    MergeReg = Table.NestedJoin(conRegPrep2, {"__C","__R"}, Dim_RegionMap, {"SourceCountry","SourceRegion"}, "Reg", JoinKind.LeftOuter),
-				    conReg = Table.AddColumn(MergeReg, "GeoRegion", each try [Reg][TargetRegion]{0} otherwise "(Other)", type text),
-				    sinReg = Table.RemoveColumns(conReg, {"__C","__R","Reg"})
+				    Origen = AzureStorage.DataLake(
+				        "https://joboffershns.dfs.core.windows.net/landing/gold/pbi_export",
+				        [HierarchicalNavigation = true]),
+				    Fichero = Origen{[Name = "fact_offers.parquet"]}[Content],
+				    Tabla = Parquet.Document(Fichero)
 				in
-				    sinReg
+				    Tabla
 
 	annotation PBI_NavigationStepName = Navegación
 
