@@ -15,7 +15,7 @@ temario al proyecto Talent Market Lens, no en abstracto.
 
 | Dominio del examen | Spec | Dónde se practica |
 |---|---|---|
-| 1. Spark performance: shuffles, joins, broadcast, skew, partitioning, file sizes, query plans, Spark UI, Query Profile, data skipping | 010 | Medir y optimizar la ELT con `explain`, Spark UI y Query Profile; tamaño de ficheros y layout de Delta |
+| 1. Spark performance: shuffles, joins, broadcast, skew, partitioning, file sizes, query plans, Spark UI, Query Profile, data skipping | 010 | Medir y optimizar la ELT con `explain`, Spark UI y Query Profile; tamaño de ficheros y layout de Delta; spike de serverless y decisión final de compute (venido de la 009) |
 | 2. Delta: transaction log, ACID, MERGE, CDF, deletion vectors, OPTIMIZE, liquid clustering, schema evolution | 008 | `DESCRIBE HISTORY` y `_delta_log`, MERGE idempotente, CDF y evolución de esquema en Bronze |
 | 3. Streaming: checkpoint, trigger, watermark, state, microbatch, exactly-once, Structured Streaming vs Lakeflow | 011 | Auto Loader existente; demo controlada de Lakeflow Declarative Pipelines vs Structured Streaming |
 | 4. Arquitectura incremental | 008 | Silver y Gold incrementales con reproceso idempotente por fecha y fuente |
@@ -57,7 +57,7 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
 | 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | hecha |
 | 2–3 | 19 oct – 1 nov | **Spec 007 (código)** y **Spec 009 (coste y cadencia)** | 007 hecha; 009 en curso |
 | 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (arranca con el bronce upsert, paso B) | pendiente |
-| 7 | 23–29 nov | **Spec 010:** rendimiento y layout físico | pendiente |
+| 7 | 23-29 nov | **Spec 010:** rendimiento, layout físico y compute | pendiente |
 | 8 | 30 nov – 6 dic | **Spec 011:** streaming y observabilidad | pendiente |
 | 9 | 7–13 dic | **Spec 012:** seguridad y gobernanza | pendiente |
 | 10–11 | 14–27 dic | Simulacros, repaso final y **examen** | pendiente |
@@ -145,5 +145,6 @@ Unity Catalog del laboratorio y puntuar en batch dentro del job semanal
 | 2026-10-19 | Primer run programado del bundle en verde (T-19) | Run `471695262858572` SUCCESS (19 m 45 s, 7/7 tareas); 1 único run y manual sin runs; conteos al alza (`fact_offers` 24.563 → 24.992) y `meta.json` con `data_date` 19-oct |
 | 2026-10-20 | Rollback en seco (T-20) y documentación operativa (T-21) | Ida y vuelta en 11 m 04 s sin runs nuevos ni sorpresas; RUNBOOK §9, README, nota `05-cicd.md`; propuesta de `AGENTS.md` presentada (pendiente de OK) |
 | 2026-10-23 | Spec 009 (coste y cadencia) creada y priorizada sobre la 008 | Worktree `talent-market-lens-009`, rama `spec/009-cost-and-cadence` desde `main`; la 008 queda aparcada en su worktree con la rama respaldada |
-| 2026-10-23 | Medición de coste | Run de prod 19,2 min ≈ 0,24 €; warehouse Serverless Starter Warehouse Small (12 DBU/h) ≈ 1,29 € por despertar; picos de 2–5 € por runs de dev colgados (337,7 y 114,1 min), ya acotados por el timeout de 30 min |
+| 2026-10-23 | Medición de coste | Run de prod 19,2 min ≈ 0,24 €; el 85–90 % del gasto es el SQL warehouse (`PREMIUM_SERVERLESS_SQL_COMPUTE`): Small ≈ 1,29 € por despertar. El pico del 17-oct son ~15 despertares, no los runs de dev; los días sin warehouse quedan en ~0,2–0,5 € |
 | 2026-10-23 | Renumeración y política | Rendimiento 009→010, streaming 010→011, gobernanza 011→012; tres entornos y presupuesto de runs (≤ 9 € en todo el track) |
+| 2026-10-23 | Spec 009: compute, warehouse y cadencia | Warehouse a 2X-Small (≈0,43 €/despertar); serverless se traslada a la 010; job prod desplegado con `50 0 23 ? * SUN` (domingos 23:00, `UNPAUSED`) |

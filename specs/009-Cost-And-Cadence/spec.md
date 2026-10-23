@@ -7,7 +7,7 @@ El ciclo diario de Talent Market Lens cuesta hoy unos 2 € al día y ha llegado
 job (API de Jobs, 22-oct-2026), el gasto no está donde parecía: el run de
 producción dura 19,2 min y cuesta ~0,24 €, mientras que **cada despertar del
 warehouse cuesta ~1,29 €** (Small serverless, 12 DBU/h, mínimo facturable de 10
-minutos). Los picos de 2 € y 5 € **no vienen del job ni de los runs de dev
+minutos; desde el 23-oct es 2X-Small, ~0,43 €). Los picos de 2 € y 5 € **no vienen del job ni de los runs de dev
 colgados**: la facturación muestra que son sesiones de SQL aisladas (cada hueco
 de más de 10 min reinicia los 10 min facturables). El timeout de 1800 s de la
 007 sigue siendo una red de seguridad, pero no era la causa del gasto.
@@ -16,7 +16,7 @@ Este trabajo baja el coste mensual de Azure a **≤ 3 €/mes** sin perder la
 comprobación real del pipeline, con tres palancas: ejecutar la ELT **una vez por
 semana** (el scraping local sigue diario y es gratis), **sacar el informe Power
 BI del SQL warehouse** (lee Parquet de ADLS en modo Import) y **abaratar el
-compute del job** (serverless en modo Standard o un nodo menor). Se mantiene
+compute del job** (`Standard_D2ds_v4`; serverless se evalúa en la 010). Se mantiene
 Databricks como plataforma de la ELT y el warehouse se conserva parado para
 consultas ad hoc.
 
@@ -93,14 +93,13 @@ documentados en el RUNBOOK.
 
 ### RF-5 — Compute del job más barato sin perder el run
 
-**Criterio de aceptación (EARS):** Cuando se evalúe el compute del job, deberá
-compararse serverless en modo Standard con el clásico actual
-(`Standard_D4ds_v4` single node) midiendo DBU y duración del mismo run, y deberá
-adoptarse la opción más barata que complete el run semanal en verde en **≤ 30
-min**; el `timeout_seconds: 1800` se mantiene en dev y prod. Si serverless no
-soporta el patrón actual (`cloudFiles`, imports de módulos del repo,
-`%load_ext`), se aplicará el plan B: `Standard_D2ds_v4` y limpieza de la
-definición del cluster.
+**Criterio de aceptación (EARS):** Cuando se ajuste el compute del job, deberá
+adoptarse `Standard_D2ds_v4` single node (mitad de DBU y VM que el
+`Standard_D4ds_v4` actual) y el run semanal deberá completarse en verde en
+**≤ 30 min**; el `timeout_seconds: 1800` se mantiene en dev y prod. La
+comparación con serverless Standard se traslada a la spec 010 (rendimiento),
+porque debe medirse con el código definitivo de la ingesta de la 008 y no debe
+bloquear el ahorro de esta spec.
 
 ### RF-6 — Medición reproducible y presupuesto con alerta
 
@@ -163,8 +162,8 @@ confirmación.
   `meta.json` lo hace visible; nunca se publica un export a medias.
 - La spec 008 (delta incremental) cambia la duración del job: la medición se
   repite; el techo de coste no cambia.
-- Serverless no soporta `cloudFiles`, imports de módulos del repo o
-  `%load_ext`: se aplica el plan B sin reabrir la spec.
+- La comparación con serverless se pospone a la 010: en la 009 se aplica
+  `D2ds_v4` (mitad de DBU y VM) sin riesgo y se documenta el motivo.
 - La SAS caduca: el refresh falla de forma visible; la rotación está
   documentada y probada.
 - Cruce con la 008 en `AGENTS.md` y en
@@ -185,6 +184,7 @@ confirmación.
   documentado como opción futura en `plan.md` §13, no se implementa.
 - Cambiar la lógica, el modelo de datos o la incrementalidad de la ELT (spec
   008).
+- La comparación con serverless y el ajuste fino de compute (spec 010).
 - Cambiar la web pública más allá de su programación y de la comprobación de
   frescura.
 - Licencias de Power BI (Pro/PPU) y coste del puesto de trabajo local.

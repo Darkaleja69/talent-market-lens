@@ -89,7 +89,7 @@ el plan antes de cada commit.
 
 ## 2. Cadencia semanal
 
-- [ ] **T-03 — Cron semanal del job** (~20 min)
+- [x] **T-03 — Cron semanal del job** (~20 min)
   - **RF:** RF-1.
   - **Depende de:** T-01.
   - **Objetivo:** que el job de producción se ejecute una vez por semana desde
@@ -104,6 +104,9 @@ el plan antes de cada commit.
   - **Evidencia:** salida de `summary` en `evidence.md`.
   - **Nota (2026-10-23):** la persona cambia el cron y despliega a producción;
     el asistente deja la spec alineada al domingo y ejecuta T-04.
+  - **Hecho (2026-10-23):** desplegado a prod; `jobs get` del job
+    `916863262593632` confirma `50 0 23 ? * SUN`, `Europe/Madrid`, `UNPAUSED`.
+    El fichero llegó a tener `* 7 ?` (julio) y se corrigió antes del deploy.
 
 - [ ] **T-04 — Cron del dashboard y frescura** (~25 min)
   - **RF:** RF-1.
@@ -218,33 +221,30 @@ el plan antes de cada commit.
 
 ## 5. Compute y presupuesto
 
-- [ ] **T-11 — Spike de serverless en modo Standard** (~40 min)
+- [x] ~~**T-11 — Spike de serverless en modo Standard**~~ **→ movida a la 010**
+  (2026-10-23).
+  - **Motivo:** la compatibilidad de serverless debe probarse con el código
+    definitivo de la ingesta; la 008 cambia `foreachBatch` y MERGE. En la 009 se
+    aplica `D2ds_v4`, que no bloquea el ahorro.
+  - **Destino:** spec 010 (rendimiento), junto con la medición de DBU y duración.
+
+- [ ] **T-12 — Aplicar `D2ds_v4`** (~20 min)
   - **RF:** RF-5.
   - **Depende de:** T-07.
-  - **Objetivo:** saber si serverless soporta el patrón y cuánto ahorra, antes
-    de comprometerse.
-  - **Pasos:** en dev, definir el compute serverless con
-    `performance_target: STANDARD`; lanzar el job dev; comprobar
-    `cloudFiles`, los imports de módulos del repo y `%load_ext`; medir duración
-    y DBU del run (`system.billing.usage`, SKU de serverless). Si falla, anotar
-    el error exacto y pasar al plan B.
-  - **Hecho cuando:** hay una decisión documentada con evidencia (funciona o
-    no) y una comparación de coste con el run clásico.
-  - **Evidencia:** run id, duración, DBU y error (si lo hay) en `evidence.md`.
-
-- [ ] **T-12 — Aplicar el compute elegido** (~30 min)
-  - **RF:** RF-5.
-  - **Depende de:** T-11.
-  - **Objetivo:** dejar el job con la opción más barata que cumpla el run.
-  - **Pasos:** aplicar serverless Standard o, en su defecto, `D2ds_v4` y limpiar
-    `kind: CLASSIC_PREVIEW`; `bundle validate`; run dev de comprobación; medir
-    duración y coste.
+  - **Objetivo:** bajar el coste por run a la mitad sin riesgo.
+  - **Pasos:** en `resources/elt.job.yml`, cambiar `node_type_id` a
+    `Standard_D2ds_v4` y quitar `kind: CLASSIC_PREVIEW`; `bundle validate` en dev
+    y prod; run dev de comprobación; medir duración y coste. Si se aplica antes
+    de T-07, el run de T-07 sirve de comprobación y no hace falta otro.
   - **Hecho cuando:** run dev en verde en ≤ 30 min y coste por run menor que la
     línea base.
   - **Evidencia:** diff + medición antes/después.
 
 - [ ] **T-13 — Presupuesto y alertas** (~20 min)
   - **RF:** RF-6, RF-8.
+  - **Hecho (2026-10-23):** warehouse bajado a 2X-Small y verificado
+    (`size=2X-Small`, `state=STOPPED`); cada despertar baja a ~0,43 €. Falta el
+    presupuesto y las alertas.
   - **Depende de:** T-01.
   - **Objetivo:** que un gasto anómalo avise solo.
   - **Pasos:** bajar el SQL warehouse a **2X-Small** (4 DBU/h) si el informe no
@@ -273,6 +273,9 @@ el plan antes de cada commit.
     verde y los dos exports actualizados.
   - **Evidencia:** `jobs get` saneado, run id, duración, `meta.json` de ambos
     exports y URL de la web.
+  - **Hecho (2026-10-23):** deploy a prod ejecutado por la persona; `jobs get`
+    confirma `50 0 23 ? * SUN`, `Europe/Madrid`, `UNPAUSED`. Primer run
+    programado: domingo 25-oct 23:00. Pendiente comprobar ese run y el resto.
 
 - [ ] **T-15 — Evidencia, documentación y comprobación real** (~30 min)
   - **RF:** RF-6, RF-7, RF-8.

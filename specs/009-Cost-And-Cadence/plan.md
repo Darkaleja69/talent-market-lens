@@ -43,7 +43,7 @@ Modelo de coste (tarifa de lista Premium, oct-2026; se confirma en T-01 con
 | Concepto | Cálculo | Coste |
 |---|---|---|
 | Job clásico | 19,3 min de vida del cluster (23:00:56–23:20:12) × (2 DBU/h × 0,30 $ + VM ~0,23 $) ≈ 0,75 €/h | **0,24 €** |
-| Despertar del warehouse | 10 min × **12 DBU/h** (Small serverless) × 0,70 $/DBU | **1,29 €** |
+| Despertar del warehouse (2X-Small) | 10 min × **4 DBU/h** × 0,70 $/DBU | **~0,43 €** (era 1,29 € en Small) |
 | Día con job + un refresh | 0,24 + 1,29 (+ IVA) | **≈ 1,85 €** |
 | Run de dev colgado (337 min) | tope teórico 5,6 h × 0,75 €/h | ≈ 4,2 €, pero **no se facturó**: el SKU de jobs esa semana es ~2 $ |
 
@@ -67,8 +67,8 @@ las estimadas, o esos días hubo también un despertar corto. T-01 lo resuelve c
 | Storage + discos + IP | céntimos | céntimos |
 | **Total** | **~50–65 €/mes** | **~1,5–2,5 €/mes** |
 
-Con serverless en modo Standard (hasta −70 % frente a performance-optimized) o
-`D2ds_v4`, el job baja a ~0,5–1 €/mes. El techo de 3 €/mes deja margen para un
+Con `D2ds_v4`, el job baja a ~0,5-1 €/mes; serverless se evalúa en la 010. El
+techo de 3 €/mes deja margen para un
 run extra y una consulta manual al mes.
 
 ## 4. Arquitectura objetivo
@@ -153,15 +153,18 @@ in
 
 ## 7. Compute del job
 
-Orden de preferencia, con medición en cada paso:
+En esta spec se aplica **`Standard_D2ds_v4`** (mitad de DBU y VM) y la
+comparación con serverless se traslada a la 010 (rendimiento), porque debe
+hacerse con el código definitivo de la ingesta (la 008 cambia `foreachBatch` y
+MERGE).
 
-1. **Serverless en modo Standard** (`performance_target: STANDARD`): elimina el
-   aprovisionamiento de 6,9 min y factura por ejecución real. Riesgo: serverless
-   no soporta init scripts ni rutas relativas; hay que comprobar `cloudFiles`,
-   los imports de módulos del repo y `%load_ext autoreload`.
-2. **Plan B: `Standard_D2ds_v4`** single node (mitad de DBU y VM) y limpieza de
-   `kind: CLASSIC_PREVIEW` en la definición del cluster. Riesgo: 2 vCPU para
-   cuatro silvers en paralelo puede alargar el run; se mide.
+1. **`Standard_D2ds_v4`** single node y limpieza de `kind: CLASSIC_PREVIEW`.
+   Riesgo: 2 vCPU para cuatro silvers en paralelo puede alargar el run; se mide
+   duración y coste.
+2. **Diferido a la 010:** serverless en modo Standard (`performance_target:
+   STANDARD`), que elimina el aprovisionamiento de 6,9 min y factura por
+   ejecución real. Riesgo: no soporta init scripts ni rutas relativas; hay que
+   comprobar `cloudFiles`, imports de módulos del repo y `%load_ext`.
 3. Descartado: *instance pools* (VM encendida 24/7, ~150 €/mes), spot en
    single-node (el driver es la única VM: una expulsión tumba el run) y Photon
    (sube DBU).
@@ -227,7 +230,7 @@ specs/009-Cost-And-Cadence/                     esta spec
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| Serverless no soporta el patrón (cloudFiles, imports, autoreload) | Alto | Spike en dev (T-11); plan B `D2ds_v4` |
+| Serverless no soporta el patrón (cloudFiles, imports, autoreload) | Medio | Diferido a la 010; en la 009 se aplica `D2ds_v4` |
 | El refresh del informe no autentica en el Service | Alto | Probar credenciales antes del cutover; rollback al conector Databricks documentado |
 | El export del informe crece (> 25 MiB) | Medio | Modo `full` por diseño; medir tamaño y tiempo |
 | SAS caduca | Medio | Caducidad ≤ 1 año, rotación documentada y probada |
@@ -257,7 +260,7 @@ specs/009-Cost-And-Cadence/                     esta spec
 2. Cadencia semanal (T-03–T-04). Punto de parada.
 3. Export del informe (T-05–T-07). Punto de parada.
 4. Informe sin warehouse (T-08–T-10). Punto de parada.
-5. Compute y presupuesto (T-11–T-13). Punto de parada.
+5. Compute y presupuesto (T-12–T-13). Punto de parada.
 6. Deploy a producción y cierre (T-14–T-15).
 
 ## 15. Trazabilidad RF → tareas
@@ -268,7 +271,7 @@ specs/009-Cost-And-Cadence/                     esta spec
 | RF-2 | T-08, T-09, T-10 |
 | RF-3 | T-05, T-06, T-07 |
 | RF-4 | T-09, T-10 |
-| RF-5 | T-11, T-12 |
+| RF-5 | T-12 |
 | RF-6 | T-01, T-02b, T-13, T-15 |
 | RF-7 | T-02, T-07, T-10, T-15 |
 | RF-8 | T-02b, T-04, T-13, T-15 |
@@ -352,8 +355,8 @@ scale-to-zero y demo corta.
 Cada run de dev se anota en `tasks.md` con su motivo; si una tarea necesita más,
 se justifica y se descuenta de la siguiente. Para SQL ad hoc, preferir un run
 corto de un notebook en el job dev (0,03–0,13 €) antes que el SQL Editor
-(1,29 €). Dev usa `D2ds_v4` o serverless Standard para que cada run cueste la
-mitad.
+(1,29 €). Dev usa `D2ds_v4` para que cada run cueste la mitad; serverless se evalúa en
+la 010.
 
 **Dependencia nueva:** ninguna. `delta-spark` para ejecutar MERGE en local queda
 como opción solo si las aserciones sobre el SQL se vuelven frágiles, y
