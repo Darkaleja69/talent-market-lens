@@ -5,10 +5,10 @@ name: Dashboard (GitHub Pages)
 #
 # Flow: checkout -> assemble _site/ (copy of docs/ + empty data/) -> download
 # the five fixed export files under gold/web_export with curl + WEB_EXPORT_SAS
-# -> validate (non-empty files, meta.json is valid JSON) -> configure-pages ->
-# upload-pages-artifact -> deploy-pages. Any failure while downloading or
-# validating fails the build and the deploy never runs, so the previous site
-# stays intact (no partial deploy).
+# -> validate (non-empty files, meta.json is valid JSON and its data_date is at
+# most 8 days old) -> configure-pages -> upload-pages-artifact -> deploy-pages.
+# Any failure while downloading or validating fails the build and the deploy
+# never runs, so the previous site stays intact (no partial deploy).
 #
 # The SAS is a secret and is never printed: no curl -v, no set -x, and curl
 # errors are masked as <SAS oculta>.
@@ -42,15 +42,16 @@ name: Dashboard (GitHub Pages)
 # 3. Actions -> "Dashboard (GitHub Pages)" -> Run workflow (workflow_dispatch).
 #    Public URL: https://darkaleja69.github.io/talent-market-lens/
 #
-# The schedule below (01:00 UTC, after the 23:30 Databricks ELT job) only runs
-# on the default branch: the cron starts updating the site once this branch is
-# merged to main. Until then, use workflow_dispatch.
+# The schedule below (Mondays 01:00 UTC, after the weekly Databricks ELT job
+# that runs Sundays at 23:00 Europe/Madrid) only runs on the default branch:
+# the cron starts updating the site once this branch is merged to main. Until
+# then, use workflow_dispatch.
 # =============================================================================
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 1 * * MON'
 
 # Publishing the Pages artifact and minting the deployment OIDC token.
 permissions:
@@ -128,12 +129,45 @@ jobs:
           done
           python3 - <<'PY'
           import json
+          from datetime import datetime, timezone
+
+          # The ELT runs weekly (Sunday 23:00 Europe/Madrid), so the export
+          # consumed on Monday is up to one day old. Allow a week plus one day
+          # of slack before refusing to publish stale data.
+          MAX_AGE_DAYS = 8
 
           with open("_site/data/meta.json", encoding="utf-8") as handle:
               meta = json.load(handle)
           if not isinstance(meta, dict):
               raise SystemExit("ERROR: meta.json no es un objeto JSON.")
-          print("meta.json valido:", meta.get("data_date"), meta.get("mode"))
+
+          raw_date = meta.get("data_date")
+          if not isinstance(raw_date, str):
+              raise SystemExit(
+                  "ERROR: meta.json no tiene data_date (formato YYYY-MM-DD); "
+                  "se aborta sin desplegar."
+              )
+          try:
+              data_date = datetime.strptime(raw_date, "%Y-%m-%d").date()
+          except ValueError:
+              raise SystemExit(
+                  f"ERROR: data_date no es una fecha valida YYYY-MM-DD ({raw_date!r}); "
+                  "se aborta sin desplegar."
+              )
+
+          today = datetime.now(timezone.utc).date()
+          age_days = (today - data_date).days
+          if age_days > MAX_AGE_DAYS:
+              raise SystemExit(
+                  f"ERROR: los datos tienen {age_days} dias (data_date={data_date.isoformat()}, "
+                  f"maximo {MAX_AGE_DAYS}); se aborta sin desplegar."
+              )
+          print(
+              "meta.json valido:",
+              data_date.isoformat(),
+              meta.get("mode"),
+              f"({age_days} dias de antiguedad)",
+          )
           PY
 
       - name: Configurar Pages
