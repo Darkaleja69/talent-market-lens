@@ -19,6 +19,8 @@ variables:
     description: The root folder for checkpoints of azcopy
   export_prefix:
     description: The folder in which will be the data for the dashboard
+  pbi_export_prefix:
+    description: The folder in which will be the data for the Power BI report
   job_name:
     description: The name of the job which will be run to deploy it
 
@@ -34,6 +36,7 @@ targets:
       container: landing
       checkpoints_root: abfss://landing@joboffershns.dfs.core.windows.net/_checkpoints_dev
       export_prefix: gold/web_export_dev
+      pbi_export_prefix: gold/pbi_export_dev
       job_name: Git Based ELT Dev
   prod:
     mode: production
@@ -51,6 +54,7 @@ targets:
       container: landing
       checkpoints_root: abfss://landing@joboffershns.dfs.core.windows.net/_checkpoints
       export_prefix: gold/web_export
+      pbi_export_prefix: gold/pbi_export
       job_name: Git Based ELT
     resources:
       jobs:

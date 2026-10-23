@@ -306,3 +306,16 @@ solo necesita el informe.
   `auto_stop_mins = 10`; despertar ~0,43 €.
 - Deploy a prod ejecutado por la persona; ver T-03. Pendiente el primer run
   programado (domingo 25-oct) y el presupuesto con alertas.
+
+## T-06 — Tarea del export en el job (2026-10-23)
+
+- `bundle validate -t dev` y `-t prod`: **Validation OK**.
+- `summary -o json`: `Build_Report_Export` con `depends_on:
+  Gold_Complete_Catalog`, `run_if: ALL_SUCCESS`, `job_cluster_key: tm-lens-job`;
+  params dev `{catalog: job_offers_dev, pbi_export_prefix: gold/pbi_export_dev}`
+  y prod `{catalog: job_offers, pbi_export_prefix: gold/pbi_export}`.
+- `Build_for_Web-Dashboard` sigue dependiendo solo de `Gold_Complete_Catalog`.
+- Endurecido tras la verificación: `pbi_export_prefix` sin default y con
+  validación, para que un run manual en dev no escriba en producción por
+  olvido.
+- Pendiente: escritura real, 6+1 ficheros y conteos (T-07).

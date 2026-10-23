@@ -120,6 +120,23 @@ resources:
           run_if: ALL_SUCCESS
           timeout_seconds: 0
           webhook_notifications: {}
+        - task_key: Build_Report_Export
+          depends_on:
+            - task_key: Gold_Complete_Catalog
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              storage_account: ${var.storage_account}
+              container: ${var.container}
+              pbi_export_prefix: ${var.pbi_export_prefix}
+            notebook_path: ${workspace.file_path}/databricks_notebooks/report_export_build.ipynb
+            source: WORKSPACE
+          run_if: ALL_SUCCESS
+          timeout_seconds: 0
+          webhook_notifications: {}
       email_notifications:
         no_alert_for_skipped_runs: false
         on_failure:
