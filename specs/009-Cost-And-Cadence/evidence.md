@@ -265,3 +265,18 @@ solo necesita el informe.
   normalización de país (usando el par crudo `location_country`/`location_region`)
   y convierte `skills` a texto con `concat_ws(", ", coalesce(skills, array()))`;
   T-09 elimina la lógica M porque el export ya trae las dos columnas.
+
+## T-01 — Línea base de coste (2026-10-23)
+
+- Fuente: Azure Cost Analysis (EUR, 1–23 oct) y Databricks Account Console →
+  Usage (USD, por semana). Capturas no versionadas.
+- Azure: **31,24 €** reales; previsión **50,17 €** (inflada por el pico).
+- SKU dominante: **`PREMIUM_SERVERLESS_SQL_COMPUTE` (85–90 % del gasto)**.
+- Semana del 12-oct: ~20,5 $ de SQL frente a ~2,0 $ de jobs. El pico del
+  17-oct (~10,6 €) son ~15 despertares de 1,29 € durante una jornada de
+  depuración, no el run de dev de 337 min.
+- Días sin warehouse: ~0,2–0,5 € (el job), no 0,80 €.
+- Documento: `docs/costs.md`. Consulta reproducible:
+  `docs/costs/billing_by_sku.sql`.
+- Pendiente: detalle por recurso del resource group gestionado y origen de
+  `PREMIUM_JOBS_SERVERLESS_COMPUTE` (~1 $/semana).

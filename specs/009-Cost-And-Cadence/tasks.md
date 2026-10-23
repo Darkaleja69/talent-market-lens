@@ -29,7 +29,7 @@ el plan antes de cada commit.
 
 ## 1. Medición y línea base
 
-- [ ] **T-01 — Línea base de coste** (~30 min)
+- [x] **T-01 — Línea base de coste** (~30 min)
   - **RF:** RF-6.
   - **Objetivo:** saber cuánto se gasta y en qué SKU, con datos de facturación y
     no con estimaciones.
@@ -45,6 +45,13 @@ el plan antes de cada commit.
     ~0,80 € de los días «solo job» que hoy no cuadra con la tarifa de lista.
   - **Evidencia:** captura de Usage y de Cost Analysis (sin credenciales) en
     `evidence.md`.
+  - **Resultado (2026-10-23):** línea base en `docs/costs.md` con Azure Cost
+    Analysis (31,24 € del 1 al 23 de octubre; previsión 50,17 €) y Account
+    Console (SKU por semana). **El 85–90 % del gasto es
+    `PREMIUM_SERVERLESS_SQL_COMPUTE`** (warehouse Small, ~1,29 € por despertar);
+    el job clásico es la línea fina. El pico del 17-oct (~10,6 €) son ~15
+    despertares del warehouse durante una jornada de depuración, no el run de
+    337 min. Los días sin warehouse quedan en ~0,2–0,5 €, no en 0,80 €.
 
 - [ ] **T-02 — Inventario del contrato del informe** (~25 min)
   - **RF:** RF-3, RF-7.
@@ -95,6 +102,8 @@ el plan antes de cada commit.
   - **Hecho cuando:** validate en verde en ambos targets y `summary` muestra el
     cron semanal.
   - **Evidencia:** salida de `summary` en `evidence.md`.
+  - **Nota (2026-10-23):** la persona cambia el cron y despliega a producción;
+    el asistente deja la spec alineada al domingo y ejecuta T-04.
 
 - [ ] **T-04 — Cron del dashboard y frescura** (~25 min)
   - **RF:** RF-1.
