@@ -159,7 +159,7 @@ el plan antes de cada commit.
     variable en cada target.
   - **Evidencia:** `summary` en `evidence.md`.
 
-- [ ] **T-07 — Run dev del export del informe** (~25 min)
+- [x] **T-07 — Run dev del export del informe** (~25 min)
   - **RF:** RF-3, RF-7.
   - **Depende de:** T-06.
   - **Objetivo:** comprobar el export contra datos reales en dev.
@@ -174,6 +174,11 @@ el plan antes de cada commit.
     `evidence.md`.
   - **Intento 1 (2026-10-23):** run `954013261343017` fallido por compute
     (`D2ds_v6`), sin export; se repite en `D4ds_v4`.
+  - **Resultado (2026-10-23):** run `18912486133844` **SUCCESS**, 16,31 min,
+    8/8 tareas, `D4ds_v4` single node; 7 ficheros (6 Parquet + `meta.json`) y
+    31 columnas en `fact_offers`; warehouse `STOPPED` antes y después. Los
+    conteos los produce el notebook al leer Gold y coinciden con `meta.json`; no
+    se comparó por SQL para no despertar el warehouse.
 
 ## 4. Informe sin warehouse
 

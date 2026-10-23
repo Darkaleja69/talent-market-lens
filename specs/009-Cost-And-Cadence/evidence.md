@@ -346,3 +346,24 @@ solo necesita el informe.
 - `gold/pbi_export_dev`: 0 ficheros (el export no llegó a ejecutarse).
   `gold/web_export_dev` intacto (5 ficheros, mismos tamaños y fecha).
 - Conclusión: fallo de compute, no de código; se repite en `D4ds_v4`.
+
+## T-07 — Run dev del export (intento 2, SUCCESS) — 2026-10-23
+
+- Run `18912486133844`: **SUCCESS**, 16,31 min, 8/8 tareas; cluster
+  `Standard_D4ds_v4` single node (driver idéntico), aprovisionamiento ~6,4 min.
+- Tareas: Bronze 382 s setup + 71 s; silvers 265–428 s; Gold 52 s;
+  `Build_Report_Export` 38 s; `Build_for_Web-Dashboard` 36 s.
+- `gold/pbi_export_dev`: 7 ficheros (6 Parquet + `meta.json`), 33 291 569 B.
+- `meta.json`: `mode=full`, `audience=pbi`, `data_date=2026-10-22`, conteos
+  `{fact_offers: 25 673, fact_offer_skills: 44 537, dim_calendar: 2 912,
+  dim_companies: 9 801, dim_currency: 19, dim_skill_list: 95}` y
+  `size_bytes` = suma exacta de los seis Parquet.
+- `fact_offers.parquet`: 25 673 filas × **31 columnas** (20 públicas + 11
+  internas + `GeoCountry`/`GeoRegion`).
+- `gold/web_export_dev`: 5 ficheros regenerados con el mismo contrato
+  (`fact_offers` 20 columnas, 25 673 filas; dimensiones idénticas).
+- Warehouse antes/después: `STOPPED`, 0 clusters, 0 sesiones.
+- Intento 1 (`954013261343017`, `D2ds_v6`): FAILED por compute (ver T-12).
+- Nota: la comparación de conteos contra Gold por SQL no se hizo (habría
+  despertado el warehouse); los conteos los produce el notebook al leer Gold y
+  coinciden con `meta.json`.
