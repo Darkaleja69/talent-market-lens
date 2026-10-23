@@ -69,8 +69,8 @@ al menos un despertar.
 
 - ELT **semanal** (domingo 23:00): divide el coste del job por 7.
 - **Power BI fuera del warehouse** (T-08/T-09): elimina el 85–90 % del gasto.
-- **Warehouse a 2X-Small** (4 DBU/h) mientras siga usándose: cada despertar pasa
-  de ~1,29 € a ~0,43 € (T-13).
+- **Warehouse a 2X-Small** (4 DBU/h): aplicado el 2026-10-23 (verificado
+  `size=2X-Small`, `state=STOPPED`); cada despertar pasa de ~1,29 € a ~0,43 €.
 - **SQL agrupado**: todas las sentencias de una sesión de trabajo en una sola
   ventana de 10 min; para grants y metadatos, API de Unity Catalog (gratis).
 - **Presupuesto de 15 €/mes** con alertas al 50 % y 100 % (T-13).

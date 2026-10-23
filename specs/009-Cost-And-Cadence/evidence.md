@@ -281,3 +281,28 @@ solo necesita el informe.
   `docs/costs/billing_by_sku.sql`.
 - Pendiente: detalle por recurso del resource group gestionado y origen de
   `PREMIUM_JOBS_SERVERLESS_COMPUTE` (~1 $/semana).
+
+## T-03 — Cron semanal desplegado (2026-10-23)
+
+- `databricks jobs get 916863262593632` (prod): `quartz_cron_expression =
+  50 0 23 ? * SUN`, `timezone_id = Europe/Madrid`, `pause_status = UNPAUSED`.
+- El fichero llegó a tener `50 0 23 * 7 ?` (mes de julio); se corrigió a
+  `? * SUN` antes del deploy. Primer run programado: domingo 2026-10-25 23:00.
+- Job manual `704156530681034` sigue `PAUSED`; dev `320947022571947` sin
+  schedule.
+
+## T-04 — Dashboard semanal y frescura (2026-10-23)
+
+- `schedule.cron = 0 1 * * MON`; frescura: >8 días, sin `data_date` o fecha
+  inválida → rc=1 con mensaje en español y sin desplegar.
+- Verificación local (verifier): hoy 0, 8 días 0, 9/20 días 1, sin `data_date`
+  1, inválido 1; YAML parseable; sin secretos; `set -euo pipefail` intacto.
+- Pendiente: `workflow_dispatch` real (requiere push/merge); la URL del run se
+  anota al publicar.
+
+## T-13/T-14 — Warehouse y deploy (2026-10-23)
+
+- Warehouse `53d8e3e91af6749c`: `cluster_size = 2X-Small`, `state = STOPPED`,
+  `auto_stop_mins = 10`; despertar ~0,43 €.
+- Deploy a prod ejecutado por la persona; ver T-03. Pendiente el primer run
+  programado (domingo 25-oct) y el presupuesto con alertas.
