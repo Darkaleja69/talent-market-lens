@@ -33,8 +33,9 @@ Desglose del run de producción del 22-oct (`jobs get-run`):
 | `Build_for_Web-Dashboard` | 0,5 min |
 
 El 80 % del run son el arranque del cluster (6,9 min) y la silver de InfoJobs
-(8,9 min). Los picos de factura son los dos runs de dev cancelados, ya acotados
-por `timeout_seconds: 1800` desde el commit `a66b835` (18-oct).
+(8,9 min). La facturación (Account Console) muestra que los picos son del SQL
+warehouse, no de los runs de dev cancelados: el SKU de jobs de la semana del
+17-oct suma ~2 $ frente a ~20,5 $ de SQL.
 
 Modelo de coste (tarifa de lista Premium, oct-2026; se confirma en T-01 con
 `system.billing.usage`):
@@ -44,7 +45,7 @@ Modelo de coste (tarifa de lista Premium, oct-2026; se confirma en T-01 con
 | Job clásico | 19,3 min de vida del cluster (23:00:56–23:20:12) × (2 DBU/h × 0,30 $ + VM ~0,23 $) ≈ 0,75 €/h | **0,24 €** |
 | Despertar del warehouse | 10 min × **12 DBU/h** (Small serverless) × 0,70 $/DBU | **1,29 €** |
 | Día con job + un refresh | 0,24 + 1,29 (+ IVA) | **≈ 1,85 €** |
-| Run de dev colgado (337 min) | 5,6 h × 0,75 €/h | **≈ 2,75 €** |
+| Run de dev colgado (337 min) | tope teórico 5,6 h × 0,75 €/h | ≈ 4,2 €, pero **no se facturó**: el SKU de jobs esa semana es ~2 $ |
 
 El warehouse cuesta **~5× el job**. Con `auto_stop_mins = 10` ya está en el
 mínimo facturable; la única forma de quitar ese suelo es que el informe deje de
@@ -62,7 +63,7 @@ las estimadas, o esos días hubo también un despertar corto. T-01 lo resuelve c
 |---|---|---|
 | Job (19 min) | 0,24 €/día ≈ 7 €/mes | 4,3 runs/mes ≈ 1 €/mes |
 | Warehouse | 1,29 €/despertar; hasta ≈ 39 €/mes si se despierta a diario | 0 € (solo consultas ad hoc) |
-| Runs de dev colgados | hasta 4,2 €/incidente | tope 0,38 € (timeout 30 min) |
+| Runs de dev colgados | tope teórico ~4,2 €/incidente (no facturado en el caso real) | tope 0,38 € (timeout 30 min) |
 | Storage + discos + IP | céntimos | céntimos |
 | **Total** | **~50–65 €/mes** | **~1,5–2,5 €/mes** |
 

@@ -27,8 +27,9 @@ Fuente: `databricks jobs list-runs --limit 40 -o json` y
 Observaciones:
 
 - El run de producción se estabilizó en ~19 min; antes del 7-oct duraba ~8 min.
-- Los dos runs de dev cancelados (16 y 17-oct) son los picos de factura. El
-  `timeout_seconds: 1800` del commit `a66b835` (18-oct) los acota a ~0,38 €.
+- Los dos runs de dev cancelados (16 y 17-oct) **no** explican los picos: la
+  Account Console muestra ~2 $ de jobs esa semana y ~20,5 $ de SQL. El timeout
+  de 1800 s (`a66b835`) sigue siendo una red de seguridad, pero no era la causa.
 
 ### Desglose del run de producción `683506792777132` (22-oct)
 
@@ -68,7 +69,7 @@ Tarifa de lista Premium, oct-2026. El coste de VM y almacenamiento no está en
 | Job clásico | 19,3 min de vida del cluster (23:00:56–23:20:12) × (2 DBU/h × 0,30 $ + VM ~0,23 $) ≈ 0,75 €/h | **0,24 €** |
 | Despertar del warehouse | 10 min × **12 DBU/h** (Small serverless) × 0,70 $/DBU | **1,29 €** |
 | Día con job + un refresh | 0,24 + 1,29 (+ IVA) | **≈ 1,85 €** |
-| Run de dev colgado (337 min) | 5,6 h × 0,75 €/h | **≈ 2,75 €** |
+| Run de dev colgado (337 min) | tope teórico 5,6 h × 0,75 €/h | ≈ 4,2 €, pero **no se facturó**: el SKU de jobs esa semana es ~2 $ |
 
 El warehouse cuesta **~5× el job**. Los días de ~2 € cuadran con job + un
 despertar; los de 5 €, con 3–4 despertares separados más de 10 min. **Los

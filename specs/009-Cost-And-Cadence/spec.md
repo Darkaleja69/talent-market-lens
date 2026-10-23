@@ -7,9 +7,10 @@ El ciclo diario de Talent Market Lens cuesta hoy unos 2 € al día y ha llegado
 job (API de Jobs, 22-oct-2026), el gasto no está donde parecía: el run de
 producción dura 19,2 min y cuesta ~0,24 €, mientras que **cada despertar del
 warehouse cuesta ~1,29 €** (Small serverless, 12 DBU/h, mínimo facturable de 10
-minutos). Los picos de 2 € y 5 € no vienen del job de producción sino de runs de
-dev que se quedaron colgados (337,7 y 114,1 min, cancelados el 16 y 17 de
-octubre), ya acotados por el timeout de 1800 s introducido en la 007.
+minutos). Los picos de 2 € y 5 € **no vienen del job ni de los runs de dev
+colgados**: la facturación muestra que son sesiones de SQL aisladas (cada hueco
+de más de 10 min reinicia los 10 min facturables). El timeout de 1800 s de la
+007 sigue siendo una red de seguridad, pero no era la causa del gasto.
 
 Este trabajo baja el coste mensual de Azure a **≤ 3 €/mes** sin perder la
 comprobación real del pipeline, con tres palancas: ejecutar la ELT **una vez por
