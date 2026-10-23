@@ -247,7 +247,9 @@ el plan antes de cada commit.
   - **RF:** RF-6, RF-8.
   - **Depende de:** T-01.
   - **Objetivo:** que un gasto anómalo avise solo.
-  - **Pasos:** crear presupuesto mensual de 15 € en la suscripción con alertas
+  - **Pasos:** bajar el SQL warehouse a **2X-Small** (4 DBU/h) si el informe no
+    se resiente: cada despertar pasa de ~1,29 € a ~0,43 €. Crear presupuesto
+    mensual de 15 € en la suscripción con alertas
     al 50 % y 100 % al correo de la persona; etiquetar los recursos del proyecto
     (`project=talent-market-lens`); anotar en `docs/costs.md` cómo se consulta
     el presupuesto y qué hacer si salta.

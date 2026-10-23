@@ -57,7 +57,7 @@ targets:
         elt:
           schedule:
             pause_status: UNPAUSED
-            quartz_cron_expression: 50 0 23 * * ?
+            quartz_cron_expression: 50 0 23 * 7 ?
             timezone_id: Europe/Madrid
 sync:
   paths:
