@@ -120,11 +120,17 @@ el plan antes de cada commit.
   - **Pasos:** crear el módulo con la lista de columnas por tabla (las 31 de
     `fact_offers` y las de las cinco dimensiones), `build_meta` con
     `mode: full`, `audience: pbi` y conteos, y escritura idempotente con
-    `coalesce(1)` reutilizando el patrón de `Prepare_Web_Export`. Tests en
-    `databricks_notebooks/tests/test_pbi_export.py`: contrato de columnas,
-    `meta.json`, idempotencia y que el export público no cambia.
+    `coalesce(1)` reutilizando el patrón de `Prepare_Web_Export`. Las 31 de
+    `fact_offers` son 29 de Gold más `GeoCountry`/`GeoRegion`, que se derivan
+    con `REGION_MAP` y la normalización de país de `Prepare_Web_Export`; `skills`
+    se escribe como texto (`concat_ws(", ", coalesce(skills, array()))`, que da
+    cadena vacía si el array es nulo) porque en Gold es `ARRAY<string>`. Tests
+    en `databricks_notebooks/tests/test_pbi_export.py`: contrato de columnas,
+    equivalencia de `GeoCountry`/`GeoRegion` con el export público, `meta.json`,
+    idempotencia y que el export público no cambia.
   - **Hecho cuando:** `python -m pytest databricks_notebooks/tests -q` en verde
-    y el módulo no importa nada fuera de la biblioteca estándar y PySpark.
+    y el módulo no tiene dependencias de terceros (puede importar módulos del
+    propio repo, como `Prepare_Web_Export`).
   - **Evidencia:** salida de la suite + diff revisado.
 
 - [ ] **T-06 — Tarea del job y variable por target** (~30 min)
@@ -149,7 +155,8 @@ el plan antes de cada commit.
     los siete ficheros en `gold/pbi_export_dev`, el `meta.json` y que los
     conteos coinciden con las tablas Gold dev; comprobar que
     `gold/web_export_dev` sigue igual.
-  - **Hecho cuando:** run verde, siete ficheros presentes, conteos iguales a
+  - **Hecho cuando:** run verde, siete ficheros presentes, mismo número de filas
+    que
     Gold y export público intacto.
   - **Evidencia:** run id, duración, tabla de conteos y `meta.json` en
     `evidence.md`.
@@ -176,9 +183,12 @@ el plan antes de cada commit.
   - **Objetivo:** completar el cambio sin tocar la lógica de negocio.
   - **Pasos:** en `Fact_Offers.tmdl`, leer `fact_offers.parquet` y **eliminar**
     la lógica M de `GeoCountry`/`GeoRegion` y el `NestedJoin` contra
-    `Dim_RegionMap` (las columnas ya vienen calculadas y testeadas); en
+    `Dim_RegionMap` (las calcula el export del informe, no Gold; se verifica que
+    las medidas de país y región coinciden antes y después); la tabla calculada
+    `Dim_RegionMap` se conserva sin uso, documentada, para no tocar más el
+    modelo; en
     `Dim_Calendar.tmdl` conservar el filtro de `Year`; en `Dim_Companies.tmdl`
-    leer `companies_complete_catalog.parquet`; refresh completo del modelo.
+    leer `dim_companies.parquet`; refresh completo del modelo.
   - **Hecho cuando:** refresh completo en verde y las medidas principales
     (ofertas, skills, salario medio, países y regiones) coinciden con el valor
     previo al cambio.

@@ -80,7 +80,7 @@ Lo resuelve T-01 con `system.billing.usage`.
 
 | Tabla del modelo | Origen Gold | Columnas usadas |
 |---|---|---|
-| `Fact_Offers` | `gold.fact_offers` | 31 (20 públicas + `work_mode`, `is_salary_available`, `salary_currency`, `salary_period`, `description_clean`, `skills`, `salary_quality`, `skills_source`, `experience_level_source`, `posted_date_raw`, `posted_date_source`, más `GeoCountry`/`GeoRegion`) |
+| `Fact_Offers` | `gold.fact_offers` | 31 = 29 de Gold (18 físicas públicas + 11 internas) + 2 derivadas (`GeoCountry`, `GeoRegion`) |
 | `Fact_OfferSkills` | `gold.fact_offer_skills` | 2 |
 | `Dim_SkillList` | `gold.dim_skill_list` | 2 |
 | `Dim_Calendar` | `gold.dim_calendar` (filtro `Year` 2025–2027) | 14 |
@@ -89,6 +89,12 @@ Lo resuelve T-01 con `system.billing.usage`.
 
 El export público excluye 11 columnas de `fact_offers` por diseño; el export
 del informe debe incluirlas, en un prefijo propio y siempre en modo `full`.
+
+Inventario verificado columna a columna contra Unity Catalog en «T-02 —
+Inventario del contrato del informe»: los conteos de esta tabla son correctos
+(31/2/2/14/7/5), pero Gold tiene **29** columnas físicas en `fact_offers`: las
+31 del modelo incluyen `GeoCountry` y `GeoRegion`, que se calculan en la
+partición M y no existen en la tabla.
 
 ## T-02b — Hoja de ruta renumerada (2026-10-23)
 
@@ -105,3 +111,157 @@ del informe debe incluirlas, en un prefijo propio y siempre en modo `full`.
 - Verificación independiente: PASA CON OBSERVACIONES, sin bloqueantes.
   Corregidos los dos hallazgos `MENOR`: etiqueta de semana 10–11 y matiz de la
   cifra de 0,24 € (estimación, no medición).
+
+## T-02 — Inventario del contrato del informe (2026-10-23)
+
+Comprobación hecha **solo con la API de Unity Catalog** (plano de control,
+gratis): no se usó SQL, ni el SQL Editor, ni el warehouse, ni
+`databricks bundle run`; **no se encendió compute**. Comando ejecutado una vez
+por tabla, con el perfil `vs_code`:
+
+```text
+databricks api get /api/2.1/unity-catalog/tables/job_offers.gold.<tabla> --profile vs_code -o json
+```
+
+Las seis llamadas devolvieron `exit 0`. Todas las tablas existen en `gold`, son
+`MANAGED` y `DELTA`. Del JSON se leyeron `full_name`, `table_type`,
+`data_source_format` y `columns[].name`, `columns[].type_name` y
+`columns[].type_text` (salida
+resumida; la respuesta es metadato y no contiene credenciales).
+
+| Tabla Gold | `full_name` | Tipo | Formato | Columnas |
+|---|---|---|---|---|
+| `fact_offers` | `job_offers.gold.fact_offers` | MANAGED | DELTA | **29** |
+| `fact_offer_skills` | `job_offers.gold.fact_offer_skills` | MANAGED | DELTA | **2** |
+| `dim_skill_list` | `job_offers.gold.dim_skill_list` | MANAGED | DELTA | **2** |
+| `dim_calendar` | `job_offers.gold.dim_calendar` | MANAGED | DELTA | **14** |
+| `companies_complete_catalog` | `job_offers.gold.companies_complete_catalog` | MANAGED | DELTA | **7** |
+| `dim_currency` | `job_offers.gold.dim_currency` | MANAGED | DELTA | **5** |
+
+### Resumen por tabla
+
+Columnas del modelo = `sourceColumn` del TMDL (columnas con `sourceColumn`; dos
+son derivadas en M). Export
+público = `WEB_FACT_COLUMNS`, `WEB_OFFER_SKILL_COLUMNS`,
+`WEB_SKILL_LIST_COLUMNS` y `WEB_CALENDAR_COLUMNS` (el export público solo
+escribe cuatro tablas).
+
+`Fact_Offers.tmdl` declara 32 columnas: las 31 con `sourceColumn` más `MapKey`,
+que es una columna DAX calculada y no se exporta. El inventario cuenta 31.
+
+| Tabla del modelo | Origen Gold | Cols. en Gold | Cols. del modelo | En export público | Columnas del modelo que **no** están en el export público | Veredicto |
+|---|---|---|---|---|---|---|
+| `Fact_Offers` | `gold.fact_offers` | 29 | **31** | 20 | **11**: `work_mode`, `is_salary_available`, `salary_currency`, `salary_period`, `description_clean`, `skills`, `salary_quality`, `skills_source`, `experience_level_source`, `posted_date_raw`, `posted_date_source` | **Faltantes**: 2 de las 31 (`GeoCountry`, `GeoRegion`) no existen en Gold (se calculan en M); las otras 29 sí están |
+| `Fact_OfferSkills` | `gold.fact_offer_skills` | 2 | **2** | 2 | — | Todas presentes |
+| `Dim_SkillList` | `gold.dim_skill_list` | 2 | **2** | 2 | — | Todas presentes |
+| `Dim_Calendar` | `gold.dim_calendar` (filtro `Year` 2025–2027) | 14 | **14** | 14 | — | Todas presentes |
+| `Dim_Companies` | `gold.companies_complete_catalog` | 7 | **7** | 0 (no se publica) | **7**: `company_name`, `company_industry`, `company_description`, `company_size`, `company_review_count`, `company_rating`, `source` | Todas presentes |
+| `Dim_Currency` | `gold.dim_currency` | 5 | **5** | 0 (no se publica) | **5**: `CurrencyCode`, `CurrencyName`, `AltCode`, `UnitsPerEUR`, `FXSnapshotDate` | Todas presentes |
+
+Gold no tiene ninguna columna que el modelo no use: `fact_offers` son 29
+físicas y las 31 del modelo son esas 29 más las 2 calculadas.
+
+### Las 31 columnas de `fact_offers` (modelo) frente a Gold
+
+| # | Columna | Tipo en Gold (Unity Catalog) | Tipo declarado en el modelo | ¿En el export público? |
+|---|---|---|---|---|
+| 1 | `job_id` | STRING | string | Sí |
+| 2 | `job_url` | STRING | string | Sí |
+| 3 | `title` | STRING | string | Sí |
+| 4 | `company_name` | STRING | string | Sí |
+| 5 | `location_city` | STRING | string | Sí |
+| 6 | `location_region` | STRING | string | Sí |
+| 7 | `location_country` | STRING | string | Sí |
+| 8 | `posted_date` | DATE | dateTime (`UnderlyingDateTimeDataType = Date`) | Sí |
+| 9 | `work_mode` | STRING | string | **No** |
+| 10 | `is_salary_available` | BOOLEAN | boolean | **No** |
+| 11 | `salary_currency` | STRING | string | **No** |
+| 12 | `salary_period` | STRING | string | **No** |
+| 13 | `experience_level` | STRING | string | Sí |
+| 14 | `description_clean` | STRING | string | **No** |
+| 15 | `skills` | **ARRAY\<string\>** | string | **No** |
+| 16 | `source_scraper` | STRING | string | Sí |
+| 17 | `employment_type` | STRING | string | Sí |
+| 18 | `role_category` | STRING | string | Sí |
+| 19 | `SalaryMinAnnual_EUR` | DOUBLE | double | Sí |
+| 20 | `SalaryMaxAnnual_EUR` | DOUBLE | double | Sí |
+| 21 | `SalaryMidAnnual_EUR` | DOUBLE | double | Sí |
+| 22 | `PostedYearMonth` | STRING | string | Sí |
+| 23 | `WorkModeBucket` | STRING | string | Sí |
+| 24 | `salary_quality` | STRING | string | **No** |
+| 25 | `skills_source` | STRING | string | **No** |
+| 26 | `experience_level_source` | STRING | string | **No** |
+| 27 | `posted_date_raw` | DATE | dateTime (`UnderlyingDateTimeDataType = Date`) | **No** |
+| 28 | `posted_date_source` | STRING | string | **No** |
+| 29 | `GeoCountry` | **no existe** (calculada en M) | string | Sí (el export público la calcula) |
+| 30 | `GeoRegion` | **no existe** (calculada en M) | string | Sí (el export público la calcula) |
+| 31 | `IsValidPostingDate` | BOOLEAN | boolean | Sí |
+
+Recuento: 29 físicas + 2 calculadas = 31; 20 en el export público y **11** que
+solo necesita el informe.
+
+### Columnas de las cinco dimensiones (salida de la API)
+
+| Tabla Gold | Columnas (`nombre: tipo`) |
+|---|---|
+| `fact_offer_skills` | `JobID: STRING`, `Skill: STRING` |
+| `dim_skill_list` | `SkillName: STRING`, `SkillCategory: STRING` |
+| `dim_calendar` | `Date: DATE`, `DateKey: INT`, `Year: INT`, `MonthNumber: INT`, `MonthName: STRING`, `ShortMonth: STRING`, `YearMonth: STRING`, `Quarter: INT`, `YearQuarter: STRING`, `WeekISO: INT`, `Day: INT`, `WeekDay: INT`, `DayName: STRING`, `IsWeekend: BOOLEAN` |
+| `companies_complete_catalog` | `company_name: STRING`, `company_industry: STRING`, `company_description: STRING`, `company_size: STRING`, `source: STRING`, `company_rating: DOUBLE`, `company_review_count: LONG` |
+| `dim_currency` | `CurrencyCode: STRING`, `CurrencyName: STRING`, `AltCode: STRING`, `UnitsPerEUR: DOUBLE`, `FXSnapshotDate: STRING` |
+
+### Discrepancias encontradas
+
+1. **Nombres:** ninguna. Las 6 tablas coinciden exactamente (incluido el
+   uso de mayúsculas) con los `sourceColumn` del TMDL; no hay columnas del
+   modelo sin origen identificado.
+2. **`GeoCountry` y `GeoRegion` no existen en Gold.** El modelo las declara con
+   `sourceColumn` pero las crea en la partición M
+   (`Fact_Offers.tmdl:279-284`) a partir de `location_country`,
+   `location_region` y `Dim_RegionMap`; el export público hace lo mismo en
+   Python (`Prepare_Web_Export.project_fact_offers`). Por tanto **Gold tiene 29
+   columnas, no 31**, y el export del informe no puede limitarse a proyectar 31
+   columnas de `gold.fact_offers`: las deriva reutilizando `REGION_MAP` y la
+   normalización de país de `Prepare_Web_Export` (no `project_fact_offers`, que
+   proyecta solo las 20 columnas públicas).
+3. **Tipo de `skills`: Gold es `ARRAY<string>` y el modelo declara `string`.**
+   En Parquet la columna llegará como lista; el export del informe necesita
+   convertirla a texto (o el modelo cambiar el tipo) para que el contrato se
+   cumpla.
+4. **Tipos equivalentes, sin discrepancia real:** `DATE` de Gold frente a
+   `dateTime` con `UnderlyingDateTimeDataType = Date` en el modelo
+   (`posted_date`, `posted_date_raw`, `Date` de `dim_calendar`); `INT`/`LONG`
+   de Gold frente a `int64` en el modelo; `BOOLEAN` frente a `boolean`.
+   `FXSnapshotDate` es `STRING` en Gold y `string` en el modelo: coinciden.
+5. **Artefacto documental en T-00:** el paréntesis de la fila `Fact_Offers`
+   sumaba 20 + 11 + `GeoCountry`/`GeoRegion` = 33, pero los 20 del export
+   público ya incluyen esas dos columnas. El conteo de 31 es correcto.
+
+### Comprobación de `dim_companies` y `dim_currency`
+
+- `companies_complete_catalog` **existe** en `job_offers.gold` (`MANAGED`,
+  `DELTA`) con **7** columnas, y cubre las **7** de `Dim_Companies` con el
+  mismo nombre y tipo compatible (`company_review_count: LONG` ↔ `int64`,
+  `company_rating: DOUBLE` ↔ `double`). No falta ninguna.
+- `dim_currency` **existe** en `job_offers.gold` (`MANAGED`, `DELTA`) con **5**
+  columnas, y cubre las **5** de `Dim_Currency` (`UnitsPerEUR: DOUBLE` ↔
+  `double`). No falta ninguna.
+- Ninguna de las dos se publica en `gold/web_export`: el export del informe será
+  la primera vez que se escriben como Parquet.
+
+### Nota de método y alcance
+
+- Fuente: **API de Unity Catalog** (`GET /api/2.1/unity-catalog/tables/...`),
+  que es plano de control y **gratis**. No se ejecutó SQL, no se abrió el SQL
+  Editor y no se envió ninguna consulta al warehouse (que según T-00 estaba
+  `STOPPED`); tampoco se lanzó ningún run de bundle ni de job: **no se encendió
+  compute**.
+- No se pidió `DESCRIBE TABLE` (habría costado ~1,29 € por despertar el
+  warehouse) ni se usó `databricks bundle run`.
+- Alcance: solo metadatos (nombres, tipos, existencia). Los conteos de filas y
+  el contenido no se comprueban aquí; eso corresponde a T-07 contra datos
+  reales de dev.
+- Consecuencia: T-05 materializa `GeoCountry`/`GeoRegion` con `REGION_MAP` y la
+  normalización de país (usando el par crudo `location_country`/`location_region`)
+  y convierte `skills` a texto con `concat_ws(", ", coalesce(skills, array()))`;
+  T-09 elimina la lógica M porque el export ya trae las dos columnas.

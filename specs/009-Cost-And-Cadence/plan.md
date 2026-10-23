@@ -96,7 +96,7 @@ Ficheros fijos, uno por tabla, escritos con `coalesce(1)` e idempotentes:
 
 | Fichero | Origen en Gold | Columnas |
 |---|---|---|
-| `fact_offers.parquet` | `gold.fact_offers` | **31** (todas las que usa el modelo, incluidas las internas) |
+| `fact_offers.parquet` | `gold.fact_offers` | **31** = 29 de Gold (18 físicas públicas + 11 internas) + `GeoCountry`/`GeoRegion` derivadas |
 | `fact_offer_skills.parquet` | `gold.fact_offer_skills` | `JobID`, `Skill` |
 | `dim_skill_list.parquet` | `gold.dim_skill_list` | `SkillName`, `SkillCategory` |
 | `dim_calendar.parquet` | `gold.dim_calendar` | 14 |
@@ -113,8 +113,14 @@ Diferencias deliberadas con el export público:
   `experience_level_source`, `posted_date_raw`, `posted_date_source`,
   `salary_currency`, `salary_period`, `work_mode`, `is_salary_available`), que
   el export público excluye por diseño.
-- No duplica la lógica de `GeoCountry`/`GeoRegion`: `fact_offers` ya las trae
-  calculadas y testeadas desde la 006.
+- **Calcula** `GeoCountry`/`GeoRegion` reutilizando `Prepare_Web_Export`
+  (`REGION_MAP` y la normalización de país), porque **no existen en Gold**: son
+  derivadas y el export público ya las calcula con tests. Así el Parquet del
+  informe tiene las 31 columnas que espera el modelo.
+- Escribe `skills` como texto (`concat_ws`), porque en Gold es
+  `ARRAY<string>` y el modelo la declara `string`. La columna no se usa en
+  ningún visual ni medida (comprobado en el informe), así que su formato no
+  altera resultados; se documenta la representación elegida.
 
 ## 6. Cambios en Power BI
 
@@ -131,10 +137,12 @@ in
     Tabla
 ```
 
-- `Fact_Offers`: se elimina la lógica M de `GeoCountry`/`GeoRegion` (viene
-  calculada) y el `NestedJoin` contra `Dim_RegionMap`.
+- `Fact_Offers`: se elimina la lógica M de `GeoCountry`/`GeoRegion` (vienen
+  calculadas en el export del informe, no en Gold) y el `NestedJoin` contra
+  `Dim_RegionMap`. La tabla calculada `Dim_RegionMap` se conserva aunque quede
+  sin uso, para no tocar más el modelo.
 - `Dim_Calendar`: conserva el filtro `Year` entre 2025 y 2027.
-- `Dim_Companies`: lee `companies_complete_catalog.parquet`.
+- `Dim_Companies`: lee `dim_companies.parquet`.
 - `Dim_Currency`, `Dim_SkillList`, `Fact_OfferSkills`: lectura directa.
 - **Credenciales:** la URL no lleva SAS. La credencial (SAS de solo lectura
   acotada a `gold/pbi_export`, o identidad) se configura en las credenciales del
@@ -205,7 +213,8 @@ specs/009-Cost-And-Cadence/                     esta spec
 - **Unitarias:** contrato de columnas del export del informe, idempotencia,
   `meta.json`, y que el export público no cambia.
 - **Bundle:** `databricks bundle validate -t dev` y `-t prod`.
-- **Run dev:** export escrito en `gold/pbi_export_dev` con conteos iguales a
+- **Run dev:** export escrito en `gold/pbi_export_dev` con el mismo número de
+  filas que
   Gold y `meta.json` válido.
 - **Informe:** refresh completo con el warehouse `STOPPED` y comparación de las
   medidas principales antes/después (ofertas, skills, salario medio).
