@@ -172,6 +172,8 @@ el plan antes de cada commit.
     Gold y export público intacto.
   - **Evidencia:** run id, duración, tabla de conteos y `meta.json` en
     `evidence.md`.
+  - **Intento 1 (2026-10-23):** run `954013261343017` fallido por compute
+    (`D2ds_v6`), sin export; se repite en `D4ds_v4`.
 
 ## 4. Informe sin warehouse
 
@@ -228,18 +230,16 @@ el plan antes de cada commit.
     aplica `D2ds_v6`, que no bloquea el ahorro.
   - **Destino:** spec 010 (rendimiento), junto con la medición de DBU y duración.
 
-- [ ] **T-12 — Aplicar `D2ds_v6`** (~20 min)
+- [x] **T-12 — Medir `D2ds_v6` y decidir** (~20 min)
   - **RF:** RF-5.
-  - **Depende de:** T-07.
-  - **Objetivo:** bajar el coste por run a la mitad sin riesgo.
-  - **Pasos:** en `resources/elt.job.yml`, cambiar `node_type_id` a
-    `Standard_D2ds_v6` (el workspace no ofrece `D2ds_v4`) y **mantener**
-    `kind: CLASSIC_PREVIEW` (obligatorio con `is_single_node`); `bundle validate`
-    en dev y prod; run dev de comprobación; medir duración y coste. Si se aplica
-    antes de T-07, el run de T-07 sirve de comprobación y no hace falta otro.
-  - **Hecho cuando:** run dev en verde en ≤ 30 min y coste por run menor que la
-    línea base.
-  - **Evidencia:** diff + medición antes/después.
+  - **Pasos:** cambiar `node_type_id` a `Standard_D2ds_v6` (el workspace no
+    ofrece `D2ds_v4`) manteniendo `kind: CLASSIC_PREVIEW`; `bundle validate`;
+    run dev de medición.
+  - **Resultado (2026-10-23):** run `954013261343017` **fallido**: el driver
+    dejó de responder y los kernels Python de las cuatro silvers no arrancaron,
+    con 9,9 min de aprovisionamiento. Se vuelve a `Standard_D4ds_v4` y el
+    ajuste de compute pasa a la 010 (medido, no viable el nodo menor).
+  - **Evidencia:** `evidence.md` T-07 y T-12.
 
 - [ ] **T-13 — Presupuesto y alertas** (~20 min)
   - **RF:** RF-6, RF-8.

@@ -320,13 +320,29 @@ solo necesita el informe.
   olvido.
 - Pendiente: escritura real, 6+1 ficheros y conteos (T-07).
 
-## T-12 — Compute `D2ds_v6` (2026-10-23)
+## T-12 — Compute: `D2ds_v6` medido y descartado (2026-10-23)
 
-- `Standard_D2ds_v4` no está en el catálogo del workspace; se usa
-  `Standard_D2ds_v6` (2 vCPU/8 GB, disponible y sin
-  `NotEnabledOnSubscription`).
+- `Standard_D2ds_v4` no está en el catálogo del workspace; se probó
+  `Standard_D2ds_v6` (2 vCPU/8 GB, disponible).
 - `is_single_node: true` exige `kind: CLASSIC_PREVIEW`: se mantiene (la idea de
   quitarlo era errónea; `bundle validate` no lo detecta).
-- `bundle validate -t dev/prod`: OK; `summary`: node=`Standard_D2ds_v6`,
-  kind=`CLASSIC_PREVIEW`, single=true, 8 tareas.
-- Pendiente: run de T-07 para medir duración y coste reales.
+- Run dev `954013261343017`: **FAILED** a los 18,2 min. El driver dejó de
+  responder (`DRIVER_NOT_RESPONDING`) y los kernels Python de las cuatro
+  silvers no arrancaron; aprovisionamiento de 9,9 min. Coste ~0,13 €.
+- Decisión: se vuelve a `Standard_D4ds_v4`; el ajuste de compute (serverless,
+  `D2ds_v6`/`D4ds_v6`) pasa a la 010.
+- `bundle validate -t dev/prod` con `D4ds_v4`: OK.
+
+## T-07 — Run dev del export (intento 1, 2026-10-23)
+
+- Warehouse antes/después: `STOPPED` (2X-Small), 0 clusters, 0 sesiones; no se
+  despertó.
+- Deploy dev OK; job dev con 8 tareas, `D2ds_v6` (intento),
+  `pbi_export_prefix=gold/pbi_export_dev`.
+- Run `954013261343017`: **FAILED**, 18,2 min. `Bronze_Ingestion` SUCCESS
+  (3,4 min); las cuatro silvers `INTERNAL_ERROR` por timeout del kernel Python
+  («The Python kernel did not start within the timeout...»); Gold, web y report
+  export `SKIPPED`.
+- `gold/pbi_export_dev`: 0 ficheros (el export no llegó a ejecutarse).
+  `gold/web_export_dev` intacto (5 ficheros, mismos tamaños y fecha).
+- Conclusión: fallo de compute, no de código; se repite en `D4ds_v4`.
