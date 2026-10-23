@@ -89,3 +89,19 @@ Lo resuelve T-01 con `system.billing.usage`.
 
 El export público excluye 11 columnas de `fact_offers` por diseño; el export
 del informe debe incluirlas, en un prefijo propio y siempre en modo `full`.
+
+## T-02b — Hoja de ruta renumerada (2026-10-23)
+
+- Ficheros: `docs/databricks-de/roadmap.md` (+55/−17), `notes/README.md` y
+  `notes/05-cicd.md` (referencias cruzadas).
+- Renumeración: rendimiento 009→010, streaming 010→011, gobernanza 011→012;
+  coste y cadencia → 009 (transversal).
+- Calendario: 009 del 23 oct al 1 nov; 008 del 2 al 22 nov; 010 del 23 al 29
+  nov; 011 del 30 nov al 6 dic; 012 del 7 al 13 dic; repaso y examen del 14 al
+  27 dic.
+- Política: tres entornos (local, Free Edition como laboratorio, workspace
+  pagado), presupuesto de runs (≤ 9 € en el track) y aviso de que Free Edition
+  no tiene Spark UI.
+- Verificación independiente: PASA CON OBSERVACIONES, sin bloqueantes.
+  Corregidos los dos hallazgos `MENOR`: etiqueta de semana 10–11 y matiz de la
+  cifra de 0,24 € (estimación, no medición).
