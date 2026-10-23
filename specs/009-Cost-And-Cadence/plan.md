@@ -79,11 +79,11 @@ scrapers locales (diario, gratis)
 ADLS landing/<fuente>/            (sin cambios)
         │
         ▼
-Job Databricks (semanal, lunes 23:00 Europe/Madrid)
+Job Databricks (semanal, domingo 23:00 Europe/Madrid)
   Bronze → 4 Silver → Gold ──┬─→ gold/web_export   (público, contrato 006)
                              └─→ gold/pbi_export   (informe, full, nuevo)
         │
-        ├─→ GitHub Actions (martes 01:00 UTC) → GitHub Pages
+        ├─→ GitHub Actions (lunes 01:00 UTC) → GitHub Pages
         └─→ Power BI (Import) ← Parquet de ADLS   (sin SQL warehouse)
 ```
 
@@ -167,8 +167,8 @@ Orden de preferencia, con medición en cada paso:
 
 ## 8. Cadencia y workflows
 
-- Job prod: `quartz_cron_expression: 50 0 23 ? * MON`, `Europe/Madrid`.
-- Dashboard: `cron: '0 1 * * TUE'` (01:00 UTC del martes).
+- Job prod: `quartz_cron_expression: 50 0 23 ? * SUN`, `Europe/Madrid`.
+- Dashboard: `cron: '0 1 * * MON'` (01:00 UTC del lunes).
 - El job dev sigue sin programación y en pausa.
 - La programación vive en `databricks.yml`; el job es `UI_LOCKED` y solo cambia
   con `bundle deploy` (producción, manual y validada).

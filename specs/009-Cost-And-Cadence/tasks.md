@@ -88,7 +88,7 @@ el plan antes de cada commit.
   - **Objetivo:** que el job de producción se ejecute una vez por semana desde
     el bundle.
   - **Pasos:** en `databricks.yml` (target `prod`), cambiar
-    `quartz_cron_expression` a `50 0 23 ? * MON` manteniendo
+    `quartz_cron_expression` a `50 0 23 ? * SUN` manteniendo
     `timezone_id: Europe/Madrid`; dejar `pause_status` como esté hoy; ejecutar
     `databricks bundle validate -t dev` y `-t prod` y `databricks bundle summary
     -t prod` para ver el cron resultante. **No desplegar a prod todavía.**
@@ -102,7 +102,7 @@ el plan antes de cada commit.
   - **Objetivo:** que la web se publique después del job semanal y no repita el
     mismo export siete veces.
   - **Pasos:** en `.github/workflows/dashboard.yml`, cambiar el `cron` a
-    `0 1 * * TUE`; añadir al paso de validación una comprobación de frescura
+    `0 1 * * MON`; añadir al paso de validación una comprobación de frescura
     (si `meta.json.data_date` tiene más de 8 días, fallar con mensaje claro en
     español y no desplegar). Probar con `workflow_dispatch`.
   - **Hecho cuando:** el workflow en verde publica con datos frescos y falla de
@@ -272,7 +272,7 @@ el plan antes de cada commit.
     (cadencia, export del informe, credenciales, medición de coste) y la
     propuesta de `AGENTS.md` (sin aplicar sin OK); repetir la consulta de
     facturación y anotar el coste del periodo en `docs/costs.md`; confirmar el
-    primer run programado del lunes; solicitar a la persona la revisión final
+    primer run programado del domingo; solicitar a la persona la revisión final
     (push/merge/tag solo con su OK).
   - **Hecho cuando:** suites verdes, evidencia completa, coste del periodo
     ≤ 3 €/mes y primer run semanal programado en verde.

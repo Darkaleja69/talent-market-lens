@@ -51,9 +51,9 @@ tarifa recurrente (mismos SKU y región) y solo aporta créditos temporales.
 ### RF-1 — Cadencia semanal del job y del dashboard
 
 **Criterio de aceptación (EARS):** Cuando se despliegue el target `prod`, el job
-`Git Based ELT` deberá ejecutarse **una vez por semana** (lunes a las 23:00,
+`Git Based ELT` deberá ejecutarse **una vez por semana** (domingo a las 23:00,
 `Europe/Madrid`) y el workflow `Dashboard (GitHub Pages)` deberá publicar
-después de esa ejecución (martes a las 01:00 UTC), sin solaparse con ella; el
+después de esa ejecución (lunes a las 01:00 UTC), sin solaparse con ella; el
 scraping y la subida a la landing seguirán siendo diarios y no se verán
 afectados. La programación deberá vivir en `databricks.yml` (no en la UI) y
 `databricks bundle validate` deberá pasar en dev y prod.
@@ -169,7 +169,7 @@ confirmación.
 - Cruce con la 008 en `AGENTS.md` y en
   `.github/workflows/databricks-bundle-deploy-dev.yml`: se resuelve a mano al
   fusionar; si el cruce es mayor, se detiene y se consulta a la persona.
-- Una ejecución manual coincide con el lunes programado: `max_concurrent_runs:
+- Una ejecución manual coincide con el domingo programado: `max_concurrent_runs:
   1` impide el solape.
 - El warehouse se queda encendido por una consulta ad hoc: no afecta al
   presupuesto del pipeline, pero se documenta que cada despertar cuesta ~1,29 €.
@@ -204,7 +204,7 @@ confirmación.
 - **Comprobación real:** un run completo de producción lanzado a mano tras el
   deploy (verde, export actualizado, informe refrescado sin despertar el
   warehouse y web publicada con la fecha correcta) **más** el primer run
-  programado del lunes, con el coste medido del periodo.
+  programado del domingo, con el coste medido del periodo.
 - No se hace push ni merge sin validación de la persona (flujo de `AGENTS.md`).
 
 ## Decisiones aclaradas
