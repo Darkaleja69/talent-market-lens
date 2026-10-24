@@ -211,7 +211,7 @@ run.
 | Tarea | Ejecución | Runs de dev | Coste aprox. |
 |---|---|---|---|
 | T-03 (hecho, 2026-10-21) | 2 runs dev: uno fallido (`__batch_indeed`) y el verde `339441526455403` | 2 (**previos a la política**, hundidos) | ~0,48 € |
-| T-04 | run corto del one-off de dev (notebook) | 1 | ~0,05–0,13 € |
+| T-04 | job `dedupe_oneoff` en dev (clúster propio, ~7 min) | 1 | ~0,05–0,13 € |
 | T-05 | ciclo dev completo con las 8 tareas | 1 | ~0,24 € |
 | T-05 | repetición inmediata sin ficheros nuevos (idempotencia) | 1 | ~0,24 € |
 | T-06 | one-off de prod + deploy en la ventana previa al domingo | 0 (prod) | ~0,05–0,13 € |

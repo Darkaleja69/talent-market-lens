@@ -569,6 +569,82 @@ def test_merge_sql_uses_the_requested_view_name():
     )
 
 
+# ---------------------------------------------------------------------------
+# One-off dedupe statement (INSERT OVERWRITE)
+# ---------------------------------------------------------------------------
+
+DEDUPE_CASES = [
+    ("indeed", "`job_key`"),
+    ("linkedin", "`job_id`"),
+    ("infojobs", "`id_oferta`"),
+    ("multi_site", "`site`, `job_id`"),
+]
+
+
+@pytest.mark.parametrize(
+    "source, expected_keys",
+    DEDUPE_CASES,
+    ids=[case[0] for case in DEDUPE_CASES],
+)
+def test_dedupe_overwrite_sql_partitions_by_the_source_keys(
+    source, expected_keys
+):
+    target = f"job_offers.bronze.{source}"
+    columns = [field.name for field in SCHEMAS[source].fields]
+    sql = upsert.dedupe_overwrite_sql(target, source, columns)
+    partition_line = next(
+        line.strip() for line in sql.splitlines() if "PARTITION BY" in line
+    )
+    assert partition_line == f"PARTITION BY {expected_keys}"
+
+
+def test_dedupe_overwrite_sql_orders_by_capture_instant_and_ingest_tiebreak():
+    target = "job_offers.bronze.infojobs"
+    columns = ["id_oferta", "title", "fecha_scraped", "_ingest_date"]
+    sql = upsert.dedupe_overwrite_sql(target, "infojobs", columns)
+    assert "try_to_timestamp(`fecha_scraped`)" in sql
+    assert (
+        "ORDER BY try_to_timestamp(`fecha_scraped`) DESC NULLS LAST,\n"
+        f"        `{upsert.INGEST_DATE_COLUMN}` DESC NULLS LAST"
+    ) in sql
+    assert sql.count("DESC NULLS LAST") == 2
+
+
+def test_dedupe_overwrite_sql_projects_the_columns_without_the_rank():
+    target = "job_offers.bronze.linkedin"
+    columns = ["title", "_source_file", "job_id", "_ingest_date"]
+    sql = upsert.dedupe_overwrite_sql(target, "linkedin", columns)
+    projected = ", ".join(f"`{name}`" for name in columns)
+    selects = [
+        line.strip()
+        for line in sql.splitlines()
+        if line.strip().startswith("SELECT")
+    ]
+    assert selects == [f"SELECT {projected}", "SELECT *,", f"SELECT {projected}"]
+    subquery = sql[sql.index("FROM ("):sql.index(") WHERE")]
+    assert f"AS {upsert.DEDUPE_RN_COLUMN}" in subquery
+    assert upsert.DEDUPE_RN_COLUMN not in projected
+
+
+@pytest.mark.parametrize(
+    "source", [case[0] for case in DEDUPE_CASES], ids=[c[0] for c in DEDUPE_CASES]
+)
+def test_dedupe_overwrite_sql_overwrites_and_keeps_rows_without_key(source):
+    target = f"job_offers.bronze.{source}"
+    columns = [field.name for field in SCHEMAS[source].fields]
+    sql = upsert.dedupe_overwrite_sql(target, source, columns)
+    projected = ", ".join(f"`{name}`" for name in columns)
+    valid_key = upsert.valid_key_sql(upsert.SOURCE_SPECS[source].keys)
+    assert sql.startswith(f"INSERT OVERWRITE TABLE {target}\n")
+    assert (
+        f"WHERE {valid_key}\n) WHERE {upsert.DEDUPE_RN_COLUMN} = 1" in sql
+    )
+    assert (
+        f"UNION ALL\nSELECT {projected}\nFROM {target}\n"
+        f"WHERE NOT ({valid_key})"
+    ) in sql
+
+
 def test_unknown_source_raises_value_error(spark):
     batch = _batch(spark, "linkedin", [])
     with pytest.raises(ValueError, match="Fuente desconocida"):

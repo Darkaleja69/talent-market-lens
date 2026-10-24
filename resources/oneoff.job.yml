@@ -1,0 +1,61 @@
+resources:
+  jobs:
+    dedupe_oneoff:
+      name: ${var.job_name} - Dedupe bronze one-off
+      max_concurrent_runs: 1
+      timeout_seconds: 1800
+      job_clusters:
+        - job_cluster_key: tm-lens-oneoff
+          new_cluster:
+            cluster_name: ""
+            custom_tags:
+              "project": "talent-market-lens"
+            data_security_mode: DATA_SECURITY_MODE_DEDICATED
+            is_single_node: true
+            kind: CLASSIC_PREVIEW
+            node_type_id: Standard_D4ds_v4
+            runtime_engine: STANDARD
+            spark_version: 17.3.x-scala2.13
+      tasks:
+        - task_key: Dedupe_Indeed
+          job_cluster_key: tm-lens-oneoff
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              source: indeed
+              dry_run: "false"
+            notebook_path: ${workspace.file_path}/databricks_notebooks/oneoff_dedupe_bronze.ipynb
+            source: WORKSPACE
+        - task_key: Dedupe_Infojobs
+          depends_on:
+            - task_key: Dedupe_Indeed
+          job_cluster_key: tm-lens-oneoff
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              source: infojobs
+              dry_run: "false"
+            notebook_path: ${workspace.file_path}/databricks_notebooks/oneoff_dedupe_bronze.ipynb
+            source: WORKSPACE
+        - task_key: Dedupe_Linkedin
+          depends_on:
+            - task_key: Dedupe_Infojobs
+          job_cluster_key: tm-lens-oneoff
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              source: linkedin
+              dry_run: "false"
+            notebook_path: ${workspace.file_path}/databricks_notebooks/oneoff_dedupe_bronze.ipynb
+            source: WORKSPACE
+        - task_key: Dedupe_Multi_site
+          depends_on:
+            - task_key: Dedupe_Linkedin
+          job_cluster_key: tm-lens-oneoff
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              source: multi_site
+              dry_run: "false"
+            notebook_path: ${workspace.file_path}/databricks_notebooks/oneoff_dedupe_bronze.ipynb
+            source: WORKSPACE

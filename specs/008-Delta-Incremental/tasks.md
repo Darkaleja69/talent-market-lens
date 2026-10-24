@@ -91,13 +91,14 @@
   - **Hecho cuando:** las tablas dev quedan en el universo único con conteos
     verificables por fuente, con la one-off aplicada donde hace falta. La
     migración de **prod no va aquí: va en T-06**, antes del primer lote nuevo.
-  - **Ejecución (run 1 de 3):** la one-off se lanza como **run corto** de un
-    notebook en el clúster del job dev (~0,05–0,13 €), no en el SQL Editor.
-    Recomendado versionar el one-off como notebook con parámetros
-    (`catalog`, `source`), idempotente y reutilizable en T-06; al ser un
-    notebook nuevo, requiere el **OK previo de la persona** (regla de
-    `AGENTS.md`). Los conteos antes/después salen de la salida del propio
-    notebook.
+  - **Ejecución (run 1 de 3):** job **`dedupe_oneoff`** (`resources/oneoff.job.yml`,
+    sin programación y con clúster propio `D4ds_v4` single node) con cuatro
+    tareas encadenadas, una por fuente, sobre
+    `databricks_notebooks/oneoff_dedupe_bronze.ipynb` (`catalog`, `source`,
+    `dry_run`): `databricks bundle run dedupe_oneoff -t dev`. ~7 min (lo domina
+    el arranque del clúster), ~0,05–0,13 €; nada de SQL Editor. La one-off es
+    idempotente y se reutiliza tal cual en T-06. Los conteos antes/después salen
+    de la salida del propio notebook, junto con el `RESTORE` de la versión previa.
   - **Estado:** linkedin y multi_site ya están limpios (14.084 y 11.057 claves);
     **indeed (9.430/2.959) e infojobs (43.972/2.587) necesitan la one-off**.
     Orden: `INSERT OVERWRITE` por tabla (dedup por clave con

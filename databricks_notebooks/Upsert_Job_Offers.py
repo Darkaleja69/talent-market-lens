@@ -10,12 +10,16 @@ The bronze ingestion (``bronze_ingest``) processes one microbatch per
 * :func:`dedupe_batch` keeps one row per key inside the batch: the latest
   capture, with ``_ingest_date`` as tie-breaker, reusing ``keep_latest_by``.
 * :func:`merge_sql` builds the ``MERGE WITH SCHEMA EVOLUTION`` statement.
+* :func:`dedupe_overwrite_sql` builds the one-off ``INSERT OVERWRITE`` that
+  collapses a bronze table to one row per key.
 * :func:`new_quarantine_rows` removes the rows already stored or repeated in
   the batch before appending to the quarantine table.
 
-Reserved control columns: ``_ingest_date``, ``_source_file``, ``_row_hash``,
-``_scraped_ts`` and any column starting with ``_quarantine_``. They never take
-part in the row hash.
+Control columns: ``_ingest_date``, ``_source_file``, ``_row_hash``,
+``_scraped_ts`` and any column starting with ``_quarantine_`` never take part
+in the row hash. ``_dedupe_rn`` is not a stored column: it only exists inside
+the one-off ``dedupe_overwrite_sql`` statement, so it is deliberately absent
+from ``_RESERVED_COLUMNS``.
 """
 from dataclasses import dataclass
 from functools import reduce
@@ -35,6 +39,7 @@ ROW_HASH_COLUMN = "_row_hash"
 QUARANTINE_REASON_COLUMN = "_quarantine_reason"
 QUARANTINE_AT_COLUMN = "_quarantine_at"
 SCRAPED_TS_COLUMN = "_scraped_ts"
+DEDUPE_RN_COLUMN = "_dedupe_rn"
 
 MISSING_KEY = "missing_key"
 MISSING_SCRAPED_AT = "missing_scraped_at"
@@ -228,6 +233,58 @@ def merge_sql(
         f"        AND s.{INGEST_DATE_COLUMN} > t.{INGEST_DATE_COLUMN})\n"
         "  ) THEN UPDATE SET *\n"
         "WHEN NOT MATCHED THEN INSERT *"
+    )
+
+
+def valid_key_sql(keys: Sequence[str]) -> str:
+    """SQL predicate: all key columns are non-NULL and not blank.
+
+    Returns the expression that tells groupable rows from rows that must be
+    preserved untouched: every key is cast to string and trimmed, and the
+    per-column conditions are joined with ``AND``.
+    """
+    return " AND ".join(
+        f"(`{key}` IS NOT NULL AND trim(cast(`{key}` AS STRING)) <> '')"
+        for key in keys
+    )
+
+
+def dedupe_overwrite_sql(
+    target_table: str, source: str, columns: Sequence[str]
+) -> str:
+    """Build the one-off statement that collapses a bronze table by key.
+
+    Rewrites ``target_table`` in a single atomic ``INSERT OVERWRITE``: the
+    valid-key rows keep one row per key (the latest capture instant, with
+    ``_ingest_date`` as tie-breaker, the same rule as :func:`merge_sql`) and
+    the rows without a usable key are copied untouched, so no data is lost.
+    ``columns`` is the table contract to project, in order: the ranking column
+    (:data:`DEDUPE_RN_COLUMN`) exists only inside the subquery and never
+    reaches the table. ``try_to_timestamp`` (never ``to_timestamp``) keeps
+    ANSI mode from aborting on malformed values; those rows sort last and a
+    valid capture of the same key wins.
+    """
+    spec = get_source_spec(source)
+    projected = ", ".join(f"`{name}`" for name in columns)
+    partition_by = ", ".join(f"`{key}`" for key in spec.keys)
+    valid_key = valid_key_sql(spec.keys)
+    return (
+        f"INSERT OVERWRITE TABLE {target_table}\n"
+        f"SELECT {projected}\n"
+        "FROM (\n"
+        "  SELECT *,\n"
+        "    row_number() OVER (\n"
+        f"      PARTITION BY {partition_by}\n"
+        f"      ORDER BY try_to_timestamp(`{spec.scraped_at}`) DESC NULLS LAST,\n"
+        f"        `{INGEST_DATE_COLUMN}` DESC NULLS LAST\n"
+        f"    ) AS {DEDUPE_RN_COLUMN}\n"
+        f"  FROM {target_table}\n"
+        f"  WHERE {valid_key}\n"
+        f") WHERE {DEDUPE_RN_COLUMN} = 1\n"
+        "UNION ALL\n"
+        f"SELECT {projected}\n"
+        f"FROM {target_table}\n"
+        f"WHERE NOT ({valid_key})"
     )
 
 
