@@ -162,6 +162,12 @@
     espera al domingo siguiente, con la web mostrando la fecha real de los datos.
   - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, versiones de
     `RESTORE`, estado final, coste en `docs/costs.md` y fila en `evidence.md`.
+  - **Estado:** **one-off de producción hecha el 2026-10-24.** Deploy `-t prod`
+    con el ingest nuevo y el job `dedupe_oneoff`; run `164560238285705` en verde,
+    4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas duplicadas eliminadas (indeed
+    9.769→3.039, infojobs 45.171→2.617, linkedin 17.285→14.289, multi_site
+    12.169→11.096), `RESTORE` a 19/20/60/50. **Pendiente la comprobación real:**
+    el run programado del domingo y el dashboard del lunes.
 
 ## 2. Bloque B — Silvers/gold incrementales
 

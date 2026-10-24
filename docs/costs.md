@@ -115,8 +115,10 @@ al menos un despertar.
   **~0,11 €**. Consume el run 3 de 3.
 - **Cierre de dev de la 008:** 3 runs tras la política (0,11 + 0,24 + 0,11 =
   **~0,46 €**), 0 sesiones SQL; con los 2 runs hundidos de T-03, ~0,94 € en total
-  frente al techo de 2,0 €. Queda el one-off de prod de T-06 (~0,05–0,13 €, fuera
-  del presupuesto de dev).
+  frente al techo de 2,0 €.
+- **T-06 one-off de prod (2026-10-24):** run `164560238285705`, **SUCCESS**, 4/4,
+  **9 min 11 s** → **~0,11 €** (producción, fuera del presupuesto de dev).
+  Deduplicó 53.353 filas históricas en las cuatro tablas de prod.
 
 ## Cierre de la spec 009 (2026-10-24)
 
