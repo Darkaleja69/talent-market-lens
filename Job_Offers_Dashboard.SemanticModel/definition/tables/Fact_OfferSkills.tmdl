@@ -22,12 +22,13 @@ table Fact_OfferSkills
 		queryGroup: 'Fact Tables'
 		source =
 				let
-				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
-				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
-				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
-				    ofertas = gold_Schema{[Name="fact_offer_skills",Kind="Table"]}[Data]
-				    in
-				    ofertas
+				    Origen = AzureStorage.DataLake(
+				        "https://joboffershns.dfs.core.windows.net/landing/gold/pbi_export",
+				        [HierarchicalNavigation = true]),
+				    Fichero = Origen{[Name = "fact_offer_skills.parquet"]}[Content],
+				    Tabla = Parquet.Document(Fichero)
+				in
+				    Tabla
 
 	annotation PBI_NavigationStepName = Navegación
 

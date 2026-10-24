@@ -65,12 +65,13 @@ table Dim_Companies
 		queryGroup: Dimensions
 		source =
 				let
-				    Origen = Databricks.Catalogs("adb-7405619889654446.6.azuredatabricks.net", "/sql/1.0/warehouses/53d8e3e91af6749c", [Catalog=null, Database=null, QueryTags=null, EnableAutomaticProxyDiscovery=null, Implementation="2.0", Protocol=null]),
-				    job_offers_Database = Origen{[Name="job_offers",Kind="Database"]}[Data],
-				    gold_Schema = job_offers_Database{[Name="gold",Kind="Schema"]}[Data],
-				    companies_complete_catalog_Table = gold_Schema{[Name="companies_complete_catalog",Kind="Table"]}[Data]
+				    Origen = AzureStorage.DataLake(
+				        "https://joboffershns.dfs.core.windows.net/landing/gold/pbi_export",
+				        [HierarchicalNavigation = true]),
+				    Fichero = Origen{[Name = "dim_companies.parquet"]}[Content],
+				    Tabla = Parquet.Document(Fichero)
 				in
-				    companies_complete_catalog_Table
+				    Tabla
 
 	annotation PBI_NavigationStepName = Navegación
 

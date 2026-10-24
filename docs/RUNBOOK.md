@@ -37,6 +37,7 @@ string is versioned.
 | Secret / parameter | Where it lives | How it is provided |
 |---|---|---|
 | `LANDING_SAS_TOKEN` | Local user environment variable | `setx LANDING_SAS_TOKEN "<container SAS>"` before uploading with AzCopy. |
+| `PBI_EXPORT_SAS` | Power BI Desktop data source credentials (dataset) | Read-only SAS scoped to `gold/pbi_export` (`rl`, 1 year). Generated in Cloud Shell; never in the repository. Rotate before expiry. |
 | `storage_account` | Databricks widget | Task parameter / widget in the Bronze notebook. |
 | `container` | Databricks widget | Defaults to `landing`. |
 | `catalog`, `bronze_schema`, `silver_schema`, `gold_schema` | Databricks widgets | Default to `job_offers`, `bronze`, `silver`, `gold`. |
@@ -179,14 +180,14 @@ and connect the model to the `job_offers.gold.*` tables. The model uses
 6. Run Gold → `gold.fact_offers`, `fact_offer_skills`, the dimensions and `companies_complete_catalog`.
 7. Open the PBIP and validate the report.
 8. `pytest` green before publishing.
-9. Deploy the scheduled ELT job as an Asset Bundle (§9) and let it run daily.
+9. Deploy the scheduled ELT job as an Asset Bundle (§9); it runs weekly (Sundays 23:00 Europe/Madrid).
 
 ---
 
 ## 9. ELT as code: Databricks Asset Bundle, CI/CD and cutover
 
-The production ELT job —**one job with 7 tasks**: Bronze → 4 Silver (parallel) →
-Gold → web export— is **versioned as code** in the repository and deployed with
+The production ELT job —**one job with 8 tasks**: Bronze → 4 Silver (parallel) →
+Gold → web export + report export— is **versioned as code** in the repository and deployed with
 the Databricks CLI. `databricks.yml` holds the bundle, its targets and the
 schedule (the `prod` target overrides it); `resources/elt.job.yml` holds the job
 definition (tasks, `depends_on`, compute, timeout and notifications). Notebooks
@@ -201,8 +202,9 @@ Same job definition for both environments; only the variables change:
 | `catalog` | `job_offers_dev` | `job_offers` |
 | `checkpoints_root` | `<storage>/_checkpoints_dev` | `<storage>/_checkpoints` |
 | `export_prefix` | `gold/web_export_dev` | `gold/web_export` |
+| `pbi_export_prefix` | `gold/pbi_export_dev` | `gold/pbi_export` |
 | `job_name` | `Git Based ELT Dev` (the bundle prefixes `[dev <user>]` on deploy) | `Git Based ELT` |
-| Schedule | none (manual runs only) | `50 0 23 * * ?`, `Europe/Madrid`, `UNPAUSED` |
+| Schedule | none (manual runs only) | `50 0 23 ? * SUN`, `Europe/Madrid`, `UNPAUSED` (Sundays 23:00) |
 
 `sync` is limited to `databricks_notebooks`, so a deploy uploads only what the
 job runs.
@@ -242,7 +244,7 @@ the definition's value). To change the state, edit `databricks.yml`, commit,
 merge and deploy.
 
 - Day-to-day check: `databricks jobs list-runs --job-id <prod job id> --limit 5`
-  (expected: exactly one run per day, started at 23:00, `SUCCESS`).
+  (expected: exactly one run per week, Sundays at 23:00, `SUCCESS`).
 - Failures: the job notifies by email (`on_failure` in `resources/elt.job.yml`).
 - **Rollback** (return to the previous manual job, kept paused as a fallback):
   set `pause_status: PAUSED` in the `prod` target, commit, merge, deploy
@@ -252,6 +254,24 @@ merge and deploy.
 - The full cutover/rollback procedure, IDs and execution log of spec 007 live in
   `specs/007-ELT-As-Code/cutover.md`. The job ids in use are recorded there; the
   paused manual job must not be deleted while it is the rollback path.
+
+### 9.5 Report export and Power BI
+
+The `Build_Report_Export` task writes `gold/pbi_export` (6 Parquet + `meta.json`,
+`mode: full`, `audience: pbi`, 31 columns in `fact_offers`) as a sibling of the
+web export; it depends only on Gold and does not block the public dashboard.
+
+The `Job_Offers_Dashboard.pbip` model reads those Parquet files with
+`AzureStorage.DataLake` + `Parquet.Document`; the URL in the model has **no
+SAS**. The read-only SAS (`PBI_EXPORT_SAS`, `rl`, scoped to `gold/pbi_export`)
+lives in the dataset data source credentials in Power BI Desktop, never in the
+repository. Rotation: generate a new SAS in Cloud Shell before expiry, update
+the credential in Power BI Desktop and refresh.
+
+Verify the report does not use the SQL warehouse: keep the warehouse `STOPPED`,
+run a full refresh and check that it is still `STOPPED` and that
+`/api/2.0/sql/history/queries?filter_by.warehouse_id=<id>` shows no query in the
+refresh window.
 
 > **Known debt:** `resources/elt.job.yml` versions the failure-notification
 > email. It predates the bundle and the repository is public; it is an accepted
