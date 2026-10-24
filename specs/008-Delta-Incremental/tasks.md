@@ -87,7 +87,7 @@
     **anteriores a la política de la 009**; quedan registrados como hundidos y
     no consumen el presupuesto de 3 runs.
 
-- [ ] **T-04 — Verificación del bronce dev** (~25 min)
+- [x] **T-04 — Verificación del bronce dev** (~25 min)
   - **Hecho cuando:** las tablas dev quedan en el universo único con conteos
     verificables por fuente, con la one-off aplicada donde hace falta. La
     migración de **prod no va aquí: va en T-06**, antes del primer lote nuevo.
@@ -99,26 +99,35 @@
     el arranque del clúster), ~0,05–0,13 €; nada de SQL Editor. La one-off es
     idempotente y se reutiliza tal cual en T-06. Los conteos antes/después salen
     de la salida del propio notebook, junto con el `RESTORE` de la versión previa.
-  - **Estado:** linkedin y multi_site ya están limpios (14.084 y 11.057 claves);
-    **indeed (9.430/2.959) e infojobs (43.972/2.587) necesitan la one-off**.
-    Orden: `INSERT OVERWRITE` por tabla (dedup por clave con
-    `try_to_timestamp(<temporal>)` y `_ingest_date` como desempate), conteos
-    antes/después y `RESTORE` anotado.
-  - **Evidencia:** id del run, conteos antes/después, coste anotado en
-    `docs/costs.md` y fila en `evidence.md`.
+  - **Estado:** **cerrada el 2026-10-24.** `dedupe_overwrite_sql` +
+    `valid_key_sql` en el módulo (35 tests en verde), notebook con resumen JSON
+    de salida y job `dedupe_oneoff`. Run dev `328818148400464`: **SUCCESS**, 4/4
+    tareas, 8 min 58 s, ~0,11 €. Resultado: indeed 3.039 filas/3.039 claves,
+    infojobs 2.617/2.617, linkedin 14.289/14.289 y multi_site 11.067/11.067, con
+    **0 filas sin clave** en las cuatro y `RESTORE` disponible a las versiones
+    7/7/14/8. Las claves crecieron respecto al 22-oct (2.959/2.587/14.084/11.057)
+    porque el run dev de la 009 (`18912486133844`, 23-oct) ingirió ficheros
+    nuevos en dev con el sink *append-only* de su rama.
+  - **Evidencia:** id del run, conteos antes/después, versiones de rollback,
+    coste en `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-05 — Validación en dev** (~30 min)
-  - **Hecho cuando:** ciclo dev en verde; el bronce **no supera los 5 m 11 s** de
-    T-03 (no regresión del ingest nuevo) y el run completo queda por debajo de
-    los 17 m 43 s de la línea base de 7 tareas más el delta de la 8.ª tarea
-    (`Build_Report_Export`, ~+0,5 min). Los dos exports (`gold/web_export_dev`,
-    `gold/pbi_export_dev`) quedan escritos con `meta.json` válido y los conteos
-    se comparan con prod para la misma ventana.
-  - **Ejecución (runs 2 y 3 de 3):** **run A**, ciclo completo con las 8 tareas;
-    **run B**, repetición inmediata sin ficheros nuevos en el landing →
-    `numInputRows = 0` por fuente, conteos de bronce y cuarentena sin cambios
-    (idempotencia). Toda la evidencia sale de las métricas y salidas de los runs;
-    **ninguna consulta al SQL warehouse**.
+  - **Hecho cuando:** ciclo dev en verde con las 8 tareas; bronce **sin
+    regresión** frente al run de la 009 (`18912486133844`: 7 m 33 s, lote
+    semanal, sink *append*) y comparación explícita con T-03 (`339441526455403`:
+    5 m 11 s, lote diario, sink *upsert*), documentando lo que aporta el lote
+    semanal; run completo por debajo de los **16,31 min** del run de la 009
+    (mismo job y compute) y de los 17 m 43 s de la línea base *append* diaria.
+    Los dos exports (`gold/web_export_dev`, `gold/pbi_export_dev`) quedan
+    escritos con `meta.json` válido y los conteos se comparan con prod para la
+    misma ventana.
+  - **Ejecución (runs 2 y 3 de 3):** `databricks bundle deploy -t dev --profile vs_code`
+    (gratis; sube el estado actual de la rama) y
+    `databricks bundle run elt -t dev --profile vs_code` **dos veces seguidas**:
+    **run A**, ciclo completo con las 8 tareas; **run B**, repetición inmediata
+    sin ficheros nuevos en el landing → `numInputRows = 0` por fuente, conteos de
+    bronce y cuarentena sin cambios (idempotencia). Toda la evidencia sale de las
+    métricas y salidas de los runs; **ninguna consulta al SQL warehouse**.
   - **Evidencia:** ids de los dos runs, tabla comparativa dev vs prod (bronce del
     one-off en T-04; gold de los `meta.json`; `numInputRows = 0` en el run B),
     coste de cada run en `docs/costs.md` y fila en `evidence.md`.
@@ -130,14 +139,15 @@
     `bundle deploy -t prod` con rollback disponible (§5 del plan), el **run
     programado del domingo** cierra 8/8 tareas con los exports actualizados y el
     dashboard publica el lunes con la fecha correcta; la bitácora del roadmap
-    queda actualizada.
+    queda actualizada. El procedimiento paso a paso (pausa, deploy, one-off,
+    reanudar, verificación y rollback) está en `cutover.md` de esta spec.
   - **Ejecución (0 runs de dev):** la one-off de prod se lanza como run corto en
     producción (~0,05–0,13 €, dentro del techo mensual de la 009) y la
     verificación real es el run programado del domingo, **sin run manual extra**.
     Si el domingo falla, el dashboard no publica pasados 8 días: se corrige y se
     espera al domingo siguiente, con la web mostrando la fecha real de los datos.
-  - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, estado final,
-    coste en `docs/costs.md` y fila en `evidence.md`.
+  - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, versiones de
+    `RESTORE`, estado final, coste en `docs/costs.md` y fila en `evidence.md`.
 
 ## 2. Bloque B — Silvers/gold incrementales
 

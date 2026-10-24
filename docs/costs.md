@@ -98,6 +98,16 @@ al menos un despertar.
   etiqueta. El presupuesto es de **suscripción**, así que la alerta cubre todo
   el gasto aunque el desglose por etiqueta esté incompleto.
 
+## Runs de la spec 008 (en curso)
+
+- **T-04 (2026-10-24), one-off del bronce dev:** run `328818148400464` del job
+  `dedupe_oneoff` (`933759794529939`), **SUCCESS**, 4/4 tareas, **8 min 58 s**
+  (6 min 22 s de arranque + 78 s de indeed + ~25 s por cada una de las otras
+  tres). Clúster `D4ds_v4` single node a ~0,75 €/h → **~0,11 €**. Consume el
+  **run 1 de 3** del presupuesto de la 008.
+- Quedan 2 runs de dev (T-05 ciclo y repetición) y 0 sesiones SQL; gasto de dev
+  de la 008 tras la política: ~0,11 € de los ~0,6 € previstos.
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento

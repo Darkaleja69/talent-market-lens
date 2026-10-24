@@ -41,18 +41,28 @@ planificará después.
   `keep_latest_by(df, keys, order_by=("scraped_at", "_ingest_date"))` con
   ventana `row_number()` y 9 tests: dedup del **lote** reutilizable por el
   upsert; las filas con clave nula o en blanco pasan sin reducir.
-- Bronce dev ya está normalizado a 1 fila por clave (one-off de la 007, T-10):
-  linkedin 13.376 y multi_site 10.489 claves; prod sigue acumulado (16.371 y
-  11.562 filas).
-- Líneas base de tiempos de T-05, todas con un job de **7 tareas**:
-  - **Actual** (ingest append-only, 2026-10-18/19): dev `540330014336242`
-    17 m 43 s (bronze 7 m 36 s); prod `471695262858572` 19 m 45 s (bronze
-    9 m 03 s).
-  - **Ingest nuevo** (T-03, 2026-10-21): dev `339441526455403` 13 m 39 s
-    (bronze 5 m 11 s).
-  T-05 exige dos cosas: el bronce **no** supera 5 m 11 s (no regresión del
-  ingest nuevo) y el run completo no supera 17 m 43 s + ~0,5 min (el delta de la
-  8.ª tarea).
+- Bronce dev **normalizado el 2026-10-24** (T-04, job `dedupe_oneoff`, run
+  `328818148400464`): indeed 3.039, infojobs 2.617, linkedin 14.289 y multi_site
+  11.067, una fila por clave y **0 filas sin clave** en las cuatro. Prod sigue
+  acumulado (a 22-oct: indeed 9.552 filas/2.959 claves, infojobs 45.044/2.587,
+  linkedin 17.080/14.084, multi_site 12.159/11.086) y ha ingerido después con el
+  sink *append*: la one-off de T-06 tendrá más histórico.
+- Líneas base de tiempos de T-05. Ojo al **sink** y al **tamaño del lote**
+  (días de ficheros acumulados), que es lo que hace comparables los runs:
+
+| Run | Fecha | Tareas | Sink de bronce | Lote | Total | Bronce |
+|---|---|---|---|---|---|---|
+| `540330014336242` | 18-oct | 7 | append | diario | 17 m 43 s | 7 m 36 s |
+| `339441526455403` | 21-oct | 7 | **upsert** | ~3 días | 13 m 39 s | 5 m 11 s |
+| `18912486133844` (009) | 23-oct | **8** | append | ~2 días | 16 m 19 s | 7 m 33 s |
+| `923443117247499` (009, prod) | 23-oct | 8 | append | diario | 18 m 56 s | 6,9 min de setup |
+
+  T-05 exige: bronce **sin regresión** frente a `339441526455403` (5 m 11 s, es
+  el único run con el sink nuevo) y el run completo **por debajo de 16 m 19 s**
+  (el run de 8 tareas con el mismo job y compute). Los 17 m 43 s y 18 m 56 s
+  quedan como referencia de «lo actual». El lote de T-05 depende de cuándo se
+  lanzó el último ingest en dev, así que se anota su tamaño (`numInputRows` y
+  días desde el run anterior) junto al tiempo.
 
 ### Estado tras la 009 (2026-10-24)
 
@@ -74,13 +84,13 @@ planificará después.
   facturables). Presupuesto de esta spec: **3 runs de dev y 0 sesiones SQL**
   (≤ 2,0 €).
 - **Línea base de tiempos:** el ingest nuevo de T-03 (13 m 39 s, bronze
-  5 m 11 s) y el run de prod (19,2 min) son de **7 tareas**; el job actual tiene
-  8. T-05 compara el bronce con 5 m 11 s (regresión) y el run completo con
-  17 m 43 s más el delta de la tarea nueva (~0,5 min). Detalle en §2.
-- **Lotes semanales:** con cadencia semanal, cada run lee ~7 días de ficheros
-  nuevos en el landing (antes eran diarios). El `foreachBatch`/MERGE recibe más
-  filas por lote y la one-off de prod tiene más histórico que deduplicar: T-04 y
-  T-05 deben medir el efecto, no suponerlo.
+  5 m 11 s, sink *upsert*) es de **7 tareas**; el run de la 009 (`18912486133844`)
+  es de **8 tareas** y 16 m 19 s, pero con el sink *append*. T-05 compara el
+  bronce con 5 m 11 s y el total con 16 m 19 s. Detalle y tabla en §2.
+- **Tamaño del lote:** en prod, el primer run semanal leerá ~7 días de ficheros
+  nuevos (antes eran diarios) y la one-off de T-06 tendrá más histórico que
+  deduplicar. En dev el lote depende de cuándo se lanzó el último ingest: T-05
+  anota `numInputRows` y los días transcurridos, y no extrapola de T-03.
 
 ## 3. Arquitectura objetivo
 

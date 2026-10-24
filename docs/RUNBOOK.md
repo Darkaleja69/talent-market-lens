@@ -273,6 +273,27 @@ run a full refresh and check that it is still `STOPPED` and that
 `/api/2.0/sql/history/queries?filter_by.warehouse_id=<id>` shows no query in the
 refresh window.
 
+### 9.6 Bronze dedupe one-off (spec 008)
+
+`resources/oneoff.job.yml` defines a manual, unscheduled job (`dedupe_oneoff`)
+with four chained tasks —one per source— over
+`databricks_notebooks/oneoff_dedupe_bronze.ipynb`. It collapses bronze to one row
+per key (`INSERT OVERWRITE`; the latest capture wins, `_ingest_date` breaks
+ties) and keeps rows without a usable key. No schedule: it costs nothing unless
+it is run.
+
+- Dev: `databricks bundle run dedupe_oneoff -t dev --profile <profile>`
+  (~9 min, ~0.11 €; it counts against the three dev runs budgeted for spec 008).
+- Each task prints the before/after counts and the `RESTORE` line, and returns a
+  JSON summary that can be read with
+  `databricks jobs get-run-output <task_run_id>`.
+- `dry_run=true` (widget) prints the counts without writing.
+- Rollback: `RESTORE TABLE <table> TO VERSION AS OF <n>` with the version the
+  one-off printed for that table. It is SQL: ~0.43 € per warehouse wake-up, so
+  request it first and group it in a single 10-minute window.
+- Prod: follow `specs/008-Delta-Incremental/cutover.md` (pause, deploy, one-off,
+  unpause, verify the scheduled Sunday run).
+
 > **Known debt:** `resources/elt.job.yml` versions the failure-notification
 > email. It predates the bundle and the repository is public; it is an accepted
 > debt (decision of 2026-10-19). Moving it to a secret is pending.
