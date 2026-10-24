@@ -419,3 +419,17 @@ solo necesita el informe.
   tramo sin etiquetar de octubre es el gasto anterior y los recursos del RG
   gestionado (`databricks-rg-…`). El presupuesto es de suscripción y cubre todo
   el gasto, así que la alerta no depende de las etiquetas.
+
+## Cierre (2026-10-24)
+
+- Workflow `Dashboard (GitHub Pages)` en `main`: **verde**; el sitio publica
+  `data_date=2026-10-22` y 25 695 ofertas, verificado en
+  `https://darkaleja69.github.io/talent-market-lens/data/meta.json`.
+- Merge `--no-ff` de `spec/009-cost-and-cadence` a `main` y tag anotado
+  `spec-009`.
+- Rama `spec/009-cost-and-cadence` borrada (local y remota) tras el tag; el
+  worktree se elimina al cerrar la sesión.
+- Confirmación de cadencia: primer run programado el domingo 2026-10-25 a las
+  23:00 (`Europe/Madrid`).
+- Coste de la spec: ~0,61 € de runs + 0,43 € de un despertar de facturación;
+  presupuesto de 15 €/mes con alertas al 50 % y 100 %.

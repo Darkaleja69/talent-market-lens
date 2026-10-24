@@ -148,3 +148,4 @@ Unity Catalog del laboratorio y puntuar en batch dentro del job semanal
 | 2026-10-23 | Medición de coste | Run de prod 19,2 min ≈ 0,24 €; el 85–90 % del gasto es el SQL warehouse (`PREMIUM_SERVERLESS_SQL_COMPUTE`): Small ≈ 1,29 € por despertar. El pico del 17-oct son ~15 despertares, no los runs de dev; los días sin warehouse quedan en ~0,2–0,5 € |
 | 2026-10-23 | Renumeración y política | Rendimiento 009→010, streaming 010→011, gobernanza 011→012; tres entornos y presupuesto de runs (≤ 9 € en todo el track) |
 | 2026-10-23 | Spec 009: compute, warehouse y cadencia | Warehouse a 2X-Small (≈0,43 €/despertar); serverless se traslada a la 010; job prod desplegado con `50 0 23 ? * SUN` (domingos 23:00, `UNPAUSED`) |
+| 2026-10-24 | Spec 009 cerrada | Merge `--no-ff` a `main` y tag `spec-009`; workflow del dashboard en verde con `data_date` 2026-10-22; presupuesto de 15 €/mes con alertas; primer run semanal el domingo 25-oct |

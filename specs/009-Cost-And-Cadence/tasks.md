@@ -104,11 +104,14 @@ el plan antes de cada commit.
   - **Evidencia:** salida de `summary` en `evidence.md`.
   - **Nota (2026-10-23):** la persona cambia el cron y despliega a producción;
     el asistente deja la spec alineada al domingo y ejecuta T-04.
+  - **Resultado (2026-10-24):** workflow en `main` **verde** (dispatch);
+    publica el export con `data_date` 2026-10-22; cron `0 1 * * MON` y
+    comprobación de frescura de 8 días activos.
   - **Hecho (2026-10-23):** desplegado a prod; `jobs get` del job
     `916863262593632` confirma `50 0 23 ? * SUN`, `Europe/Madrid`, `UNPAUSED`.
     El fichero llegó a tener `* 7 ?` (julio) y se corrigió antes del deploy.
 
-- [ ] **T-04 — Cron del dashboard y frescura** (~25 min)
+- [x] **T-04 — Cron del dashboard y frescura** (~25 min)
   - **RF:** RF-1.
   - **Depende de:** T-03.
   - **Objetivo:** que la web se publique después del job semanal y no repita el
