@@ -63,7 +63,7 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
 | Semana | Fechas | Foco | Estado |
 |---|---|---|---|
 | 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | hecha |
-| 2–3 | 19 oct – 1 nov | **Spec 007 (código)** y **Spec 009 (coste y cadencia)** | 007 hecha; 009 en curso |
+| 2-3 | 19 oct - 1 nov | **Spec 007 (código)** y **Spec 009 (coste y cadencia)** | 007 y 009 hechas (009 cerrada el 24-oct) |
 | 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (arranca con el bronce upsert, paso B) | pendiente |
 | 7 | 23-29 nov | **Spec 010:** rendimiento, layout físico y compute | pendiente |
 | 8 | 30 nov – 6 dic | **Spec 011:** streaming y observabilidad | pendiente |
