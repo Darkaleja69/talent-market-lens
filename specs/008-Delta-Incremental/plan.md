@@ -50,19 +50,24 @@ planificará después.
 - Líneas base de tiempos de T-05. Ojo al **sink** y al **tamaño del lote**
   (días de ficheros acumulados), que es lo que hace comparables los runs:
 
-| Run | Fecha | Tareas | Sink de bronce | Lote | Total | Bronce |
-|---|---|---|---|---|---|---|
-| `540330014336242` | 18-oct | 7 | append | diario | 17 m 43 s | 7 m 36 s |
-| `339441526455403` | 21-oct | 7 | **upsert** | ~3 días | 13 m 39 s | 5 m 11 s |
-| `18912486133844` (009) | 23-oct | **8** | append | ~2 días | 16 m 19 s | 7 m 33 s |
-| `923443117247499` (009, prod) | 23-oct | 8 | append | diario | 18 m 56 s | 6,9 min de setup |
+| Run | Fecha | Tareas | Sink de bronce | Lote | Total | Bronce exec | Bronce setup |
+|---|---|---|---|---|---|---|---|
+| `540330014336242` | 18-oct | 7 | append | diario | 17 m 43 s | 1 m 14 s | 6 m 21 s |
+| `339441526455403` (T-03) | 21-oct | 7 | **upsert** | ~3 días | 13 m 39 s | **2 m 29 s** | 2 m 42 s |
+| `18912486133844` (009) | 23-oct | **8** | append | ~2 días | 16 m 19 s | 1 m 11 s | 6 m 22 s |
+| `274846748795055` (T-05 A) | 24-oct | 8 | **upsert** | ~1 día | **13 m 16 s** | 1 m 46 s | 6 m 22 s |
+| `923443117247499` (009, prod) | 23-oct | 8 | append | diario | 18 m 56 s | 1 m 10 s | 6 m 52 s |
 
-  T-05 exige: bronce **sin regresión** frente a `339441526455403` (5 m 11 s, es
-  el único run con el sink nuevo) y el run completo **por debajo de 16 m 19 s**
-  (el run de 8 tareas con el mismo job y compute). Los 17 m 43 s y 18 m 56 s
-  quedan como referencia de «lo actual». El lote de T-05 depende de cuándo se
-  lanzó el último ingest en dev, así que se anota su tamaño (`numInputRows` y
-  días desde el run anterior) junto al tiempo.
+  El **arranque del clúster** (`setup`) varía entre 2 m 42 s y 6 m 52 s según el
+  run y **no mide el código**: la comparación del ingest usa el tiempo de
+  **ejecución** de bronce. T-05 exige bronce **exec ≤ 2 m 29 s** (T-03, único run
+  *upsert* previo) y **total < 16 m 19 s** (run de 8 tareas). El *upsert* tarda
+  más en el bronce que el *append* (1 m 46 s frente a 1 m 10–14 s, porque
+  deduplica el lote y hace MERGE) y aun así el run completo es más corto, porque
+  las silvers procesan menos filas (2,8–3,6 min frente a 4,1–8,9 min en T-03).
+  Los 17 m 43 s y 18 m 56 s quedan como referencia de «lo actual». El lote de
+  T-05 depende de cuándo se lanzó el último ingest en dev, así que se anota su
+  tamaño (`numInputRows` y días desde el run anterior) junto al tiempo.
 
 ### Estado tras la 009 (2026-10-24)
 

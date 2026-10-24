@@ -107,6 +107,16 @@ al menos un despertar.
   **run 1 de 3** del presupuesto de la 008.
 - Quedan 2 runs de dev (T-05 ciclo y repetición) y 0 sesiones SQL; gasto de dev
   de la 008 tras la política: ~0,11 € de los ~0,6 € previstos.
+- **T-05 A (2026-10-24), ciclo dev:** run `274846748795055`, **SUCCESS**, 8/8
+  tareas, **13 min 16 s** (bronce setup 6 m 22 s + exec 1 m 46 s) → **~0,24 €**.
+  Consume el run 2 de 3.
+- **T-05 B (2026-10-24), repetición por idempotencia:** run `683591523413230`,
+  **SUCCESS**, 8/8, **8 min 43 s** (bronce setup 2 m 25 s + exec 1 m 04 s) →
+  **~0,11 €**. Consume el run 3 de 3.
+- **Cierre de dev de la 008:** 3 runs tras la política (0,11 + 0,24 + 0,11 =
+  **~0,46 €**), 0 sesiones SQL; con los 2 runs hundidos de T-03, ~0,94 € en total
+  frente al techo de 2,0 €. Queda el one-off de prod de T-06 (~0,05–0,13 €, fuera
+  del presupuesto de dev).
 
 ## Cierre de la spec 009 (2026-10-24)
 

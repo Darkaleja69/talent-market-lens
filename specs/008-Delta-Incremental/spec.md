@@ -73,9 +73,10 @@ y se respeta.
   aceptan como limitación documentada (cubiertas por los tests del MERGE y de la
   cuarentena, y vigiladas en el run semanal con aviso por email).
 - **Comparaciones de tiempo:** el sink (*append* o *upsert*) y el tamaño del lote
-  cambian el tiempo de bronce; T-05 exige bronce **≤ 5 m 11 s** (T-03, único run
-  con el sink nuevo) y total **< 16 m 19 s** (run de 8 tareas de la 009), y anota
-  el lote.
+  cambian el tiempo de bronce; el arranque del clúster (2 m 42 s–6 m 52 s) no
+  mide el código. T-05 exige bronce **exec ≤ 2 m 29 s** (T-03, único run con el
+  sink nuevo) y total **< 16 m 19 s** (run de 8 tareas de la 009), y anota el
+  lote.
 
 ## Decisiones (2026-10-17)
 

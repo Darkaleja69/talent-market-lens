@@ -118,14 +118,14 @@
     versiones de rollback, coste en `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-05 — Validación en dev** (~30 min)
-  - **Hecho cuando:** ciclo dev en verde con las 8 tareas; bronce **≤ 5 m 11 s**
-    (T-03 `339441526455403`: único run con el sink *upsert*, lote de ~3 días) y
-    comparación con el run de la 009 (`18912486133844`: 7 m 33 s, lote de ~2 días,
-    sink *append*), anotando el tamaño del lote; run completo por debajo de los
-    **16 m 19 s** del run de la 009 (mismo job y compute) y de los 17 m 43 s de la
-    línea base *append* diaria. Los dos exports (`gold/web_export_dev`,
-    `gold/pbi_export_dev`) quedan escritos con `meta.json` válido y los conteos
-    se comparan con prod para la misma ventana.
+  - **Hecho cuando:** ciclo dev en verde con las 8 tareas; **bronce: tiempo de
+    ejecución ≤ 2 m 29 s** (T-03 `339441526455403`, sink *upsert*), excluyendo el
+    arranque del clúster (2 m 42 s–6 m 52 s entre runs; no mide el código); run
+    completo por debajo de los **16 m 19 s** del run de la 009 (8 tareas) y de
+    los 17 m 43 s de la línea base *append* diaria; se anota el tamaño del lote
+    (`numInputRows` y días desde el run anterior). Los dos exports
+    (`gold/web_export_dev`, `gold/pbi_export_dev`) quedan escritos con `meta.json`
+    válido y los conteos se comparan con prod para la misma ventana.
   - **Ejecución (runs 2 y 3 de 3):** `databricks bundle deploy -t dev --profile vs_code`
     (gratis; sube el estado actual de la rama) y
     `databricks bundle run elt -t dev --profile vs_code` **dos veces seguidas**:
