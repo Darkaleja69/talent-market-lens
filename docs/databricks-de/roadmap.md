@@ -15,7 +15,7 @@ temario al proyecto Talent Market Lens, no en abstracto.
 
 | Dominio del examen | Spec | Dónde se practica |
 |---|---|---|
-| 1. Spark performance: shuffles, joins, broadcast, skew, partitioning, file sizes, query plans, Spark UI, Query Profile, data skipping | 010 | Medir y optimizar la ELT con `explain`, Spark UI y Query Profile; tamaño de ficheros y layout de Delta; spike de serverless y decisión final de compute (venido de la 009) |
+| 1. Spark performance: shuffles, joins, broadcast, skew, partitioning, file sizes, query plans, Spark UI, Query Profile, data skipping | 010 | Medir y optimizar la ELT con `explain`, Spark UI y Query Profile; tamaño de ficheros y layout de Delta; spike de serverless y decisión final de compute (venido de la 009; `D2ds_v6` no completa el run con las cuatro silvers en paralelo) |
 | 2. Delta: transaction log, ACID, MERGE, CDF, deletion vectors, OPTIMIZE, liquid clustering, schema evolution | 008 | `DESCRIBE HISTORY` y `_delta_log`, MERGE idempotente, CDF y evolución de esquema en Bronze |
 | 3. Streaming: checkpoint, trigger, watermark, state, microbatch, exactly-once, Structured Streaming vs Lakeflow | 011 | Auto Loader existente; demo controlada de Lakeflow Declarative Pipelines vs Structured Streaming |
 | 4. Arquitectura incremental | 008 | Silver y Gold incrementales con reproceso idempotente por fecha y fuente |

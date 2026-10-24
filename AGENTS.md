@@ -14,6 +14,9 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
     - Refresco del diagnóstico (paso 0): `python -m verification.verify_run --offline`.
     - CLI de reparaciones: `python -m repair.cli targets|brief|threshold|quality|record`.
 - Bundle (Databricks Asset Bundles): `databricks bundle validate -t dev|prod --profile <perfil>`, `databricks bundle deploy -t dev|prod --profile <perfil>` y `databricks bundle summary -t <target> --profile <perfil>`. El deploy **no ejecuta** el job: solo sube ficheros y actualiza su definición.
+- Job de producción y web: el job se ejecuta **los domingos a las 23:00** (`Europe/Madrid`); el dashboard público se publica **los lunes a las 01:00 UTC** (`.github/workflows/dashboard.yml`) y falla sin desplegar si `meta.json.data_date` tiene más de 8 días.
+- Informe Power BI: lee `gold/pbi_export` (6 Parquet + `meta.json`) en modo Import con una **SAS de solo lectura** en las credenciales del dataset; el SQL warehouse debe estar `STOPPED`. El export lo escribe la tarea `Build_Report_Export` en la misma ejecución del job.
+- Coste: `docs/costs.md` es el registro. Medir con Azure Cost Analysis y la Account Console (gratis); un despertar del warehouse 2X-Small cuesta ~0,43 € (10 min facturables).
 - Tests: No hay tests generales. Cada scraper tiene su propio test, y los notebooks de Databricks tienen el suyo:
     - Tests scrapers: `python -m pytest tests -q`
     - Test databricks: `python -m pytest databricks_notebooks/tests -q`
@@ -30,6 +33,9 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - El job de producción lo gestiona el bundle (`edit_mode: UI_LOCKED`): no se edita en la UI. Para pausar o reanudar, se cambia `pause_status` en el target `prod` de `databricks.yml` y se despliega.
 - CI del bundle: validación en PR/push (`.github/workflows/databricks-bundle-validate.yml`) y deploy de dev manual por dispatch con aprobación (`.github/workflows/databricks-bundle-deploy-dev.yml`); producción siempre manual y validada.
 - Rollback de producción: procedimiento, IDs y registro en `specs/007-ELT-As-Code/cutover.md`; el job manual pausado (`704156530681034`) se conserva como vía de vuelta.
+- No despertar el SQL warehouse sin avisar del coste. Cada despertar son 10 min facturables (~0,43 € en 2X-Small); para consultas ad hoc, agruparlas en una sola ventana o usar un notebook en el clúster del job.
+- La SAS del informe (`PBI_EXPORT_SAS`) vive en Power BI Desktop; nunca en el repositorio, logs ni capturas.
+- El informe no se valida con SQL: se valida con un refresh completo y el warehouse `STOPPED` antes y después (historial SQL sin consultas en la ventana).
 
 ## Commits
 - Un commit atómico por tarea completada, cuando su comprobación pasa (tests en verde).
@@ -55,3 +61,4 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 ## Al terminar cualquier tarea
 - Verifica mediante los tests establecidos que no hay errores.
 - Al cerrar una spec, ejecuta además su comprobación real (en la 001, la CLI contra la landing real) y registra el resultado; la spec no se cierra hasta que esa comprobación funcione.
+- Si el cambio toca el job o el informe, comprobar que el warehouse sigue `STOPPED` y anotar el coste del run en `docs/costs.md`.
