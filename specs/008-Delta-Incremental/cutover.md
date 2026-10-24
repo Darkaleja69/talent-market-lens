@@ -26,12 +26,19 @@ mecanismo de la 007 (`specs/007-ELT-As-Code/cutover.md`) y la cadencia de la
 
 ## Pasos
 
-1. **Pausar producción.** En `databricks.yml` (target `prod`),
-   `pause_status: PAUSED`; commit; `databricks bundle deploy -t prod --profile <perfil>`.
-   Comprobar con `databricks bundle summary -t prod --profile <perfil>`.
-2. **Desplegar el código nuevo.** El mismo deploy del paso 1 sube
-   `bronze_ingest.ipynb` (upsert), `oneoff_dedupe_bronze.ipynb` y el job
-   `dedupe_oneoff`. El deploy **no ejecuta** nada.
+1. **Elegir la variante según la ventana.**
+   - **Con margen** (recomendado si se hace un sábado o al menos un día antes del
+     domingo): se despliega con el job **`UNPAUSED`** y se lanza la one-off justo
+     después. El siguiente run programado es el domingo 23:00, así que el ingest
+     nuevo no procesa nada antes de la one-off. No se pausa nada y no hay riesgo
+     de olvidar reanudar.
+   - **Sin margen** (cerca del domingo 23:00 o si puede haber runs manuales):
+     pausar (`pause_status: PAUSED`), desplegar, lanzar la one-off, reanudar
+     (`UNPAUSED`) y desplegar otra vez.
+2. **Desplegar el código nuevo.** `databricks bundle deploy -t prod --profile <perfil>`
+   sube `bronze_ingest.ipynb` (upsert), `oneoff_dedupe_bronze.ipynb` y el job
+   `dedupe_oneoff`. El deploy **no ejecuta** nada. Comprobar con
+   `databricks bundle summary -t prod --profile <perfil>`.
 3. **One-off de prod.**
    `databricks bundle run dedupe_oneoff -t prod --profile <perfil>`
    (~9 min; medido 8 m 58 s en dev; ~0,05–0,13 €). Ejecuta las cuatro fuentes
@@ -43,11 +50,11 @@ mecanismo de la 007 (`specs/007-ELT-As-Code/cutover.md`) y la cadencia de la
    clave y filas sin clave conservadas. Comparar con los conteos previos
    (a 22-oct: indeed 9.552/2.959, infojobs 45.044/2.587, linkedin 17.080/14.084,
    multi_site 12.159/11.086) y anotar el efecto del run del 23-oct.
-5. **Reanudar producción.** `pause_status: UNPAUSED`; commit;
-   `databricks bundle deploy -t prod --profile <perfil>`.
-   Si el cutover se aborta en cualquier punto anterior, **dejar producción
-   `UNPAUSED`** y desplegar de nuevo: nunca se queda pausada sin que el run del
-   domingo pueda ejecutarse.
+5. **Reanudar producción** (solo en la variante sin margen). `pause_status:
+   UNPAUSED`; commit; `databricks bundle deploy -t prod --profile <perfil>`.
+   Si el cutover se aborta en esa variante, **dejar producción `UNPAUSED`** y
+   desplegar de nuevo: nunca se queda pausada sin que el run del domingo pueda
+   ejecutarse.
 6. **Comprobación real: el run programado del domingo.** No se lanza un run
    manual. Verificar el lunes:
    - run del domingo en verde, 8/8 tareas y `Bronze_Ingestion` con el sink nuevo;

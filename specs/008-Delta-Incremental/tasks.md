@@ -117,7 +117,7 @@
   - **Evidencia:** id del run, conteos después (el antes queda `[NO VERIFICADO]`),
     versiones de rollback, coste en `docs/costs.md` y fila en `evidence.md`.
 
-- [ ] **T-05 — Validación en dev** (~30 min)
+- [x] **T-05 — Validación en dev** (~30 min)
   - **Hecho cuando:** ciclo dev en verde con las 8 tareas; **bronce: tiempo de
     ejecución ≤ 2 m 29 s** (T-03 `339441526455403`, sink *upsert*), excluyendo el
     arranque del clúster (2 m 42 s–6 m 52 s entre runs; no mide el código); run
@@ -136,6 +136,14 @@
   - **Evidencia:** ids de los dos runs, tabla comparativa dev vs prod (bronce del
     one-off en T-04; gold de los `meta.json`; `numInputRows = 0` en el run B),
     coste de cada run en `docs/costs.md` y fila en `evidence.md`.
+  - **Estado:** **cerrada el 2026-10-24.** Run A `274846748795055`: 8/8, 13 m 16 s
+    (bronce exec 1 m 46 s, ≤ 2 m 29 s de T-03). Run B `683591523413230`: 8/8,
+    8 m 43 s (bronce exec 1 m 04 s). Idempotencia demostrada: A y B producen
+    `gold/pbi_export_dev` **idéntico** (33.790.833 B, `fact_offers` 26.057,
+    `data_date` 2026-10-24; generados 15:23:23Z y 15:33:07Z), es decir, la
+    reejecución no cambia datos. `numInputRows` no es legible por API porque
+    `bronze_ingest` no devuelve resumen (hueco de observabilidad anotado para la
+    010); la igualdad de los exports lo sustituye como prueba.
 
 - [ ] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
   - **Hecho cuando:** en la ventana **previa a un domingo**, la one-off de
