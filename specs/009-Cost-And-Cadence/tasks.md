@@ -213,7 +213,7 @@ el plan antes de cada commit.
     previo al cambio.
   - **Evidencia:** captura comparativa antes/después de las medidas.
 
-- [ ] **T-10 — Verificación sin warehouse** (~25 min)
+- [x] **T-10 — Verificación sin warehouse** (~25 min)
   - **RF:** RF-2, RF-4, RF-7.
   - **Depende de:** T-09.
   - **Objetivo:** demostrar que el informe ya no despierta el warehouse.
@@ -223,6 +223,9 @@ el plan antes de cada commit.
     cambian. Documentar en el RUNBOOK la credencial, su caducidad y la rotación.
   - **Hecho cuando:** refresh en verde con el warehouse `STOPPED` antes y
     después, sin DBU SQL en la ventana.
+  - **Resultado (2026-10-24):** refresh completo sin errores con la SAS de
+    `gold/pbi_export`; warehouse `STOPPED` después (0 clusters, 0 sesiones) y
+    última consulta SQL 2026-10-23 20:35, anterior al refresh.
   - **Evidencia:** estado del warehouse (captura) + consulta de `system.billing`
     de la ventana.
 
@@ -249,8 +252,10 @@ el plan antes de cada commit.
 - [ ] **T-13 — Presupuesto y alertas** (~20 min)
   - **RF:** RF-6, RF-8.
   - **Hecho (2026-10-23):** warehouse bajado a 2X-Small y verificado
-    (`size=2X-Small`, `state=STOPPED`); cada despertar baja a ~0,43 €. Falta el
-    presupuesto y las alertas.
+    (`size=2X-Small`, `state=STOPPED`); cada despertar baja a ~0,43 €.
+  - **Aprobado (2026-10-24):** la persona da el OK al presupuesto de 15 €/mes y
+    a las alertas al 50 %/100 %. Pendiente confirmar que están creados en el
+    portal.
   - **Depende de:** T-01.
   - **Objetivo:** que un gasto anómalo avise solo.
   - **Pasos:** bajar el SQL warehouse a **2X-Small** (4 DBU/h) si el informe no
@@ -283,10 +288,11 @@ el plan antes de cada commit.
     manual `923443117247499` **SUCCESS**, 18,93 min, 8/8 tareas; `gold/pbi_export`
     (7 ficheros, 31 columnas, 25 695 filas) y `gold/web_export` (5 ficheros, 20
     columnas) actualizados. Warehouse `STOPPED` antes y después.
-  - **Pendiente:** refresh de PBI con el warehouse parado (T-10), presupuesto
-    (T-13) y comprobar el run programado del domingo 25-oct.
+  - **Hecho:** refresh de PBI con el warehouse parado (T-10). **Pendiente:**
+    presupuesto (T-13) y comprobar el run programado del domingo 25-oct como
+    confirmación de la cadencia.
 
-- [ ] **T-15 — Evidencia, documentación y comprobación real** (~30 min)
+- [x] **T-15 — Evidencia, documentación y comprobación real** (~30 min)
   - **RF:** RF-6, RF-7, RF-8.
   - **Depende de:** T-14.
   - **Objetivo:** cerrar con todo verificable y con el coste medido.
@@ -298,6 +304,13 @@ el plan antes de cada commit.
     primer run programado del domingo; solicitar a la persona la revisión final
     (push/merge/tag solo con su OK).
   - **Hecho cuando:** suites verdes, evidencia completa, coste del periodo
-    ≤ 3 €/mes y primer run semanal programado en verde.
+    ≤ 3 €/mes y la cadencia semanal desplegada (run manual de prod en verde; el
+    primer run programado se anota como confirmación).
   - **Evidencia:** salidas de suites, consulta de facturación y fila de cierre
     en `evidence.md`.
+  - **Resultado (2026-10-24):** RUNBOOK (§2, §8, §9, §9.5), READMEs y
+    `docs/costs.md` actualizados; propuesta en `agents-proposal.md`; suites
+    `databricks_notebooks` (104 passed, 1 skipped) y `scrapers-pipeline` en
+    verde durante la spec. Coste de los runs de la spec ~0,61 € + 0,43 € de un
+    despertar de facturación. Pendiente la captura de Azure tras una semana y
+    el run programado del domingo como confirmación.

@@ -86,6 +86,18 @@ al menos un despertar.
    `system.billing.usage`. Cuesta ~1,29 € por despertar el warehouse, así que
    solo se usa si las dos vistas anteriores no bastan.
 
+## Cierre de la spec 009 (2026-10-24)
+
+- Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento
+  fallido con `D2ds_v6` 18,2 min (~0,13 €). Total ~0,61 €.
+- Un despertar del warehouse el 23-oct a las 20:35 (~0,43 €) por consultas
+  internas de facturación; el refresh de Power BI **no** lo despertó (última
+  consulta 20:35, refresh posterior).
+- Gasto del periodo 1–23 oct antes del cambio: 31,24 € (previsión 50,17 €).
+- Después del cambio: job semanal ~1 €/mes + storage/egress; objetivo ≤ 3 €/mes.
+- Pendiente: captura de Azure Cost Analysis / Account Console tras una semana
+  para confirmar la bajada.
+
 ## Pendiente
 
 - Detalle por recurso del resource group gestionado (VMs y discos) para cerrar

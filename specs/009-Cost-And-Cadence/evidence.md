@@ -386,3 +386,25 @@ solo necesita el informe.
   25 695 filas.
 - Pendiente: refresh de PBI con el warehouse parado (T-10) y presupuesto
   (T-13).
+
+## T-10 — Refresh de Power BI sin warehouse (2026-10-24)
+
+- Refresh completo en Power BI Desktop **sin errores** (confirmado por la
+  persona), con la credencial SAS de `gold/pbi_export`.
+- Warehouse `53d8e3e91af6749c` después del refresh: `STOPPED`, 0 clusters,
+  0 sesiones.
+- Historial SQL (`/api/2.0/sql/history/queries?filter_by.warehouse_id=...`):
+  última consulta 2026-10-23 20:35 (facturación interna); **ninguna** en la
+  ventana del refresh.
+- Conclusión: el informe ya no usa el SQL warehouse; el refresh es Import desde
+  Parquet.
+
+## T-15 — Documentación y cierre (2026-10-24)
+
+- `docs/RUNBOOK.md`: §2 (`PBI_EXPORT_SAS`), §8 (cadencia semanal), §9 (8 tareas,
+  `pbi_export_prefix`, cron dominical), §9.4 (un run por semana) y §9.5 nueva
+  (export del informe, SAS, rotación y verificación sin warehouse).
+- `README.md` y `docs/es/README.md`: actualización semanal y Power BI leyendo
+  `gold/pbi_export`.
+- `docs/costs.md`: cierre con los runs medidos y el despertar del 23-oct.
+- Propuesta de `AGENTS.md` en `agents-proposal.md` (no aplicada).
