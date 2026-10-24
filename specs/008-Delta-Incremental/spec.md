@@ -67,6 +67,11 @@ y se respeta.
 - **Cierre en producción:** T-06 se verifica con el **run programado del
   domingo**; no se lanza un run manual del job de ELT. El procedimiento está en
   `cutover.md`.
+- **Limitación aceptada:** la evolución de esquema con una columna nueva y la
+  cuarentena de punta a punta no se ejercitan en dev, porque el landing es
+  compartido con producción y un fichero de prueba lo ingeriría el job real. Se
+  aceptan como limitación documentada (cubiertas por los tests del MERGE y de la
+  cuarentena, y vigiladas en el run semanal con aviso por email).
 - **Comparaciones de tiempo:** el sink (*append* o *upsert*) y el tamaño del lote
   cambian el tiempo de bronce; T-05 exige bronce **≤ 5 m 11 s** (T-03, único run
   con el sink nuevo) y total **< 16 m 19 s** (run de 8 tareas de la 009), y anota

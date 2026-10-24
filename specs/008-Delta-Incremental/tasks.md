@@ -65,7 +65,7 @@
     Spark 4.2). Pendiente para T-03: ejecución real del MERGE, orden
     `split_quarantine` → `dedupe_batch` y `_source_file` siempre presente.
 
-- [ ] **T-03 — Ingesta con `foreachBatch` + MERGE (dev)** (~40 min)
+- [x] **T-03 — Ingesta con `foreachBatch` + MERGE (dev)** (~40 min)
   - **Objetivo:** cambiar `bronze_ingest` manteniendo Auto Loader, checkpoint
     (plan A: el actual) y el esquema de columnas; escribir la cuarentena en el
     mismo `foreachBatch`; probar en dev con el bundle
@@ -77,12 +77,17 @@
     inválida de prueba acaba en `bronze.<fuente>_quarantine` sin abortar el
     lote. Run dev y tiempos anotados.
   - **Evidencia:** id del run, tiempos y fila en `evidence.md`.
-  - **Estado:** implementado y verificado en local el 2026-10-21; **run dev
-    `339441526455403` en verde** (13 m 39 s; bronze 5 m 11 s; 7/7 tareas). Tipos
-    y offsets confirmados. Queda: (a) columna nueva con evolución de esquema,
-    (b) reproceso idempotente (T-05) y (c) la cuarentena de punta a punta, que
-    **no** se prueba inyectando ficheros en el landing compartido (prod los
-    ingeriría): la ruta está cubierta por los tests de T-02.
+  - **Estado:** **cerrada el 2026-10-24.** Implementada y verificada en local el
+    2026-10-21; run dev `339441526455403` en verde (13 m 39 s; bronze 5 m 11 s;
+    7/7 tareas), tipos y offsets confirmados. El reproceso sin cambios se valida
+    en T-05 (run B), no aquí. Quedan **no ejecutadas** dos comprobaciones de
+    punta a punta: una columna nueva con evolución de esquema y una fila inválida
+    en cuarentena. No se pueden hacer en dev sin inyectar ficheros en el landing,
+    que es **compartido con producción** (mismo `container`), y el siguiente run
+    de prod los ingeriría. **Aceptado por la persona el 2026-10-24 como
+    limitación documentada:** la ruta está cubierta por los tests del MERGE y de
+    la cuarentena, y el run semanal la ejercita de verdad cuando un scraper añade
+    una columna (aviso por email si falla).
   - **Coste:** 2 runs de dev el 2026-10-21 (uno fallido y el verde), ~0,48 €,
     **anteriores a la política de la 009**; quedan registrados como hundidos y
     no consumen el presupuesto de 3 runs.
