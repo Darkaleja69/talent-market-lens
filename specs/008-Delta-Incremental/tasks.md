@@ -95,10 +95,11 @@
     sin programación y con clúster propio `D4ds_v4` single node) con cuatro
     tareas encadenadas, una por fuente, sobre
     `databricks_notebooks/oneoff_dedupe_bronze.ipynb` (`catalog`, `source`,
-    `dry_run`): `databricks bundle run dedupe_oneoff -t dev`. ~7 min (lo domina
-    el arranque del clúster), ~0,05–0,13 €; nada de SQL Editor. La one-off es
-    idempotente y se reutiliza tal cual en T-06. Los conteos antes/después salen
-    de la salida del propio notebook, junto con el `RESTORE` de la versión previa.
+    `dry_run`): `databricks bundle run dedupe_oneoff -t dev`. ~9 min (lo domina
+    el arranque del clúster; medido en 8 m 58 s), ~0,05–0,13 €; nada de SQL
+    Editor. La one-off es idempotente y se reutiliza tal cual en T-06. Los
+    conteos antes/después salen de la salida del propio notebook, junto con el
+    `RESTORE` de la versión previa.
   - **Estado:** **cerrada el 2026-10-24.** `dedupe_overwrite_sql` +
     `valid_key_sql` en el módulo (35 tests en verde), notebook con resumen JSON
     de salida y job `dedupe_oneoff`. Run dev `328818148400464`: **SUCCESS**, 4/4
@@ -108,19 +109,18 @@
     7/7/14/8. Las claves crecieron respecto al 22-oct (2.959/2.587/14.084/11.057)
     porque el run dev de la 009 (`18912486133844`, 23-oct) ingirió ficheros
     nuevos en dev con el sink *append-only* de su rama.
-  - **Evidencia:** id del run, conteos antes/después, versiones de rollback,
-    coste en `docs/costs.md` y fila en `evidence.md`.
+  - **Evidencia:** id del run, conteos después (el antes queda `[NO VERIFICADO]`),
+    versiones de rollback, coste en `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-05 — Validación en dev** (~30 min)
-  - **Hecho cuando:** ciclo dev en verde con las 8 tareas; bronce **sin
-    regresión** frente al run de la 009 (`18912486133844`: 7 m 33 s, lote
-    semanal, sink *append*) y comparación explícita con T-03 (`339441526455403`:
-    5 m 11 s, lote diario, sink *upsert*), documentando lo que aporta el lote
-    semanal; run completo por debajo de los **16,31 min** del run de la 009
-    (mismo job y compute) y de los 17 m 43 s de la línea base *append* diaria.
-    Los dos exports (`gold/web_export_dev`, `gold/pbi_export_dev`) quedan
-    escritos con `meta.json` válido y los conteos se comparan con prod para la
-    misma ventana.
+  - **Hecho cuando:** ciclo dev en verde con las 8 tareas; bronce **≤ 5 m 11 s**
+    (T-03 `339441526455403`: único run con el sink *upsert*, lote de ~3 días) y
+    comparación con el run de la 009 (`18912486133844`: 7 m 33 s, lote de ~2 días,
+    sink *append*), anotando el tamaño del lote; run completo por debajo de los
+    **16 m 19 s** del run de la 009 (mismo job y compute) y de los 17 m 43 s de la
+    línea base *append* diaria. Los dos exports (`gold/web_export_dev`,
+    `gold/pbi_export_dev`) quedan escritos con `meta.json` válido y los conteos
+    se comparan con prod para la misma ventana.
   - **Ejecución (runs 2 y 3 de 3):** `databricks bundle deploy -t dev --profile vs_code`
     (gratis; sube el estado actual de la rama) y
     `databricks bundle run elt -t dev --profile vs_code` **dos veces seguidas**:
@@ -137,10 +137,11 @@
     migración de prod se ejecuta **antes** del primer lote del ingest nuevo
     (conteos antes/después por fuente y `RESTORE` disponible), se hace
     `bundle deploy -t prod` con rollback disponible (§5 del plan), el **run
-    programado del domingo** cierra 8/8 tareas con los exports actualizados y el
-    dashboard publica el lunes con la fecha correcta; la bitácora del roadmap
-    queda actualizada. El procedimiento paso a paso (pausa, deploy, one-off,
-    reanudar, verificación y rollback) está en `cutover.md` de esta spec.
+    programado del domingo** cierra 8/8 tareas con los exports actualizados, el
+    dashboard publica el lunes con la fecha correcta y el SQL warehouse sigue
+    `STOPPED` (sin consultas del informe); la bitácora del roadmap queda
+    actualizada. El procedimiento paso a paso (pausa, deploy, one-off, reanudar,
+    verificación y rollback) está en `cutover.md` de esta spec.
   - **Ejecución (0 runs de dev):** la one-off de prod se lanza como run corto en
     producción (~0,05–0,13 €, dentro del techo mensual de la 009) y la
     verificación real es el run programado del domingo, **sin run manual extra**.

@@ -53,6 +53,25 @@ y se respeta.
   depende del **run programado del domingo**, no de «una noche real»: el cutover
   y el one-off de producción se ejecutan en la ventana previa al domingo.
 
+## Decisiones (2026-10-24)
+
+- **Presupuesto:** 3 runs de dev y **0 sesiones SQL** (la 009 reservaba 1 sesión;
+  se renuncia el 24-oct y el techo de 2,0 € se mantiene). Los 2 runs de T-03 son
+  anteriores a la política y quedan hundidos.
+- **One-off versionada:** la migración del bronce es un job `dedupe_oneoff` con
+  notebook propio y parámetros, no SQL ni consultas ad hoc. Es idempotente y se
+  reutiliza en dev y en prod (T-06).
+- **Evidencia por API:** el notebook del one-off devuelve un resumen JSON
+  (`dbutils.notebook.exit`) con conteos y versión de rollback, para que la
+  evidencia se lea con `jobs get-run-output` sin despertar el warehouse.
+- **Cierre en producción:** T-06 se verifica con el **run programado del
+  domingo**; no se lanza un run manual del job de ELT. El procedimiento está en
+  `cutover.md`.
+- **Comparaciones de tiempo:** el sink (*append* o *upsert*) y el tamaño del lote
+  cambian el tiempo de bronce; T-05 exige bronce **≤ 5 m 11 s** (T-03, único run
+  con el sink nuevo) y total **< 16 m 19 s** (run de 8 tareas de la 009), y anota
+  el lote.
+
 ## Decisiones (2026-10-17)
 
 - **Sin historial de cambios** (no CDF): bronce = última captura por oferta.
@@ -175,5 +194,5 @@ fichero).
 - Suites existentes en verde.
 - Prod cambiado en la ventana previa a un domingo, con el rollback de
   despliegue probado en seco en la 007 y el `RESTORE` de datos documentado, y el
-  run programado del domingo verificado.
+  run programado del domingo verificado sin despertar el SQL warehouse.
 - Coste de cada run de la spec anotado en `docs/costs.md`.

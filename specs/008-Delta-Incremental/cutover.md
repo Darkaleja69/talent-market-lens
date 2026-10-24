@@ -34,7 +34,8 @@ mecanismo de la 007 (`specs/007-ELT-As-Code/cutover.md`) y la cadencia de la
    `dedupe_oneoff`. El deploy **no ejecuta** nada.
 3. **One-off de prod.**
    `databricks bundle run dedupe_oneoff -t prod --profile <perfil>`
-   (~7 min, ~0,05–0,13 €). Ejecuta las cuatro fuentes en cadena. Anotar:
+   (~9 min; medido 8 m 58 s en dev; ~0,05–0,13 €). Ejecuta las cuatro fuentes
+   en cadena. Anotar:
    id del run, conteos después y versiones de `RESTORE` de las cuatro tablas
    (el resumen JSON de cada tarea se lee con
    `databricks jobs get-run-output <task_run_id>`).
@@ -44,6 +45,9 @@ mecanismo de la 007 (`specs/007-ELT-As-Code/cutover.md`) y la cadencia de la
    multi_site 12.159/11.086) y anotar el efecto del run del 23-oct.
 5. **Reanudar producción.** `pause_status: UNPAUSED`; commit;
    `databricks bundle deploy -t prod --profile <perfil>`.
+   Si el cutover se aborta en cualquier punto anterior, **dejar producción
+   `UNPAUSED`** y desplegar de nuevo: nunca se queda pausada sin que el run del
+   domingo pueda ejecutarse.
 6. **Comprobación real: el run programado del domingo.** No se lanza un run
    manual. Verificar el lunes:
    - run del domingo en verde, 8/8 tareas y `Bronze_Ingestion` con el sink nuevo;

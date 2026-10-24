@@ -215,11 +215,12 @@ Tabla por fuente, append-only y con evolución de esquema:
 - **T-03:** `bronze_ingest` pasa de `.toTable` a `.foreachBatch` + MERGE y
   escribe la cuarentena; `DESCRIBE TABLE` de las cuatro tablas; prueba con una
   columna nueva y con una fila inválida; se mide el run dev.
-- **T-04:** verificación del bronce dev (ya normalizado por la 007) y one-off
-  solo si el ingest nuevo ha vuelto a duplicar. **La one-off de prod no va
-  aquí: va en T-06**, antes del primer lote nuevo de la ventana.
-- **T-05/T-06:** comparación con la línea base (dev 17 m 43 s / bronze 7 m 36 s)
-  y cutover con el mecanismo y rollback de la 007.
+- **T-04:** verificación del bronce dev y one-off de las cuatro tablas (hecha el
+  2026-10-24). **La one-off de prod no va aquí: va en T-06**, antes del primer
+  lote nuevo de la ventana.
+- **T-05/T-06:** comparación con las líneas base de `plan.md` §2 (sink y lote
+  importan: 17 m 43 s / 7 m 36 s *append* diario, 5 m 11 s *upsert* diario,
+  16 m 19 s con 8 tareas) y cutover con el mecanismo y rollback de la 007.
 
 ## Evidencia de auditoría
 

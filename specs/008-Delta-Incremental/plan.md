@@ -148,8 +148,9 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
 
 ## 5. Migración del bronce acumulado (RF-2)
 
-- **dev:** ya está normalizado por la 007; T-04 verifica conteos y, si algún
-  lote nuevo ha vuelto a duplicar, aplica la misma one-off.
+- **dev:** normalizado el 2026-10-24 con la one-off (run `328818148400464`,
+  4/4 tablas a una fila por clave). Si un lote nuevo vuelve a duplicar, se
+  relanza el mismo job `dedupe_oneoff`.
 - **prod:** una única ejecución de migración sobre la tabla existente
   (dedup por clave y temporal de cada fuente, con la misma condición del
   upsert), en ventana y **antes del primer lote del ingest nuevo**, con conteos
@@ -203,7 +204,7 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
 | CI: el deploy de dev solo admite `main`/`spec/007-elt-as-code` | Decidir en T-03: ampliar el guard a `spec/008-delta-incremental` o desplegar por CLI local (`--profile vs_code`). **Resuelto tras el merge de la 009:** el workflow admite `spec/008-delta-incremental` |
 | Presupuesto de runs (3 dev, 0 SQL) | Un fallo de diseño en un run se paga: se corrige en local con tests antes de volver a lanzar; el run fallido se anota en `docs/costs.md` y se descuenta |
 | Cadencia semanal: un run fallido deja la web con datos de la semana anterior | El dashboard no despliega si `meta.json.data_date` supera 8 días; el cutover se hace antes de un domingo y el run se vigila el lunes |
-| Lotes semanales más grandes (7 días por run) | Medir en T-04/T-05 el tamaño del lote, el tiempo del MERGE y el efecto en la one-off; no extrapolar de los runs diarios de T-03 |
+| Lotes semanales más grandes (7 días por run) | Medir en T-05 el tamaño del lote, el tiempo del MERGE y el efecto en la one-off; no extrapolar de los runs diarios de T-03 |
 | La tarea `Build_Report_Export` alarga el run y depende de Gold | Es aditiva (solo depende de Gold); verificar en cada run dev que los dos exports se escriben y que su contrato no cambia |
 
 ## 8. Secuencia
@@ -221,7 +222,7 @@ run.
 | Tarea | Ejecución | Runs de dev | Coste aprox. |
 |---|---|---|---|
 | T-03 (hecho, 2026-10-21) | 2 runs dev: uno fallido (`__batch_indeed`) y el verde `339441526455403` | 2 (**previos a la política**, hundidos) | ~0,48 € |
-| T-04 | job `dedupe_oneoff` en dev (clúster propio, ~7 min) | 1 | ~0,05–0,13 € |
+| T-04 (hecha, 24-oct) | job `dedupe_oneoff` en dev (clúster propio, 8 m 58 s) | 1 | ~0,11 € |
 | T-05 | ciclo dev completo con las 8 tareas | 1 | ~0,24 € |
 | T-05 | repetición inmediata sin ficheros nuevos (idempotencia) | 1 | ~0,24 € |
 | T-06 | one-off de prod + deploy en la ventana previa al domingo | 0 (prod) | ~0,05–0,13 € |
