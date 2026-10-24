@@ -96,5 +96,5 @@ databricks jobs get-run <run-id> --profile <perfil> --output json
   secreto, a un parámetro de deploy o a un webhook.
 - Deploy de producción automatizado: ¿tiene sentido con aprobación por
   environment, como el de dev, o se queda manual a propósito?
-- Cómo encajar en el bundle los cambios de la 008/009 (upsert del bronce,
+- Cómo encajar en el bundle los cambios de la 008/010 (upsert del bronce,
   rendimiento) sin tocar la programación de producción.

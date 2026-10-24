@@ -26,11 +26,11 @@
 
 A no-login, public dashboard built on the real scraped data: **Market Pulse**, **Roles & Skills**, **Salary Insights**, **Opportunity Explorer** and **Methodology**, in Spanish and English. The browser runs SQL with DuckDB-WASM over the Parquet export and draws the charts with ECharts — no backend, no build step and no credentials.
 
-**Daily update.** GitHub Actions (`.github/workflows/dashboard.yml`) downloads the export and republishes the site every day at **01:00 UTC**, after the Databricks ELT job (23:30) has produced a fresh export; a manual `workflow_dispatch` republishes on demand.
+**Weekly update.** GitHub Actions (`.github/workflows/dashboard.yml`) downloads the export and republishes the site every Monday at **01:00 UTC**, after the Databricks ELT job that runs Sundays at **23:00 Europe/Madrid**; a manual `workflow_dispatch` republishes on demand (and fails without deploying if the export is older than 8 days).
 
-**Where the export lives.** A final task of the Databricks job projects the Gold tables into one Parquet file per table — `fact_offers.parquet`, `fact_offer_skills.parquet`, `dim_skill_list.parquet`, `dim_calendar.parquet` — plus `meta.json` (data date, row counts, export mode) under `gold/web_export/` in Azure ADLS Gen2. The workflow copies them into the site's `data/` folder using a read-only SAS (`WEB_EXPORT_SAS`). **Data and credentials are never committed**; the local snapshot (`docs/data/`) is gitignored.
+**Where the export lives.** A final task of the Databricks job projects the Gold tables into one Parquet file per table — `fact_offers.parquet`, `fact_offer_skills.parquet`, `dim_skill_list.parquet`, `dim_calendar.parquet` — plus `meta.json` (data date, row counts, export mode) under `gold/web_export/` in Azure ADLS Gen2. The workflow copies them into the site's `data/` folder using a read-only SAS (`WEB_EXPORT_SAS`). The job also writes `gold/pbi_export` (6 Parquet + `meta.json`, full detail) for the Power BI report; that export is not published. **Data and credentials are never committed**; the local snapshot (`docs/data/`) is gitignored.
 
-**Power BI stays as evidence.** The `Job_Offers_Dashboard.pbip` project, the report captures (`docs/images/powerbi_*.png`) and the demo GIF (`docs/media/talent-market-lens-demo.gif`) document the BI and semantic layer; the public channel for exploring the data is now the web dashboard. CDN versions, licenses and the data contract are documented in [`docs/dashboard/README.md`](docs/dashboard/README.md).
+**Power BI reads the report export.** The `Job_Offers_Dashboard.pbip` project reads `gold/pbi_export` in Import mode with a read-only SAS (no SQL warehouse), and the report captures (`docs/images/powerbi_*.png`) and the demo GIF (`docs/media/talent-market-lens-demo.gif`) document the BI and semantic layer; the public channel for exploring the data is the web dashboard. CDN versions, licenses and the data contract are documented in [`docs/dashboard/README.md`](docs/dashboard/README.md).
 
 ---
 
@@ -85,7 +85,7 @@ It is built as a **portfolio-grade data platform**, not a dashboard exercise: re
 - **Four job portals** ingested through the same Medallion pipeline (Indeed, LinkedIn, InfoJobs and a multi-site merge of IrishJobs, StepStone, Jobs.ch and Glassdoor).
 - **Auto Loader** (Databricks) for incremental Bronze ingestion with schema evolution and checkpoints.
 - **Columnar PySpark enrichment** (no UDFs): skills extraction, seniority, employment type, role classification, salary parsing and normalization to **annual EUR**, and geographic normalization.
-- **Star schema in Gold** consumed directly by Power BI: `fact_offers`, `fact_offer_skills`, `dim_currency`, `dim_skill_list`, `dim_calendar` and a company catalog.
+- **Star schema in Gold** consumed by the Power BI report from the `gold/pbi_export` Parquet export: `fact_offers`, `fact_offer_skills`, `dim_currency`, `dim_skill_list`, `dim_calendar` and a company catalog.
 - **Data-quality built in**: every salary is classified (`ok` / `missing` / `unknown_period` / `outlier_review` / `invalid`) and posting dates are flagged for validity.
 - **Zero secrets, fully externalized config**: storage account, catalog, schemas and checkpoints are passed as notebook widgets / environment variables — nothing sensitive is versioned.
 - **Tested**: unit tests for the pure normalization rules plus Spark integration tests for `enrich()`, `build_fact_offers()`, currency conversion, skills explosion, idempotency and the calendar.

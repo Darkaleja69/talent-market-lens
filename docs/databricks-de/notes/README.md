@@ -6,13 +6,13 @@ examen: frases propias, comandos usados, errores cometidos y dudas abiertas.
 
 ## Índice (se crean al empezar cada spec)
 
-- [ ] `01-spark-performance.md` (spec 009)
+- [ ] `01-spark-performance.md` (spec 010)
 - [ ] `02-delta.md` (spec 008)
-- [ ] `03-streaming.md` (spec 010)
+- [ ] `03-streaming.md` (spec 011)
 - [ ] `04-incremental-architecture.md` (spec 008)
 - [x] `05-cicd.md` (spec 007)
-- [ ] `06-observability.md` (spec 010)
-- [ ] `07-security-governance.md` (spec 011)
+- [ ] `06-observability.md` (spec 011)
+- [ ] `07-security-governance.md` (spec 012)
 
 ## Plantilla
 
