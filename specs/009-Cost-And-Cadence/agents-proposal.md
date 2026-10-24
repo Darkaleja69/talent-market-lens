@@ -1,7 +1,7 @@
 # Propuesta de cambios en `AGENTS.md` (spec 009)
 
-**Estado: no aplicada.** Requiere el OK de la persona. Sale del cierre de la
-spec 009 (coste y cadencia).
+**Estado: aplicada el 2026-10-24** (salvo el punto de compute, que se traslada
+a la hoja de ruta de la 010: no es una convención de `AGENTS.md`).
 
 ## Comandos
 
@@ -31,8 +31,8 @@ Añadir a la sección **Reglas**:
 - El informe no se valida con SQL: se valida con un refresh completo y el
   warehouse `STOPPED` antes y después (historial SQL sin consultas en la
   ventana).
-- El ajuste de compute (serverless, `D2ds_v6`/`D4ds_v6`) queda para la spec 010:
-  `D2ds_v6` no completa el run con las cuatro silvers en paralelo.
+- El ajuste de compute (serverless, `D2ds_v6`/`D4ds_v6`) **no** se incluye aquí:
+  es backlog y vive en la hoja de ruta de la 010.
 
 ## Ramas y commits
 
