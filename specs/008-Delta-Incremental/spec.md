@@ -21,6 +21,38 @@ dominios 2 (Delta) y 4 (arquitectura incremental) del track. Incluye la
 migración de lo ya acumulado y la validación en dev; el cambio a producción
 usa el mecanismo seguro estrenado en la 007 (bundle, CI y ventana).
 
+## Herencia de la 009: coste y cadencia (2026-10-24)
+
+La spec 009 (coste y cadencia) se fusionó a `main` el 2026-10-24 y cambia el
+contexto en el que se ejecuta esta spec. **No se reabre su alcance**: se hereda
+y se respeta.
+
+- **Cadencia semanal.** El job de producción corre **los domingos a las 23:00**
+  (`Europe/Madrid`); el dashboard público se publica los lunes a las 01:00 UTC y
+  falla sin desplegar si `meta.json.data_date` tiene más de 8 días. Esta spec
+  **no** toca la programación.
+- **Job de 8 tareas.** La 009 añade `Build_Report_Export` (Parquet de
+  `gold/pbi_export` para Power BI en modo Import, sin SQL warehouse). La ingesta
+  de esta spec está aguas arriba: el run dev debe seguir cerrándolas en verde y
+  escribiendo `gold/web_export_dev` y `gold/pbi_export_dev` con su `meta.json`.
+- **Compute fijado.** `Standard_D4ds_v4` single node; `D2ds_v6` no completó el
+  run (009, T-12) y el ajuste de compute queda para la 010, que lo probará con
+  el código definitivo de esta spec.
+- **Presupuesto de runs.** La 009 reserva para esta spec **3 runs de dev y 1
+  sesión SQL** (≤ 2,0 €; tabla por spec de `specs/009-Cost-And-Cadence`
+  `plan.md` §17). Decisión del 2026-10-24: **se renuncia a la sesión SQL** —3
+  runs y 0 sesiones— y el techo de 2,0 € se mantiene, con verificación
+  local-first: los tests locales son gratis y la evidencia de historial se lee de
+  las métricas y salidas del propio run, no del SQL Editor (cada despertar del
+  warehouse son 10 min facturables, ~0,43 €). Cada run se anota con su motivo y
+  su coste en `docs/costs.md`.
+- **Gasto anterior a la política.** Esta spec ya gastó 2 runs de dev el
+  2026-10-21 (uno fallido y el verde de T-03), ~0,48 €. Quedan registrados como
+  hundidos y no consumen el presupuesto nuevo.
+- **Comprobación real de producción.** Con cadencia semanal, el cierre de T-06
+  depende del **run programado del domingo**, no de «una noche real»: el cutover
+  y el one-off de producción se ejecutan en la ventana previa al domingo.
+
 ## Decisiones (2026-10-17)
 
 - **Sin historial de cambios** (no CDF): bronce = última captura por oferta.
@@ -84,18 +116,24 @@ dev primero y prod con ventana y rollback.
 ### RF-3 — Contratos intactos
 **Criterio (EARS):** Cuando el nuevo ingest escriba, la evolución de esquema
 (`mergeSchema`, `_rescued_data`) deberá seguir funcionando y las silvers
-existentes no deberán cambiar de contrato (sus salidas se mantienen).
+existentes no deberán cambiar de contrato (sus salidas se mantienen); el run dev
+deberá además cerrar las 8 tareas del job en verde, con `gold/web_export_dev` y
+`gold/pbi_export_dev` escritos y sus `meta.json` válidos.
 
 ### RF-4 — Validación en dev
 **Criterio (EARS):** Cuando se ejecute el ciclo dev con el ingest nuevo, deberá
 terminar en verde y más rápido que el actual, con idempotencia demostrada
 (segunda ejecución sin cambios) y conteos comparados con prod para la misma
-ventana.
+ventana, sin salirse del presupuesto heredado de la 009: **3 runs de dev** y
+**ninguna sesión de SQL** (la evidencia de versiones y conteos se toma de las
+métricas y salidas del run).
 
 ### RF-5 — Cambio de producción seguro
-**Criterio (EARS):** Cuando el ingest nuevo llegue a producción, deberá
-hacerse por el flujo de la 007 (CI en verde y ventana acordada), con rollback
-documentado y una noche real verificada.
+**Criterio (EARS):** Cuando el ingest nuevo llegue a producción, deberá hacerse
+por el flujo de la 007 (CI en verde y ventana acordada **antes de un domingo**),
+con rollback documentado y el **run programado del domingo** verificado; el
+one-off de producción se ejecuta en esa ventana y no se lanza un run manual
+extra.
 
 ### RF-6 — Cuarentena de filas no fusionables
 **Criterio (EARS):** Cuando un lote traiga filas con la clave de su fuente
@@ -114,17 +152,28 @@ fichero).
   comprobable con tests; el notebook coordina.
 - **Persistencia:** el landing no se toca; el checkpoint sigue siendo la única
   fuente de «qué ficheros ya se leyeron».
+- **Coste:** la verificación es local-first; el presupuesto heredado de la 009
+  (3 runs de dev, 0 sesiones SQL) es un techo, no una estimación, y cada run se
+  anota con su coste en `docs/costs.md`.
 - **Idioma:** identificadores en inglés; documentos y mensajes, en español.
 
 ## Fuera de alcance
 
 - Historial de cambios (CDF) y expiración técnica de ofertas.
 - Cambios de scrapers o landing (specs 004/005).
+- Cadencia, compute, export del informe y presupuesto de coste (spec 009); esta
+  spec solo los respeta.
 - Bloque B (silvers/gold incrementales): se especifica al cerrar el bloque A.
 
 ## Criterios de finalización (bloque A)
 
-- Bronce dev migrado; ciclo dev en verde con tiempos y conteos registrados.
+- Bronce dev migrado; ciclo dev en verde con tiempos y conteos registrados,
+  dentro del presupuesto de 3 runs de dev y sin sesiones SQL.
 - Idempotencia demostrada (re-ejecución sin cambios de filas).
+- Los exports de la 009 (`gold/web_export_dev`, `gold/pbi_export_dev`) siguen
+  escribiéndose con `meta.json` válido en cada run dev.
 - Suites existentes en verde.
-- Prod cambiado en ventana, con rollback probado y noche real verificada.
+- Prod cambiado en la ventana previa a un domingo, con el rollback de
+  despliegue probado en seco en la 007 y el `RESTORE` de datos documentado, y el
+  run programado del domingo verificado.
+- Coste de cada run de la spec anotado en `docs/costs.md`.

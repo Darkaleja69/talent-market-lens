@@ -1,8 +1,10 @@
 # Plan técnico: bronce deduplicado e ingesta incremental
 
-> Detalle del **bloque A**. Actualizado al arrancar la spec (2026-10-21, tras
-> mergear `main` con el cierre de la 007). El bloque B (silvers/gold
-> incrementales) se planifica al cerrar el bloque A.
+> Detalle del **bloque A**. Actualizado el **2026-10-24** al traer a esta rama el
+> merge de `main` con el cierre de la 009 (coste y cadencia): cadencia semanal,
+> job de 8 tareas con `Build_Report_Export`, compute `D4ds_v4` y presupuesto de
+> runs (3 dev, 0 sesiones SQL). El bloque B (silvers/gold incrementales) se
+> planifica al cerrar el bloque A.
 
 ## 1. Objetivo y límites
 
@@ -42,9 +44,43 @@ planificará después.
 - Bronce dev ya está normalizado a 1 fila por clave (one-off de la 007, T-10):
   linkedin 13.376 y multi_site 10.489 claves; prod sigue acumulado (16.371 y
   11.562 filas).
-- Línea base de tiempos (para comparar en T-05): run dev `540330014336242`
-  17 m 43 s (bronze 7 m 36 s, 2026-10-18); primer run programado de prod
-  `471695262858572` 19 m 45 s (bronze 9 m 03 s, 2026-10-19).
+- Líneas base de tiempos de T-05, todas con un job de **7 tareas**:
+  - **Actual** (ingest append-only, 2026-10-18/19): dev `540330014336242`
+    17 m 43 s (bronze 7 m 36 s); prod `471695262858572` 19 m 45 s (bronze
+    9 m 03 s).
+  - **Ingest nuevo** (T-03, 2026-10-21): dev `339441526455403` 13 m 39 s
+    (bronze 5 m 11 s).
+  T-05 exige dos cosas: el bronce **no** supera 5 m 11 s (no regresión del
+  ingest nuevo) y el run completo no supera 17 m 43 s + ~0,5 min (el delta de la
+  8.ª tarea).
+
+### Estado tras la 009 (2026-10-24)
+
+- **Job de 8 tareas:** Bronze → 4 Silver (paralelas) → Gold →
+  `Build_for_Web-Dashboard` y `Build_Report_Export`. El export del informe
+  depende solo de Gold y escribe `gold/pbi_export(_dev)` (6 Parquet + `meta.json`,
+  modo `full`, sin columnas internas filtradas); el público conserva su contrato.
+  La ingesta de esta spec está aguas arriba: cualquier cambio de contrato en
+  bronce/silver/gold rompe los dos exports.
+- **Cadencia:** prod `50 0 23 ? * SUN` (`Europe/Madrid`, `UNPAUSED`); dev sin
+  programación. El dashboard publica los lunes a las 01:00 UTC y **no despliega**
+  si `meta.json.data_date` tiene más de 8 días: un fallo semanal deja la web con
+  datos viejos pero visibles, y no hay margen para «reintentar mañana».
+- **Compute:** `Standard_D4ds_v4` single node, `CLASSIC_PREVIEW`, runtime
+  `17.3.x-scala2.13`, `timeout_seconds: 1800`. `D2ds_v6` no completó el run
+  (`954013261343017`); el ajuste de compute es de la 010.
+- **Coste de referencia:** run dev completo ~0,24 €; run corto de un notebook
+  ~0,05–0,13 €; cada despertar del SQL warehouse 2X-Small ~0,43 € (10 min
+  facturables). Presupuesto de esta spec: **3 runs de dev y 0 sesiones SQL**
+  (≤ 2,0 €).
+- **Línea base de tiempos:** el ingest nuevo de T-03 (13 m 39 s, bronze
+  5 m 11 s) y el run de prod (19,2 min) son de **7 tareas**; el job actual tiene
+  8. T-05 compara el bronce con 5 m 11 s (regresión) y el run completo con
+  17 m 43 s más el delta de la tarea nueva (~0,5 min). Detalle en §2.
+- **Lotes semanales:** con cadencia semanal, cada run lee ~7 días de ficheros
+  nuevos en el landing (antes eran diarios). El `foreachBatch`/MERGE recibe más
+  filas por lote y la one-off de prod tiene más histórico que deduplicar: T-04 y
+  T-05 deben medir el efecto, no suponerlo.
 
 ## 3. Arquitectura objetivo
 
@@ -119,12 +155,27 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
   desorden, clave nula/en blanco, idempotencia y contrato de columnas
   (mismo enfoque que los 9 tests de `test_dedup_job_offers.py`), más el
   enrutado a cuarentena (motivo y no duplicación al reprocesar).
+- **Local-first:** todo lo que no necesite Databricks (SQL generado, dedup,
+  idempotencia del MERGE, contrato de columnas) se prueba en local con pyspark;
+  los runs se reservan a lo que exige el workspace (Auto Loader real, tablas de
+  Unity Catalog y el job cluster).
 - Ciclo dev en verde y **más rápido** que la línea base del §2, con
   idempotencia demostrada (segunda ejecución sin cambios de filas) y conteos
-  comparados con prod para la misma ventana.
+  comparados con prod para la misma ventana. Fuente de cada dato, sin SQL:
+  conteos de **bronce** de la salida del notebook one-off (T-04/T-06), conteos de
+  **gold** del `meta.json` de los dos exports, y la inmovilidad del run B por
+  `numInputRows = 0` de cada fuente. Nada de SQL Editor: la spec no usa sesiones
+  SQL.
+- Presupuesto: **3 runs de dev** (T-04 one-off, T-05 ciclo y T-05 repetición) y
+  ninguna sesión SQL. Cada run se anota en `docs/costs.md` con motivo, id y coste
+  estimado; un run fallido consume presupuesto igualmente.
+- Exports de la 009 intactos en cada run dev: `gold/web_export_dev` y
+  `gold/pbi_export_dev` escritos, `meta.json` válido, y las 8 tareas en verde.
 - Suites existentes en verde: `databricks_notebooks` y `scrapers-pipeline`.
-- Prod: ventana acordada, rollback disponible, noche real verificada y
-  bitácora del roadmap actualizada; notas `02-delta.md` y
+- Prod: ventana **previa a un domingo**, rollback disponible, one-off de prod
+  antes del primer lote del ingest nuevo, **run programado del domingo**
+  verificado (8/8 tareas, exports actualizados y dashboard publicado) y bitácora
+  del roadmap actualizada; notas `02-delta.md` y
   `04-incremental-architecture.md` escritas antes de cerrar.
 - Evidencia por tarea en `specs/008-Delta-Incremental/evidence.md` (mismo
   formato que la 007: fecha, tarea, comprobación, resultado).
@@ -139,9 +190,45 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
 | MERGE por lote sobre tablas grandes en dev | Medir en T-03/T-05 con la línea base del §2 |
 | Migración de prod en caliente | Ventana, conteos antes/después y `RESTORE` documentado |
 | Merge en prod: la tabla destino debe existir (el MERGE ya no la crea como `toTable`) | Fail fast en el handler (`ValueError` claro) y runbook: las 4 tablas bronce deben existir antes del run |
-| CI: el deploy de dev solo admite `main`/`spec/007-elt-as-code` | Decidir en T-03: ampliar el guard a `spec/008-delta-incremental` o desplegar por CLI local (`--profile vs_code`) |
+| CI: el deploy de dev solo admite `main`/`spec/007-elt-as-code` | Decidir en T-03: ampliar el guard a `spec/008-delta-incremental` o desplegar por CLI local (`--profile vs_code`). **Resuelto tras el merge de la 009:** el workflow admite `spec/008-delta-incremental` |
+| Presupuesto de runs (3 dev, 0 SQL) | Un fallo de diseño en un run se paga: se corrige en local con tests antes de volver a lanzar; el run fallido se anota en `docs/costs.md` y se descuenta |
+| Cadencia semanal: un run fallido deja la web con datos de la semana anterior | El dashboard no despliega si `meta.json.data_date` supera 8 días; el cutover se hace antes de un domingo y el run se vigila el lunes |
+| Lotes semanales más grandes (7 días por run) | Medir en T-04/T-05 el tamaño del lote, el tiempo del MERGE y el efecto en la one-off; no extrapolar de los runs diarios de T-03 |
+| La tarea `Build_Report_Export` alarga el run y depende de Gold | Es aditiva (solo depende de Gold); verificar en cada run dev que los dos exports se escriben y que su contrato no cambia |
 
 ## 8. Secuencia
 
-1. **Bloque A:** T-01–T-06 (este documento).
+1. **Bloque A:** T-01–T-06 (este documento), con el reparto de runs del §9.
 2. **Bloque B:** silvers/gold incrementales (por detallar al cerrar el bloque A).
+
+## 9. Presupuesto de runs (heredado de la 009)
+
+La política de la 009 (`plan.md` §17) fija para esta spec **3 runs de dev y 1
+sesión SQL** (≤ 2,0 €). Decisión del 2026-10-24: **se renuncia a la sesión SQL**
+y se usan los 3 runs de dev; la evidencia de historial y conteos sale del propio
+run.
+
+| Tarea | Ejecución | Runs de dev | Coste aprox. |
+|---|---|---|---|
+| T-03 (hecho, 2026-10-21) | 2 runs dev: uno fallido (`__batch_indeed`) y el verde `339441526455403` | 2 (**previos a la política**, hundidos) | ~0,48 € |
+| T-04 | run corto del one-off de dev (notebook) | 1 | ~0,05–0,13 € |
+| T-05 | ciclo dev completo con las 8 tareas | 1 | ~0,24 € |
+| T-05 | repetición inmediata sin ficheros nuevos (idempotencia) | 1 | ~0,24 € |
+| T-06 | one-off de prod + deploy en la ventana previa al domingo | 0 (prod) | ~0,05–0,13 € |
+| T-06 | verificación real | **run programado del domingo** | ya en el techo de la 009 |
+| **Total dev tras la política** | | **3** | **≈ 0,6 €** |
+| **Sesiones SQL** | | | **0** |
+
+Reglas de gasto:
+
+- Si un run de dev falla por un defecto de código, el siguiente intento se
+  descuenta del total: se corrige en local con los tests antes de relanzar.
+- **No hay sesión SQL reservada.** Si hiciera falta una (por ejemplo,
+  `DESCRIBE HISTORY` de una tabla concreta), se pide aprobación explícita a la
+  persona, se agrupa en una sola ventana de 10 min (~0,43 €) y se anota como
+  extra fuera del presupuesto en `docs/costs.md`.
+- Si se agotan los 3 runs sin cerrar el bloque A, se pide aprobación a la persona
+  y el run extra se descuenta del presupuesto de la spec siguiente (010), como
+  prevé la política de la 009 §17.
+- Prod no se prueba con runs manuales extra: la comprobación real es el run
+  programado del domingo.

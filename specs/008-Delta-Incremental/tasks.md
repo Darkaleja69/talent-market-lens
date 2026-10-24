@@ -1,10 +1,17 @@
 # Tareas: bronce deduplicado e ingesta incremental
 
-> Detalle del **bloque A**, afinado al arrancar la 008 (2026-10-21) con el
-> estado que deja la 007. Formato de aprendizaje guiado: **la persona
-> implementa**; el asistente prepara las tareas, orienta y verifica (tests y
-> revisión del diff antes del commit). Ninguna tarea se marca como hecha sin su
+> Detalle del **bloque A**, afinado al arrancar la 008 (2026-10-21) y
+> **actualizado el 2026-10-24** con la herencia de la 009 (coste y cadencia).
+> Formato de trabajo según `AGENTS.md`: **la persona decide** el alcance y
+> revisa; el asistente prepara las tareas, implementa el código y lo commitea
+> tras la verificación independiente. Ninguna tarea se marca como hecha sin su
 > comprobación.
+>
+> **Presupuesto (009, `plan.md` §17):** 3 runs de dev y 0 sesiones SQL. Reparto:
+> T-04 (run corto one-off), T-05 (ciclo completo) y T-05 (repetición por
+> idempotencia). Los 2 runs de T-03 son anteriores a la política. Prod se
+> verifica con el run programado del domingo, no con un run manual. Cada run se
+> anota en `docs/costs.md` con motivo, id y coste estimado.
 
 ## Convención de commits
 
@@ -76,33 +83,60 @@
     (b) reproceso idempotente (T-05) y (c) la cuarentena de punta a punta, que
     **no** se prueba inyectando ficheros en el landing compartido (prod los
     ingeriría): la ruta está cubierta por los tests de T-02.
+  - **Coste:** 2 runs de dev el 2026-10-21 (uno fallido y el verde), ~0,48 €,
+    **anteriores a la política de la 009**; quedan registrados como hundidos y
+    no consumen el presupuesto de 3 runs.
 
 - [ ] **T-04 — Verificación del bronce dev** (~25 min)
   - **Hecho cuando:** las tablas dev quedan en el universo único con conteos
     verificables por fuente, con la one-off aplicada donde hace falta. La
     migración de **prod no va aquí: va en T-06**, antes del primer lote nuevo.
+  - **Ejecución (run 1 de 3):** la one-off se lanza como **run corto** de un
+    notebook en el clúster del job dev (~0,05–0,13 €), no en el SQL Editor.
+    Recomendado versionar el one-off como notebook con parámetros
+    (`catalog`, `source`), idempotente y reutilizable en T-06; al ser un
+    notebook nuevo, requiere el **OK previo de la persona** (regla de
+    `AGENTS.md`). Los conteos antes/después salen de la salida del propio
+    notebook.
   - **Estado:** linkedin y multi_site ya están limpios (14.084 y 11.057 claves);
     **indeed (9.430/2.959) e infojobs (43.972/2.587) necesitan la one-off**.
     Orden: `INSERT OVERWRITE` por tabla (dedup por clave con
     `try_to_timestamp(<temporal>)` y `_ingest_date` como desempate), conteos
     antes/después y `RESTORE` anotado.
-  - **Evidencia:** conteos antes/después y fila en `evidence.md`.
+  - **Evidencia:** id del run, conteos antes/después, coste anotado en
+    `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-05 — Validación en dev** (~30 min)
-  - **Hecho cuando:** ciclo dev en verde y más rápido que la línea base
-    (run `540330014336242`: 17 m 43 s, bronze 7 m 36 s), con idempotencia
-    demostrada (segunda ejecución sin cambios de filas) y conteos comparados
-    con prod para la misma ventana.
-  - **Evidencia:** tabla comparativa dev vs prod y fila en `evidence.md`.
+  - **Hecho cuando:** ciclo dev en verde; el bronce **no supera los 5 m 11 s** de
+    T-03 (no regresión del ingest nuevo) y el run completo queda por debajo de
+    los 17 m 43 s de la línea base de 7 tareas más el delta de la 8.ª tarea
+    (`Build_Report_Export`, ~+0,5 min). Los dos exports (`gold/web_export_dev`,
+    `gold/pbi_export_dev`) quedan escritos con `meta.json` válido y los conteos
+    se comparan con prod para la misma ventana.
+  - **Ejecución (runs 2 y 3 de 3):** **run A**, ciclo completo con las 8 tareas;
+    **run B**, repetición inmediata sin ficheros nuevos en el landing →
+    `numInputRows = 0` por fuente, conteos de bronce y cuarentena sin cambios
+    (idempotencia). Toda la evidencia sale de las métricas y salidas de los runs;
+    **ninguna consulta al SQL warehouse**.
+  - **Evidencia:** ids de los dos runs, tabla comparativa dev vs prod (bronce del
+    one-off en T-04; gold de los `meta.json`; `numInputRows = 0` en el run B),
+    coste de cada run en `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
-  - **Hecho cuando:** en la ventana acordada, la one-off de migración de prod
-    se ejecuta **antes** del primer lote del ingest nuevo (conteos
-    antes/después por fuente y `RESTORE` disponible), se hace
-    `bundle deploy -t prod` con rollback disponible (§5 del plan), hay una noche
-    real verificada y la bitácora del roadmap queda actualizada.
-  - **Evidencia:** ids de deploy/run, conteos, estado final y fila en
-    `evidence.md`.
+  - **Hecho cuando:** en la ventana **previa a un domingo**, la one-off de
+    migración de prod se ejecuta **antes** del primer lote del ingest nuevo
+    (conteos antes/después por fuente y `RESTORE` disponible), se hace
+    `bundle deploy -t prod` con rollback disponible (§5 del plan), el **run
+    programado del domingo** cierra 8/8 tareas con los exports actualizados y el
+    dashboard publica el lunes con la fecha correcta; la bitácora del roadmap
+    queda actualizada.
+  - **Ejecución (0 runs de dev):** la one-off de prod se lanza como run corto en
+    producción (~0,05–0,13 €, dentro del techo mensual de la 009) y la
+    verificación real es el run programado del domingo, **sin run manual extra**.
+    Si el domingo falla, el dashboard no publica pasados 8 días: se corrige y se
+    espera al domingo siguiente, con la web mostrando la fecha real de los datos.
+  - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, estado final,
+    coste en `docs/costs.md` y fila en `evidence.md`.
 
 ## 2. Bloque B — Silvers/gold incrementales
 
