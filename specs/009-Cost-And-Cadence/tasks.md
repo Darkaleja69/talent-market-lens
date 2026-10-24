@@ -249,13 +249,16 @@ el plan antes de cada commit.
     ajuste de compute pasa a la 010 (medido, no viable el nodo menor).
   - **Evidencia:** `evidence.md` T-07 y T-12.
 
-- [ ] **T-13 — Presupuesto y alertas** (~20 min)
+- [x] **T-13 — Presupuesto y alertas** (~20 min)
   - **RF:** RF-6, RF-8.
   - **Hecho (2026-10-23):** warehouse bajado a 2X-Small y verificado
     (`size=2X-Small`, `state=STOPPED`); cada despertar baja a ~0,43 €.
-  - **Aprobado (2026-10-24):** la persona da el OK al presupuesto de 15 €/mes y
-    a las alertas al 50 %/100 %. Pendiente confirmar que están creados en el
-    portal.
+  - **Resultado (2026-10-24):** presupuesto `talent-market-lens-monthly` de
+    15 €/mes creado en la suscripción con alertas al 50 % y 100 %; etiqueta
+    `project=talent-market-lens` en storage, workspace y resource group. Las
+    etiquetas no son retroactivas y no se heredan al RG gestionado, así que el
+    desglose por etiqueta es parcial; el presupuesto es de suscripción y cubre
+    todo.
   - **Depende de:** T-01.
   - **Objetivo:** que un gasto anómalo avise solo.
   - **Pasos:** bajar el SQL warehouse a **2X-Small** (4 DBU/h) si el informe no

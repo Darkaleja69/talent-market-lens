@@ -408,3 +408,14 @@ solo necesita el informe.
   `gold/pbi_export`.
 - `docs/costs.md`: cierre con los runs medidos y el despertar del 23-oct.
 - Propuesta de `AGENTS.md` en `agents-proposal.md` (no aplicada).
+
+## T-13 — Presupuesto y etiquetas (2026-10-24)
+
+- Presupuesto `talent-market-lens-monthly`: 15 €/mes en la suscripción, con
+  alertas actuales al 50 % y 100 % al correo (confirmado por la persona).
+- Etiqueta `project=talent-market-lens` en storage `joboffershns`, workspace y
+  resource group (incluido el gestionado).
+- Las etiquetas no son retroactivas y no se heredan del RG a los recursos; el
+  tramo sin etiquetar de octubre es el gasto anterior y los recursos del RG
+  gestionado (`databricks-rg-…`). El presupuesto es de suscripción y cubre todo
+  el gasto, así que la alerta no depende de las etiquetas.

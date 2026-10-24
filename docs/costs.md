@@ -86,6 +86,18 @@ al menos un despertar.
    `system.billing.usage`. Cuesta ~1,29 € por despertar el warehouse, así que
    solo se usa si las dos vistas anteriores no bastan.
 
+## Etiquetas y presupuesto (2026-10-24)
+
+- Presupuesto `talent-market-lens-monthly`: **15 €/mes** en la suscripción, con
+  alertas actuales al **50 %** y **100 %**.
+- Etiqueta `project=talent-market-lens` en el storage `joboffershns`, el
+  workspace de Databricks y el resource group (incluido el gestionado).
+- Las etiquetas **no son retroactivas** (el gasto anterior a hoy queda sin
+  etiquetar) y **no se heredan** del resource group a los recursos: el RG
+  gestionado `databricks-rg-…` (VMs, discos, NAT) es la parte que sigue sin
+  etiqueta. El presupuesto es de **suscripción**, así que la alerta cubre todo
+  el gasto aunque el desglose por etiqueta esté incompleto.
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento
