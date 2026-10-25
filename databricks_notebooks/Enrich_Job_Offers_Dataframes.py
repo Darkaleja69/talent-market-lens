@@ -98,6 +98,9 @@ from __future__ import annotations
 
 import re
 
+from pyspark.sql import Column
+from pyspark.sql import functions as F
+
 # Reusar lista curada del repo; en notebook standalone sin models.py caemos a
 # las keywords embebidas (mismas).
 try:
@@ -1169,6 +1172,33 @@ def location_city_normalized(city: str) -> str:
     return _LOCATION_CITY_CANONIC.get(_city_clean(norm), value)
 
 
+def location_city_normalized_column(col: Column) -> Column:
+    """Column expression for location_city; same rule as enrich(), no UDF.
+
+    Single definition of the canonical city: ``enrich`` uses it for the
+    ``location_city`` column and the incremental of silver applies it to the
+    raw city of bronze before grouping, so both sides produce the same value.
+
+    - ``trim(coalesce(col, ""))`` -> ``translate(lower(...))`` (accents out).
+    - ``_LOCATION_CITY_CLEAN_RULES`` applied in order and cumulatively
+      ("Dublin 1", "Greater Dublin Area", "Madrid y alrededores", ...).
+    - canonical lookup on the normalized value, then on the cleaned one; an
+      unknown city keeps the original (trimmed) value; NULL/empty -> "".
+    """
+    city_v = F.trim(F.coalesce(col, F.lit("")))
+    city_norm = F.translate(F.lower(city_v),
+                            _LOCATION_ACCENT_SRC, _LOCATION_ACCENT_DST)
+    city_clean = city_norm
+    for pattern, repl in _LOCATION_CITY_CLEAN_RULES:
+        city_clean = F.regexp_replace(city_clean, pattern, repl)
+    canonic_city = F.create_map([
+        F.lit(item)
+        for kv in _LOCATION_CITY_CANONIC.items()
+        for item in (kv[0], kv[1])
+    ])
+    return F.coalesce(canonic_city[city_norm], canonic_city[city_clean], city_v)
+
+
 def location_fill(city: str, region: str, country: str) -> tuple[str, str]:
     """Devuelve (region, country) corregidos a partir de location_city.
 
@@ -1683,11 +1713,6 @@ def enrich(
             for kv in _LOCATION_COUNTRY_NAMES.items()
             for item in (kv[0], kv[1])
         ])
-        canonic_city = F.create_map([
-            F.lit(item)
-            for kv in _LOCATION_CITY_CANONIC.items()
-            for item in (kv[0], kv[1])
-        ])
         region_canon_map = F.create_map([
             F.lit(item)
             for kv in _LOCATION_REGION_CANONIC.items()
@@ -1717,8 +1742,8 @@ def enrich(
         for pattern, repl in _LOCATION_CITY_CLEAN_RULES:
             city_clean = F.regexp_replace(city_clean, pattern, repl)
         # Ciudad canonica en ingles (Dim_Geo); si no se reconoce -> la original.
-        city_canon = F.coalesce(
-            canonic_city[city_norm], canonic_city[city_clean], city_v)
+        # Una sola definicion de la regla (la misma que usa la clave de bronce).
+        city_canon = location_city_normalized_column(F.col(location_city_col))
         country_by_city = F.coalesce(
             city_to_country[city_clean], city_to_country[city_norm])
 

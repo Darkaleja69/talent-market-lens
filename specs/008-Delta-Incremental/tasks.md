@@ -206,7 +206,7 @@
     31/33 y repetición por contenido. `[NO VERIFICADO]`: MERGE real de Delta,
     `WITH SCHEMA EVOLUTION` y aislamiento de vistas (T-10/T-11).
 
-- [ ] **T-08 — Módulo `Silver_Incremental.py` + tests** (~60 min)
+- [x] **T-08 — Módulo `Silver_Incremental.py` + tests** (~60 min)
   - **Objetivo:** lógica **genérica** comprobable: `key_expression`,
     `changed_since`, `affected_groups`, `recompute_groups`,
     `merge_into_silver`, `window_bounds` y `force_full`, con tests pytest +
@@ -245,6 +245,15 @@
     `salary_min` y `salary_max`), nunca por una lista global. `python -m pytest
     databricks_notebooks/tests -q` en verde.
   - **Evidencia:** salida de la suite y fila en `evidence.md`.
+  - **Estado:** **cerrada el 2026-10-25.** `Silver_Incremental.py` +
+    `test_silver_incremental.py` (**32 tests**, P1–P21 con P1b, P15, P15b, P16,
+    P16b y P17–P21) y `location_city_normalized_column` en `Enrich` (solo el
+    diff aprobado). Verificación independiente **PASA**: 32 passed (10 m 47 s)
+    en el test de la tarea y 29 passed/1 skipped en los de `Enrich`; suite
+    `databricks_notebooks` **171 passed, 1 skipped**. Desviaciones aceptadas:
+    `require_unique_groups` extra y conteos antes del MERGE. `[NO VERIFICADO]`:
+    MERGE real, `WITH SCHEMA EVOLUTION`, `USING` sobre vista y escritura del modo
+    `full` (T-10/T-11).
 
 - [ ] **T-09 — Notebooks silver en modo incremental (dev)** (~60 min)
   - **Objetivo:** en cada silver, **reestructurar las celdas en dos funciones**

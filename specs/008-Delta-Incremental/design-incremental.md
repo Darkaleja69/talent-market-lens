@@ -177,9 +177,10 @@ Hoy cada notebook hace, en este orden y **siempre sobre la tabla completa**:
 - **La composición de empresa que produce la silver es
   `apply_company_canonical(apply_company_normalization(x))`**: primero
   `initcap` + colapso de espacios, después canónico. `initcap` es imprescindible
-  para las empresas que **no** casan con ningún patrón: «ACME S.L.» se guarda
-  como «Acme S.l.». Sin `initcap`, la clave calculada sobre bronce no coincidiría
-  con la guardada (medido: 6 de 30 nombres; §8.1).
+  para el **nombre guardado** y para la dimensión `companies_*`: «ACME S.L.» se
+  guarda como «Acme S.l.». La **`_key` no cambia** por `initcap`, porque la
+  expresión la pasa a minúsculas: sin `initcap` la clave de bronce y la de silver
+  seguirían coincidiendo (medido: 6 de 30 nombres cambian, la clave no; §8.1).
 - **La clave se puede calcular sobre bronce** porque `title` y `company_name`
   llegan intactos a la silver y `location_city` se normaliza con la misma
   expresión columnar. A esa clave se le llama **clave exacta**. La misma
@@ -983,6 +984,7 @@ def changed_since(prepared, window) -> DataFrame  # abierta si from_date is None
 def select_candidates(keyed, affected) -> DataFrame
 def recompute_groups(candidates, *, transform) -> DataFrame
 def require_no_null_ingest_date(recompute) -> None
+def require_unique_groups(frame, *, name: str) -> None  # invariante de §5.4
 def orphan_markers(target, affected, recompute_keys) -> DataFrame
 def merge_source(recompute, markers, target_columns) -> DataFrame
 def merge_sql(target_table, view_name) -> str
@@ -1072,7 +1074,8 @@ Reglas de `run` (todas con test):
 - Materializa `keyed`, `changed`, `affected`, `recompute`, `recompute_keys`,
   `markers` y `merge_src` (`cache`/`unpersist`) porque se inspeccionan
   (conteos) y luego se escriben: sin cache, `normalize_company`/key/enrich
-  correrían dos o tres veces.
+  correrían dos o tres veces. Los conteos del resumen se calculan **antes** del
+  MERGE, con el destino todavía sin actualizar; `target_rows` se lee después.
 - `merge_source` **no recibe ni emite `_key`**: la clave se calcula aparte para
   validar unicidad y para los marcadores, y se descarta antes del MERGE.
 
@@ -1671,7 +1674,8 @@ de deriva de la copia (rename y esquema).
 | P14 | `test_recompute_rejects_null_ingest_date` | `ValueError` ante `_ingest_date` nulo | RF-8 |
 | P15 | **`test_equivalence_incremental_equals_full_rebuild`** | **Gate principal (fixture sintético)**: aplicar el incremental sobre el fixture y comparar con `transform(bronce completo)`; incluye G5 con nulos en las componentes y la colisión de clave; `mode == "incremental"` y `mode_reason is None`. La repetición de la ventana se compara por **contenido**, `target_rows` y `recomputed_groups` (en este fixture el grupo migrado se vacía); `affected_groups`, `deleted_groups` y `merge_rows` pueden bajar y no son criterio | RF-7, RF-8 |
 | P15b | `test_equivalence_with_reference_chain_indeed_and_linkedin` | Igual que P15 con la **cadena de referencia** (`de.enrich` con `add_location_fill=True` y `normalize_location_city=True` + `apply_company_normalization` copiada + `de.apply_company_canonical` + `inc.key_expression()`) y el rename/esquema copiados del notebook. **No es la cadena real** (se valida en T-10) | RF-7 |
-| P16 | `test_company_normalization_is_fixed_point_and_name_set` | Con las **funciones reales** —`de.apply_company_canonical` (join) y la variante **columnar** copiada del notebook de infojobs—: los 128 literales canónicos casan consigo mismos; `canonical(initcap(stored)) = stored` sobre un fixture con `NULL`, `''`, `&`, apóstrofes, espacios repetidos y Unicode; y el contraejemplo **sin `initcap`** cambia el nombre guardado (y la clave) en las empresas que no casan. Justifica §2.3 y la composición de P15b | RF-7 |
+| P16 | `test_company_normalization_is_fixed_point_and_name_set` | Con las **funciones reales** —`de.apply_company_canonical` (join) y la variante **columnar** copiada del notebook de infojobs—: los 128 literales canónicos casan consigo mismos; `canonical(initcap(stored)) = stored` sobre un fixture con `NULL`, `''`, `&`, apóstrofes, espacios repetidos y Unicode; y el contraejemplo **sin `initcap`** cambia el **nombre guardado** en las empresas que no casan (la `_key` no cambia:
+la expresión la pasa a minúsculas). Justifica §2.3 y la composición de P15b | RF-7 |
 | P16b | `test_city_normalized_column_matches_enrich_and_key_matches_silver` | `de.location_city_normalized_column` contra la columna `location_city` que produce `de.enrich(add_location_fill=True, normalize_location_city=True)` (y la función pura `de.location_city_normalized`, que se conserva como referencia), en un fixture **construido explícitamente** con todas las claves y valores de los mapas de ciudad/país, más acentos, distritos numerados («Dublin 1», «Dublin 10»), «Greater X Area», «X y alrededores», «X area», `NULL`, vacío y espacios; el test **cuenta** los valores (la verificación contó **281/281** entre la pura y la columnar). Incluye un caso con `add_location_fill=False` que demuestra que **no** es una combinación válida para la clave (**3/28 diferencias medidas**) y la **clave calculada sobre bronce** (`initcap` + canónico + `location_city_normalized_column`) contra la clave de la silver (`enrich` + canónico + `key_expression()`) para las mismas filas, incluidas las de componentes nulas | RF-7 |
 | P17 | `test_candidates_are_exact_key_equality` | Solo entran las filas cuya clave exacta está en `affected`: una fila con el mismo título y empresa pero **otra ciudad** no se selecciona; una clave compartida por dos tripletas distintas selecciona **ambas**; `transform(candidates)` recortado a `affected` = `transform(prepared)` recortado | RF-7 |
 | P18 | `test_null_components_are_grouped_by_exact_key` | Fixture con `NULL` en cada componente: la clave de bronce coincide con la de silver, el grupo se recalcula completo y `incremental == full`; no hay `mode_reason` | RF-7 |
