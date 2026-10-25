@@ -1,17 +1,21 @@
 # Tareas: bronce deduplicado e ingesta incremental
 
 > Detalle del **bloque A**, afinado al arrancar la 008 (2026-10-21) y
-> **actualizado el 2026-10-24** con la herencia de la 009 (coste y cadencia).
+> **actualizado el 2026-10-24** con la herencia de la 009 (coste y cadencia) y
+> con el **bloque B planificado** (§2) mientras T-06 espera el run programado
+> del domingo.
 > Formato de trabajo según `AGENTS.md`: **la persona decide** el alcance y
 > revisa; el asistente prepara las tareas, implementa el código y lo commitea
 > tras la verificación independiente. Ninguna tarea se marca como hecha sin su
 > comprobación.
 >
-> **Presupuesto (009, `plan.md` §17):** 3 runs de dev y 0 sesiones SQL. Reparto:
-> T-04 (run corto one-off), T-05 (ciclo completo) y T-05 (repetición por
-> idempotencia). Los 2 runs de T-03 son anteriores a la política. Prod se
-> verifica con el run programado del domingo, no con un run manual. Cada run se
-> anota en `docs/costs.md` con motivo, id y coste estimado.
+> **Presupuesto (009, `plan.md` §17):** 3 runs de dev y 0 sesiones SQL para el
+> **bloque A**. Reparto: T-04 (run corto one-off), T-05 (ciclo completo) y
+> T-05 (repetición por idempotencia). Los 2 runs de T-03 son anteriores a la
+> política. Prod se verifica con el run programado del domingo, no con un run
+> manual. El **bloque B tiene presupuesto propio aprobado el 2026-10-24: 2 runs
+> de dev y 0 sesiones SQL** (~0,48 €). Cada run se anota en `docs/costs.md` con
+> motivo, id y coste estimado.
 
 ## Convención de commits
 
@@ -169,10 +173,166 @@
     12.169→11.096), `RESTORE` a 19/20/60/50. **Pendiente la comprobación real:**
     el run programado del domingo y el dashboard del lunes.
 
-## 2. Bloque B — Silvers/gold incrementales
+## 2. Bloque B — Silvers incrementales
 
-- Por detallar al cerrar el bloque A (reproceso idempotente por fecha y
-  fuente; dominios 2 y 4 del temario).
+> Planificado el **2026-10-24** (aprovechando la espera del run de prod del
+> domingo). Diseño en `plan.md` §10. Alcance decidido: **silver de ofertas
+> incremental** por grupo semántico; `companies_*` y **oro completos**.
+
+- [x] **T-07 — Diseño del incremental** (~30 min)
+  - **Objetivo:** fijar en `design-incremental.md` la unidad de incremental
+    (grupo semántico `title|company_name|location_city`), el conjunto afectado
+    (`keys_new` de bronce ∪ `keys_old` de silver por `job_id` cambiado), el
+    watermark (`max(_ingest_date)` − `lookback_days`, `force_full` en la primera
+    ejecución), la columna de control `_ingest_date` en silver, la escritura por
+    MERGE (con `WITH SCHEMA EVOLUTION`), el encaje con oro y exports, el
+    backfill por rango de fechas, y el plan de pruebas.
+  - **Preguntas guía:** ¿qué pasa si una oferta cambia de ciudad o de título
+    (migra de grupo)? ¿y si una fila de bronce se reescribe con `_ingest_date`
+    más antigua que el watermark? ¿qué se hace con una ventana vacía? ¿cómo se
+    detecta la primera ejecución? ¿qué columnas internas pueden ver oro y los
+    exports? ¿cómo se demuestra equivalencia con la reconstrucción completa?
+  - **Hecho cuando:** `design-incremental.md` con el mapa de decisión, el
+    pseudocódigo del conjunto afectado, los casos límite y el plan de pruebas;
+    revisado por `verifier`.
+  - **Evidencia:** nota en la spec y fila en `evidence.md`.
+  - **Estado:** **cerrada el 2026-10-25.** `design-incremental.md` (5
+    revisiones) fija la **clave exacta sobre bronce**
+    (`location_city_normalized_column` + normalizador de empresa por fuente), sin
+    superconjunto ni guardas; MERGE con marcadores y `WITH SCHEMA EVOLUTION`,
+    `as_bool`, `repeat_window` y ventana abierta en tabla vacía con
+    `_ingest_date`. Verificación independiente **PASA** en la cuarta vuelta;
+    comprobaciones locales: 281/281 ciudad, 10/10 clave bronce↔silver, contrato
+    31/33 y repetición por contenido. `[NO VERIFICADO]`: MERGE real de Delta,
+    `WITH SCHEMA EVOLUTION` y aislamiento de vistas (T-10/T-11).
+
+- [ ] **T-08 — Módulo `Silver_Incremental.py` + tests** (~60 min)
+  - **Objetivo:** lógica **genérica** comprobable: `key_expression`,
+    `changed_since`, `affected_groups`, `recompute_groups`,
+    `merge_into_silver`, `window_bounds` y `force_full`, con tests pytest +
+    Spark local. **No mueve ni unifica las cadenas de transformación de cada
+    fuente**: recibe el DataFrame de bronce recalculado y devuelve el
+    DataFrame; el transform sigue en cada notebook. Reutiliza la semántica de
+    `keep_latest_by` (007) sin modificar ese módulo. Incluye una función
+    columnar nueva en `Enrich_Job_Offers_Dataframes.py`
+    (`location_city_normalized_column`) que `enrich` pasa a reutilizar (una sola
+    definición, sin UDF) y el paso de la normalización de empresa como
+    callable; el cambio del módulo requiere **aprobación previa del diff**.
+  - **Hecho cuando:** tests en verde cubriendo: primera ejecución completa;
+    tabla vacía con `_ingest_date` → incremental con ventana abierta e inserción
+    por MERGE; incremental con clave nueva; captura más reciente gana; fila
+    vieja no pisa;
+    **migración de grupo sin fila huérfana**; ventana vacía no escribe; repetir
+    la ventana deja el mismo contenido (P21); tabla vacía con `_ingest_date`
+    (P1b); backfill por rango; contrato de columnas con
+    `_ingest_date`; evolución de esquema con MERGE. **Gate de equivalencia:**
+    el resultado incremental debe ser igual al de la reconstrucción completa
+    sobre el mismo fixture, con una **cadena de referencia** construida con las
+    funciones de módulo (`de.enrich`, `de.location_city_normalized_column`,
+    `de.apply_company_canonical`) **más `apply_company_normalization`
+    (`initcap`) copiada del notebook antes del canónico**, e
+    `inc.key_expression()`, con el rename/esquema copiados del notebook
+    (**P15b**). La cadena real de los notebooks no es importable: se valida en
+    T-10 con el **run B incremental** sobre datos reales, y el diff de T-09 es
+    el control de deriva de la copia. Incluye **P16b**: equivalencia entre
+    `de.location_city_normalized_column` y la columna `location_city` de
+    `enrich` (con la función pura como referencia; acentos, países, ciudades,
+    nulos; sin fijar un número de valores) y la clave calculada sobre bronce
+    contra la de la silver. `enrich` se llama con `add_location_fill=True` y
+    `normalize_location_city=True`; cualquier otra combinación no es válida para
+    la clave. El test de contrato se parametriza por `target.columns`
+    (**indeed 31**; **linkedin/infojobs/multi_site 33**, que conservan
+    `salary_min` y `salary_max`), nunca por una lista global. `python -m pytest
+    databricks_notebooks/tests -q` en verde.
+  - **Evidencia:** salida de la suite y fila en `evidence.md`.
+
+- [ ] **T-09 — Notebooks silver en modo incremental (dev)** (~60 min)
+  - **Objetivo:** en cada silver, **reestructurar las celdas en dos funciones**
+    (`prepare_bronze` y `build_offers`) y sustituir la escritura por `inc.run`.
+    No se reescribe la lógica: el diff debe demostrar que renames, derivación de
+    `posted_date`, flags por fuente, enrich, normalización de empresa,
+    normalización de localización y `drop` son los mismos, movidos con
+    indentación y `return`. Cambios de texto permitidos y solo estos: la línea
+    de `_key` pasa a `inc.key_expression()` (solo la de ofertas; la
+    `add_semantic_key` de empresas de indeed se conserva), quitar
+    `_ingest_date` de la lista del `drop`, quitar las llamadas sueltas de
+    normalización de las celdas de definiciones, el widget `repeat_window` con
+    su envoltorio de resumen, y la procedencia de
+    `companies_infojobs`/`multi_site`. En el reparto:
+    `prepare_bronze` devuelve el frame renombrado **antes** del cast/select (lo
+    necesitan `companies_indeed` y `companies_linkedin`); el cast/select va en
+    `build_offers`. Las definiciones de funciones (empresa canónica, `_key`)
+    quedan a nivel del notebook y solo su llamada entra en `build_offers`.
+    `companies_indeed` y `companies_linkedin` siguen leyendo el frame preparado;
+    `companies_infojobs` y `companies_multi_site` leen
+    `silver.offers_<fuente>.company_name` + `dropDuplicates()`, **sin reaplicar
+    normalización** (el valor ya es canónico), y se escriben después de las
+    ofertas. Widgets
+    `lookback_days`, `from_date`, `to_date`, `force_full` y `repeat_window`;
+    resumen JSON por `dbutils.notebook.exit` (modo, ventana y conteos por
+    fuente; con `repeat_window` se devuelve `{"repeat_window": true,
+    "runs": [...]}`) para leer evidencia sin SQL. Desplegar a dev
+    (`databricks bundle deploy -t dev --profile vs_code`; el deploy no ejecuta
+    el job).
+  - **Aprobación previa (AGENTS.md):** presentar por notebook fichero, celdas
+    afectadas, diff y motivo, y esperar el OK; el diff debe demostrar que no
+    se ha tocado ninguna celda de negocio.
+  - **Hecho cuando:** diff aprobado, notebooks desplegados en dev, contrato de
+    oro/exports sin cambios (`_ingest_date` no aparece en `gold/*` ni en los
+    Parquet) y `docs/RUNBOOK.md` + `docs/es/RUNBOOK.md` con el procedimiento de
+    backfill (parámetros, ventana, coste y rollback). Los parámetros de job
+    `backfill_from`, `backfill_to` y `repeat_window` (vacíos por defecto) se
+    añaden a `resources/elt.job.yml` y se pasan a las cuatro tareas silver con
+    `{{job.parameters.*}}`; también requieren aprobación previa y no cambian el
+    comportamiento por defecto (ni en prod).
+  - **Evidencia:** diff aprobado, id de deploy y fila en `evidence.md`.
+
+- [ ] **T-10 — Validación en dev (runs 1 y 2 de 2)** (~30 min)
+  - **Hecho cuando:** **run A** cierra 8/8 tareas y es la migración (tabla sin
+    `_ingest_date` → reconstrucción completa con `overwrite`), con silver
+    ≤ 2,8–3,6 min de T-05 y total ≤ 13 m 16 s, y exports con `meta.json`
+    válido. **Run B es un backfill incremental** con `from_date`/`to_date`
+    sobre bronce existente (sin ficheros nuevos): **ejecuta el MERGE, los
+    marcadores y el conjunto afectado**, y repite la misma ventana una segunda
+    vez dentro del notebook (widget de repetición) para demostrar idempotencia.
+    Sus exports deben quedar **idénticos byte a byte** a los de A (equivalencia
+    en datos reales). La repetición se compara por **contenido** (`target_rows`,
+    conteos de oro y exports); `affected_groups`, `deleted_groups`, `merge_rows`
+    y `recomputed_groups` pueden bajar en la segunda pasada (porque la primera ya
+    limpió un grupo migrado, o porque el grupo antiguo conserva filas): el
+    contenido manda y esos conteos no son criterio de idempotencia.
+  - **Ejecución:** `bundle deploy -t dev` (gratis) y
+    `bundle run elt -t dev --profile vs_code` dos veces; toda la evidencia sale
+    de las salidas JSON y de los `meta.json`; **ninguna consulta SQL**. El run B
+    pasa `backfill_from`/`backfill_to`/`repeat_window` por parámetros del job
+    (`--params`); si la CLI instalada no lo admite, se usa un job corto
+    `silver_backfill` con los mismos widgets (como `dedupe_oneoff`). La ventana
+    exacta queda en el resumen. El lote del run A incluye los ficheros del
+    landing desde el run de T-05 (24-oct): se anota el tamaño para que la
+    comparación de tiempos con T-05 sea honesta.
+  - **Coste:** 2 runs (~0,48 €), anotados en `docs/costs.md`.
+  - **Evidencia:** ids, tabla comparativa de tiempos y exports A/B, fila en
+    `evidence.md`.
+
+- [ ] **T-11 — Producción (ventana previa a domingo)** (~30 min)
+  - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
+    bundle y `RESTORE` de las silvers disponible; el **primer run programado**
+    reconstruye las silvers completas (migración, sin one-off) y cierra 8/8 con
+    los exports actualizados y el dashboard publicado el lunes; el **domingo
+    siguiente** el run es incremental real (la ventana no está vacía solo si hay
+    ficheros nuevos) y el dashboard vuelve a publicar; SQL warehouse `STOPPED`
+    antes y después. Bitácora del roadmap actualizada.
+  - **Nota:** los runs semanales ya están en la cadencia de la 009; esta tarea
+    no añade runs manuales.
+  - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
+    `RESTORE`, estado del warehouse y fila en `evidence.md`.
+
+- [ ] **T-12 — Cierre de la spec**
+  - Notas `docs/databricks-de/notes/02-delta.md` y
+    `04-incremental-architecture.md` escritas con la plantilla del índice.
+  - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
+    completas en verde; comprobación real registrada; merge a `main` y tag
+    (`spec-008`) solo con el bloque A y el B verificados.
 
 ## 3. Cierre de la spec
 

@@ -1,8 +1,9 @@
 # Especificación funcional: bronce deduplicado e ingesta incremental (Delta)
 
 > **Borrador inicial (2026-10-17).** Define el **bloque A (bronce upsert)** para
-> poder arrancar directamente; el **bloque B (silvers/gold incrementales)** se
-> detallará al cerrar el bloque A. Nace del diagnóstico de la spec 007
+> poder arrancar directamente; el **bloque B (silvers incrementales)** se
+> planificó el **2026-10-24** aprovechando la espera del run de producción del
+> domingo (§ «Bloque B»). Nace del diagnóstico de la spec 007
 > (`specs/007-ELT-As-Code/evidence.md`) y de las decisiones tomadas con la
 > persona.
 
@@ -124,6 +125,76 @@ y se respeta.
   one-off (RF-2). `ckpt_v2` (relectura completa) queda como plan B si el
   cambio de sink falla en dev.
 
+## Bloque B — silvers incrementales (decisiones del 2026-10-24)
+
+Se planifica antes de cerrar el bloque A para no dejar la spec parada hasta el
+run de producción del domingo. **No cambia lo ya cerrado**: el bloque A sigue
+pendiente únicamente de la comprobación real de T-06.
+
+- **Alcance.** Las cuatro silvers de ofertas (`offers_indeed`,
+  `offers_linkedin`, `offers_infojobs`, `offers_multi_site`) pasan a escritura
+  **incremental**; las dimensiones `companies_*` y **toda la capa oro siguen en
+  reconstrucción completa**. Motivo: en oro el dedup de negocio
+  (`title_norm` + `company_norm` + `salary_filled`) y el reparto de salario son
+  ventanas **globales** (un cambio en una oferta puede cambiar la ganadora de
+  otro grupo), y a 26k filas reconstruirlo cuesta segundos.
+- **Sin unificar las cadenas de transformación.** Las cuatro silvers solo
+  comparten el esqueleto: cada una tiene sus renames, su derivación de
+  `posted_date` (linkedin y multi_site la calculan desde `posted_relative`),
+  sus flags, su forma de construir `companies_*`, su `drop` y su normalización
+  de localización (solo indeed). El módulo común se limita a **ventana,
+  conjunto afectado y MERGE**; el transform de cada fuente se queda en su
+  notebook, celda a celda, porque unificarlo cambiaría resultados.
+- **La escala manda en la expectativa.** Tras el bloque A el bronce son ~31k
+  filas: el tiempo de las silvers (2,8–3,6 min) es sobre todo arranque y
+  overhead de Spark, no volumen. El bloque B se hace para **practicar y
+  demostrar el patrón incremental con equivalencia**, no para ganar minutos;
+  el rendimiento es la spec 010.
+- **Unidad de incremental.** El **grupo semántico** que ya usan las cuatro
+  silvers para deduplicar: `lower(trim(title)) | lower(trim(company_name)) |
+  lower(trim(location_city))` (`_key`). No se incrementaliza por `job_id`:
+  el dedup de silver es por grupo y un MERGE por `job_id` cambiaría resultados.
+- **Clave exacta, sin atajos.** La clave se calcula sobre el bronce con la
+  **misma** normalización que produce la silver: `title` tal cual,
+  `company_name` con el normalizador de la fuente y `location_city` con
+  `Enrich_Job_Offers_Dataframes.location_city_normalized_column` (la misma
+  expresión columnar que escribe `enrich`). Así los candidatos se seleccionan
+  por igualdad exacta de clave: no hay superconjunto por pares, ni guarda de
+  nulos, ni guarda de `|`, ni excepciones a RF-7.
+- **Conjunto afectado.** Claves exactas de las filas de bronce con
+  `_ingest_date` dentro de la ventana **más** las claves de las filas de silver
+  cuyo `job_id` esté entre los `job_id` cambiados. Lo segundo evita filas
+  huérfanas cuando una oferta **migra de grupo** (cambia de ciudad o de título):
+  su grupo antiguo debe recalcularse para expulsarla.
+- **Watermark sin estado extra.** `max(_ingest_date)` de
+  `silver.offers_<fuente>` menos un `lookback_days` (por defecto **7**, la
+  cadencia semanal) para tolerar ficheros tardíos o reprocesos con fecha
+  antigua. Si la tabla no tiene `_ingest_date` (primera ejecución con el código
+  nuevo), se hace **reconstrucción completa**: esa es la migración, sin one-off
+  adicional. No hay tabla de control de watermarks ni CDF.
+- **Columnas de control.** Silver conserva **solo `_ingest_date`** (no
+  `_source_file`): es lo que permite calcular el watermark. Oro no la usa
+  (`build_fact_offers` selecciona columnas explícitas) y los exports de la 009
+  proyectan listas explícitas que no incluyen las internas; el contrato de ambos
+  no cambia.
+- **Escritura.** `MERGE` sobre el grupo semántico: el origen ya viene
+  deduplicado (una fila por grupo) y el destino también, así que la
+  actualización por `WHEN MATCHED` + inserción por `WHEN NOT MATCHED` deja el
+  mismo resultado que el `overwrite` completo. Sin cambios en la ventana, no se
+  escribe nada.
+- **Reproceso.** Parámetros de notebook `from_date`, `to_date`, `lookback_days`,
+  `force_full` y `repeat_window` (la fuente la fija el notebook): un backfill
+  recalcula la ventana pedida y es idempotente (repetirlo no cambia filas; los
+  conteos de grupos pueden bajar en la segunda pasada). El primer run tras el
+  deploy es la migración por la vía de `force_full` implícito.
+- **Presupuesto.** **2 runs de dev** (~0,48 €) y **0 sesiones SQL**: uno con el
+  incremental nuevo y otro de repetición para demostrar idempotencia y
+  backfill. Producción no gasta run extra: la verificación es el run programado
+  del domingo y el dashboard del lunes.
+- **Riesgo aceptado.** Un cambio en una fila de bronce con `_ingest_date` más
+  antigua que la ventana no se vería hasta el siguiente backfill; se documenta
+  en el runbook y se cubre con el `lookback_days` de una cadencia.
+
 ## Requisitos funcionales (borrador)
 
 ### RF-1 — Bronce como estado actual
@@ -170,6 +241,45 @@ origen, sin incluirlas en el MERGE y sin abortar el resto del lote. Reprocesar
 el mismo fichero no deberá duplicar la cuarentena (huella de fila + motivo +
 fichero).
 
+### RF-7 — Silver incremental con equivalencia
+**Criterio (EARS):** Cuando el bronce de una fuente reciba filas nuevas o
+actualizadas, la silver de esa fuente deberá actualizarse sin reconstruirse
+entera y el resultado deberá ser idéntico al de una reconstrucción completa de
+la misma tabla, sin reinsertar ni reescribir los grupos no afectados. *Mecanismo:
+la clave se calcula sobre el bronce con la ciudad normalizada del módulo
+(`location_city_normalized_column`) y la normalización de empresa de cada fuente,
+y los candidatos se seleccionan por **igualdad exacta de clave**
+(`plan.md` §10.2). No hay superconjunto por pares ni guarda de nulos.*
+
+### RF-8 — Watermark y primera ejecución
+**Criterio (EARS):** Cuando la silver tenga `_ingest_date`, la ventana de
+recalculo deberá empezar en `max(_ingest_date)` menos `lookback_days`; cuando la
+tabla esté **vacía pero tenga la columna**, la ventana deberá quedar abierta
+(`from_date` nulo) y el MERGE deberá insertar todos los grupos del bronce;
+cuando no tenga `_ingest_date`, la tabla deberá reconstruirse completa. Repetir
+la misma ventana no deberá cambiar el contenido de la tabla (los conteos de
+grupos afectados o borrados pueden bajar porque la primera pasada ya limpió los
+grupos migrados).
+
+### RF-9 — Reproceso por fecha y fuente
+**Criterio (EARS):** Cuando se ejecute la silver de una fuente con un rango
+`from_date`–`to_date` (o con `force_full`), el reproceso deberá recalcular esa
+ventana en esa fuente y ser idempotente (repetirlo no duplica ni altera filas).
+La fuente la determina el notebook; no hay widget `source`.
+
+### RF-10 — Contratos intactos de oro y exports
+**Criterio (EARS):** Cuando la silver escriba en modo incremental, las tablas
+oro y los dos exports (`gold/web_export(_dev)`, `gold/pbi_export(_dev)`) deberán
+conservar su contrato, sin columnas internas (`_ingest_date`) y con sus
+`meta.json` válidos; el run dev deberá seguir cerrando las 8 tareas en verde.
+
+### RF-11 — Incremental en producción
+**Criterio (EARS):** Cuando el incremental llegue a producción, el primer run
+tras el deploy deberá reconstruir las silvers completas (migración sin one-off),
+los siguientes deberán ser incrementales, y el run programado del domingo
+deberá cerrar 8/8 tareas con los exports actualizados y el dashboard publicado
+el lunes, sin despertar el SQL warehouse.
+
 ## Requisitos no funcionales (borrador)
 
 - **Stack simple:** Auto Loader y Delta existentes; sin dependencias nuevas.
@@ -188,7 +298,13 @@ fichero).
 - Cambios de scrapers o landing (specs 004/005).
 - Cadencia, compute, export del informe y presupuesto de coste (spec 009); esta
   spec solo los respeta.
-- Bloque B (silvers/gold incrementales): se especifica al cerrar el bloque A.
+- **Incremental de oro y de las dimensiones `companies_*`:** se quedan en
+  reconstrucción completa (ventanas globales y tamaño pequeño). Lo mismo el
+  particionado, `OPTIMIZE` y el layout físico (spec 010).
+- **Dedup de negocio con localización y ventana temporal** (`title_norm` +
+  `company_norm` + `salary_filled`): spec propia, no se corrige aquí.
+- **Tabla de control de watermarks y CDF en bronce:** descartados; el agua se
+  deriva de `_ingest_date` en la propia silver.
 
 ## Criterios de finalización (bloque A)
 
@@ -202,3 +318,19 @@ fichero).
   despliegue probado en seco en la 007 y el `RESTORE` de datos documentado, y el
   run programado del domingo verificado sin despertar el SQL warehouse.
 - Coste de cada run de la spec anotado en `docs/costs.md`.
+
+## Criterios de finalización (bloque B)
+
+- Las cuatro silvers de ofertas escriben por MERGE sobre el grupo semántico y
+  demuestran **equivalencia con la reconstrucción completa** (test local con
+  fixtures y comparación en el run dev).
+- Primera ejecución tras el deploy reconstruye completo; las siguientes son
+  incrementales; repetir la ventana no cambia filas (idempotencia).
+- Reproceso por rango de fechas operativo y documentado en el
+  runbook, con evidencia de que repetirlo no altera la tabla.
+- Oro y los dos exports conservan contrato y `meta.json` válido; 8/8 tareas en
+  verde en los runs dev, dentro de **2 runs de dev y 0 sesiones SQL**.
+- Producción desplegada en ventana previa a un domingo, con el run programado
+  verificado y el dashboard publicado el lunes, sin despertar el SQL warehouse.
+- Notas `02-delta.md` y `04-incremental-architecture.md` escritas y roadmap al
+  día.

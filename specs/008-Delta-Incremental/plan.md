@@ -1,16 +1,18 @@
 # Plan técnico: bronce deduplicado e ingesta incremental
 
-> Detalle del **bloque A**. Actualizado el **2026-10-24** al traer a esta rama el
-> merge de `main` con el cierre de la 009 (coste y cadencia): cadencia semanal,
-> job de 8 tareas con `Build_Report_Export`, compute `D4ds_v4` y presupuesto de
-> runs (3 dev, 0 sesiones SQL). El bloque B (silvers/gold incrementales) se
-> planifica al cerrar el bloque A.
+> Detalle del **bloque A** (T-01–T-06) y del **bloque B** (T-07–T-12, §10).
+> Actualizado el **2026-10-24**: trae a esta rama el merge de `main` con el
+> cierre de la 009 (cadencia semanal, job de 8 tareas con `Build_Report_Export`,
+> compute `D4ds_v4` y presupuesto de runs) y planifica el bloque B mientras
+> T-06 espera el run programado del domingo.
 
 ## 1. Objetivo y límites
 
-Bronce = estado actual por oferta (upsert idempotente); el landing y las
-silvers no cambian en este bloque. El bloque B (silvers/gold incrementales) se
-planificará después.
+Bronce = estado actual por oferta (upsert idempotente). El landing no cambia en
+ninguno de los dos bloques. El bloque B (§10) convierte las cuatro silvers de
+ofertas en incrementales por grupo semántico, con watermark derivado de
+`_ingest_date`; las dimensiones `companies_*` y toda la capa oro siguen en
+reconstrucción completa.
 
 ## 2. Estado de partida (tras la 007)
 
@@ -215,7 +217,9 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
 ## 8. Secuencia
 
 1. **Bloque A:** T-01–T-06 (este documento), con el reparto de runs del §9.
-2. **Bloque B:** silvers/gold incrementales (por detallar al cerrar el bloque A).
+2. **Bloque B:** T-07–T-12 (§10), planificado el 2026-10-24 mientras T-06 espera
+   el run del domingo. El orden es diseño → módulo y tests → notebooks en dev →
+   dos runs de dev → producción → cierre.
 
 ## 9. Presupuesto de runs (heredado de la 009)
 
@@ -232,7 +236,9 @@ run.
 | T-05 | repetición inmediata sin ficheros nuevos (idempotencia) | 1 | ~0,24 € |
 | T-06 | one-off de prod + deploy en la ventana previa al domingo | 0 (prod) | ~0,05–0,13 € |
 | T-06 | verificación real | **run programado del domingo** | ya en el techo de la 009 |
-| **Total dev tras la política** | | **3** | **≈ 0,6 €** |
+| T-10 (bloque B) | run dev con las silvers incrementales | 1 | ~0,24 € |
+| T-10 (bloque B) | repetición + backfill forzado (idempotencia) | 1 | ~0,24 € |
+| **Total dev tras la política** | | **3 (+2 del bloque B)** | **≈ 1,1 €** |
 | **Sesiones SQL** | | | **0** |
 
 Reglas de gasto:
@@ -243,8 +249,193 @@ Reglas de gasto:
   `DESCRIBE HISTORY` de una tabla concreta), se pide aprobación explícita a la
   persona, se agrupa en una sola ventana de 10 min (~0,43 €) y se anota como
   extra fuera del presupuesto en `docs/costs.md`.
-- Si se agotan los 3 runs sin cerrar el bloque A, se pide aprobación a la persona
-  y el run extra se descuenta del presupuesto de la spec siguiente (010), como
-  prevé la política de la 009 §17.
+- Si se agotan los 3 runs del bloque A sin cerrarlo, se pide aprobación a la
+  persona y el run extra se descuenta del presupuesto de la spec siguiente (010),
+  como prevé la política de la 009 §17.
+- **Bloque B (aprobado el 2026-10-24):** presupuesto propio de **2 runs de dev y
+  0 sesiones SQL** (~0,48 €); no consume los del bloque A.
 - Prod no se prueba con runs manuales extra: la comprobación real es el run
   programado del domingo.
+
+## 10. Bloque B — silvers incrementales
+
+### 10.1 Estado de partida (código actual)
+
+Las cuatro silvers **solo comparten el esqueleto**, no el proceso: lectura
+completa de bronce → cadena de transformación **propia de cada fuente** →
+`enrich` → normalización de empresa → dedup por
+`_key = lower(trim(title))|lower(trim(company_name))|lower(trim(location_city))`
+con `row_number()` ordenado por `posted_date` desc, `_ingest_date` desc →
+`drop` de internas → `overwrite`. El bloque B **no unifica esas cadenas**: el
+módulo nuevo solo calcula la ventana, el conjunto afectado y el MERGE; cada
+notebook conserva su transform tal cual.
+
+| Fuente | Particularidades que hay que preservar |
+|---|---|
+| indeed | Renombra `job_key`, `company`, `city`, `state`, `country`, `salary_text`, `salary_type`, `workplace_type`, `search_term`, `ingest_date`, `description_text`; fija `salary_currency`=EUR, `skills`/`experience_level` vacíos y `source_scraper`=Indeed; `companies_indeed` se deriva del bronce **antes** de enrich y normaliza `company_rating` por `review_count`; **es la única que hace `normalize_location_codes`**; su `drop` incluye además `salary_min`/`salary_max` y reemplaza `salary_period`/`work_mode` por las columnas `_norm` de enrich |
+| linkedin | `keep_latest_by(["job_id"])` **antes** de enrich; solo renombra `description_full`; deriva `posted_date` de `posted_datetime`/`posted_relative` usando `scraped_at` (intervalos de minutos a años); `companies_linkedin` se deriva del frame preparado (antes del cast) y limpia `company_size` por rangos, con `company_industry`/`company_description`; escribe ofertas y empresas en celdas separadas |
+| infojobs | Renombra columnas en español (`id_oferta`→`job_id`, `titulo`, `empresa`, `ciudad`, `provincia`, `pais`, `fecha_publicacion`, `modalidad`, `moneda`, `salario_*`, `periodo`, `descripcion_snippet`, `jornada`, `fecha_scraped`→`scraped_at`, `fuente`→`source_scraper`, `keyword_buscada`); `posted_date` ya viene fecha; `companies_infojobs` se deriva de `df_completed` (solo nombre); **sin** normalización de códigos de localización |
+| multi_site | `keep_latest_by(["site","job_id"])` antes de enrich; renombra `description_snippet`, `site`→`source_scraper`, `salary_disclosed`→`is_salary_available`; deriva `posted_date` de `posted_relative` en inglés y español; `companies_multi_site` desde `df_completed` (solo nombre); **sin** normalización de códigos de localización |
+
+Consecuencias de diseño:
+
+- El **transform se queda en cada notebook**; el módulo solo recibe/entrega
+  DataFrames. Cualquier intento de factorizar las cadenas en un único proceso
+  cambiaría resultados (fechas, monedas, empresas, columnas que se descartan).
+- Las tablas `companies_*` siguen en **reconstrucción completa**: `indeed` y
+  `linkedin` las derivan del frame preparado (antes de enrich), como hoy;
+  `infojobs` y `multi_site` pasan a leer `silver.offers_<fuente>.company_name`
+  (los mismos nombres ganadores, ya canónicos) y **no reaplican ninguna
+  normalización**, solo `dropDuplicates`. El orden es ofertas primero y
+  empresas después.
+- `gold_build`, `Prepare_Gold.py` y los exports no cambian.
+- Bronce tras el bloque A: 3.039 + 2.617 + 14.289 + 11.096 ≈ 31k filas.
+
+### 10.2 Diseño
+
+**Unidad de incremental: grupo semántico.** No por `job_id`: el dedup de silver
+es por `_key`, así que un MERGE por clave de negocio cambiaría el resultado
+(movería el ganador de un grupo). Se recalcula el grupo entero.
+
+**Conjunto afectado (clave exacta sobre bronce):**
+
+```text
+city_bronze  = de.location_city_normalized_column(location_city)   # expresión columnar
+key_bronze   = key_expr(title, normalize_company(company_name), city_bronze)
+changed      = prepared if from_date is None else
+               prepared.where(_ingest_date >= from_date)       # ventana abierta si tabla vacía
+# to_date, si viene, se aplica como tope superior (ver changed_since del diseño)
+keys_new     = changed.select(key_bronze.alias("k"))
+keys_old     = silver.join(changed_ids, <clave de negocio>)    # job_id (+ source_scraper)
+                     .select(key_expr.alias("k"))
+affected     = keys_new.union(keys_old).distinct()
+candidates   = prepared.where(key_bronze IN affected)          # igualdad exacta
+recompute    = <cadena propia del notebook>(candidates)        # intacta, sin unificar
+MERGE INTO silver s USING recompute n ON <key iguales>
+  WHEN MATCHED AND n._ingest_date IS NULL THEN DELETE          # marcadores
+  WHEN MATCHED THEN UPDATE SET *
+  WHEN NOT MATCHED AND n._ingest_date IS NOT NULL THEN INSERT *
+```
+
+La unión por `job_id` es un **semi-join**, no un `IN` con lista recogida al
+driver: la ventana puede traer miles de claves.
+
+**Por qué la clave exacta es posible (decisión 2026-10-25).** `enrich` **no toca**
+`title` ni `company_name`, y normaliza `location_city` con la misma regla que
+`Enrich_Job_Offers_Dataframes.location_city_normalized_column`, la misma
+expresión columnar que escribe `enrich`. Para usarla sobre el bronce sin
+repetirla se añade al módulo `location_city_normalized_column(col)` (construida
+con los mismos mapas y reglas, sin UDF: un UDF que importa el módulo puede fallar
+en los *workers*), y `enrich` pasa a usarla para que haya **una sola
+definición**. Por tanto la clave se puede calcular sobre el bronce con la misma
+normalización que usa la silver: título tal cual, empresa con el normalizador de
+la fuente (callable del notebook) y ciudad con esa función. Los candidatos se
+seleccionan por **igualdad exacta de clave**, no por un superconjunto:
+desaparecen el atajo por pares (título, empresa), la guarda de nulos y la guarda
+de `|`, y RF-7 no necesita excepciones. El coste es una expresión columnar sobre
+~31k filas; lo caro (`enrich` con regex sobre descripciones) se sigue ejecutando
+solo sobre los candidatos. El supuesto nuevo es la equivalencia de esa función
+con la columna de `enrich`: se prueba en local (P16b) y con datos reales en el
+run B. `enrich` debe llamarse con `add_location_fill=True` y
+`normalize_location_city=True` (sus defaults); con cualquiera de las dos en
+`False`, la ciudad de la silver y la clave de bronce divergen.
+
+No se persiste `_key`: se recalcula desde las columnas. La cadena de cada fuente
+(rename, fechas, enrich, empresas, normalización de localización y `drop`) **no
+se toca**: el notebook solo cambia de dónde lee el DataFrame de ofertas y cómo
+lo escribe. El `keep_latest_by` temprano de linkedin (`job_id`) y multi_site
+(`site` + `job_id`) se ejecuta en `prepare_bronze` sobre el bronce completo (hoy
+es no-op) y los candidatos contienen todas las filas del grupo, así que da el
+mismo resultado que sobre la tabla completa.
+
+`keys_old` cubre la **migración de grupo** (una oferta que cambia de ciudad o
+de título): el grupo antiguo se recalcula y expulsa la fila huérfana. Lo que el
+incremental **no** puede detectar es la **desaparición** de filas de bronce
+(`RESTORE`, rewrite o borrado, incluido un cambio de `job_id` o de `site`):
+esos casos exigen `force_full` y así se documenta en el runbook.
+
+**Watermark.** `watermark = max(_ingest_date)` de `silver.offers_<fuente>`;
+ventana `>= watermark - lookback_days` (7 por defecto). Sin `_ingest_date` en
+la tabla (primera ejecución con el código nuevo) → `force_full`: se lee el
+bronce completo y se escribe con `overwrite` (la migración es el propio primer
+run). **Tabla vacía pero con la columna** → `from_date` nulo, ventana abierta y
+MERGE de todos los grupos (no es `full`). Ventana vacía → no se escribe nada
+(sin commit). `force_full` llega como texto desde el widget y se parsea con
+`as_bool` (`"false"`, `"0"`, `""` → `False`).
+
+**Columnas de control.** Silver conserva `_ingest_date` (lo necesita el
+watermark); `_source_file` se queda en bronce. Oro la ignora por selección
+explícita (`FACT_OFFERS_COLUMNS`) y los exports proyectan listas explícitas
+(`WEB_FACT_COLUMNS`, `PBI_FACT_OFFERS_COLUMNS`); se comprueba en T-09/T-10 que
+ni las tablas oro ni los Parquet cambian. El contrato de silver se mantiene por
+fuente: **indeed 31 columnas, linkedin/infojobs/multi_site 33** (las tres
+conservan `salary_min`/`salary_max`) **+ `_ingest_date`**; no hay lista global.
+
+**Escritura.** MERGE sobre el grupo semántico con origen y destino deduplicados
+(una fila por grupo). El `overwrite` con `overwriteSchema` sigue usándose solo
+en la reconstrucción completa; el MERGE usa `WITH SCHEMA EVOLUTION` y el origen
+lleva las columnas del destino **más las nuevas** (proyectar solo a
+`target.columns` impediría la evolución).
+
+**Dimensiones y oro.** `companies_*` y toda la capa oro siguen en
+reconstrucción completa: el dedup de negocio y `salary_filled` son ventanas
+globales y su tamaño es pequeño.
+
+**Reproceso por fecha y fuente.** La fuente la fija el notebook (`source` sale
+de su nombre); los widgets son `from_date`, `to_date`, `lookback_days` y
+`force_full`; el notebook filtra la ventana y el MERGE es idempotente. El
+runbook documenta el backfill y su coste de lectura (el bronce completo se lee
+para el join sobre grupos afectados, pero solo se transforma lo afectado).
+
+### 10.3 Comprobaciones
+
+- **Equivalencia (gate principal, local):** con un fixture de bronce que cubra
+  los casos (clave nueva, captura más reciente, captura más antigua, migración
+  de grupo, empate, grupo sin cambios, nulos en las componentes), comparar
+  `transform(bronce completo)` con la aplicación incremental en dos pasos: los
+  DataFrames deben ser iguales (mismo conjunto de filas y columnas). Incluye
+  **P16b**: `location_city_normalized_column` contra la columna de `enrich` en
+  un fixture con acentos, países, ciudades y nulos (la función pura
+  `location_city_normalized` queda como referencia), y la clave calculada sobre
+  bronce contra la de la silver.
+- **Idempotencia:** segunda aplicación de la misma ventana deja el mismo
+  contenido (puede haber commit, no cambio de filas); los conteos de grupos
+  afectados, borrados o fusionados pueden bajar porque la primera pasada ya
+  limpió los grupos migrados. `force_full` → misma tabla.
+- **Run dev (2 runs):** ciclo de 8 tareas en verde. **Run A** es la migración
+  (la tabla no tiene `_ingest_date` → modo completo con `overwrite`). **Run B es
+  un backfill incremental** con `from_date`/`to_date` sobre bronce existente
+  (sin ficheros nuevos), que **sí ejecuta el MERGE, los marcadores y el
+  conjunto afectado**, y repite la misma ventana una segunda vez dentro del
+  notebook para demostrar idempotencia. Sus exports deben ser **idénticos byte
+  a byte** a los del run A (equivalencia en datos reales). Se miden silver y
+  total frente a 2,8–3,6 min y 13 m 16 s, anotando el tamaño del lote (desde el
+  run de T-05 hay ficheros nuevos en el landing, así que los exports no son
+  comparables con los de entonces).
+
+- Sin SQL: la evidencia sale de la salida de los notebooks (resumen JSON con
+  conteos y ventana), de las métricas del run y de los `meta.json`.
+- Suites: `python -m pytest databricks_notebooks/tests -q` y
+  `python -m pytest scrapers-pipeline/tests -q`.
+
+### 10.4 Migración y producción
+
+- No hay one-off: el primer run con el código nuevo reconstruye la silver
+  completa (misma duración que hoy) y deja `_ingest_date` poblado.
+- Deploy a prod en ventana previa a un domingo (el siguiente al cierre de T-06),
+  con rollback de bundle y `RESTORE` de las silvers disponible; verificación con
+  el run programado y el dashboard del lunes, sin SQL warehouse.
+
+### 10.5 Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| **Dar por iguales las cuatro silvers** | Cada cadena de transformación se queda en su notebook; el módulo solo cubre ventana, conjunto afectado y MERGE. Inventario de diferencias en §10.1 y diff celda a celda aprobado en T-09 |
+| **`location_city_normalized_column` no coincide con la columna de `enrich`** | P16b (columnar vs `enrich`, con la pura como referencia) y el run B exige exports idénticos a A. `enrich` debe llamarse con `add_location_fill=True` y `normalize_location_city=True` |
+| Divergencia entre incremental y rebuild completo | Test de equivalencia como gate (T-08) y comparación de exports en dev (T-10) |
+| Migración de grupo (cambia título/ciudad) deja filas huérfanas | `keys_old` por `job_id` cambiado; caso cubierto en tests |
+| Fichero tardío con `_ingest_date` anterior al watermark | `lookback_days` = una cadencia (7) y backfill documentado |
+| MERGE con columnas nuevas | `MERGE ... WITH SCHEMA EVOLUTION` y test de contrato |
+| `_ingest_date` se filtra a oro o a los exports | Oro selecciona columnas explícitas; los exports proyectan listas explícitas que no la incluyen; comprobación en T-09/T-10 |
+| `companies_*` alimentadas por error con el subconjunto afectado (linkedin las deriva del frame preparado; infojobs y multi_site leen la silver recién escrita) | Se mantiene la lectura completa para `indeed`/`linkedin`; `infojobs`/`multi_site` leen la silver sin reaplicar normalización y con `dropDuplicates`; el diff de T-09 se revisa celda a celda |
+| Dos runs de dev insuficientes | Un fallo de código se corrige en local con tests antes de relanzar; si se agotan, se pide aprobación |
