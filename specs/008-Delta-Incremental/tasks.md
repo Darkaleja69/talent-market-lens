@@ -255,7 +255,7 @@
     MERGE real, `WITH SCHEMA EVOLUTION`, `USING` sobre vista y escritura del modo
     `full` (T-10/T-11).
 
-- [ ] **T-09 — Notebooks silver en modo incremental (dev)** (~60 min)
+- [x] **T-09 — Notebooks silver en modo incremental (dev)** (~60 min)
   - **Objetivo:** en cada silver, **reestructurar las celdas en dos funciones**
     (`prepare_bronze` y `build_offers`) y sustituir la escritura por `inc.run`.
     No se reescribe la lógica: el diff debe demostrar que renames, derivación de
@@ -295,6 +295,15 @@
     `{{job.parameters.*}}`; también requieren aprobación previa y no cambian el
     comportamiento por defecto (ni en prod).
   - **Evidencia:** diff aprobado, id de deploy y fila en `evidence.md`.
+  - **Estado:** **cerrada el 2026-10-25.** Cuatro notebooks reestructurados
+    (26→15, 24→14, 19→9, 18→10 celdas) con la lógica de negocio idéntica salvo la
+    lista cerrada; `resources/elt.job.yml` con `backfill_from`, `backfill_to` y
+    `repeat_window` (default vacío) en las cuatro tareas silver; runbook EN/ES.
+    `bundle validate` y `bundle deploy -t dev` en verde (7 ficheros,
+    `Updated jobs.elt`; producción intacta). Verificación independiente
+    **PASA**: contrato con `inc.run`, widgets, `.yml` y celdas de negocio
+    comprobados. `[NO VERIFICADO]`: efectos reales (MERGE, primera ejecución
+    completa, equivalencia de `companies_*` y exports) en T-10/T-11.
 
 - [ ] **T-10 — Validación en dev (runs 1 y 2 de 2)** (~30 min)
   - **Hecho cuando:** **run A** cierra 8/8 tareas y es la migración (tabla sin
@@ -314,10 +323,9 @@
     `bundle run elt -t dev --profile vs_code` dos veces; toda la evidencia sale
     de las salidas JSON y de los `meta.json`; **ninguna consulta SQL**. El run B
     pasa `backfill_from`/`backfill_to`/`repeat_window` por parámetros del job
-    (`--params`); si la CLI instalada no lo admite, se usa un job corto
-    `silver_backfill` con los mismos widgets (como `dedupe_oneoff`). La ventana
-    exacta queda en el resumen. El lote del run A incluye los ficheros del
-    landing desde el run de T-05 (24-oct): se anota el tamaño para que la
+    (`--params`, soportado por la CLI instalada — verificado el 2026-10-25). La
+    ventana exacta queda en el resumen. El lote del run A incluye los ficheros
+    del landing desde el run de T-05 (24-oct): se anota el tamaño para que la
     comparación de tiempos con T-05 sea honesta.
   - **Coste:** 2 runs (~0,48 €), anotados en `docs/costs.md`.
   - **Evidencia:** ids, tabla comparativa de tiempos y exports A/B, fila en

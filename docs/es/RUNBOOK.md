@@ -111,11 +111,15 @@ Detalles: `schemaLocation` y `checkpointLocation` bajo
 `silver_indeed.ipynb`, `silver_infojobs.ipynb`,
 `silver_linkedin.ipynb`, `silver_multisite.ipynb`.
 
-Cada uno: lee `bronze.<fuente>`, renombra columnas, aplica
-`Enrich_Job_Offers_Dataframes.enrich()`, normaliza empresa/location, deduplica y escribe
-`silver.offers_<fuente>` y `silver.companies_<fuente>`.
+Cada uno: lee `bronze.<fuente>`, aplica la cadena de la fuente (rename,
+`enrich`, normalización de empresa/localización, dedup) y escribe
+`silver.offers_<fuente>` por `MERGE` sobre la clave semántica
+(`Silver_Incremental.run`); `companies_<fuente>` se sigue reconstruyendo. El
+primer run con este código reconstruye la silver completa (la tabla no tiene
+`_ingest_date`); los siguientes recalculan solo los grupos afectados.
 
-**Parámetros:** `catalog`, `bronze_schema`, `silver_schema`.
+**Parámetros:** `catalog`, `bronze_schema`, `silver_schema`, `lookback_days`,
+`from_date`, `to_date`, `force_full`, `repeat_window` (ver §9.5).
 
 ### 5.3 Gold — `gold_build.ipynb`
 
@@ -256,6 +260,38 @@ commitea, se mergea y se despliega.
   ejecución de la spec 007 viven en `specs/007-ELT-As-Code/cutover.md`. Los ids
   de los jobs en uso están ahí; el job manual pausado no se borra mientras sea
   la vía de rollback.
+
+### 9.5 Silver incremental y backfill (spec 008)
+
+Los cuatro notebooks de ofertas escriben por `MERGE` sobre la clave semántica
+(`Silver_Incremental.py`). El primer run con este código encuentra la tabla sin
+`_ingest_date` y la reconstruye completa; los siguientes recalculan solo los
+grupos afectados desde `max(_ingest_date) - lookback_days` (7 días).
+
+Parámetros (widgets y parámetros de job `backfill_from`, `backfill_to` y
+`repeat_window`, vacíos por defecto):
+
+- `from_date` / `to_date` (`YYYY-MM-DD`): fuerzan una ventana (backfill).
+- `force_full=true`: reconstrucción completa. Obligatorio tras un `RESTORE`,
+  rewrite o borrado de bronce (incluido un cambio de `job_id`/`site`) y tras
+  cambiar los patrones de empresa.
+- `repeat_window=true`: ejecuta dos veces la misma ventana y devuelve
+  `{"repeat_window": true, "runs": [...]}`; sirve para demostrar idempotencia.
+- `lookback_days`: tamaño de la ventana, 7 por defecto.
+
+Backfill en dev: `databricks bundle run elt -t dev --profile <perfil> --params
+backfill_from=2026-10-01,backfill_to=2026-10-25,repeat_window=true`. Coste: lee
+el bronce completo (~31k filas) para seleccionar los grupos candidatos pero solo
+enriquece los afectados; sin SQL warehouse.
+
+Evidencia: cada notebook devuelve un resumen JSON (modo, ventana, conteos y
+tiempo) que se lee con `databricks jobs get-run-output <task_run_id>`.
+
+Rollback: redeploy del commit anterior del bundle; si una tabla silver queda
+inconsistente, `RESTORE TABLE silver.offers_<fuente> TO VERSION AS OF <n>` (SQL:
+agruparlo en una sola ventana de 10 min y pedirlo antes). En prod solo en una
+ventana previa a un domingo y nunca un run manual completo fuera de la
+programación.
 
 > **Deuda conocida:** `resources/elt.job.yml` versiona el correo de notificación
 > de fallo. Es previo al bundle y el repositorio es público; queda como deuda
