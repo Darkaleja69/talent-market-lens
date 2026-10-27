@@ -268,13 +268,14 @@ Los cuatro notebooks de ofertas escriben por `MERGE` sobre la clave semántica
 `_ingest_date` y la reconstruye completa; los siguientes recalculan solo los
 grupos afectados desde `max(_ingest_date) - lookback_days` (7 días).
 
-Parámetros (widgets y parámetros de job `backfill_from`, `backfill_to` y
-`repeat_window`, vacíos por defecto):
+Parámetros (widgets y parámetros de job `backfill_from`, `backfill_to`,
+`repeat_window` y `force_full`, vacíos por defecto):
 
 - `from_date` / `to_date` (`YYYY-MM-DD`): fuerzan una ventana (backfill).
 - `force_full=true`: reconstrucción completa. Obligatorio tras un `RESTORE`,
   rewrite o borrado de bronce (incluido un cambio de `job_id`/`site`) y tras
-  cambiar los patrones de empresa.
+  cambiar los patrones de empresa. Se puede fijar como widget o como parámetro
+  de job `force_full`.
 - `repeat_window=true`: ejecuta dos veces la misma ventana y devuelve
   `{"repeat_window": true, "runs": [...]}`; sirve para demostrar idempotencia.
 - `lookback_days`: tamaño de la ventana, 7 por defecto.

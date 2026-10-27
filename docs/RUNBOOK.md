@@ -304,13 +304,13 @@ The four silver offer notebooks write by `MERGE` on the semantic key
 table without `_ingest_date` and rebuilds it completely; later runs recompute
 only the affected groups from `max(_ingest_date) - lookback_days` (7 days).
 
-Parameters (widgets and the job parameters `backfill_from`, `backfill_to` and
-`repeat_window`, empty by default):
+Parameters (widgets and the job parameters `backfill_from`, `backfill_to`,
+`repeat_window` and `force_full`, empty by default):
 
 - `from_date` / `to_date` (`YYYY-MM-DD`): force a window (backfill).
 - `force_full=true`: full rebuild. Required after a bronze `RESTORE`, rewrite or
   deletion (including a `job_id`/`site` change) and after changing the company
-  alias patterns.
+  alias patterns. It can be set as a widget or as the job parameter `force_full`.
 - `repeat_window=true`: runs the same window twice and returns
   `{"repeat_window": true, "runs": [...]}`; used to prove idempotency.
 - `lookback_days`: window size, default 7.

@@ -592,25 +592,24 @@ def _run_once(
     )
 
     if bounds.mode == MODE_FULL:
-        offers = transform(prepared).cache()
-        try:
-            rows = offers.count()
-            offers.write.mode("overwrite") \
-                .option("overwriteSchema", "true") \
-                .saveAsTable(target_table)
-        finally:
-            offers.unpersist()
+        # Single pass: the transform feeds the write directly. Caching and
+        # counting before the write tripled the runtime of the full rebuild.
+        offers = transform(prepared)
+        offers.write.mode("overwrite") \
+            .option("overwriteSchema", "true") \
+            .saveAsTable(target_table)
+        target_rows = spark.read.table(target_table).count()
         return _summary(
             source,
             bounds,
             changed_rows=0,
             affected_groups=0,
-            recomputed_groups=rows,
+            recomputed_groups=target_rows,
             deleted_groups=0,
             merge_rows=0,
             new_columns=[],
             written=True,
-            target_rows=spark.read.table(target_table).count(),
+            target_rows=target_rows,
             elapsed_s=time.monotonic() - started,
         )
 
