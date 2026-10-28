@@ -119,6 +119,9 @@ al menos un despertar.
 - **T-06 one-off de prod (2026-10-24):** run `164560238285705`, **SUCCESS**, 4/4,
   **9 min 11 s** → **~0,11 €** (producción, fuera del presupuesto de dev).
   Deduplicó 53.353 filas históricas en las cuatro tablas de prod.
+- **T-06 comprobación real (2026-10-25):** run programado `636564838129029` en
+  verde (producción, ~0,24 €, ya en la cadencia semanal de la 009) y dashboard
+  publicado por el workflow `40276725938`; sin runs manuales.
 - **T-10 A (2026-10-25), migración de las silvers en dev:** run `263658658061220`,
   **SUCCESS**, 8/8 tareas, **22 min 18 s** (bronce setup 6 m 52 s + exec 1 m 57 s;
   silvers 9,8–11,8 min; oro 0,87 min; exports 0,53/0,58 min) → **~0,24 €**.

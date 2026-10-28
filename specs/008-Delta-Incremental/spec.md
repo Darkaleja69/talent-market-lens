@@ -199,7 +199,7 @@ pendiente únicamente de la comprobación real de T-06.
 
 El bloque B se implementó (T-07–T-09, tests en verde) pero **no se pudo validar
 en dev**: los tres runs incrementales (B, B2 y B3) terminaron en `TIMEDOUT` a los
-~30 min sin escribir, con el incremental costando 3,7–6× la reconstrucción
+~30 min sin escribir, con el incremental costando ≈6–7× la reconstrucción
 completa. Decisión de la persona: **el bloque B se descopea a la spec 010**
 (rendimiento, layout y compute), que medirá el coste real, optimizará el camino
 incremental y repetirá la validación A/B y el despliegue a producción.

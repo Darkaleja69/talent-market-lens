@@ -170,10 +170,10 @@
     con el ingest nuevo y el job `dedupe_oneoff`; run `164560238285705` en verde,
     4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas duplicadas eliminadas (indeed
     9.769→3.039, infojobs 45.171→2.617, linkedin 17.285→14.289, multi_site
-    12.169→11.096), `RESTORE` a 19/20/60/50. **Comprobación real confirmada en
-    verde el 2026-10-28:** run programado del domingo 25-oct y dashboard del
-    lunes. Falta anotar el id del run, los tiempos, los conteos del export y el
-    estado del warehouse (`STOPPED`) para cerrar la tarea.
+    12.169→11.096), `RESTORE` a 19/20/60/50. **Comprobación real en verde
+    (2026-10-28):** run programado del domingo `636564838129029` y dashboard
+    publicado por el workflow `40276725938`. Falta anotar duración, conteos del
+    export y estado del warehouse (`STOPPED`) para cerrar la tarea.
 
 ## 2. Bloque B — Silvers incrementales
 
@@ -184,7 +184,7 @@
 > **2026-10-28: bloque B BLOQUEADO y DESCOPEADO a la 010.** T-07–T-09 están
 > cerradas (diseño, módulo y notebooks con tests en verde), pero T-10 no se
 > puede validar: tres runs incrementales seguidos (`TIMEDOUT` a los ~30 min)
-> sin escribir nada. El incremental cuesta **3,7–6×** la reconstrucción
+> sin escribir nada. El incremental cuesta **≈6–7×** la reconstrucción
 > completa y el `MERGE` real sigue sin medirse. **T-11 no se toca.** Decisión de
 > la persona el 2026-10-28: **el bloque B se descopea**; T-10, T-11 y su
 > validación pasan a la **spec 010** (rendimiento) y esta spec se cerrará con el
@@ -362,15 +362,16 @@
       en la versión de A2. El bronce de indeed ingirió **190 filas** el 27-oct.
     - **B3** `1015448868873733` (repetición con `keyed` compartido):
       **TIMEDOUT** a los 30 min 30 s (bronce 8 m 06 s; silvers cortadas a los
-      22 min 04 s, es decir ~14 min de ejecución); tampoco escribió. El fix de
+      **22 min 04 s** de tarea; tampoco escribió. El fix de
       `keyed` no era el cuello: la medición local da **~45 s por pase** con el
       aviso de codegen «Code grows beyond 64 KB» en `build_offers`. El `MERGE` y
       la concurrencia de las cuatro silvers son lo único no medido aquí.
     - **Lectura:** `_ingest_date` es la **fecha del lote**, no la de captura,
       así que la ventana de 7 días (y el backfill 25–27) **recalcula casi todo
       el bronce**: B2/B3 son el peor caso, no un caso incremental pequeño. Aun
-      así, el camino incremental cuesta **3,7–6× la reconstrucción completa**
-      (2 m 47 s–3 m 46 s por silver en A2) y no termina. El reparto entre
+      así, el camino incremental cuesta **≈6–7× la reconstrucción completa**
+      (2 m 47 s–3 m 46 s por silver en A2: 22 m 04 s en B3 y ~27 min en B,
+      duraciones de tarea) y no termina. El reparto entre
       volumen, pasadas/caché, codegen, `MERGE` y concurrencia **lo mide la
       010**; aquí no se da por supuesto. **No se lanza un cuarto run.**
   - **Por qué bloquea:** T-11 desplegaría a producción un mecanismo que no
@@ -416,9 +417,9 @@
     completas en verde; comprobación real del bloque A registrada; merge a
     `main` y tag (`spec-008`).
   - **Estado (2026-10-28):** bloque B **descopeado** a la 010 (T-10 y T-11).
-    La 008 se cierra con el bloque A cuando T-06 tenga su comprobación real
-    registrada (run programado del domingo 25-oct y dashboard del lunes,
-    confirmados por la persona el 28-oct; falta anotar id y tiempos).
+    La 008 se cierra con el bloque A cuando T-06 complete su fila de
+    `evidence.md`: el run `636564838129029` y el workflow `40276725938` están en
+    verde y falta anotar duración, conteos del export y estado del warehouse.
 
 ## 3. Cierre de la spec
 
