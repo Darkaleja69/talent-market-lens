@@ -42,6 +42,16 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - **La persona decide** (alcance, diseño, alternativas) y **revisa** lo escrito;
   el asistente prepara las tareas, **implementa el código** (notebooks, módulos,
   tests), lo explica y lo commitea tras la verificación independiente.
+- **Explicación para aprender:** cada cambio se explica **antes y después** en
+  lenguaje llano, para que la persona pueda seguirlo y aprender. Como mínimo:
+  (1) qué problema resolvemos y por qué importa; (2) qué evidencia lo sostiene y
+  qué parte es hipótesis, con el número y la fuente; (3) qué se va a cambiar, en
+  qué fichero, y por qué esa opción frente a las alternativas descartadas;
+  (4) qué se espera y cómo se sabrá si ha funcionado; (5) qué queda abierto. Sin
+  jerga sin definir: si un término técnico hace falta, se explica en una frase.
+  El detalle vive en la spec; el mensaje es el mapa. **Si la persona dice que se
+  pierde, se para el trabajo y se reexplica desde el principio**, sin dar por
+  sabido lo anterior.
 - La persona ejecuta el **bundle** (deploy/run) y las consultas contra el
   workspace para las comprobaciones reales; el asistente no llama al bundle ni
   al workspace salvo petición explícita.
