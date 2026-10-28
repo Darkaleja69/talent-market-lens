@@ -82,10 +82,14 @@
 
 - [ ] **T-02 — Instrumentación del resumen y banco local** (~60 min)
   - **Objetivo:** que el siguiente run diga dónde se va el tiempo sin añadir
-    pasadas: `timings_s` por paso en el resumen de `Silver_Incremental.run` y
-    `merge_metrics` leídas de `DESCRIBE HISTORY` en el clúster del job. Banco
-    local reproducible con dos escenarios (ventana ancha y ventana ≤1 %) y
+    pasadas: `timings_s` por etapa en el resumen de `Silver_Incremental.run`,
+    `merge_metrics` leídas de `DESCRIBE HISTORY` en el clúster del job y el
+    `DESCRIBE DETAIL` de las 8 tablas (`numFiles`/`sizeInBytes`, cierra H6).
+    Banco local reproducible con dos escenarios (ventana ancha y ventana ≤1 %) y
     tiempos antes/después.
+  - **Nota:** `DESCRIBE DETAIL`/`DESCRIBE HISTORY` son SQL de **Spark**: se
+    ejecutan en el clúster del job, **no** en el SQL warehouse (0,43 € por
+    despertar). No hace falta ninguna sesión de SQL Editor.
   - **Hecho cuando:** el resumen conserva los 16 campos y añade `timings_s` y
     `merge_metrics`; **no lanza acciones nuevas** (demostrado con el número de
     jobs del plan); tests de contrato del resumen y del banco en verde;

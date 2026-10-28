@@ -530,11 +530,18 @@ solo entran si el banco y el run B los justifican.
 
 ## 6. Datos que faltan para cerrar el diagnóstico
 
-Lista corta, gratis y en orden de valor:
+Lista corta, **sin despertar el SQL warehouse** (~0,43 € por despertar) y en orden
+de valor. `DESCRIBE DETAIL` es SQL de Spark, no del warehouse: se ejecuta en
+cualquier sesión de Spark (`spark.sql("DESCRIBE DETAIL <tabla>")` o
+`DeltaTable.forName(spark, tabla).detail()`), así que va dentro del clúster del
+job (gratis si ya está encendido) o se calcula desde `_delta_log` en local si hay
+lectura al almacenamiento. Solo si se abre una ventana de warehouse se paga.
 
 1. **`DESCRIBE DETAIL` de las 8 tablas** (bronce y silver de las cuatro fuentes):
    `numFiles`, `sizeInBytes`, tamaño medio y `numFiles` de la versión de A2.
-   Cierra H6 y fija el objetivo de P2.
+   Cierra H6 y fija el objetivo de P2. **Ruta prevista:** se captura en el
+   notebook de T-02 (corre en el clúster del job, sin coste marginal); alternativa
+   local: leer los `add` del `_delta_log`.
 2. **Spark UI (o *event log*) del run A de T-07**: tareas por stage del rebuild y
    su duración. Es la mitad que falta de §3.3: sin ella no se sabe si A2 gana por
    menos tareas, menos *exchanges* o menor coste por tarea.
