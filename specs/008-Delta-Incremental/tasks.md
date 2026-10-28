@@ -170,8 +170,10 @@
     con el ingest nuevo y el job `dedupe_oneoff`; run `164560238285705` en verde,
     4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas duplicadas eliminadas (indeed
     9.769→3.039, infojobs 45.171→2.617, linkedin 17.285→14.289, multi_site
-    12.169→11.096), `RESTORE` a 19/20/60/50. **Pendiente la comprobación real:**
-    el run programado del domingo y el dashboard del lunes.
+    12.169→11.096), `RESTORE` a 19/20/60/50. **Comprobación real confirmada en
+    verde el 2026-10-28:** run programado del domingo 25-oct y dashboard del
+    lunes. Falta anotar el id del run, los tiempos, los conteos del export y el
+    estado del warehouse (`STOPPED`) para cerrar la tarea.
 
 ## 2. Bloque B — Silvers incrementales
 
@@ -179,14 +181,15 @@
 > domingo). Diseño en `plan.md` §10. Alcance decidido: **silver de ofertas
 > incremental** por grupo semántico; `companies_*` y **oro completos**.
 >
-> **2026-10-28: bloque B bloqueado por rendimiento.** T-07–T-09 están cerradas
-> (diseño, módulo y notebooks con tests en verde), pero T-10 no se puede
-> validar: tres runs incrementales seguidos (`TIMEDOUT` a los ~30 min) sin
-> escribir nada. El incremental cuesta ≥4× la reconstrucción completa y el
-> `MERGE` real sigue sin medirse. **T-11 no se toca.** El trabajo de
-> rendimiento pasa a la **spec 010**, junto con la repetición de la validación
-> A/B; la decisión de descopear el bloque B (y cerrar la 008 con el bloque A,
-> previa verificación de T-06) queda en manos de la persona.
+> **2026-10-28: bloque B BLOQUEADO y DESCOPEADO a la 010.** T-07–T-09 están
+> cerradas (diseño, módulo y notebooks con tests en verde), pero T-10 no se
+> puede validar: tres runs incrementales seguidos (`TIMEDOUT` a los ~30 min)
+> sin escribir nada. El incremental cuesta **3,7–6×** la reconstrucción
+> completa y el `MERGE` real sigue sin medirse. **T-11 no se toca.** Decisión de
+> la persona el 2026-10-28: **el bloque B se descopea**; T-10, T-11 y su
+> validación pasan a la **spec 010** (rendimiento) y esta spec se cerrará con el
+> **bloque A**, previa verificación de T-06. El diseño (`design-incremental.md`)
+> y el código se conservan en la rama como referencia.
 
 - [x] **T-07 — Diseño del incremental** (~30 min)
   - **Objetivo:** fijar en `design-incremental.md` la unidad de incremental
@@ -314,7 +317,7 @@
     comprobados. `[NO VERIFICADO]`: efectos reales (MERGE, primera ejecución
     completa, equivalencia de `companies_*` y exports) en T-10/T-11.
 
-- [ ] **T-10 — Validación en dev (A/B)** (~30 min)
+- [ ] **T-10 — Validación en dev (A/B) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
   - **Hecho cuando:** **run A** cierra 8/8 tareas y es la migración (tabla sin
     `_ingest_date` → reconstrucción completa con `overwrite`), con silver
     ≤ 2,8–3,6 min de T-05 y total ≤ 13 m 16 s, y exports con `meta.json`
@@ -376,18 +379,18 @@
     por rango) ni RF-10 (exports A/B idénticos) aunque los tests locales estén
     en verde; RF-11 (producción) depende de todo lo anterior.
   - **Qué la desbloquea:** la **spec 010** (rendimiento, layout y compute)
-    debe medir el coste real (Spark UI de B2/B3 + instrumentación por pasos),
+    debe medir el coste real (Spark UI de B2/B3 + instrumentación por etapa),
     dejar el incremental por debajo de la reconstrucción completa y repetir la
-    validación A/B. Si la persona decide **descopear el bloque B**, T-10 y T-11
-    pasan como tareas heredadas a la 010 y la 008 podría cerrarse con el bloque
-    A **una vez verificada T-06** (run del domingo 25-oct y dashboard del lunes,
-    todavía sin registrar en `evidence.md`).
+    validación A/B. **Decisión del 2026-10-28: el bloque B se descopea**; esta
+    tarea y T-11 se cierran desde la 010 (T-08 y T-09 de su `tasks.md`), y la
+    008 se cerrará con el bloque A una vez registrada la comprobación real de
+    T-06.
   - **Coste:** 5 runs (~0,38 € cada uno por duración a 0,75 €/h; **~1,6 €**
     estimados) que, con los ~0,46 € del bloque A, dejan la 008 en **~2,07 €**
     frente al techo de 2,0 € (0 sesiones SQL). La cifra exacta se confirma en
     la Account Console; el desvío es marginal y no requiere presupuesto extra.
 
-- [ ] **T-11 — Producción (ventana previa a domingo)** (~30 min)
+- [ ] **T-11 — Producción (ventana previa a domingo) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; el **primer run programado**
     reconstruye las silvers completas (migración, sin one-off) y cierra 8/8 con
@@ -400,25 +403,25 @@
   - **Dependencia (2026-10-28):** **no se despliega a producción** hasta que la
     010 deje el incremental por debajo de la ventana de 1800 s y repita la
     validación A/B. El procedimiento (`cutover.md`) sigue siendo el de la 007.
+  - **Estado (2026-10-28):** **descopeada a la 010** (T-09 de su `tasks.md`).
+    Esta spec no despliega el incremental; su cierre es el del bloque A.
   - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
     `RESTORE`, estado del warehouse y fila en `evidence.md`.
 
-- [ ] **T-12 — Cierre de la spec**
-  - Notas `docs/databricks-de/notes/02-delta.md` y
-    `04-incremental-architecture.md` escritas con la plantilla del índice.
+- [ ] **T-12 — Cierre de la spec (solo bloque A)**
+  - Nota `docs/databricks-de/notes/02-delta.md` escrita con la plantilla del
+    índice. `04-incremental-architecture.md` pasa a la 010 (el incremental ya no
+    se cierra aquí).
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
-    completas en verde; comprobación real registrada; merge a `main` y tag
-    (`spec-008`) solo con el bloque A y el B verificados.
-  - **Estado (2026-10-28):** el bloque B no está verificado (T-10 bloqueada y
-    T-11 sin ejecutar), así que la 008 **no puede cerrarse completa**. Si la
-    persona descopea el bloque B, la 008 cierra con el bloque A —**previo
-    registro de la comprobación real de T-06** (run programado del domingo y
-    dashboard)— y la 010 hereda T-10/T-11; si no, sigue abierta hasta que la
-    010 desbloquee. Las notas `02-delta.md` y `04-incremental-architecture.md`
-    se escriben al cerrar, no antes.
+    completas en verde; comprobación real del bloque A registrada; merge a
+    `main` y tag (`spec-008`).
+  - **Estado (2026-10-28):** bloque B **descopeado** a la 010 (T-10 y T-11).
+    La 008 se cierra con el bloque A cuando T-06 tenga su comprobación real
+    registrada (run programado del domingo 25-oct y dashboard del lunes,
+    confirmados por la persona el 28-oct; falta anotar id y tiempos).
 
 ## 3. Cierre de la spec
 
-- Notas `docs/databricks-de/notes/02-delta.md` y
-  `04-incremental-architecture.md` escritas con la plantilla del índice.
+- Nota `docs/databricks-de/notes/02-delta.md` escrita con la plantilla del
+  índice. `04-incremental-architecture.md` se escribe en la 010.
 - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día.

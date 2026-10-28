@@ -125,7 +125,7 @@ y se respeta.
   one-off (RF-2). `ckpt_v2` (relectura completa) queda como plan B si el
   cambio de sink falla en dev.
 
-## Bloque B — silvers incrementales (decisiones del 2026-10-24)
+## Bloque B — silvers incrementales (decisiones del 2026-10-24, descopeado el 2026-10-28)
 
 Se planifica antes de cerrar el bloque A para no dejar la spec parada hasta el
 run de producción del domingo. **No cambia lo ya cerrado**: el bloque A sigue
@@ -194,6 +194,27 @@ pendiente únicamente de la comprobación real de T-06.
 - **Riesgo aceptado.** Un cambio en una fila de bronce con `_ingest_date` más
   antigua que la ventana no se vería hasta el siguiente backfill; se documenta
   en el runbook y se cubre con el `lookback_days` de una cadencia.
+
+## Descope del bloque B (2026-10-28)
+
+El bloque B se implementó (T-07–T-09, tests en verde) pero **no se pudo validar
+en dev**: los tres runs incrementales (B, B2 y B3) terminaron en `TIMEDOUT` a los
+~30 min sin escribir, con el incremental costando 3,7–6× la reconstrucción
+completa. Decisión de la persona: **el bloque B se descopea a la spec 010**
+(rendimiento, layout y compute), que medirá el coste real, optimizará el camino
+incremental y repetirá la validación A/B y el despliegue a producción.
+
+Consecuencias en esta spec:
+
+- **RF-7 a RF-11 y los criterios del bloque B pasan a la 010** (RF-4, RF-5 y
+  RF-8 de su `spec.md`). El diseño (`design-incremental.md`), el módulo
+  `Silver_Incremental.py`, los notebooks y sus tests se conservan en la rama
+  como referencia y como base del trabajo de rendimiento.
+- **T-10 y T-11 quedan descopeadas**; esta spec no despliega el incremental a
+  producción.
+- La 008 se cierra con el **bloque A**, una vez registrada la comprobación real
+  de T-06 (run programado del domingo 25-oct y dashboard del lunes, confirmados
+  por la persona el 2026-10-28).
 
 ## Requisitos funcionales (borrador)
 
@@ -319,7 +340,7 @@ el lunes, sin despertar el SQL warehouse.
   run programado del domingo verificado sin despertar el SQL warehouse.
 - Coste de cada run de la spec anotado en `docs/costs.md`.
 
-## Criterios de finalización (bloque B)
+## Criterios de finalización (bloque B, desplazados a la 010)
 
 - Las cuatro silvers de ofertas escriben por MERGE sobre el grupo semántico y
   demuestran **equivalencia con la reconstrucción completa** (test local con

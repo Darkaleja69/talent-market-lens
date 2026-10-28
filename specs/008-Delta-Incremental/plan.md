@@ -219,7 +219,9 @@ bronce **no** se llama igual en las cuatro: las silvers renombran al leer.
 1. **Bloque A:** T-01–T-06 (este documento), con el reparto de runs del §9.
 2. **Bloque B:** T-07–T-12 (§10), planificado el 2026-10-24 mientras T-06 espera
    el run del domingo. El orden es diseño → módulo y tests → notebooks en dev →
-   dos runs de dev → producción → cierre.
+   dos runs de dev → producción → cierre. **Descopeado a la 010 el 2026-10-28**
+   tras los `TIMEDOUT` de T-10: el diseño queda aquí y la validación y el
+   despliegue pasan a la spec de rendimiento.
 
 ## 9. Presupuesto de runs (heredado de la 009)
 
@@ -258,6 +260,12 @@ Reglas de gasto:
   programado del domingo.
 
 ## 10. Bloque B — silvers incrementales
+
+> **Descopeado a la spec 010 el 2026-10-28.** El diseño de esta sección y el
+> código de T-07–T-09 se conservan como referencia y como base del trabajo de
+> rendimiento; la validación A/B, la decisión de compute y el despliegue a
+> producción se siguen en `specs/010-Performance-And-Layout`. Esta spec cierra
+> con el bloque A.
 
 ### 10.1 Estado de partida (código actual)
 

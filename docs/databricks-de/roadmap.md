@@ -64,8 +64,8 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
 |---|---|---|---|
 | 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | hecha |
 | 2-3 | 19 oct - 1 nov | **Spec 007 (código)** y **Spec 009 (coste y cadencia)** | 007 y 009 hechas (009 cerrada el 24-oct) |
-| 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (arranca con el bronce upsert, paso B) | pendiente |
-| 7 | 23-29 nov | **Spec 010:** rendimiento, layout físico y compute | pendiente |
+| 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (bloque A: bronce upsert) | bloque A cerrado salvo registro de T-06; bloque B **descopeado** a la 010 (28-oct) |
+| 7 | 23-29 nov | **Spec 010:** rendimiento, layout físico y compute | en curso desde el 28-oct (desbloquea el incremental de silver)
 | 8 | 30 nov – 6 dic | **Spec 011:** streaming y observabilidad | pendiente |
 | 9 | 7–13 dic | **Spec 012:** seguridad y gobernanza | pendiente |
 | 10–11 | 14–27 dic | Simulacros, repaso final y **examen** | pendiente |
@@ -157,3 +157,5 @@ Unity Catalog del laboratorio y puntuar en batch dentro del job semanal
 | 2026-10-23 | Renumeración y política | Rendimiento 009→010, streaming 010→011, gobernanza 011→012; tres entornos y presupuesto de runs (≤ 9 € en todo el track) |
 | 2026-10-23 | Spec 009: compute, warehouse y cadencia | Warehouse a 2X-Small (≈0,43 €/despertar); serverless se traslada a la 010; job prod desplegado con `50 0 23 ? * SUN` (domingos 23:00, `UNPAUSED`) |
 | 2026-10-24 | Spec 009 cerrada | Merge `--no-ff` a `main` y tag `spec-009`; workflow del dashboard en verde con `data_date` 2026-10-22; presupuesto de 15 €/mes con alertas; primer run semanal el domingo 25-oct |
+| 2026-10-28 | Spec 008: bronce cerrado, silvers descopeadas | Bloque A con el one-off de prod y la comprobación real de T-06 en verde (run del domingo 25-oct y dashboard del lunes; falta anotar id y tiempos). Bloque B (silvers incrementales) implementado con tests, pero **T-10 bloqueada**: tres runs `TIMEDOUT` a los ~30 min sin escribir, con el incremental costando 3,7–6× la reconstrucción completa. **Descopeado a la 010**; T-11 no se despliega. Fix de `keyed` revertido |
+| 2026-10-28 | Spec 010 (rendimiento) creada | Worktree `talent-market-lens-010`, rama `spec/010-performance-and-layout` desde `spec/008-delta-incremental` (el incremental aún no está en `main`; rebase al fusionar o descopear la 008). Diagnóstico gratis antes de optimizar (Spark UI de B2/B3, local, instrumentación por acción); presupuesto aprobado 3 runs + 0 SQL dentro del techo de 1,8 € de la 009 |
