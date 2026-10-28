@@ -47,7 +47,7 @@
 
 ## 1. Diagnóstico y banco de pruebas
 
-- [ ] **T-01 — Diagnóstico del coste, sin runs** (~60 min)
+- [x] **T-01 — Diagnóstico del coste, sin runs** (~60 min)
   - **Objetivo:** atribuir el tiempo del incremental por etapa y por operador
     con evidencia, no con hipótesis. Escribir `design-performance.md` con la
     tabla de costes, las hipótesis confirmadas/descartadas y la lista de
@@ -70,6 +70,15 @@
     cambios; revisado por `verifier`.
   - **Evidencia:** capturas o cifras de la Spark UI, planes, tiempos locales y
     fila en `evidence.md`. **0 €.**
+  - **Estado (2026-10-28):** **cerrada.** `design-performance.md` (3 revisiones;
+    15 marcas `[NO VERIFICADO]`) y capturas archivadas en
+    `docs/media/performance/`. Lo medido: 49–55 consultas de 1,4–1,6 min media,
+    8 stages de 200 tareas con 20,7 KiB–2,9 MiB de entrada y 0,70–0,87 s por
+    tarea, `MERGE` de 1,1–2,4 min y **≈6–7×** el rebuild. H5 confirmada
+    (documental); H1–H4 parciales; **H6 presente, no confirmada**. Verificación
+    independiente **PASA CON MENORES**. Lo que falta para cerrar el diagnóstico
+    es gratis (`DESCRIBE DETAIL` de 8 tablas, detalle de un stage y la Spark UI
+    del run A), pero necesita el workspace.
 
 - [ ] **T-02 — Instrumentación del resumen y banco local** (~60 min)
   - **Objetivo:** que el siguiente run diga dónde se va el tiempo sin añadir
@@ -191,6 +200,6 @@
     plantilla del índice (qué se practicó, concepto, comandos, errores, dudas).
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
     completas en verde; comprobación real registrada; `docs/costs.md` con todos
-    los runs (dentro del techo de 1,0 €).
+    los runs (dentro del techo de 1,8 €).
   - **Hecho cuando:** merge a `main` y tag (`spec-010`) solo con RF-2/RF-3/RF-4
-    verificados en dev y RF-8 cerrado (o entregado a la 008).
+    verificados en dev y RF-8 cerrado.

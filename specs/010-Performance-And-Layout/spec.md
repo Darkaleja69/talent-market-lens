@@ -28,7 +28,7 @@ El incremental no:
 | `1015448868873733` (B3) | B2 + `keyed` compartido | **TIMEDOUT**, sin escrituras | 30 m 30 s |
 
 El bronce dev son ~31k filas y el 27-oct entraron **190** en indeed; aun así el
-incremental tarda **3,7–6×** lo que la reconstrucción completa de la misma tabla
+incremental tarda **≈6–7×** lo que la reconstrucción completa de la misma tabla
 y no termina. Ojo a la lectura: `_ingest_date` es la **fecha del lote**, no la
 de captura, así que la ventana de 7 días recalcula casi todo el bronce y B2/B3
 son el **peor caso**, no un cambio pequeño. La producción tiene

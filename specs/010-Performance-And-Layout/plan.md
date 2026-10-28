@@ -23,10 +23,14 @@ ni la cadencia.
 | Run | Caso | Tareas | Resultado | Silvers | Escrituras |
 |---|---|---|---|---|---|
 | `263658658061220` (A) | migración `full` con `count()` de más | 8/8 | SUCCESS, 22 m 18 s | 9,8–11,8 min | sí |
-| `186230462263213` (B) | backfill 24–25 + `repeat_window` | silvers cortadas | TIMEDOUT 30 m 46 s | >23 min | **no** |
+| `186230462263213` (B) | backfill 24–25 + `repeat_window` | silvers cortadas | TIMEDOUT 30 m 46 s | ~27 min | **no** |
 | `207866361330883` (A2) | migración `full` en una pasada | 8/8 | SUCCESS, 14 m 39 s | 2 m 47 s–3 m 46 s | sí |
-| `1056455747512203` (B2) | backfill 25–27 + `repeat_window` | silvers cortadas | TIMEDOUT 30 m 37 s | >23 min | **no** |
-| `1015448868873733` (B3) | B2 con `keyed` compartido | silvers cortadas | TIMEDOUT 30 m 30 s | ~14 min | **no** |
+| `1056455747512203` (B2) | backfill 25–27 + `repeat_window` | silvers cortadas | TIMEDOUT 30 m 37 s | sin duración registrada | **no** |
+| `1015448868873733` (B3) | B2 con `keyed` compartido | silvers cortadas | TIMEDOUT 30 m 30 s | 22 m 04 s | **no** |
+
+La columna **Silvers** es la **duración de la tarea** de silver (no un tiempo
+run-relative): en B3, bronce 8 m 06 s + 22 m 04 s ≈ 30 m 10 s, a 20 s del total
+del run; en B, 3 m 29 s + 27 min ≈ 30 m 29 s, a 17 s. B2 no la registró.
 
 Datos de contexto: **bronce** dev ~31k filas (one-off: 3.039 / **2.617** / 14.289 /
 11.096) y **silver** en A2: 3.096 / 2.527 / 12.504 / 10.068 (la diferencia es la
@@ -70,9 +74,10 @@ tiene MERGE: esa es la diferencia que hay que medir.
 ### 2.3 Lo que ya se sabe y lo que no
 
 - Se sabe: el modo `full` cuesta 2 m 47 s–3 m 46 s por silver con el bronce
-  completo y funciona; el incremental tarda **3,7–6×** (B3 se cortó a los
-  ~14 min sin terminar; B, a los ~23) y compartir `keyed` entre los dos pases de
-  `repeat_window` no bastó (B3).
+  completo y funciona; el incremental no termina: las silvers de B3 llegaron a
+  **22 m 04 s** de tarea y las de B a **~27 min** antes del `TIMEDOUT`.
+  Compartir `keyed` entre los dos pases de `repeat_window` no bastó (B3): el
+  parche no llegó a ejecutarse porque ninguna silver terminó el primer pase.
 - Se sabe: `_ingest_date` es la fecha del lote, así que la ventana de 7 días
   **cubre casi todo el bronce** en dev. B2/B3 no son un caso incremental
   pequeño: son el peor caso (recalcular casi todo). Eso no excusa el coste,
@@ -105,11 +110,8 @@ externos: el arranque del clúster (2–9 min según el run) no mide el código.
 | H1 | **Codegen**: la proyección de `build_offers`/`enrich` supera 64 KB y cae a interpretado; el aviso «Code grows beyond 64 KB» lo delata | stage de `recompute` dominante, sin shuffle, con tiempo de compilación alto | `explain("codegen")`, tamaño del código generado, tiempos locales con la misma fixture (0 €) | partir la cadena en 2–3 proyecciones con `localCheckpoint`/`persist`, o reducir expresiones; medir antes/después |
 | H2 | **Pasadas y caché**: `recompute` se materializa hasta 5–6 veces y la caché no aguanta 4 silvers en 16 GiB | storage tab con fracción cacheada baja, *spill* a disco, «Recompute» en el DAG | Spark UI de B2/B3 (0 €) + resumen por pasos instrumentado (1 run, ya previsto) | quitar acciones (métricas de Delta en vez de `count()`), `persist(MEMORY_AND_DISK)`/`localCheckpoint`, y decidir concurrencia |
 | H3 | **MERGE**: el `ON` es una expresión calculada a los dos lados, sin `_key` almacenada; no hay poda por estadísticas y el destino se reescribe entero | stage del MERGE con shuffle completo y `numTargetRowsCopied` alto | `explain` del MERGE + `operationMetrics` de Delta (lectura en el job, 0 €) | valorar `_key` materializada en silver o tabla de stage; **decisión de contrato con la persona** |
-| H4 | **Concurrencia y compute**: cuatro jobs independientes en 4 vCPU comparten CPU y memoria; cada uno corre con 1–2 tareas | paralelismo por stage bajo, GC alto, duración por tarea similar | Spark UI (tasks/executor, GC, peak memory) (0 €) | probar secuencial vs paralelo y, si hace falta, cambiar compute (decisión de T-06) |
-| H2 | **Pasadas y caché**: la cadena de `recompute` se materializa una vez por acción y la caché no aguanta 4 silvers en 16 GiB | storage tab con fracción cacheada baja, *spill* a disco, «Recompute» en el DAG | Spark UI de B2/B3 (0 €) + resumen instrumentado por acción (1 run, ya previsto) | quitar acciones donde Delta ya da el dato, `persist(MEMORY_AND_DISK)`/`localCheckpoint`, y decidir concurrencia |
-| H3 | **MERGE**: el `ON` es una expresión calculada a los dos lados, sin `_key` almacenada; no hay poda por estadísticas y el destino se reescribe entero | stage del MERGE con shuffle completo y `numTargetRowsCopied` alto | `explain` del MERGE + `operationMetrics` de Delta (lectura en el job, 0 €) | valorar `_key` materializada en silver o tabla de stage; **decisión de contrato con la persona** |
-| H4 | **Concurrencia y compute**: cuatro jobs independientes en 4 vCPU comparten CPU y memoria; cada uno corre con 1–2 tareas | paralelismo por stage bajo, GC alto, duración por tarea similar | Spark UI (tasks/executor, GC, peak memory) (0 €) | probar secuencial vs paralelo y, si hace falta, cambiar compute (decisión de T-06) |
-| H5 | **Ventana**: en dev el watermark hace que el incremental recalcule casi todo; el banco debe separar «ventana ancha» y «ventana pequeña» | `changed_rows` ≈ filas de bronce | resumen del run (**1 run**, el B) y cálculo local del watermark | fijar dos escenarios de benchmark y no extrapolar del caso ancho |
+| H4 | **Concurrencia y compute**: cuatro jobs independientes comparten 4 vCPU y 16 GiB; los stages vistos tienen **200 tareas** cada uno | 200 tareas por stage, ~0,7–0,9 s por tarea, duración proporcional al nº de tareas y no a los bytes | Spark UI de B2/B3 (0 €) + tasks/GC/memoria de un stage | reducir tareas por acción (particiones) y decidir concurrencia y compute (T-06) |
+| H5 | **Ventana**: en dev el watermark hace que el incremental recalcule casi todo; el banco debe separar «ventana ancha» y «ventana pequeña» | `changed_rows` ≈ filas de bronce | resumen del run **B de T-08** (1 run) y cálculo local del watermark | fijar dos escenarios de benchmark y no extrapolar del caso ancho |
 | H6 | **Layout**: los `MERGE`/`overwrite` dejan ficheros pequeños; a 3k–12k filas no debería ser el cuello | `numFiles` alto, `sizeInBytes` bajo | `DESCRIBE DETAIL` en el clúster del job (céntimos) o en un run ya previsto | decidir `OPTIMIZE`/layout **solo** si la medida lo justifica; documentar el «no cambiar» |
 
 Orden de trabajo: H1, H2 y H6 son gratis (Spark UI + local); H3, H4 y H5 se
@@ -131,8 +133,8 @@ las métricas del `MERGE` y de las tareas se leen en B, y el layout en A.
   salir de ahí; `target_rows` necesita un `count()` (se mantiene).
 - **Qué conteos se quedan:** `changed_rows`, `affected_groups` y
   `recomputed_groups` no tienen equivalente en Delta y siguen siendo `count()`
-  sobre frames ya cacheados. El objetivo de T-02 es bajar de **10 acciones a ≤6**
-  sin perder ningún campo del resumen.
+  sobre frames ya cacheados. El objetivo de T-02 es bajar de **11 acciones de
+  código (12–14 consultas en la UI)** a ≤6 sin perder ningún campo del resumen.
 - **Contrato del resumen:** los 16 campos actuales se conservan; se añaden
   `timings_s` y `merge_metrics` (aditivo, sin romper a quien lo lea).
 - **Evidencia:** `jobs get-run-output` + `meta.json` + SHA-256 de los Parquet.
