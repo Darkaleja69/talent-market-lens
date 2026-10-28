@@ -156,6 +156,21 @@ al menos un despertar.
   comparación de exports; el incremental necesita rendimiento (spec 010) antes
   de T-11.
 
+## Runs de la spec 010 (en curso)
+
+- **T-03 (2026-10-28), intento abortado antes de medir:** run `16957686724897`,
+  **CANCELED** a los 108 s (el job desplegado aún no tenía el `spark_conf`; el
+  bronce estaba arrancando) → **~0,02 €**. No cuenta como evidencia.
+- **T-03 (2026-10-28), run A (referencia `force_full`, ya con 8 particiones):**
+  `485578578869927`, **SUCCESS**, 8/8, **808 s** (13 m 28 s); silvers 117–169 s
+  de módulo (tareas 167–204 s); oro 54 s; exports 35/37 s → **~0,17 €**.
+- **T-03 (2026-10-28), run B (incremental + `repeat_window`, ventana 24–28):**
+  `269508392317481`, **SUCCESS**, 8/8, **974 s** (16 m 14 s); dos pases por
+  silver: **249–318 s** el primero y **173–249 s** el segundo; el `MERGE`
+  escribió 55–458 filas; conteos finales **idénticos a A** (3.112 / 2.527 /
+  12.543 / 10.072) → **~0,20 €**.
+- **Total de la 010:** ~0,39 € de 1,8 € (2 runs de evidencia + 1 abortado).
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento

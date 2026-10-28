@@ -466,3 +466,31 @@ Referencia: `plan.md` §3 y RF-2/RF-3 de la spec.
 El criterio no se cumple «en local» ni «por cálculo»: se cumple cuando el run A y
 el run B de T-07/T-08 lo miden con el resumen instrumentado. Este documento fija
 **qué** hay que mover y **cómo** se sabrá si se movió.
+
+## 8. Resultado del primer cambio (medido el 2026-10-28)
+
+Se fijó `spark.sql.shuffle.partitions = 8` en el job cluster (una línea) y se
+lanzaron los dos runs, ya con el cambio desplegado:
+
+| Run | Modo | Total | Silvers (módulo) | Por pase |
+|---|---|---|---|---|
+| A `485578578869927` | `force_full` | **808 s** (13 m 28 s) | 117-169 s | — |
+| B `269508392317481` | incremental + `repeat_window` | **974 s** (16 m 14 s) | 249-318 s / 173-249 s | **4 m 09 s-5 m 18 s** y **2 m 53 s-4 m 09 s** |
+
+- `MERGE` con **55-458** filas por fuente; `deleted_groups = 0`; conteos
+  finales **idénticos a A** (3.112 / 2.527 / 12.543 / 10.072) y los dos pases de
+  la repetición dejan el mismo contenido.
+- **Lo que se ha ganado:** el incremental **ya termina y cabe** (16 m 14 s con
+  dos pases; en producción, sin `repeat_window`, será un solo pase). Antes:
+  `TIMEDOUT` a los 30 min con las silvers en >22 min.
+- **Lo que no:** el pase incremental (4-5 min) sigue por encima del rebuild
+  (2-3 min): **RF-2a no se cumple**. El cuello ya no son las 200 tareas por
+  stage (el cambio se nota en 4x) sino el **coste fijo por consulta**: 11
+  acciones a ~20-30 s cada una, más el `MERGE`. Con la ventana de 24-28 solo
+  cambian 55-485 filas, así que el tiempo es **overhead**, no datos.
+- **Siguiente palanca:** quitar acciones (P3) y/o abaratar el coste por tarea
+  (P2). Para decidir cuánto se gana con cada una, el resumen necesita los
+  tiempos por acción: **T-02 vuelve a la mesa**.
+- `[NO VERIFICADO]`: las tareas por stage del run B (no se capturó su Spark
+  UI); los exports A/B byte a byte (B sobrescribió los de A y no se guardó su
+  SHA-256; la equivalencia está por conteos e idempotencia).

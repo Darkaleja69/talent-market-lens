@@ -145,7 +145,10 @@ las métricas del `MERGE` y de las tareas se leen en B, y el layout en A.
 1. **Particiones de *shuffle*** (H4, P1 tras T-01): `spark.sql.shuffle.partitions`
    de 200 a 8–16 y leer la config efectiva y AQE. Convierte cada *exchange* de
    200 × 0,7 s ≈ 140 s en 8–16 × 0,7 s ≈ 6–11 s y baja las tareas por silver de
-   ~2.700 a ~150–250. En T-03 se experimenta; en T-06 se fija la config
+   ~2.700 a ~150–250. **Medido el 2026-10-28** (`design-performance.md` §8): el
+   run pasa de `TIMEDOUT` (>22 min por silver) a **974 s con dos pases**
+   (4–5 min por pase), cabe en la ventana; aún no bate al rebuild (RF-2a), así
+   que quedan P2/P3. En T-03 se experimenta; en T-06 se fija la config
    definitiva (`.yml` del clúster o código) y se aprueba.
 2. **Coste por tarea y codegen** (H1): partir la proyección de `build_offers`
    (enrich incluido) en etapas con una frontera materializada; alternativa:

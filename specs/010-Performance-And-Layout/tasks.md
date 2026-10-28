@@ -120,14 +120,23 @@
     resto de la optimización se mediría sin la palanca principal. Aquí se
     **experimenta**; la config definitiva (`.yml` del clúster o código) se fija
     en T-06.
-  - **Estado (2026-10-28):** **primer cambio hecho y aprobado**:
-    `resources/elt.job.yml` fija `spark.sql.shuffle.partitions: "8"` en el
-    `spark_conf` del job cluster (una línea; se revierte con otro deploy). La
-    pestaña *Environment* de B3 no mostraba override de esa clave ni de AQE: el
-    job corría con los defaults (200 y AQE activo, §2.7 del diagnóstico), y de
-    ahí las 200 tareas por stage. **Pendiente:** deploy a dev y los runs A/B
-    (T-07/T-08) para medir tareas por stage y tiempo; el codegen y la reducción
-    de acciones no se tocan hasta ver el efecto de P1.
+  - **Estado (2026-10-28): primer cambio aplicado y medido; T-03 sigue abierta.**
+    `resources/elt.job.yml` fija `spark.sql.shuffle.partitions: "8"` (una línea,
+    aprobada, revertible con deploy). Runs con el cambio:
+    - **A** `485578578869927` (`force_full=true`): **SUCCESS**, 8/8, **808 s**;
+      silvers 117–169 s de módulo (tareas 167–204 s), como A2.
+    - **B** `269508392317481` (ventana 24–28, `repeat_window=true`):
+      **SUCCESS**, 8/8, **974 s**; dos pases de **4 m 09 s–5 m 18 s** y
+      **2 m 53 s–4 m 09 s**; `MERGE` con 55–458 filas; conteos finales idénticos
+      a A (3.112 / 2.527 / 12.543 / 10.072).
+    - **El run ya cabe** en la ventana de producción (16 m 14 s frente a 1800 s;
+      46 % de margen) y el incremental dejó de expirar (antes, >22 min por
+      silver y `TIMEDOUT`). **Pero RF-2a no se cumple todavía**: el pase
+      incremental cuesta ~2× el rebuild completo (1 m 57 s–2 m 49 s), no ≤ 3 m 46 s.
+    - **Lo que queda** ya no es volumen ni particiones: es el **coste fijo por
+      consulta** (11 acciones × ~20–30 s) y el `MERGE`. Siguiente paso: T-02
+      (medir por acción) y, con eso, recortar acciones (P3) y/o el coste por
+      tarea (P2). Consume 2 runs de los 3; el abortado gastó ~0,02 €.
   - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
     para poder revertir una sin la otra. El fix de `keyed` compartido que se
     revirtió en la 008 (caché del frame `keyed` entre los dos pases de
@@ -205,7 +214,10 @@
     `plan.md` §3.
   - **Ejecución (run 2 de 3):** `bundle run elt -t dev --profile vs_code
     --params backfill_from=...,backfill_to=...,repeat_window=true`; lo ejecuta la
-    persona. La ventana exacta se anota en el resumen.
+    persona. **Antes de lanzar B**, copiar el SHA-256 de los 12 Parquet y los
+    `meta.json` de los exports de A: B los sobrescribe y sin esa captura la
+    comparación byte a byte se pierde (pasó el 2026-10-28). La ventana exacta se
+    anota en el resumen.
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics`, SHA-256
     A/B, conteos, coste y fila en `evidence.md`.
 
