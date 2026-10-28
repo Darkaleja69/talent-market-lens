@@ -142,22 +142,29 @@ las métricas del `MERGE` y de las tareas se leen en B, y el layout en A.
 
 ## 6. Optimizaciones candidatas (solo si el diagnóstico las justifica)
 
-1. **Menos acciones sobre `recompute`** (H2): quitar los `count()` redundantes,
-   tomar los del `MERGE` de Delta y no recalcular el frame para los marcadores
-   si la clave se puede proyectar antes.
-2. **Caché con criterio** (H2): `MEMORY_AND_DISK` o `localCheckpoint(eager=True)`
+1. **Particiones de *shuffle*** (H4, P1 tras T-01): `spark.sql.shuffle.partitions`
+   de 200 a 8–16 y leer la config efectiva y AQE. Convierte cada *exchange* de
+   200 × 0,7 s ≈ 140 s en 8–16 × 0,7 s ≈ 6–11 s y baja las tareas por silver de
+   ~2.700 a ~150–250. En T-03 se experimenta; en T-06 se fija la config
+   definitiva (`.yml` del clúster o código) y se aprueba.
+2. **Coste por tarea y codegen** (H1): partir la proyección de `build_offers`
+   (enrich incluido) en etapas con una frontera materializada; alternativa:
+   reducir expresiones anidadas. Se mide con `explain("codegen")` y con el
+   tiempo del pase.
+3. **Menos acciones sobre `recompute`** (H2, **bajo valor**: A2 hace más
+   consultas y es más rápido): quitar los `count()` redundantes, tomar los del
+   `MERGE` de Delta y no recalcular el frame para los marcadores si la clave se
+   puede proyectar antes.
+4. **Caché con criterio** (H2): `MEMORY_AND_DISK` o `localCheckpoint(eager=True)`
    en `recompute`, `unpersist` explícito tras el MERGE (ya existe), y **no**
    cachear frames estrechos que se leen una vez.
-3. **Codegen** (H1): dividir la proyección de `build_offers` (enrich incluido)
-   en etapas con una frontera materializada; alternativa: reducir expresiones
-   anidadas. Se mide con `explain("codegen")` y con el tiempo del pase.
-4. **MERGE** (H3): materializar `_key` en silver (columna interna, excluida de
+5. **MERGE** (H3): materializar `_key` en silver (columna interna, excluida de
    oro y exports por proyección explícita) o una tabla de stage por run; el
    `ON` pasa a igualdad de columna. **Requiere aprobación de contrato** y
    `RESTORE` disponible. Si no compensa, se documenta y se queda la expresión.
-5. **Concurrencia** (H4): silvers en secuencia vs paralelo; depende de H4 y del
+6. **Concurrencia** (H4): silvers en secuencia vs paralelo; depende de H4 y del
    compute. Cambiar el grafo del job exige aprobación del `.yml`.
-6. **Timeout**: **no** se sube como solución. Si el resultado no cabe con
+7. **Timeout**: **no** se sube como solución. Si el resultado no cabe con
    margen, el problema sigue abierto.
 
 Cada cambio va con tests (equivalencia y contrato) y con la medición

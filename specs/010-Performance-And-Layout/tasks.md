@@ -70,22 +70,26 @@
     cambios; revisado por `verifier`.
   - **Evidencia:** capturas o cifras de la Spark UI, planes, tiempos locales y
     fila en `evidence.md`. **0 €.**
-  - **Estado (2026-10-28):** **cerrada.** `design-performance.md` (3 revisiones;
-    15 marcas `[NO VERIFICADO]`) y capturas archivadas en
-    `docs/media/performance/`. Lo medido: 49–55 consultas de 1,4–1,6 min media,
-    8 stages de 200 tareas con 20,7 KiB–2,9 MiB de entrada y 0,70–0,87 s por
-    tarea, `MERGE` de 1,1–2,4 min y **≈6–7×** el rebuild. H5 confirmada
-    (documental); H1–H4 parciales; **H6 presente, no confirmada**. Verificación
-    independiente **PASA CON MENORES**. Lo que falta para cerrar el diagnóstico
-    es gratis (`DESCRIBE DETAIL` de 8 tablas, detalle de un stage y la Spark UI
-    del run A), pero necesita el workspace.
+  - **Estado (2026-10-28):** **cerrada.** `design-performance.md` (4 revisiones,
+    14 marcas `[NO VERIFICADO]`) y 9 capturas archivadas en
+    `docs/media/performance/`. Lo medido: A2 **57 consultas de 15 s** frente a
+    49–55 de 1,4–1,6 min del incremental (5,6–6,4× por consulta, con **más**
+    consultas en el modo completo); stages de A2 con **1–4 tareas** frente a
+    **200** del incremental y **10.790 tareas** en B3; 0,70–0,87 s por tarea;
+    `MERGE` 1,1–2,4 min; **≈6–7×** el rebuild. **H4 confirmada en lo medido**,
+    H1/H2/H3 parciales, **H6 descartada como causa principal** (pocos ficheros)
+    y la caché se usó (508 stages *skipped*). **P1 = particiones de `shuffle`**
+    (200 → 8–16): 22 min → ~2–3 min estimados. Verificación independiente
+    **PASA CON MENORES** (cuatro avisos corregidos).
 
 - [ ] **T-02 — Instrumentación del resumen y banco local** (~60 min)
   - **Objetivo:** que el siguiente run diga dónde se va el tiempo sin añadir
     pasadas: `timings_s` por etapa en el resumen de `Silver_Incremental.run`,
-    `merge_metrics` leídas de `DESCRIBE HISTORY` en el clúster del job y el
-    `DESCRIBE DETAIL` de las 8 tablas (`numFiles`/`sizeInBytes`, cierra H6).
-    Banco local reproducible con dos escenarios (ventana ancha y ventana ≤1 %) y
+    `merge_metrics` leídas de `DESCRIBE HISTORY` en el clúster del job,
+    `DESCRIBE DETAIL` de las 8 tablas (`numFiles`/`sizeInBytes`) y la **config
+    efectiva** de `spark.sql.shuffle.partitions` y `spark.sql.adaptive.*`, con
+    el **número de tareas por stage** (la palanca que ha señalado T-01). Banco
+    local reproducible con dos escenarios (ventana ancha y ventana ≤1 %) y
     tiempos antes/después.
   - **Nota:** `DESCRIBE DETAIL`/`DESCRIBE HISTORY` son SQL de **Spark**: se
     ejecutan en el clúster del job, **no** en el SQL warehouse (0,43 € por
@@ -101,10 +105,17 @@
 ## 2. Optimización
 
 - [ ] **T-03 — Camino incremental: pasadas, caché y codegen** (~90 min)
-  - **Objetivo:** aplicar solo los cambios que T-01 justifique (H1/H2/H5):
-    quitar acciones redundantes, ajustar la caché/`localCheckpoint`, partir la
-    proyección que rompe el codegen y decidir la concurrencia de las silvers.
-    Sin cambiar la semántica ni el contrato.
+  - **Objetivo:** aplicar solo los cambios que T-01 justifique. Por orden:
+    **(1) P1, particiones de *shuffle*** (`spark.sql.shuffle.partitions` de 200 a
+    8–16, con la config efectiva ya leída en T-02), **(2)** coste por tarea y
+    codegen (partir la proyección que rompe el codegen) y **(3)** menos
+    acciones, que T-01 ha degradado a bajo valor. Sin cambiar la semántica ni el
+    contrato.
+  - **Nota de secuencia:** P1 mueve la aguja (tareas por silver de ~2.700 a
+    ~150–250 y silver de 22 min a ~2–3 min estimados); si se deja para T-06, el
+    resto de la optimización se mediría sin la palanca principal. Aquí se
+    **experimenta**; la config definitiva (`.yml` del clúster o código) se fija
+    en T-06.
   - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
     para poder revertir una sin la otra. El fix de `keyed` compartido que se
     revirtió en la 008 (caché del frame `keyed` entre los dos pases de
@@ -152,8 +163,9 @@
 - [ ] **T-06 — Compute y concurrencia: decisión** (~30 min)
   - **Objetivo:** decidir el compute de producción con la evidencia de T-01 y
     T-07/T-08: `D4ds_v4` single node, `D8ds_v4`, multi-nodo o serverless;
-    paralelo o secuencial; y el `timeout_seconds` definitivo (sin subirlo como
-    solución).
+    paralelo o secuencial; la **config definitiva de particiones** (`.yml` del
+    clúster o código, con el valor que haya ganado en T-03) y el
+    `timeout_seconds` (sin subirlo como solución).
   - **Hecho cuando:** la tabla de opciones de `plan.md` §7.2 tiene una decisión
     con medida, coste por run y motivo de descarte del resto; si cambia el
     `.yml`, diff aprobado y `bundle validate` en verde (el validate y los
