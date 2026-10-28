@@ -139,19 +139,28 @@ al menos un despertar.
   cuatro silvers canceladas; oro y exports `SKIPPED`) → **~0,24 €**. **No escribió
   nada:** la última versión Delta de las cuatro silvers es la de A2 (indeed v11
   3.096 filas, infojobs v12 2.527, linkedin v8 12.504, multi_site v11 10.068).
-  El bronce de indeed solo ingirió **190 filas** en el 27, así que el timeout no
-  se explica por volumen: hay un **coste fijo/patología** del camino incremental
-  (≈22 min con 190 filas cambiadas) que debe resolver la spec 010.
+  El bronce de indeed solo ingirió **190 filas** en el 27, pero `_ingest_date`
+  es la fecha del lote, así que la ventana 25–27 recalcula casi todo el bronce:
+  B2 es el peor caso, no un cambio pequeño. El reparto entre volumen,
+  pasadas/caché, codegen, `MERGE` y concurrencia de las cuatro silvers queda
+  para la spec 010 (medido, no supuesto).
 - **T-10 B3 (2026-10-27/28), repetición con `keyed` compartido:** run
   `1015448868873733`, **TIMEDOUT** a los **30 min 30 s** (bronce en verde en
   8 min 06 s; las cuatro silvers cortadas a los **22 min 04 s**; oro y exports
   `SKIPPED`) → **~0,24 €**. Tampoco escribió: las versiones Delta siguen en las
   de A2. El fix de `keyed` no era el cuello; la medición local de los pasos da
   ~45 s por pase (con aviso de codegen “Code grows beyond 64 KB” en
-  `build_offers`), y el único paso no medido es el `MERGE`. **T-10 queda
-  bloqueada por rendimiento; no se lanza otro run y T-11 no se toca.**
-- **Cierre de dev del bloque B (actualizado):** 5 runs (A, B, A2, B2 y B3:
-  0,24 × 5 = **~1,20 €**), 0 sesiones SQL; el techo de 2,0 € sigue holgado.
+  `build_offers`), y el `MERGE` y la concurrencia de las cuatro silvers siguen
+  sin medir. **T-10 queda bloqueada por rendimiento; no se lanza otro run y
+  T-11 no se toca.**
+- **Cierre de dev del bloque B (actualizado 2026-10-28):** 5 runs (A, B, A2, B2 y
+  B3). Los tres `TIMEDOUT` duraron ~30 min cada uno, y el coste de 0,24 € por run
+  se había estimado sobre un run de ~19 min: por duración (0,75 €/h) salen
+  ~0,38 € cada uno, y el bloque B queda en **~1,6 €** (A 0,28 + B 0,38 + A2 0,18
+  + B2 0,38 + B3 0,38). Con los ~0,46 € del bloque A, la 008 queda en **~2,07 €**
+  frente al techo de 2,0 € (0 sesiones SQL frente a la 1 reservada): **desvío
+  marginal**, que se confirma en la Account Console (gratis). No hay presupuesto
+  extra para la 010.
   **La validación no se cierra:** B2/B3 no dejaron resumen de las silvers ni
   comparación de exports; el incremental necesita rendimiento (spec 010) antes
   de T-11.
