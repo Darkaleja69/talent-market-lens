@@ -28,9 +28,11 @@ ni la cadencia.
 | `1056455747512203` (B2) | backfill 25–27 + `repeat_window` | silvers cortadas | TIMEDOUT 30 m 37 s | >23 min | **no** |
 | `1015448868873733` (B3) | B2 con `keyed` compartido | silvers cortadas | TIMEDOUT 30 m 30 s | ~14 min | **no** |
 
-Datos de contexto: bronce dev ~31k filas (3.039 / 2.527 / 14.289 / 11.096 en el
-one-off; 3.096 / 2.527 / 12.504 / 10.068 en A2 por la evolución de dev). El
-27-oct el bronce de indeed ingirió **190 filas**. Job `D4ds_v4` single node
+Datos de contexto: **bronce** dev ~31k filas (one-off: 3.039 / **2.617** / 14.289 /
+11.096) y **silver** en A2: 3.096 / 2.527 / 12.504 / 10.068 (la diferencia es la
+evolución de dev, no una fuente distinta). El 27-oct el bronce de indeed ingirió
+**190 filas**, pero `_ingest_date` es la **fecha del lote**, así que la ventana
+de 7 días abarca casi todo el bronce. Job `D4ds_v4` single node
 (4 vCPU / 16 GiB), `CLASSIC_PREVIEW`, `17.3.x-scala2.13`, Photon fuera
 (`runtime_engine: STANDARD`), `performance_target: PERFORMANCE_OPTIMIZED`,
 `timeout_seconds: 1800`, `max_concurrent_runs: 1`, cuatro silvers en paralelo.
@@ -49,41 +51,45 @@ frame cacheado:
 | 5 | `keys_new.distinct()` / `target ⋈ changed_ids` / `keys_old` / `affected.distinct()` | shuffles | medio |
 | 6 | `candidates` (semi-join por `_key`) | shuffle | medio |
 | 7 | **`recompute = transform(candidates)` + `cache()`** | cadena de negocio + `enrich` | **el caro** |
-| 8 | `require_no_null` (`isEmpty`) | 1.ª pasada sobre `recompute` | caro si no hay caché |
+| 8 | `require_no_null_ingest_date` (`isEmpty`) | 1.ª pasada sobre `recompute` | caro si no hay caché |
 | 9 | `require_unique_groups` (`groupBy(_key).count()`) | shuffle + 2.ª pasada | caro |
 | 10 | `recompute_keys.distinct()` | 3.ª pasada | caro |
-| 11 | `markers` (target ⋈ affected ⟕ recompute_keys) | 4.ª lectura de `recompute` | caro |
+| 11 | `markers` (`target ⋈ affected` **left_semi** ⟕ `recompute_keys` **left_anti**) | 4.ª lectura de `recompute` | caro |
 | 12 | `merge_src` (proyección + union con marcadores) | 5.ª lectura | caro |
-| 13 | conteos de `changed`, `affected`, `recompute`, `markers`, `merge_src` | 6.ª–10.ª lectura | caro |
+| 13 | los 5 `count()` (`changed`, `affected`, `recompute`, `markers`, `merge_src`) | 3 pasadas nuevas sobre caché + 2 que ya existían | medio si la caché aguanta |
 | 14 | **`MERGE WITH SCHEMA EVOLUTION`** sobre vista temporal | shuffle + escritura | **no medido** |
 | 15 | `target.count()` tras el MERGE | 1 job | corto |
 
-Con caché efectiva, el paso 7 se paga una vez; sin ella (evicción, memoria
-compartida entre cuatro silvers), se paga hasta cinco veces. La reconstrucción
-completa paga el paso 7 **una sola vez** y no tiene MERGE: esa es la diferencia
-que hay que explicar.
+`keep()` cachea **seis frames** por silver (`changed`, `affected`, `recompute`,
+`recompute_keys`, `markers`, `merge_src`) y `keyed` se cachea aparte: **siete en
+total**. Con caché efectiva, la cadena de negocio se paga una vez; sin ella
+(evicción por memoria compartida entre cuatro silvers), se paga una vez por cada
+acción que la necesite. La reconstrucción completa la paga **una sola vez** y no
+tiene MERGE: esa es la diferencia que hay que medir.
 
 ### 2.3 Lo que ya se sabe y lo que no
 
 - Se sabe: el modo `full` cuesta 2 m 47 s–3 m 46 s por silver con el bronce
-  completo y funciona; el incremental tarda ≥4× y no termina; compartir `keyed`
-  entre los dos pases de `repeat_window` no cambió el resultado (B3).
-- Se sabe: la ventana de 7 días **cubre casi todo el bronce** en dev, porque
-  todos los `_ingest_date` son de los últimos días. B2/B3 no son un caso
-  incremental pequeño: son el peor caso (recalcular casi todo). Eso no excusa
-  el coste, pero cambia la lectura: el incremental debe costar como un rebuild
-  **como máximo** en ese escenario.
-- No se sabe: cuánto pesa el `MERGE`, cuánto el codegen, cuánto la falta de
-  caché y cuánto la concurrencia de cuatro silvers en 4 vCPU / 16 GiB. Eso es
-  exactamente T-01.
+  completo y funciona; el incremental tarda **3,7–6×** (B3 se cortó a los
+  ~14 min sin terminar; B, a los ~23) y compartir `keyed` entre los dos pases de
+  `repeat_window` no bastó (B3).
+- Se sabe: `_ingest_date` es la fecha del lote, así que la ventana de 7 días
+  **cubre casi todo el bronce** en dev. B2/B3 no son un caso incremental
+  pequeño: son el peor caso (recalcular casi todo). Eso no excusa el coste,
+  pero cambia la lectura: el incremental debe costar como un rebuild **como
+  máximo** en ese escenario.
+- No se sabe: cuánto pesa el volumen, el codegen, la falta de caché, la
+  concurrencia de cuatro silvers en 4 vCPU / 16 GiB y el `MERGE`. Eso es
+  exactamente T-01, y hasta entonces no se afirma ninguna causa.
 
 ## 3. Criterio de aceptación (medible)
 
-Con `T_full` = 2 m 47 s–3 m 46 s (A2, por silver) y `T_inc` = tiempo de la
-misma silver en modo incremental con la ventana cubriendo el bronce:
+Con `T_full` = **3 m 46 s** (extremo superior de A2, por silver) y `T_inc` =
+tiempo de la misma silver en modo incremental con la ventana cubriendo el bronce:
 
-- **RF-2a:** `T_inc ≤ T_full` (ventana que cubre casi todo).
-- **RF-2b:** con ventana ≤1 % del bronce, `T_inc ≤ T_full / 3`.
+- **RF-2a:** `T_inc ≤ 3 m 46 s` (ventana que cubre casi todo).
+- **RF-2b:** con ventana ≤1 % del bronce, `T_inc ≤ 75 s` (un tercio del mismo
+  extremo).
 - **RF-3:** run completo en dev ≤ **22 m 30 s** (25 % de margen sobre 1800 s) y,
   con lote semanal, sin acercarse al timeout.
 - **RF-4/5:** exports A/B **idénticos byte a byte**, `MERGE` con escrituras y
@@ -100,22 +106,33 @@ externos: el arranque del clúster (2–9 min según el run) no mide el código.
 | H2 | **Pasadas y caché**: `recompute` se materializa hasta 5–6 veces y la caché no aguanta 4 silvers en 16 GiB | storage tab con fracción cacheada baja, *spill* a disco, «Recompute» en el DAG | Spark UI de B2/B3 (0 €) + resumen por pasos instrumentado (1 run, ya previsto) | quitar acciones (métricas de Delta en vez de `count()`), `persist(MEMORY_AND_DISK)`/`localCheckpoint`, y decidir concurrencia |
 | H3 | **MERGE**: el `ON` es una expresión calculada a los dos lados, sin `_key` almacenada; no hay poda por estadísticas y el destino se reescribe entero | stage del MERGE con shuffle completo y `numTargetRowsCopied` alto | `explain` del MERGE + `operationMetrics` de Delta (lectura en el job, 0 €) | valorar `_key` materializada en silver o tabla de stage; **decisión de contrato con la persona** |
 | H4 | **Concurrencia y compute**: cuatro jobs independientes en 4 vCPU comparten CPU y memoria; cada uno corre con 1–2 tareas | paralelismo por stage bajo, GC alto, duración por tarea similar | Spark UI (tasks/executor, GC, peak memory) (0 €) | probar secuencial vs paralelo y, si hace falta, cambiar compute (decisión de T-06) |
-| H5 | **Ventana**: en dev el watermark hace que el incremental recalcule casi todo; el banco debe separar «ventana ancha» y «ventana pequeña» | `changed_rows` ≈ filas de bronce | resumen del run (0 €) | fijar dos escenarios de benchmark y no extrapolar del caso ancho |
-| H6 | **Layout**: los `MERGE`/`overwrite` dejan ficheros pequeños; a 3k–12k filas no debería ser el cuello | `numFiles` alto, `sizeInBytes` bajo | `DESCRIBE DETAIL` en el job (0 €) | decidir `OPTIMIZE`/layout **solo** si la medida lo justifica; documentar el «no cambiar» |
+| H2 | **Pasadas y caché**: la cadena de `recompute` se materializa una vez por acción y la caché no aguanta 4 silvers en 16 GiB | storage tab con fracción cacheada baja, *spill* a disco, «Recompute» en el DAG | Spark UI de B2/B3 (0 €) + resumen instrumentado por acción (1 run, ya previsto) | quitar acciones donde Delta ya da el dato, `persist(MEMORY_AND_DISK)`/`localCheckpoint`, y decidir concurrencia |
+| H3 | **MERGE**: el `ON` es una expresión calculada a los dos lados, sin `_key` almacenada; no hay poda por estadísticas y el destino se reescribe entero | stage del MERGE con shuffle completo y `numTargetRowsCopied` alto | `explain` del MERGE + `operationMetrics` de Delta (lectura en el job, 0 €) | valorar `_key` materializada en silver o tabla de stage; **decisión de contrato con la persona** |
+| H4 | **Concurrencia y compute**: cuatro jobs independientes en 4 vCPU comparten CPU y memoria; cada uno corre con 1–2 tareas | paralelismo por stage bajo, GC alto, duración por tarea similar | Spark UI (tasks/executor, GC, peak memory) (0 €) | probar secuencial vs paralelo y, si hace falta, cambiar compute (decisión de T-06) |
+| H5 | **Ventana**: en dev el watermark hace que el incremental recalcule casi todo; el banco debe separar «ventana ancha» y «ventana pequeña» | `changed_rows` ≈ filas de bronce | resumen del run (**1 run**, el B) y cálculo local del watermark | fijar dos escenarios de benchmark y no extrapolar del caso ancho |
+| H6 | **Layout**: los `MERGE`/`overwrite` dejan ficheros pequeños; a 3k–12k filas no debería ser el cuello | `numFiles` alto, `sizeInBytes` bajo | `DESCRIBE DETAIL` en el clúster del job (céntimos) o en un run ya previsto | decidir `OPTIMIZE`/layout **solo** si la medida lo justifica; documentar el «no cambiar» |
 
-Orden de trabajo: H1, H2, H5 y H6 son gratis (Spark UI + local). H3 y H4
-necesitan el workspace, pero **no un run nuevo**: las métricas del MERGE y de
-las tareas se leen en el run A de la fase de validación.
+Orden de trabajo: H1, H2 y H6 son gratis (Spark UI + local); H3, H4 y H5 se
+confirman en el run A/B de la fase de validación **sin gastar un run extra**:
+las métricas del `MERGE` y de las tareas se leen en B, y el layout en A.
 
 ## 5. Instrumentación (sin pasadas extra)
 
-- **Tiempos por paso** en el resumen de `Silver_Incremental.run`: `monotonic()`
-  alrededor de los pasos 1–14 y un diccionario `timings_s` por paso. Medir no
-  debe añadir acciones: los `count()` actuales se sustituyen por las
-  `operationMetrics` del `MERGE` (`numTargetRowsInserted`, `numTargetRowsUpdated`,
-  `numTargetRowsDeleted`, `numTargetRowsCopied`, `numFilesAdded`,
-  `numOutputRows`) leídas con `DESCRIBE HISTORY` **en el clúster del job**
-  (gratis, no despierta el warehouse).
+- **Tiempos por acción, no por línea:** los pasos son perezosos, así que
+  `monotonic()` alrededor de una línea mide ~0 s. Cada acción se etiqueta con
+  `spark.sparkContext.setJobGroup(<paso>, <paso>)` y un `SparkListener`
+  acumula `onJobEnd`/stages por grupo; el resumen devuelve `timings_s` por grupo
+  (incluido el `MERGE`, que corre como SQL en el mismo grupo). No añade
+  acciones: solo etiqueta las que ya existen.
+- **Métricas del `MERGE`:** `numTargetRowsInserted`, `numTargetRowsUpdated`,
+  `numTargetRowsDeleted`, `numTargetRowsCopied`, `numFilesAdded` y
+  `numOutputRows`, leídas con `DESCRIBE HISTORY` **en el clúster del job**
+  (gratis, no despierta el warehouse). `deleted_groups` y `merge_rows` pasan a
+  salir de ahí; `target_rows` necesita un `count()` (se mantiene).
+- **Qué conteos se quedan:** `changed_rows`, `affected_groups` y
+  `recomputed_groups` no tienen equivalente en Delta y siguen siendo `count()`
+  sobre frames ya cacheados. El objetivo de T-02 es bajar de **10 acciones a ≤6**
+  sin perder ningún campo del resumen.
 - **Contrato del resumen:** los 16 campos actuales se conservan; se añaden
   `timings_s` y `merge_metrics` (aditivo, sin romper a quien lo lea).
 - **Evidencia:** `jobs get-run-output` + `meta.json` + SHA-256 de los Parquet.
@@ -124,8 +141,8 @@ las tareas se leen en el run A de la fase de validación.
 ## 6. Optimizaciones candidatas (solo si el diagnóstico las justifica)
 
 1. **Menos acciones sobre `recompute`** (H2): quitar los `count()` redundantes,
-   calcular los conteos del MERGE desde Delta, y no recalcular el frame para
-   los marcadores si la clave se puede proyectar antes.
+   tomar los del `MERGE` de Delta y no recalcular el frame para los marcadores
+   si la clave se puede proyectar antes.
 2. **Caché con criterio** (H2): `MEMORY_AND_DISK` o `localCheckpoint(eager=True)`
    en `recompute`, `unpersist` explícito tras el MERGE (ya existe), y **no**
    cachear frames estrechos que se leen una vez.
@@ -176,7 +193,7 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
   (2 m 47 s–3 m 46 s), exports escritos con `meta.json` válido y SHA-256
   registrado. Es la nueva referencia A (la de A2 no vale si el código cambia).
 - **Run B (incremental + `repeat_window`):** mismo lote, backfill sobre bronce
-  existente; debe ejecutar el `MERGE`, dejar `timings_s` por paso, escribir y
+  existente; debe ejecutar el `MERGE`, dejar `timings_s` por etapa, escribir y
   producir exports **idénticos** a A. Si no cabe, el resumen dice exactamente
   en qué paso y se corrige en local antes de gastar el run de reserva.
 - **Producción:** deploy en la ventana previa a un domingo con el
@@ -199,12 +216,19 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
 | T-08 run B (incremental + repetición) | 1 | ~0,24 € |
 | Reserva (reintento o comparación de compute, con aprobación) | 1 | ~0,24 € |
 | Producción (T-09) | run programado | ya en la cadencia de la 009 |
-| **Total** | **3** | **~0,72 €** (techo 1,0 €) |
+| **Total** | **3** | **~0,72 €** (techo 1,8 €; 0 SQL) |
 
-Reglas:
+Reglas y encaje con la 009:
 
-- El exceso de la 008 (~0,72 € de los 5 runs del bloque B) ya está descontado:
-  el techo de 1,0 € incluye 3 runs y un colchón de ~0,28 €.
+- La 009 reserva a esta spec **2 runs de dev + 1 sesión SQL ≤ 1,8 €**. La
+  propuesta cambia el reparto: **3 runs y 0 SQL**. Renunciar a la sesión ahorra
+  ~1,29 € y el run extra cuesta ~0,24 €, así que el gasto previsto (~0,72 €)
+  queda **por debajo del techo de 1,8 €**. **Requiere el OK de la persona**
+  porque altera el reparto de `specs/009-Cost-And-Cadence/plan.md` §17.
+- El bloque B de la 008 se fue a **~1,6 €** (5 runs por duración) y la 008 queda
+  en ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
+  marginal que se confirma en la Account Console y **no** consume el techo de la
+  010.
 - Un run fallido por defecto de código se corrige **en local** antes de
   relanzar y consume presupuesto.
 - **0 sesiones SQL.** Cualquier consulta al warehouse exige aprobación aparte.
@@ -217,19 +241,21 @@ Reglas:
 | Optimizar a ciegas y gastar runs | T-01 gratis antes de tocar código; el run B no se lanza hasta que el banco local pase el criterio |
 | El diagnóstico apunta a memoria/concurrencia y se «arregla» subiendo el clúster | El compute se decide en T-06 con coste y medida; subir nodo no puede ser la única respuesta si el incremental sigue costando como un rebuild |
 | `_key` materializada rompe el contrato | Columna interna excluida por proyección explícita; `RESTORE` disponible; aprobación previa del diff y de la migración |
-| La instrumentación añade pasadas (como el `count()` del modo `full`) | `monotonic()` alrededor de pasos existentes y `operationMetrics`; el resumen no puede lanzar acciones nuevas |
+| La instrumentación añade pasadas (como el `count()` del modo `full`) | Se etiquetan las acciones existentes con `setJobGroup` y un `SparkListener`; las métricas del MERGE salen de Delta; el resumen no puede lanzar acciones nuevas (test de contrato) |
 | Subir el timeout y dar el problema por resuelto | Prohibido: el gate es 22 m 30 s en dev |
 | Dev no reproduce el caso de prod (ventana ancha por datos jóvenes) | Dos escenarios de benchmark (ventana ancha y ventana ≤1 %) y anotar el tamaño del lote en cada run |
 | Rebasar la rama sobre `main` tras la 008 genera conflictos | Se rebasa en cuanto la 008 se fusione; el trabajo de código empieza después del rebase |
 | El primer run de prod (full) se acerca al timeout | Se mide en A y A2 (14–22 min); con el código optimizado debe quedar por debajo con margen |
 | Domingo ocupado o fallido | El dashboard no publica si `data_date` supera 8 días; se corrige y se espera al domingo siguiente |
+| El reparto de presupuesto de la 009 (2 runs + 1 SQL) no coincide con esta propuesta (3 runs + 0 SQL) | Se propone tal cual y se espera el OK; el coste previsto queda por debajo del techo de 1,8 € |
+| El bloque A de la 008 (T-06) sigue sin comprobar tras el domingo 25-oct | Se registra su estado antes de decidir el cierre de la 008; no se da por cerrado lo que no tiene evidencia |
 
 ## 11. Secuencia
 
 1. **Diagnóstico (T-01):** Spark UI de B2/B3, inventario de acciones, banco
    local y `design-performance.md` con la atribución del coste. Revisión
    independiente.
-2. **Instrumentación y banco (T-02):** resumen por pasos y métricas del MERGE,
+2. **Instrumentación y banco (T-02):** tiempos por etapa y métricas del MERGE,
    sin acciones extra; línea base local reproducible.
 3. **Optimización (T-03/T-04):** aplicar solo lo que el diagnóstico justifica;
    tests de equivalencia y de contrato; diff aprobado.

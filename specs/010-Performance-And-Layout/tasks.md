@@ -16,9 +16,12 @@
 > afectadas, diff propuesto y motivo, y se espera el OK. Los **tests quedan
 > fuera** de esta regla.
 >
-> **Presupuesto:** **3 runs de dev** (~0,72 €) y **0 sesiones SQL**, con techo
-> de 1,0 € (el exceso de ~0,72 € de la 008 ya está descontado). El run de
-> reserva no se gasta sin aprobación. Cada run se anota en `docs/costs.md`.
+> **Presupuesto:** **3 runs de dev** (~0,72 €) y **0 sesiones SQL**, dentro del
+> techo de **1,8 €** que la 009 asigna a esta spec. La propuesta cambia el
+> reparto de la 009 (2 runs + 1 sesión SQL) por 3 runs y 0 SQL: ahorra ~1,29 €
+> de sesión y añade ~0,24 € de run, así que **necesita el OK de la persona**.
+> El run de reserva no se gasta sin aprobación. Cada run se anota en
+> `docs/costs.md`.
 
 ## Convención de commits
 
@@ -50,6 +53,9 @@
     spill, GC, memoria pico, fracción cacheada—; `explain("formatted")` y
     `explain("codegen")` en local; inventario de acciones de `_run_once`
     (`plan.md` §2.2); `DESCRIBE DETAIL` para layout.
+  - **Primero de todo:** capturar y archivar la Spark UI/event log de B2 y B3;
+    su retención no está garantizada y sin ella el diagnóstico se queda sin
+    fuente.
   - **Preguntas guía:** ¿qué stage se lleva el tiempo y cuántas veces se repite
     la cadena de `build_offers`? ¿la caché de `recompute` aguanta con cuatro
     silvers a la vez? ¿cuánto código genera la proyección (64 KB)? ¿el MERGE
@@ -82,11 +88,15 @@
     quitar acciones redundantes, ajustar la caché/`localCheckpoint`, partir la
     proyección que rompe el codegen y decidir la concurrencia de las silvers.
     Sin cambiar la semántica ni el contrato.
+  - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
+    para poder revertir una sin la otra.
   - **Hecho cuando:** el banco local baja del criterio de `plan.md` §3
-    (`T_inc ≤ T_full` con ventana ancha y `≤ T_full/3` con ventana pequeña);
-    los tests de equivalencia e idempotencia del bloque B siguen en verde; el
-    diff de notebooks/módulo está aprobado y no toca celdas de negocio.
-  - **Evidencia:** tiempos antes/después por paso, `explain` del plan nuevo y
+    (`T_inc ≤ 3 m 46 s` con ventana ancha y `≤ 75 s` con ventana pequeña); los
+    tests de equivalencia e idempotencia del bloque B siguen en verde; el diff
+    está aprobado y, si el corte del codegen cae en una celda del notebook, se
+    demuestra en el diff que **no cambia ninguna expresión de negocio** (solo
+    dónde se materializa).
+  - **Evidencia:** tiempos antes/después por etapa, `explain` del plan nuevo y
     fila en `evidence.md`. **0 €.**
 
 - [ ] **T-04 — MERGE real: medir y decidir** (~45 min)
@@ -97,13 +107,15 @@
     rebuild completo? ¿la poda por estadísticas es posible sin `_key`? ¿qué
     rompe una columna interna en `companies_*`, oro y exports?
   - **Hecho cuando:** la decisión (materializar o no) está escrita con la
-    medición que la sostiene; si se materializa, contrato, proyecciones
-    explícitas, `RESTORE` y tests actualizados; si no, queda documentado el
-    motivo y el coste aceptado. **Aprobación previa** del diff y de la
-    migración.
+    medición que la sostiene. La decisión **preliminar** se toma con `explain`
+    local y el plan; la **confirmación** con las `operationMetrics` del run B
+    (T-08). Si se materializa `_key`, se implementa con contrato, proyecciones
+    explícitas, `RESTORE` y tests, y se valida con el **run de reserva**; si no,
+    queda documentado el motivo y el coste aceptado. **Aprobación previa** del
+    diff y de la migración.
   - **Evidencia:** `operationMetrics` del MERGE (paso 14 de `plan.md` §2.2),
-    comparación de tiempos y fila en `evidence.md`. **0 €** (se mide en T-07/
-    T-08).
+    comparación de tiempos y fila en `evidence.md`. **0 €** en esta tarea; las
+    métricas se leen en T-08.
 
 - [ ] **T-05 — Layout físico: medir y decidir** (~30 min)
   - **Objetivo:** medir `numFiles`, `sizeInBytes` y tamaño medio por tabla
@@ -111,9 +123,11 @@
     cambiar**, con el efecto en oro y exports si se toca.
   - **Hecho cuando:** la decisión está escrita con la tabla de ficheros y el
     motivo (incluido el «no cambiar»); si se aplica `OPTIMIZE`, su coste y su
-    efecto están medidos.
-  - **Evidencia:** `DESCRIBE DETAIL` por tabla y fila en `evidence.md`. **0 €**
-    (lectura en el job, sin warehouse).
+    efecto están medidos y el cambio va **con aprobación previa** (toca datos
+    físicos y ficheros).
+  - **Evidencia:** `DESCRIBE DETAIL` por tabla (leído en el clúster del job, sin
+    warehouse) y fila en `evidence.md`. **0 €** de runs; el clúster de lectura,
+    si se abre uno, cuesta céntimos.
 
 - [ ] **T-06 — Compute y concurrencia: decisión** (~30 min)
   - **Objetivo:** decidir el compute de producción con la evidencia de T-01 y
@@ -122,7 +136,8 @@
     solución).
   - **Hecho cuando:** la tabla de opciones de `plan.md` §7.2 tiene una decisión
     con medida, coste por run y motivo de descarte del resto; si cambia el
-    `.yml`, diff aprobado y `bundle validate` en verde.
+    `.yml`, diff aprobado y `bundle validate` en verde (el validate y los
+    deploys los ejecuta la persona, según `AGENTS.md`).
   - **Evidencia:** tiempos y spill por configuración, coste estimado y fila en
     `evidence.md`. **0 €** (sin runs extra; la reserva exige aprobación).
 
@@ -133,7 +148,8 @@
     completo ≤ **22 m 30 s**, exports escritos con `meta.json` válido y SHA-256
     de los 12 Parquet registrado, y `timings_s`/`merge_metrics` en la salida.
   - **Ejecución (run 1 de 3):** `databricks bundle deploy -t dev --profile vs_code`
-    (gratis) y `databricks bundle run elt -t dev --profile vs_code`. Sin SQL.
+    (gratis) y `databricks bundle run elt -t dev --profile vs_code`; los ejecuta
+    la persona. Sin SQL.
   - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, SHA-256,
     coste en `docs/costs.md` y fila en `evidence.md`.
 
@@ -144,8 +160,8 @@
     A; la repetición deja el mismo contenido; y el tiempo cumple el criterio de
     `plan.md` §3.
   - **Ejecución (run 2 de 3):** `bundle run elt -t dev --profile vs_code
-    --params backfill_from=...,backfill_to=...,repeat_window=true`. La ventana
-    exacta se anota en el resumen.
+    --params backfill_from=...,backfill_to=...,repeat_window=true`; lo ejecuta la
+    persona. La ventana exacta se anota en el resumen.
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics`, SHA-256
     A/B, conteos, coste y fila en `evidence.md`.
 

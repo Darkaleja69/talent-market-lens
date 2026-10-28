@@ -27,16 +27,20 @@ El incremental no:
 | `1056455747512203` (B2) | backfill 25–27, `repeat_window` | **TIMEDOUT**, sin escrituras | 30 m 37 s |
 | `1015448868873733` (B3) | B2 + `keyed` compartido | **TIMEDOUT**, sin escrituras | 30 m 30 s |
 
-Con **190 filas nuevas** en el bronce de indeed (27-oct), el incremental tarda
-≥4× lo que tarda la reconstrucción completa de la misma tabla y ni siquiera
-termina. La producción tiene `timeout_seconds: 1800` y el run semanal ya gasta
-~19 min, así que **el mecanismo, tal cual, no es desplegable**. Además, el
-`MERGE` real de Delta sigue sin medirse: es el único paso sin tiempo observado.
+El bronce dev son ~31k filas y el 27-oct entraron **190** en indeed; aun así el
+incremental tarda **3,7–6×** lo que la reconstrucción completa de la misma tabla
+y no termina. Ojo a la lectura: `_ingest_date` es la **fecha del lote**, no la
+de captura, así que la ventana de 7 días recalcula casi todo el bronce y B2/B3
+son el **peor caso**, no un cambio pequeño. La producción tiene
+`timeout_seconds: 1800` y el run semanal ya gasta ~19 min: **el mecanismo, tal
+cual, no es desplegable**, y el `MERGE` real de Delta sigue sin medirse.
 
-Objetivo (resultado único): **que el incremental de silver sea viable en
-producción** —medido, más barato que reconstruir, con la validación funcional
-del bloque B cerrada (equivalencia, idempotencia, `MERGE` real)— y que el
-**compute quede decidido con evidencia**, no por intuición.
+**Objetivo (resultado único):** que el incremental de silver **quepa en la
+ventana de producción con equivalencia demostrada** —medido, más barato que
+reconstruir, y con el bloque B validado de punta a punta—. La decisión de
+compute y la de layout físico son **condiciones de cierre** de ese resultado
+(la 009 difirió el compute a esta spec y el dominio 1 exige el layout medido),
+no objetivos paralelos.
 
 Y el encaje con el examen: el dominio 1 (shuffles, joins, broadcast, skew,
 particionado, tamaño de ficheros, *query plans*, Spark UI, Query Profile,
@@ -47,28 +51,32 @@ particionado, tamaño de ficheros, *query plans*, Spark UI, Query Profile,
 La 008 **no se reabre**: se hereda su estado y se respeta su diseño.
 
 - **Lo cerrado se queda cerrado:** T-01–T-09 (diseño, módulo, notebooks en dev,
-  runbook) y el bloque A (bronce upsert, one-off en dev y prod). Esta spec no
-  cambia la semántica del incremental ni el contrato de silver, oro o exports.
+  runbook). Esta spec no cambia la semántica del incremental ni el contrato de
+  negocio de silver, oro o exports.
+- **El bloque A tampoco está cerrado del todo:** T-06 sigue pendiente de su
+  comprobación real (run programado del domingo 25-oct y dashboard del lunes),
+  que no consta en `evidence.md`. No es de esta spec, pero condiciona el cierre
+  de la 008.
 - **T-10 queda bloqueada** por rendimiento: B, B2 y B3 `TIMEDOUT` sin
-  escrituras; las versiones Delta siguen en las de A2 (indeed v11 3.096,
-  infojobs v12 2.527, linkedin v8 12.504, multi_site v11 10.068).
+  escrituras; las cuatro silvers siguen en la versión de A2 (conteos 3.096 /
+  2.527 / 12.504 / 10.068).
 - **T-11 no se toca** hasta que esta spec deje el incremental por debajo de la
   ventana de 1800 s y repita la validación A/B. El procedimiento de producción
   sigue siendo el `cutover.md` de la 007.
 - **Decisión pendiente de la persona:** descopear el bloque B de la 008 (y
-  cerrarla con el bloque A) o dejarla abierta. Si se descopea, T-10 y T-11
-  pasan a esta spec como tareas heredadas; si no, esta spec desbloquea y
-  devuelve la evidencia a la 008.
-- **Presupuesto:** los 5 runs del bloque B (~1,20 €) superan los 2 aprobados
-  (~0,48 €); el exceso (~0,72 €) se descuenta del techo de esta spec (009,
-  `plan.md` §17).
+  cerrarla con el bloque A, previa verificación de T-06) o dejarla abierta. Si
+  se descopea, T-10 y T-11 pasan a esta spec como tareas heredadas; si no, esta
+  spec desbloquea y devuelve la evidencia a la 008.
+- **Coste:** el bloque B gastó **~1,6 €** (5 runs por duración) y la 008 queda en
+  ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
+  marginal, sin presupuesto extra para esta spec.
 
 ## Decisiones (2026-10-28)
 
 - **Diagnóstico antes de optimizar.** No se lanza ningún run hasta tener el
   coste por etapa y por operador medido (Spark UI de B2/B3, plan y
   `explain`, banco local). Se acabaron las hipótesis: B3 ya demostró que
-  compartir `keyed` no era el cuello.
+  compartir `keyed` no bastaba.
 - **El incremental debe ser más barato que reconstruir.** Es el invariante de
   diseño, no un extra: con la misma carga (ventana que cubre casi todo el
   bronce) no puede superar el tiempo del modo `full`; con ventana pequeña debe
@@ -81,11 +89,12 @@ La 008 **no se reabre**: se hereda su estado y se respeta su diseño.
   que una medición justifique cambiarla (`D2ds_v6` no completó la 009; el spike
   de serverless está pendiente). Ningún cambio de compute sin números.
 - **Layout: decidir, aunque sea «no cambiar».** A 3k–12k filas, `OPTIMIZE` y
-  `liquid clustering` pueden no pagar; se mide el tamaño y número de ficheros y
-  se documenta la decisión con su motivo.
-- **Observabilidad sin SQL.** Tiempos por paso y métricas del `MERGE` salen del
-  resumen del notebook (`dbutils.notebook.exit`) y de las `operationMetrics` de
-  Delta leídas por el propio job; **0 sesiones del SQL warehouse**.
+  `liquid clustering` pueden no pagar; se miden tamaño y número de ficheros y se
+  documenta la decisión con su motivo.
+- **Observabilidad sin SQL.** Tiempos por acción y métricas del `MERGE` salen
+  del resumen del notebook (`dbutils.notebook.exit`) y de las
+  `operationMetrics` de Delta leídas por el propio job; **0 sesiones del SQL
+  warehouse**.
 - **Local-first.** Todo lo que no exige el workspace (expresiones, planes,
   número de acciones, equivalencia) se mide y se prueba en local; los runs se
   reservan a lo que solo el workspace puede demostrar (MERGE real, memoria y
@@ -102,21 +111,21 @@ optimización podrá justificarse solo con una hipótesis.
 
 ### RF-2 — Invariante de coste del incremental
 **Criterio (EARS):** Cuando la ventana del incremental cubra prácticamente todo
-el bronce, el tiempo de cada silver no deberá superar el de una reconstrucción
-completa de la misma tabla (2 m 47 s–3 m 46 s de A2); cuando la ventana sea
-pequeña (≤1 % del bronce), el incremental deberá ser al menos **3× más rápido**
-que la reconstrucción completa.
+el bronce, el tiempo de cada silver no deberá superar **3 m 46 s** (extremo
+superior de la reconstrucción completa de A2); cuando la ventana sea pequeña
+(≤1 % del bronce), el incremental deberá tardar como máximo **75 s** (un tercio
+del mismo extremo).
 
 ### RF-3 — Caber en la ventana de producción
 **Criterio (EARS):** Cuando el job corra en dev con el código optimizado, deberá
-cerrar las 8 tareas en verde con **≥25 % de margen** sobre los 1800 s de
-producción (≤22 m 30 s) y, en el caso de un lote semanal real, sin acercarse al
-timeout; el tamaño del lote y los tiempos por etapa deberán quedar registrados.
+cerrar las 8 tareas en verde en **≤22 m 30 s** (25 % de margen sobre los 1800 s
+de producción) y, con un lote semanal real, no deberá acercarse al timeout; el
+tamaño del lote y los tiempos por etapa deberán quedar registrados.
 
 ### RF-4 — Equivalencia funcional del bloque B
 **Criterio (EARS):** Cuando se ejecute la validación, los exports de los runs A
 (reconstrucción completa) y B (incremental) deberán ser **idénticos byte a
-byte**, el `MERGE` deberá escribir realmente (filas insertadas/actualizadas/
+byte**, el `MERGE` deberá escribir realmente (filas insertadas, actualizadas o
 borradas distintas de cero) y las tablas oro y los dos exports deberán conservar
 su contrato, sin columnas internas (`_key`, `_ingest_date`).
 
@@ -130,8 +139,8 @@ grupos afectados o borrados; el watermark deberá seguir derivándose de
 **Criterio (EARS):** Cuando se cierre la spec, la configuración de compute de
 producción (tipo de nodo, single node o multi-nodo, autoscaling, Photon,
 serverless) deberá quedar decidida y documentada con la medición que la
-justifica y el motivo de descarte de las alternativas, sin aumentar el coste del
-run por encima del presupuesto.
+justifica, el coste por run y el motivo de descarte de las alternativas, dentro
+del techo de dev de la spec y del presupuesto de producción de la 009.
 
 ### RF-7 — Layout físico evaluado
 **Criterio (EARS):** Cuando se cierre la spec, el tamaño y número de ficheros de
@@ -144,15 +153,14 @@ decisión sea no cambiar nada.
 demostrada, la validación funcional de T-10 y el despliegue de T-11 de la 008
 deberán quedar cerrados: deploy a producción en la ventana previa a un domingo
 con rollback, run programado 8/8, dashboard publicado el lunes y SQL warehouse
-`STOPPED` antes y después. Si la 008 conserva el bloque B, esta spec solo
-entrega la evidencia y la 008 ejecuta sus tareas.
+`STOPPED` antes y después.
 
 ### RF-9 — Observabilidad y presupuesto
 **Criterio (EARS):** Cuando termine cada run, el resumen del notebook deberá
-exponer los tiempos por paso y las métricas del `MERGE` sin pasadas adicionales,
-la evidencia se leerá por la API de runs y el gasto de dev no podrá superar
-**3 runs y 0 sesiones SQL** (techo 1,0 €, con el exceso de la 008 ya
-descontado); cada run se anotará en `docs/costs.md` con motivo, id y coste.
+exponer los tiempos por etapa y las métricas del `MERGE` sin pasadas
+adicionales, la evidencia se leerá por la API de runs y el gasto de dev no podrá
+superar **3 runs y 0 sesiones SQL** (~0,72 €) dentro del techo de **1,8 €** de
+la 009; cada run se anotará en `docs/costs.md` con motivo, id y coste.
 
 ## Requisitos no funcionales
 
@@ -172,7 +180,10 @@ descontado); cada run se anotará en `docs/costs.md` con motivo, id y coste.
 ## Fuera de alcance
 
 - Cambiar el mecanismo incremental (grupo semántico, watermark, marcadores) o
-  los contratos de silver, oro y exports.
+  las columnas de negocio de silver, oro y exports. **Excepción controlada:** si
+  T-04 demuestra que hace falta, se podrá añadir la columna interna `_key` a
+  silver **con aprobación previa de la persona**, excluida de oro y exports por
+  proyección explícita y con `RESTORE` disponible.
 - Incremental de oro y de `companies_*` (siguen completos; 008).
 - Historial de cambios (CDF), expiración técnica y dedup de negocio con ventana
   temporal.
@@ -183,17 +194,17 @@ descontado); cada run se anotará en `docs/costs.md` con motivo, id y coste.
 
 ## Criterios de finalización
 
-- Diagonal de rendimiento con evidencia: coste por etapa antes/después,
-  hipótesis confirmadas o descartadas y decisión de compute y layout
+- Diagnóstico de rendimiento con evidencia: coste por etapa antes/después,
+  hipótesis confirmadas o descartadas, y decisión de compute y layout
   documentadas.
 - Run A (full) y run B (incremental + repetición) en dev: 8/8, silvers dentro
-  del invariante de RF-2, exports A/B idénticos byte a byte y `MERGE` con
-  métricas de escritura.
+  del invariante de RF-2 y run completo ≤22 m 30 s, exports A/B idénticos byte a
+  byte y `MERGE` con métricas de escritura.
 - Idempotencia demostrada y ventana vacía sin escritura.
 - Suites `databricks_notebooks` y `scrapers-pipeline` en verde (la suite
   completa es gate de la spec, no de cada tarea).
 - Producción desplegada y verificada con el run programado, el dashboard del
-  lunes y el warehouse `STOPPED` (o evidencia entregada a la 008, si conserva
-  el bloque B).
+  lunes y el warehouse `STOPPED` (o evidencia entregada a la 008, si conserva el
+  bloque B).
 - Nota `docs/databricks-de/notes/01-spark-performance.md` escrita, roadmap y
   `docs/costs.md` al día, y comprobación real registrada.
