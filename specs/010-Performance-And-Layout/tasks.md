@@ -101,6 +101,10 @@
   - **Aprobación previa:** módulo `Silver_Incremental.py` (diff y motivo).
   - **Evidencia:** salida de la suite, tabla de tiempos del banco y fila en
     `evidence.md`. **0 €.**
+  - **Estado (2026-10-28): APARCADA por decisión de secuencia.** No hace falta
+    para probar P1: el resumen por acción se añadirá si el run A/B con 8
+    particiones no basta para ver qué queda. El barrido de `_run_once` y el
+    reproceso ya están descritos en `design-performance.md` §3.5.
 
 ## 2. Optimización
 
@@ -116,6 +120,14 @@
     resto de la optimización se mediría sin la palanca principal. Aquí se
     **experimenta**; la config definitiva (`.yml` del clúster o código) se fija
     en T-06.
+  - **Estado (2026-10-28):** **primer cambio hecho y aprobado**:
+    `resources/elt.job.yml` fija `spark.sql.shuffle.partitions: "8"` en el
+    `spark_conf` del job cluster (una línea; se revierte con otro deploy). La
+    pestaña *Environment* de B3 no mostraba override de esa clave ni de AQE: el
+    job corría con los defaults (200 y AQE activo, §2.7 del diagnóstico), y de
+    ahí las 200 tareas por stage. **Pendiente:** deploy a dev y los runs A/B
+    (T-07/T-08) para medir tareas por stage y tiempo; el codegen y la reducción
+    de acciones no se tocan hasta ver el efecto de P1.
   - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
     para poder revertir una sin la otra. El fix de `keyed` compartido que se
     revirtió en la 008 (caché del frame `keyed` entre los dos pases de

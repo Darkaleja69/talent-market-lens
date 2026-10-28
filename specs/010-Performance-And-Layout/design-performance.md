@@ -235,6 +235,21 @@ en una **ventana de 3 s** (B2 12:54:49–52; B3 00:31:46–49).
 | `plan.md` §4, H5: «se mide con el run B» | **Corregido: con el run B de T-08**. |
 | Columna *Silvers* de `plan.md` §2.1 | **Es la duración de la tarea de silver, no un tiempo run-relative**: B3 22 m 04 s (8 m 06 s + 22 m 04 s ≈ 30 m 10 s) y B ~27 min. B2 no la registró. |
 
+### 2.7 Configuración efectiva (pestaña Environment)
+
+La pestaña **Environment** de la Spark UI de B3 (captura de la persona,
+2026-10-28) **solo muestra las propiedades que se han fijado explícitamente**;
+las que usan el valor por defecto no aparecen. Allí **no están**
+`spark.sql.shuffle.partitions` ni `spark.sql.adaptive.*`: nadie las ha
+sobreescrito, así que el job corre con los **valores por defecto del runtime**
+(200 particiones de shuffle; AQE activo). Es coherente con las **200 tareas por
+stage** que muestran las capturas de `Stages` (§2.3) y descarta que el 200 venga
+de una configuración puesta a mano en el job.
+
+`[NO VERIFICADO]`: el valor exacto que ve el job (`spark.conf.get`) no se ha
+impreso; se confirma con el número de tareas del primer run con el cambio
+(200 → 8) o con una línea de log en el notebook.
+
 ## 3. Atribución del coste
 
 ### 3.1 No es el volumen, no son los núcleos y **no es el número de acciones**
@@ -417,11 +432,12 @@ se miden sin la palanca principal y el banco local se calibra con la config real
 
 ## 6. Datos que faltan para cerrar el diagnóstico
 
-1. **Configuración efectiva** de `spark.sql.shuffle.partitions`, AQE
-   (`spark.sql.adaptive.enabled`, `coalescePartitions`) y `spark.sql.files.*` en
-   el clúster del job. **Es el dato más importante**: confirma que las 200 son
-   `shuffle.partitions` y si AQE debería haber coalescido. Gratis: imprimirlo en
-   el resumen de T-02.
+1. ~~**Configuración efectiva** de `spark.sql.shuffle.partitions` y AQE en el
+   clúster.~~ **Resuelto por ausencia** (§2.7): no hay override en
+   `Environment`, así que valen los defaults (200 y AQE activo). Queda por
+   confirmar el valor que imprime `spark.conf.get`, gratis, en el primer run con
+   el cambio.
+
 2. **Detalle de una stage de 200 tareas** (tabla de tareas: mínimo/mediana/máximo,
    cola de planificación, *spill*): el desglose de los 0,7 s por tarea (P2).
 3. **`explain("formatted")` y `explain("codegen")` locales** del plan de
