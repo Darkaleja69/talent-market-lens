@@ -53,20 +53,20 @@ La 008 **no se reabre**: se hereda su estado y se respeta su diseño.
 - **Lo cerrado se queda cerrado:** T-01–T-09 (diseño, módulo, notebooks en dev,
   runbook). Esta spec no cambia la semántica del incremental ni el contrato de
   negocio de silver, oro o exports.
-- **El bloque A tampoco está cerrado del todo:** T-06 sigue pendiente de su
-  comprobación real (run programado del domingo 25-oct y dashboard del lunes),
-  que no consta en `evidence.md`. No es de esta spec, pero condiciona el cierre
-  de la 008.
+- **El bloque A queda pendiente de registro:** T-06 se confirmó en verde el
+  2026-10-28 (run programado del domingo 25-oct y dashboard del lunes), pero su
+  id y sus tiempos aún no están anotados en `evidence.md`. No es de esta spec,
+  pero condiciona el cierre de la 008.
 - **T-10 queda bloqueada** por rendimiento: B, B2 y B3 `TIMEDOUT` sin
   escrituras; las cuatro silvers siguen en la versión de A2 (conteos 3.096 /
   2.527 / 12.504 / 10.068).
 - **T-11 no se toca** hasta que esta spec deje el incremental por debajo de la
   ventana de 1800 s y repita la validación A/B. El procedimiento de producción
   sigue siendo el `cutover.md` de la 007.
-- **Decisión pendiente de la persona:** descopear el bloque B de la 008 (y
-  cerrarla con el bloque A, previa verificación de T-06) o dejarla abierta. Si
-  se descopea, T-10 y T-11 pasan a esta spec como tareas heredadas; si no, esta
-  spec desbloquea y devuelve la evidencia a la 008.
+- **Decisión (2026-10-28): el bloque B se descopea de la 008.** T-10 y T-11
+  pasan a esta spec: la validación A/B es T-08 y el despliegue a producción es
+  T-09. La 008 se cerrará con el bloque A, previo registro de la comprobación
+  real de T-06.
 - **Coste:** el bloque B gastó **~1,6 €** (5 runs por duración) y la 008 queda en
   ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
   marginal, sin presupuesto extra para esta spec.
@@ -150,10 +150,9 @@ decisión sea no cambiar nada.
 
 ### RF-8 — Herencia de la 008
 **Criterio (EARS):** Cuando el incremental quepa y la equivalencia esté
-demostrada, la validación funcional de T-10 y el despliegue de T-11 de la 008
-deberán quedar cerrados: deploy a producción en la ventana previa a un domingo
-con rollback, run programado 8/8, dashboard publicado el lunes y SQL warehouse
-`STOPPED` antes y después.
+demostrada, el despliegue a producción de T-11 de la 008 deberá quedar cerrado:
+deploy en la ventana previa a un domingo con rollback, run programado 8/8,
+dashboard publicado el lunes y SQL warehouse `STOPPED` antes y después.
 
 ### RF-9 — Observabilidad y presupuesto
 **Criterio (EARS):** Cuando termine cada run, el resumen del notebook deberá
@@ -204,7 +203,6 @@ la 009; cada run se anotará en `docs/costs.md` con motivo, id y coste.
 - Suites `databricks_notebooks` y `scrapers-pipeline` en verde (la suite
   completa es gate de la spec, no de cada tarea).
 - Producción desplegada y verificada con el run programado, el dashboard del
-  lunes y el warehouse `STOPPED` (o evidencia entregada a la 008, si conserva el
-  bloque B).
+  lunes y el warehouse `STOPPED`.
 - Nota `docs/databricks-de/notes/01-spark-performance.md` escrita, roadmap y
   `docs/costs.md` al día, y comprobación real registrada.

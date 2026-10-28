@@ -16,12 +16,11 @@
 > afectadas, diff propuesto y motivo, y se espera el OK. Los **tests quedan
 > fuera** de esta regla.
 >
-> **Presupuesto:** **3 runs de dev** (~0,72 €) y **0 sesiones SQL**, dentro del
-> techo de **1,8 €** que la 009 asigna a esta spec. La propuesta cambia el
-> reparto de la 009 (2 runs + 1 sesión SQL) por 3 runs y 0 SQL: ahorra ~1,29 €
-> de sesión y añade ~0,24 € de run, así que **necesita el OK de la persona**.
-> El run de reserva no se gasta sin aprobación. Cada run se anota en
-> `docs/costs.md`.
+> **Presupuesto (aprobado el 2026-10-28):** **3 runs de dev** (~0,72 €) y
+> **0 sesiones SQL**, dentro del techo de **1,8 €** que la 009 asigna a esta
+> spec. La propuesta cambia el reparto de la 009 (2 runs + 1 sesión SQL) por
+> 3 runs y 0 SQL: ahorra ~1,29 € de sesión y añade ~0,24 € de run. El run de
+> reserva no se gasta sin aprobación. Cada run se anota en `docs/costs.md`.
 
 ## Convención de commits
 
@@ -33,13 +32,18 @@
 - Evidencia: una fila por comprobación en `evidence.md` (fecha, tarea,
   comprobación, resultado).
 
-## 0. Decisión pendiente (persona)
+## 0. Decisiones tomadas (2026-10-28)
 
-- **Descopear el bloque B de la 008** (dejarla cerrable con el bloque A) o
-  mantenerla abierta. Si se descopea, **T-09** de esta spec cierra también
-  T-10/T-11 de la 008; si no, esta spec entrega la evidencia y la 008 ejecuta
-  sus tareas. Nada de código depende de esta decisión; solo el dueño de los
-  checkboxes y del cierre.
+- **El bloque B se descopea de la 008.** T-10 (validación A/B) y T-11
+  (producción) se cierran aquí: **T-08** y **T-09**. La 008 se cerrará con el
+  bloque A, previo registro de la comprobación real de T-06.
+- **Presupuesto aprobado:** 3 runs de dev + 0 sesiones SQL dentro del techo de
+  1,8 € de la 009 (sustituye al reparto 2 runs + 1 SQL).
+- **Fix de `keyed`:** el cambio que se probó en B3 se revirtió en la 008 y se
+  re-evalúa en T-03 (parche guardado en
+  `%LOCALAPPDATA%\Temp\opencode\keyed-share.patch` durante el descope).
+- **T-06 (bloque A) confirmada en verde** el 2026-10-28; falta anotar el id del
+  run y los tiempos en `specs/008-Delta-Incremental/evidence.md`.
 
 ## 1. Diagnóstico y banco de pruebas
 
@@ -89,7 +93,10 @@
     proyección que rompe el codegen y decidir la concurrencia de las silvers.
     Sin cambiar la semántica ni el contrato.
   - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
-    para poder revertir una sin la otra.
+    para poder revertir una sin la otra. El fix de `keyed` compartido que se
+    revirtió en la 008 (caché del frame `keyed` entre los dos pases de
+    `repeat_window`) se re-evalúa aquí, con test y medición; no entra por
+    inercia.
   - **Hecho cuando:** el banco local baja del criterio de `plan.md` §3
     (`T_inc ≤ 3 m 46 s` con ventana ancha y `≤ 75 s` con ventana pequeña); los
     tests de equivalencia e idempotencia del bloque B siguen en verde; el diff
@@ -153,7 +160,7 @@
   - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, SHA-256,
     coste en `docs/costs.md` y fila en `evidence.md`.
 
-- [ ] **T-08 — Run B (incremental + repetición) en dev** (~25 min)
+- [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y
     `repeat_window=true`; **el MERGE escribe** (métricas de filas insertadas/
     actualizadas/borradas); los exports son **idénticos byte a byte** a los de
@@ -165,15 +172,15 @@
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics`, SHA-256
     A/B, conteos, coste y fila en `evidence.md`.
 
-- [ ] **T-09 — Herencia de la 008: producción** (~30 min)
+- [ ] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; el **primer run programado**
     reconstruye (migración) y cierra 8/8; el **domingo siguiente** el run es
     incremental real y el dashboard vuelve a publicar el lunes; SQL warehouse
     `STOPPED` antes y después; bitácora del roadmap actualizada.
-  - **Nota:** no añade runs manuales (cadencia de la 009). Si la 008 conserva
-    el bloque B, esta tarea se limita a entregar la evidencia y la ejecuta la
-    008.
+  - **Nota:** no añade runs manuales (cadencia de la 009); los comandos de
+    bundle los ejecuta la persona. Al cerrar, se actualizan las filas de T-10 y
+    T-11 en `specs/008-Delta-Incremental/{tasks,evidence}.md`.
   - **Evidencia:** ids de deploy y runs, conteos, versiones de `RESTORE`,
     estado del warehouse y fila en `evidence.md`.
 

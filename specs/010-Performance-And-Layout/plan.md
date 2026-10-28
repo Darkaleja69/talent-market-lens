@@ -220,11 +220,10 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
 
 Reglas y encaje con la 009:
 
-- La 009 reserva a esta spec **2 runs de dev + 1 sesión SQL ≤ 1,8 €**. La
-  propuesta cambia el reparto: **3 runs y 0 SQL**. Renunciar a la sesión ahorra
+- La 009 reserva a esta spec **2 runs de dev + 1 sesión SQL ≤ 1,8 €**. Reparto
+  **aprobado el 2026-10-28**: **3 runs y 0 SQL**. Renunciar a la sesión ahorra
   ~1,29 € y el run extra cuesta ~0,24 €, así que el gasto previsto (~0,72 €)
-  queda **por debajo del techo de 1,8 €**. **Requiere el OK de la persona**
-  porque altera el reparto de `specs/009-Cost-And-Cadence/plan.md` §17.
+  queda **por debajo del techo de 1,8 €**.
 - El bloque B de la 008 se fue a **~1,6 €** (5 runs por duración) y la 008 queda
   en ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
   marginal que se confirma en la Account Console y **no** consume el techo de la
@@ -247,8 +246,8 @@ Reglas y encaje con la 009:
 | Rebasar la rama sobre `main` tras la 008 genera conflictos | Se rebasa en cuanto la 008 se fusione; el trabajo de código empieza después del rebase |
 | El primer run de prod (full) se acerca al timeout | Se mide en A y A2 (14–22 min); con el código optimizado debe quedar por debajo con margen |
 | Domingo ocupado o fallido | El dashboard no publica si `data_date` supera 8 días; se corrige y se espera al domingo siguiente |
-| El reparto de presupuesto de la 009 (2 runs + 1 SQL) no coincide con esta propuesta (3 runs + 0 SQL) | Se propone tal cual y se espera el OK; el coste previsto queda por debajo del techo de 1,8 € |
-| El bloque A de la 008 (T-06) sigue sin comprobar tras el domingo 25-oct | Se registra su estado antes de decidir el cierre de la 008; no se da por cerrado lo que no tiene evidencia |
+| El reparto de presupuesto de la 009 (2 runs + 1 SQL) no coincide con esta propuesta (3 runs + 0 SQL) | **Resuelto el 2026-10-28:** aprobado 3 runs + 0 SQL dentro del techo de 1,8 € |
+| El bloque A de la 008 (T-06) sigue sin comprobación registrada | **Confirmado en verde el 2026-10-28**; falta anotar id y tiempos en `specs/008-*` antes de cerrar la 008 |
 
 ## 11. Secuencia
 
