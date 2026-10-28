@@ -178,6 +178,15 @@
 > Planificado el **2026-10-24** (aprovechando la espera del run de prod del
 > domingo). Diseño en `plan.md` §10. Alcance decidido: **silver de ofertas
 > incremental** por grupo semántico; `companies_*` y **oro completos**.
+>
+> **2026-10-28: bloque B bloqueado por rendimiento.** T-07–T-09 están cerradas
+> (diseño, módulo y notebooks con tests en verde), pero T-10 no se puede
+> validar: tres runs incrementales seguidos (`TIMEDOUT` a los ~30 min) sin
+> escribir nada. El incremental cuesta ≥4× la reconstrucción completa y el
+> `MERGE` real sigue sin medirse. **T-11 no se toca.** El trabajo de
+> rendimiento pasa a la **spec 010**, junto con la repetición de la validación
+> A/B; la decisión de descopear el bloque B (y cerrar la 008 con el bloque A)
+> queda en manos de la persona.
 
 - [x] **T-07 — Diseño del incremental** (~30 min)
   - **Objetivo:** fijar en `design-incremental.md` la unidad de incremental
@@ -330,6 +339,46 @@
   - **Coste:** 2 runs (~0,48 €), anotados en `docs/costs.md`.
   - **Evidencia:** ids, tabla comparativa de tiempos y exports A/B, fila en
     `evidence.md`.
+  - **Estado (2026-10-28): BLOQUEADA por rendimiento.** La validación se
+    intentó con **5 runs de dev** (~1,20 €) y no se cerró:
+    - **A** `263658658061220`: **SUCCESS**, 8/8, **22 min 18 s**, migración
+      confirmada (`mode="full"`, `mode_reason="missing_ingest_date"` en las
+      cuatro silvers) y lote de **+56 ofertas** en el export (26.057 → 26.113).
+      Las silvers tardaron **9,8–11,8 min** por un `count()` de más en el modo
+      `full` (3,2–3,5× T-05).
+    - **B** `186230462263213` (`backfill_from=2026-10-24`,
+      `backfill_to=2026-10-25`, `repeat_window=true`): **TIMEDOUT** a los
+      30 min 46 s (silvers canceladas a los ~27 min; oro y exports `SKIPPED`);
+      sin resumen ni comparación A/B; los exports quedaron en el estado de A.
+    - **A2** `207866361330883`: **SUCCESS**, 8/8, **14 min 39 s**, con el modo
+      `full` en una sola pasada; silvers **2 m 47 s–3 m 46 s** (línea base
+      T-05). Es la referencia funcional y de exports del bloque B.
+    - **B2** `1056455747512203` (backfill 25–27, `repeat_window`):
+      **TIMEDOUT** a los 30 min 37 s. **No escribió nada**: las versiones Delta
+      siguen en las de A2 (indeed v11 3.096 filas, infojobs v12 2.527,
+      linkedin v8 12.504, multi_site v11 10.068). El bronce de indeed solo
+      ingirió **190 filas** el 27-oct, así que el tiempo no lo explica el
+      volumen.
+    - **B3** `1015448868873733` (repetición con `keyed` compartido):
+      **TIMEDOUT** a los 30 min 30 s (bronce 8 m 06 s; silvers cortadas a los
+      22 min 04 s); tampoco escribió. El fix de `keyed` no era el cuello: la
+      medición local da **~45 s por pase** con el aviso de codegen «Code grows
+      beyond 64 KB» en `build_offers`, y el único paso no medido es el `MERGE`.
+    - **Lectura:** con una ventana de 7 días que cubre casi todo el bronce, el
+      camino incremental cuesta **≥4× la reconstrucción completa** (2 m 47 s–
+      3 m 46 s por silver en A2) y ni siquiera termina. No es volumen: es
+      coste fijo por pases y por el `MERGE`. **No se lanza un cuarto run.**
+  - **Por qué bloquea:** T-11 desplegaría a producción un mecanismo que no
+    cabe en la ventana de 1800 s (el run de prod ya gasta ~19 min) y la 008 no
+    puede demostrar RF-7 (equivalencia), RF-8 (idempotencia) ni RF-10 (exports
+    A/B idénticos) aunque los tests locales estén en verde.
+  - **Qué la desbloquea:** la **spec 010** (rendimiento, layout y compute)
+    debe medir el coste real (Spark UI de B2/B3 + instrumentación por pasos),
+    dejar el incremental por debajo de la reconstrucción completa y repetir la
+    validación A/B. Si la persona decide **descopear el bloque B**, T-10 y T-11
+    pasan como tareas heredadas a la 010 y la 008 cierra con el bloque A.
+  - **Coste:** 5 runs (~1,20 €) de los 2 aprobados (~0,48 €); el exceso
+    (~0,72 €) se descuenta del presupuesto de la 010. 0 sesiones SQL.
 
 - [ ] **T-11 — Producción (ventana previa a domingo)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
@@ -341,6 +390,9 @@
     antes y después. Bitácora del roadmap actualizada.
   - **Nota:** los runs semanales ya están en la cadencia de la 009; esta tarea
     no añade runs manuales.
+  - **Dependencia (2026-10-28):** **no se despliega a producción** hasta que la
+    010 deje el incremental por debajo de la ventana de 1800 s y repita la
+    validación A/B. El procedimiento (`cutover.md`) sigue siendo el de la 007.
   - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
     `RESTORE`, estado del warehouse y fila en `evidence.md`.
 
@@ -350,6 +402,12 @@
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
     completas en verde; comprobación real registrada; merge a `main` y tag
     (`spec-008`) solo con el bloque A y el B verificados.
+  - **Estado (2026-10-28):** el bloque B no está verificado (T-10 bloqueada y
+    T-11 sin ejecutar), así que la 008 **no puede cerrarse completa**. Si la
+    persona descopea el bloque B, la 008 cierra con el bloque A y la 010
+    hereda T-10/T-11; si no, sigue abierta hasta que la 010 desbloquee. Las
+    notas `02-delta.md` y `04-incremental-architecture.md` se escriben al
+    cerrar, no antes.
 
 ## 3. Cierre de la spec
 

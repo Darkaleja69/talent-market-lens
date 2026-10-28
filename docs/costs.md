@@ -119,6 +119,42 @@ al menos un despertar.
 - **T-06 one-off de prod (2026-10-24):** run `164560238285705`, **SUCCESS**, 4/4,
   **9 min 11 s** → **~0,11 €** (producción, fuera del presupuesto de dev).
   Deduplicó 53.353 filas históricas en las cuatro tablas de prod.
+- **T-10 A (2026-10-25), migración de las silvers en dev:** run `263658658061220`,
+  **SUCCESS**, 8/8 tareas, **22 min 18 s** (bronce setup 6 m 52 s + exec 1 m 57 s;
+  silvers 9,8–11,8 min; oro 0,87 min; exports 0,53/0,58 min) → **~0,24 €**.
+  Consume el **run 1 de 2** del bloque B.
+- **T-10 B (2026-10-25), backfill incremental con `repeat_window`:** run
+  `186230462263213`, **TIMEDOUT** por el `timeout_seconds: 1800` del job a los
+  **30 min 46 s** (bronce en verde en 3 m 29 s; las cuatro silvers canceladas a
+  los ~27 min; oro y exports `SKIPPED`) → **~0,24 €**. Consume el **run 2 de 2**
+  del bloque B; no se lanza un tercero.
+- **T-10 A2 (2026-10-27), repetición del run A con el modo `full` corregido:**
+  run `207866361330883`, **SUCCESS**, 8/8 tareas, **14 min 39 s** (bronce 9 m 07 s;
+  silvers 2 m 47 s–3 m 46 s; oro 0 m 59 s; exports 0 m 40 s/0 m 43 s) →
+  **~0,24 €**. Las silvers vuelven a **2,8–3,8 min** (T-05: 2,8–3,6); el total
+  queda 1,4 min por encima de T-05 por el lote de bronce de dos días, no por el
+  código de silver.
+- **T-10 B2 (2026-10-27), backfill incremental 25–27 con `repeat_window`:** run
+  `1056455747512203`, **TIMEDOUT** a los **30 min 37 s** (bronce en verde; las
+  cuatro silvers canceladas; oro y exports `SKIPPED`) → **~0,24 €**. **No escribió
+  nada:** la última versión Delta de las cuatro silvers es la de A2 (indeed v11
+  3.096 filas, infojobs v12 2.527, linkedin v8 12.504, multi_site v11 10.068).
+  El bronce de indeed solo ingirió **190 filas** en el 27, así que el timeout no
+  se explica por volumen: hay un **coste fijo/patología** del camino incremental
+  (≈22 min con 190 filas cambiadas) que debe resolver la spec 010.
+- **T-10 B3 (2026-10-27/28), repetición con `keyed` compartido:** run
+  `1015448868873733`, **TIMEDOUT** a los **30 min 30 s** (bronce en verde en
+  8 min 06 s; las cuatro silvers cortadas a los **22 min 04 s**; oro y exports
+  `SKIPPED`) → **~0,24 €**. Tampoco escribió: las versiones Delta siguen en las
+  de A2. El fix de `keyed` no era el cuello; la medición local de los pasos da
+  ~45 s por pase (con aviso de codegen “Code grows beyond 64 KB” en
+  `build_offers`), y el único paso no medido es el `MERGE`. **T-10 queda
+  bloqueada por rendimiento; no se lanza otro run y T-11 no se toca.**
+- **Cierre de dev del bloque B (actualizado):** 5 runs (A, B, A2, B2 y B3:
+  0,24 × 5 = **~1,20 €**), 0 sesiones SQL; el techo de 2,0 € sigue holgado.
+  **La validación no se cierra:** B2/B3 no dejaron resumen de las silvers ni
+  comparación de exports; el incremental necesita rendimiento (spec 010) antes
+  de T-11.
 
 ## Cierre de la spec 009 (2026-10-24)
 
