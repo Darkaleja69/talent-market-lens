@@ -24,6 +24,7 @@ import pytest
 
 pyspark = pytest.importorskip("pyspark")  # noqa: F841
 
+from pyspark.sql import DataFrameWriter  # noqa: E402
 from pyspark.sql import SparkSession  # noqa: E402
 from pyspark.sql import Window as SparkWindow  # noqa: E402
 from pyspark.sql import functions as F  # noqa: E402
@@ -1774,7 +1775,8 @@ def test_merge_source_allows_new_columns(spark, monkeypatch):
     assert len(untouched) == 1 and untouched[0]["extra"] is None
 
 # ---------------------------------------------------------------------------
-# P20 — the summary has exactly the 16 fields and serializes in one line
+# P20 — the summary has exactly the 19 fields (16 business + 3 of T-02) and
+# serializes in one line
 # ---------------------------------------------------------------------------
 
 def test_summary_fields_and_json(spark, monkeypatch):
@@ -1797,8 +1799,9 @@ def test_summary_fields_and_json(spark, monkeypatch):
         normalize_city_column=_toy_normalize_city,
         from_date=D(2026, 10, 12), to_date=WINDOW_TO,
     )
+    assert len(inc.SUMMARY_FIELDS) == 19
     assert tuple(summary) == inc.SUMMARY_FIELDS
-    assert len(summary) == 16
+    assert len(summary) == 19
     assert summary["source"] == "indeed"
     assert summary["watermark"] == "2026-09-01"
     assert summary["from_date"] == "2026-10-12"
@@ -1808,6 +1811,13 @@ def test_summary_fields_and_json(spark, monkeypatch):
     assert re.fullmatch(r"[0-9]+\.[0-9]", str(summary["elapsed_s"]))
     for field in ("watermark", "from_date", "to_date"):
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", summary[field])
+    # T-02: the three new fields are additive; local Spark has no Delta, so
+    # the history read degrades to None and the config is read from the
+    # session (no query).
+    assert isinstance(summary["timings_s"], dict) and summary["timings_s"]
+    assert set(summary["config"]) == {"shuffle_partitions",
+                                      "adaptive_enabled", "overrides"}
+    assert summary["merge_metrics"] is None
 
     text = json.dumps(summary, ensure_ascii=True,
                       separators=(",", ":"), default=str)
@@ -1820,14 +1830,24 @@ def test_summary_fields_and_json(spark, monkeypatch):
         "indeed", bounds, changed_rows=0, affected_groups=0,
         recomputed_groups=3, deleted_groups=0, merge_rows=0,
         new_columns=[], written=True, target_rows=3, elapsed_s=0.04,
+        timings_s={"window": 0.01, "full_write": 0.02, "target_count": 0.01},
+        merge_metrics=None,
+        config={"shuffle_partitions": "1", "adaptive_enabled": "true",
+                "overrides": {"shuffle_partitions": "1"}},
     )
-    assert tuple(full) == inc.SUMMARY_FIELDS and len(full) == 16
+    assert tuple(full) == inc.SUMMARY_FIELDS
+    assert len(full) == 19
     assert full["mode"] == inc.MODE_FULL
     assert full["mode_reason"] == inc.REASON_TABLE_MISSING
     assert full["watermark"] is None
     assert full["from_date"] is None and full["to_date"] is None
     assert full["changed_rows"] == 0 and full["merge_rows"] == 0
     assert full["new_columns"] == []
+    assert full["timings_s"] == {"window": 0.01, "full_write": 0.02,
+                                 "target_count": 0.01}
+    assert full["config"] == {"shuffle_partitions": "1",
+                              "adaptive_enabled": "true",
+                              "overrides": {"shuffle_partitions": "1"}}
 
     # mode_reason only takes the three reasons of full mode or None.
     _publish(spark.createDataFrame([("1",)], ["job_id"]), "__p20_no_date")
@@ -1880,7 +1900,10 @@ def test_repeat_window_envelope(spark, monkeypatch):
     first, second = envelope["runs"]
     assert len(envelope["runs"]) == 2
     for run in envelope["runs"]:
-        assert tuple(run) == inc.SUMMARY_FIELDS and len(run) == 16
+        assert tuple(run) == inc.SUMMARY_FIELDS
+        assert len(run) == len(inc.SUMMARY_FIELDS) == 19
+    # T-02: one MERGE call per pass, no extra write.
+    assert len(calls) == 2
 
     # The content, target_rows and recomputed_groups are the criterion.
     expected = _toy_transform(prepared)
@@ -1917,6 +1940,251 @@ def test_repeat_window_envelope(spark, monkeypatch):
             normalize_city_column=_toy_normalize_city,
             repeat_window="yes",
         )
+
+# ---------------------------------------------------------------------------
+# P22 — instrumentation of T-02: one timing step per existing action, the 16
+# business values unchanged and the metadata reads degrading without Delta
+# ---------------------------------------------------------------------------
+
+#: One step per action that ``_run_once`` already had in incremental mode.
+TIMING_STEPS_INCREMENTAL = {
+    "window",             # window_bounds (tableExists + read + max)
+    "changed_empty",      # changed.isEmpty()
+    "affected_count",     # affected.count()
+    "recompute_nulls",    # require_no_null_ingest_date
+    "recompute_unique",   # require_unique_groups
+    "changed_count",      # changed.count()
+    "recompute_count",    # recompute.count()
+    "markers_count",      # markers.count()
+    "merge_source_count", # merge_src.count()
+    "merge",              # MERGE WITH SCHEMA EVOLUTION
+    "target_count",       # target.count() after the MERGE
+}
+
+
+def test_timed_accumulates_by_step_and_reraises():
+    timings = {}
+
+    assert inc._timed(timings, "noop", lambda: 42) == 42
+    assert timings["noop"] >= 0.0
+
+    inc._timed(timings, "noop", lambda: time.sleep(0.02))
+    assert timings["noop"] >= 0.01
+
+    # Another step does not touch the first one.
+    inc._timed(timings, "other", lambda: None)
+    assert timings["noop"] >= 0.01
+    assert timings["other"] >= 0.0
+
+    # The exception is re-raised and the elapsed time is still accumulated.
+    def fail():
+        raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        inc._timed(timings, "fail", fail)
+    assert "fail" in timings
+
+
+class _FakeRow:
+    """Minimal ``Row``: ``_merge_metrics`` only calls ``asDict``."""
+
+    def __init__(self, **values):
+        self._values = values
+
+    def asDict(self):
+        return dict(self._values)
+
+
+class _FakeHistory:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def collect(self):
+        return list(self._rows)
+
+
+class _FakeSpark:
+    """Double of ``SparkSession``: records the SQL and returns fake rows."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.statements = []
+
+    def sql(self, statement):
+        self.statements.append(statement)
+        return _FakeHistory(self._rows)
+
+
+def test_merge_metrics_only_uses_the_merge_operation():
+    metrics = {"numTargetRowsInserted": "3", "numTargetRowsUpdated": "2"}
+    merge = _FakeRow(operation="MERGE", operationMetrics=metrics)
+    write = _FakeRow(operation="WRITE", operationMetrics={"numFiles": "1"})
+
+    # The newest version is this run's MERGE: its metrics are returned.
+    spark = _FakeSpark([merge, write])
+    assert inc._merge_metrics(spark, "__p22_history") == metrics
+    assert "DESCRIBE HISTORY __p22_history LIMIT 2" in spark.statements
+
+    # The operation name is matched case-insensitively.
+    lower = _FakeRow(operation=" merge ", operationMetrics=metrics)
+    assert inc._merge_metrics(_FakeSpark([lower]), "__p22_history") == \
+        metrics
+
+    # A newer WRITE with an older MERGE: the MERGE metrics are still the
+    # ones of this run, which is exactly why two versions are read.
+    assert inc._merge_metrics(
+        _FakeSpark([write, merge]), "__p22_history") == metrics
+    # No MERGE among the last two versions.
+    assert inc._merge_metrics(
+        _FakeSpark([write, _FakeRow(operation="OPTIMIZE")]),
+        "__p22_history",
+    ) is None
+    # A MERGE without metrics is not reported with invented values.
+    assert inc._merge_metrics(
+        _FakeSpark([_FakeRow(operation="MERGE", operationMetrics=None)]),
+        "__p22_history",
+    ) is None
+
+
+def test_merge_metrics_and_config_degrade_without_delta(spark):
+    _publish(spark.createDataFrame([("1",)], ["job_id"]),
+             "__p22_no_delta")
+    # A temporary view has no Delta history: the read degrades to None.
+    assert inc._merge_metrics(spark, "__p22_no_delta") is None
+    # A missing table must never fail the run either.
+    assert inc._merge_metrics(spark, "__p22_missing_table") is None
+
+    # The config reports the effective values (runtime default included) and
+    # which keys this session set explicitly. No query is involved.
+    config = inc._config(spark)
+    assert set(config) == {"shuffle_partitions", "adaptive_enabled",
+                           "overrides"}
+    assert config["shuffle_partitions"] == spark.conf.get(
+        "spark.sql.shuffle.partitions")
+    assert config["adaptive_enabled"] == spark.conf.get(
+        "spark.sql.adaptive.enabled")
+    assert config["adaptive_enabled"] is not None
+    # The fixture sets shuffle.partitions=1 at session creation.
+    assert config["overrides"]["shuffle_partitions"] == "1"
+    assert "adaptive_enabled" not in config["overrides"]
+
+
+def test_full_mode_timing_steps(spark, monkeypatch):
+    def fake_save_as_table(writer, name, *args, **kwargs):
+        """Stand-in for ``saveAsTable`` using this file's own mechanism.
+
+        The tests have no winutils/Delta, so the write is not possible. Every
+        table of the file is published as a temporary view with ``_publish``;
+        the fake applies that same mechanism, so the module's later
+        ``read.table`` sees the frame without duplicating a writer.
+        """
+        _publish(writer._df, name)
+
+    monkeypatch.setattr(DataFrameWriter, "saveAsTable", fake_save_as_table)
+    prepared = _prepared(spark, SCENARIO_INITIAL)
+
+    summary = inc.run(
+        spark, "__p22_full", prepared, source="indeed",
+        transform=_toy_transform,
+        normalize_company=_toy_normalize_company,
+        normalize_city_column=_toy_normalize_city,
+        force_full=True,
+    )
+
+    assert summary["mode"] == inc.MODE_FULL
+    assert summary["mode_reason"] == inc.REASON_FORCE_FULL
+    assert summary["written"] is True
+    assert summary["changed_rows"] == 0 and summary["merge_rows"] == 0
+    assert summary["merge_metrics"] is None
+    assert summary["target_rows"] == _toy_transform(prepared).count()
+    # The full path has its own three actions: window, transform+write and
+    # the final count (no MERGE).
+    assert set(summary["timings_s"]) == {
+        "window", "full_write", "target_count"}
+
+
+def test_incremental_summary_adds_no_action_and_keeps_the_16_values(
+    spark, monkeypatch
+):
+    initial = [
+        _toy_row("1", "Data Engineer", "Acme", "Madrid", D(2026, 9, 1),
+                 D(2026, 9, 1), 100.0),
+        _toy_row("2", "Data Analyst", "Globex", "Dublin", D(2026, 9, 2),
+                 D(2026, 9, 2), 200.0),
+    ]
+    final = _with_changes(initial, [
+        _toy_row("1", "Data Engineer", "Acme", "Madrid", D(2026, 10, 12),
+                 D(2026, 10, 12), 150.0),
+    ])
+    target = _publish(_toy_transform(_prepared(spark, initial)),
+                      "__p22_target")
+    calls = []
+    _install_reference_merge(monkeypatch, calls)
+
+    summary = inc.run(
+        spark, target, _prepared(spark, final), source="indeed",
+        transform=_toy_transform,
+        normalize_company=_toy_normalize_company,
+        normalize_city_column=_toy_normalize_city,
+        from_date=D(2026, 10, 12), to_date=WINDOW_TO,
+    )
+
+    # The 16 business fields keep the values they had before T-02.
+    assert {name: summary[name] for name in inc.SUMMARY_FIELDS[:16]} == {
+        "source": "indeed",
+        "mode": inc.MODE_INCREMENTAL,
+        "mode_reason": None,
+        "watermark": "2026-09-02",
+        "from_date": "2026-10-12",
+        "to_date": "2026-10-31",
+        "lookback_days": 7,
+        "changed_rows": 1,
+        "affected_groups": 1,
+        "recomputed_groups": 1,
+        "deleted_groups": 0,
+        "merge_rows": 1,
+        "new_columns": [],
+        "written": True,
+        "target_rows": 2,
+        "elapsed_s": summary["elapsed_s"],
+    }
+    assert isinstance(summary["elapsed_s"], float)
+    # Exactly one step per existing action: the instrumentation adds none.
+    assert set(summary["timings_s"]) == TIMING_STEPS_INCREMENTAL
+    for step, seconds in summary["timings_s"].items():
+        assert isinstance(seconds, float) and seconds >= 0.0, step
+    assert len(calls) == 1  # one MERGE per pass
+    assert summary["merge_metrics"] is None  # no Delta locally
+    assert set(summary["config"]) == {"shuffle_partitions",
+                                      "adaptive_enabled", "overrides"}
+
+    # The empty window keeps its short-circuit: three actions, no MERGE.
+    empty = inc.run(
+        spark, target, _prepared(spark, final), source="indeed",
+        transform=_toy_transform,
+        normalize_company=_toy_normalize_company,
+        normalize_city_column=_toy_normalize_city,
+        from_date=D(2026, 12, 1),
+    )
+    assert set(empty["timings_s"]) == {
+        "window", "changed_empty", "target_count"}
+    assert empty["written"] is False
+    assert len(calls) == 1
+
+    # repeat_window: two passes and two MERGE calls, same step keys.
+    envelope = inc.run(
+        spark, target, _prepared(spark, final), source="indeed",
+        transform=_toy_transform,
+        normalize_company=_toy_normalize_company,
+        normalize_city_column=_toy_normalize_city,
+        from_date=D(2026, 10, 12), to_date=WINDOW_TO,
+        repeat_window=True,
+    )
+    assert len(calls) == 3
+    assert len(envelope["runs"]) == 2
+    for run in envelope["runs"]:
+        assert set(run["timings_s"]) == TIMING_STEPS_INCREMENTAL
+
 
 # ---------------------------------------------------------------------------
 # Validation rules of the module contract (§4): control column, uniqueness,

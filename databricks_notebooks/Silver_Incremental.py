@@ -31,7 +31,16 @@ from __future__ import annotations
 import datetime as dt
 import time
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Callable,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 from uuid import uuid4
 
 from pyspark.sql import Column, DataFrame
@@ -56,6 +65,8 @@ REASON_TABLE_MISSING = "table_missing"
 REASON_MISSING_INGEST_DATE = "missing_ingest_date"
 
 #: Fields of the summary returned by :func:`run` (design-incremental.md §5.5).
+#: The first 16 are the business contract of the 008; the last three are the
+#: instrumentation of spec 010 T-02 (additive).
 SUMMARY_FIELDS = (
     "source",
     "mode",
@@ -73,6 +84,9 @@ SUMMARY_FIELDS = (
     "written",
     "target_rows",
     "elapsed_s",
+    "timings_s",
+    "merge_metrics",
+    "config",
 )
 
 
@@ -514,6 +528,96 @@ def merge_into_silver(
 
 
 # ---------------------------------------------------------------------------
+# Instrumentation (wall clock around actions that already exist)
+# ---------------------------------------------------------------------------
+
+T = TypeVar("T")
+
+
+def _timed(timings: dict, step: str, action: Callable[[], T]) -> T:
+    """Run ``action`` once and accumulate its wall-clock seconds in ``step``.
+
+    Spark transformations are lazy but actions are synchronous, so the clock
+    around the call that triggers the job does attribute the time. The value
+    of ``action`` is returned untouched and its exception is re-raised (the
+    elapsed time is kept): the instrumentation never hides a failure.
+    """
+    started = time.monotonic()
+    try:
+        return action()
+    finally:
+        elapsed = time.monotonic() - started
+        timings[step] = timings.get(step, 0.0) + elapsed
+
+
+def _merge_metrics(spark, target_table: str) -> Optional[dict]:
+    """``operationMetrics`` of the last MERGE version, or ``None``.
+
+    It is read with ``DESCRIBE HISTORY`` **in the job cluster**: Spark SQL on
+    the same session, never the SQL warehouse (one wake-up costs ~0.43 EUR).
+
+    The last **two** versions are inspected because the newest one is not
+    necessarily the MERGE of this run: a concurrent ``WRITE`` or an
+    ``OPTIMIZE`` would otherwise be reported as merge metrics. Only a row
+    whose ``operation`` is ``MERGE`` (case-insensitive) qualifies; when
+    neither of the two is a MERGE the summary says ``None`` instead of
+    inventing it.
+
+    Any failure degrades to ``None`` and the run continues: local tests work
+    with temporary views (no Delta), and a permission or history problem must
+    never fail a write that already happened. This is a metadata read, not an
+    action over data, so it is not part of ``timings_s``.
+    """
+    try:
+        rows = spark.sql(
+            f"DESCRIBE HISTORY {target_table} LIMIT 2"
+        ).collect()
+        for row in rows:
+            values = row.asDict()
+            operation = str(values.get("operation") or "").strip().upper()
+            if operation != "MERGE":
+                continue
+            metrics = values.get("operationMetrics")
+            if not metrics:
+                return None
+            return {str(name): value for name, value in dict(metrics).items()}
+        return None
+    except Exception:  # noqa: BLE001 - a metadata read never fails the run
+        return None
+
+
+#: Spark settings of the summary: summary name -> session key.
+_CONFIG_KEYS = {
+    "shuffle_partitions": "spark.sql.shuffle.partitions",
+    "adaptive_enabled": "spark.sql.adaptive.enabled",
+}
+
+
+def _config(spark) -> dict:
+    """**Effective** Spark config of the summary, plus the explicit overrides.
+
+    ``spark.conf.get(key)`` returns the effective value: the session override
+    or, when the key is not set, the runtime's built-in default (``"true"``
+    for AQE). Reading only the override with a ``None`` default made the
+    summary look like AQE was disabled. ``overrides`` keeps just the keys this
+    session set explicitly. No query is involved, so a run without overrides
+    still reports the real configuration.
+    """
+    config: dict = {}
+    overrides: dict = {}
+    for name, key in _CONFIG_KEYS.items():
+        try:
+            config[name] = spark.conf.get(key)
+        except Exception:  # noqa: BLE001 - key without a built-in default
+            config[name] = None
+        override = spark.conf.get(key, None)
+        if override is not None:
+            overrides[name] = override
+    config["overrides"] = overrides
+    return config
+
+
+# ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
 
@@ -580,25 +684,63 @@ def _run_once(
     to_date,
     force_full,
 ) -> dict:
-    """One run: window, affected groups, recompute and a single commit."""
+    """One run: window, affected groups, recompute and a single commit.
+
+    ``timings_s`` wraps **every action that already existed** in this
+    function with ``time.monotonic()``; it never adds a query. The step names
+    are stable and documented here:
+
+    * ``window``: ``window_bounds`` (``tableExists``, the read and
+      ``max(_ingest_date)``).
+    * ``changed_empty``: ``changed.isEmpty()``; it short-circuits the empty
+      window.
+    * ``affected_count``: ``affected.count()``.
+    * ``recompute_nulls`` / ``recompute_unique``: the two guards before the
+      MERGE (``require_no_null_ingest_date`` / ``require_unique_groups``).
+      The first one is where the cached ``recompute`` chain is **materialised
+      for the first time**, so it carries that expensive pass, not only the
+      null check.
+    * ``changed_count``, ``recompute_count``, ``markers_count`` and
+      ``merge_source_count``: the five ``count()`` of the cached frames.
+    * ``merge``: the single ``MERGE WITH SCHEMA EVOLUTION``.
+    * ``target_count``: the final ``count()`` of the target (both modes).
+    * ``full_write``: the transform plus ``saveAsTable`` (full mode only).
+
+    ``recompute_keys`` has no step of its own because it has no action: it is
+    materialised inside ``markers_count``. ``merge_metrics`` and ``config``
+    are metadata reads, not actions, so they are not timed.
+    """
     started = time.monotonic()
-    bounds = window_bounds(
-        spark,
-        target_table,
-        lookback_days=lookback_days,
-        from_date=from_date,
-        to_date=to_date,
-        force_full=force_full,
+    timings: dict = {}
+    bounds = _timed(
+        timings,
+        "window",
+        lambda: window_bounds(
+            spark,
+            target_table,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+            force_full=force_full,
+        ),
     )
 
     if bounds.mode == MODE_FULL:
         # Single pass: the transform feeds the write directly. Caching and
         # counting before the write tripled the runtime of the full rebuild.
         offers = transform(prepared)
-        offers.write.mode("overwrite") \
-            .option("overwriteSchema", "true") \
-            .saveAsTable(target_table)
-        target_rows = spark.read.table(target_table).count()
+
+        def write_full():
+            offers.write.mode("overwrite") \
+                .option("overwriteSchema", "true") \
+                .saveAsTable(target_table)
+
+        _timed(timings, "full_write", write_full)
+        target_rows = _timed(
+            timings,
+            "target_count",
+            lambda: spark.read.table(target_table).count(),
+        )
         return _summary(
             source,
             bounds,
@@ -611,6 +753,9 @@ def _run_once(
             written=True,
             target_rows=target_rows,
             elapsed_s=time.monotonic() - started,
+            timings_s=timings,
+            merge_metrics=None,  # the full mode overwrites, it never merges
+            config=_config(spark),
         )
 
     target = spark.read.table(target_table)  # window_bounds checked it exists
@@ -637,7 +782,7 @@ def _run_once(
 
         # 2. Window.
         changed = keep(changed_since(keyed, bounds))
-        if changed.isEmpty():
+        if _timed(timings, "changed_empty", changed.isEmpty):
             return _summary(
                 source,
                 bounds,
@@ -648,8 +793,15 @@ def _run_once(
                 merge_rows=0,
                 new_columns=[],
                 written=False,
-                target_rows=target.count(),
+                target_rows=_timed(
+                    timings,
+                    "target_count",
+                    lambda: target.count(),
+                ),
                 elapsed_s=time.monotonic() - started,
+                timings_s=timings,
+                merge_metrics=None,  # nothing was merged
+                config=_config(spark),
             )
 
         # 3. Affected groups: new keys (bronze) and old keys (silver by id).
@@ -664,8 +816,16 @@ def _run_once(
 
         # 5. Full group recompute with the notebook chain.
         recompute = keep(recompute_groups(candidates, transform=transform))
-        require_no_null_ingest_date(recompute)
-        require_unique_groups(recompute)
+        _timed(
+            timings,
+            "recompute_nulls",
+            lambda: require_no_null_ingest_date(recompute),
+        )
+        _timed(
+            timings,
+            "recompute_unique",
+            lambda: require_unique_groups(recompute),
+        )
 
         # The key is derived here: the chain already dropped it from recompute.
         recompute_keys = keep(
@@ -680,18 +840,25 @@ def _run_once(
 
         # 8. Inspect the cached frames while the target is still the old one,
         #    then a single commit with a view name unique per run.
-        changed_rows = changed.count()
-        affected_groups = affected.count()
-        recomputed_groups = recompute.count()
-        deleted_groups = markers.count()
-        merge_rows = merge_src.count()
+        changed_rows = _timed(timings, "changed_count", changed.count)
+        affected_groups = _timed(timings, "affected_count", affected.count)
+        recomputed_groups = _timed(
+            timings, "recompute_count", recompute.count)
+        deleted_groups = _timed(timings, "markers_count", markers.count)
+        merge_rows = _timed(
+            timings, "merge_source_count", merge_src.count)
         new_columns = [
             name for name in recompute.columns if name not in target.columns
         ]
         view_name = f"__silver_batch_{source}_{uuid4().hex[:8]}"
-        merge_into_silver(
-            spark, target_table, merge_src, view_name=view_name
+        _timed(
+            timings,
+            "merge",
+            lambda: merge_into_silver(
+                spark, target_table, merge_src, view_name=view_name
+            ),
         )
+        merge_metrics = _merge_metrics(spark, target_table)
 
         return _summary(
             source,
@@ -703,8 +870,15 @@ def _run_once(
             merge_rows=merge_rows,
             new_columns=new_columns,
             written=True,
-            target_rows=spark.read.table(target_table).count(),
+            target_rows=_timed(
+                timings,
+                "target_count",
+                lambda: spark.read.table(target_table).count(),
+            ),
             elapsed_s=time.monotonic() - started,
+            timings_s=timings,
+            merge_metrics=merge_metrics,
+            config=_config(spark),
         )
     finally:
         for df in cached:
@@ -729,8 +903,16 @@ def _summary(
     written: bool,
     target_rows: int,
     elapsed_s: float,
+    timings_s: Mapping[str, float],
+    merge_metrics: Optional[Mapping[str, object]],
+    config: Mapping[str, object],
 ) -> dict:
-    """16-field summary of a run (design-incremental.md §5.5)."""
+    """19-field summary of a run: 16 business fields plus instrumentation.
+
+    ``timings_s`` is the wall-clock seconds per step (``_run_once`` documents
+    the names); ``merge_metrics`` is ``None`` when Delta history is not
+    available; ``config`` carries the two Spark keys read by the run.
+    """
     return {
         "source": source,
         "mode": bounds.mode,
@@ -748,4 +930,14 @@ def _summary(
         "written": bool(written),
         "target_rows": int(target_rows),
         "elapsed_s": round(float(elapsed_s), 1),
+        "timings_s": {
+            step: round(float(seconds), 3)
+            for step, seconds in timings_s.items()
+        },
+        "merge_metrics": (
+            None
+            if merge_metrics is None
+            else {str(name): value for name, value in merge_metrics.items()}
+        ),
+        "config": dict(config),
     }
