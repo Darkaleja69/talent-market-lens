@@ -82,29 +82,52 @@
     (200 → 8–16): 22 min → ~2–3 min estimados. Verificación independiente
     **PASA CON MENORES** (cuatro avisos corregidos).
 
-- [ ] **T-02 — Instrumentación del resumen y banco local** (~60 min)
+- [x] **T-02 — Instrumentación del resumen y banco local** (~60 min)
   - **Objetivo:** que el siguiente run diga dónde se va el tiempo sin añadir
-    pasadas: `timings_s` por etapa en el resumen de `Silver_Incremental.run`,
-    `merge_metrics` leídas de `DESCRIBE HISTORY` en el clúster del job,
-    `DESCRIBE DETAIL` de las 8 tablas (`numFiles`/`sizeInBytes`) y la **config
-    efectiva** de `spark.sql.shuffle.partitions` y `spark.sql.adaptive.*`, con
-    el **número de tareas por stage** (la palanca que ha señalado T-01). Banco
-    local reproducible con dos escenarios (ventana ancha y ventana ≤1 %) y
-    tiempos antes/después.
-  - **Nota:** `DESCRIBE DETAIL`/`DESCRIBE HISTORY` son SQL de **Spark**: se
-    ejecutan en el clúster del job, **no** en el SQL warehouse (0,43 € por
-    despertar). No hace falta ninguna sesión de SQL Editor.
-  - **Hecho cuando:** el resumen conserva los 16 campos y añade `timings_s` y
-    `merge_metrics`; **no lanza acciones nuevas** (demostrado con el número de
-    jobs del plan); tests de contrato del resumen y del banco en verde;
-    `explain("codegen")` del banco midiendo el tamaño del código.
-  - **Aprobación previa:** módulo `Silver_Incremental.py` (diff y motivo).
+    pasadas: `timings_s` por **acción** en el resumen de
+    `Silver_Incremental.run`, `merge_metrics` leídas de `DESCRIBE HISTORY` en
+    el clúster del job y la **config efectiva** de
+    `spark.sql.shuffle.partitions` y `spark.sql.adaptive.enabled`. Banco local
+    reproducible con dos escenarios (ventana ancha y ventana ≤1 %) y tiempos
+    antes/después del cambio de T-03b.
+  - **Método (aprobado el 2026-10-28):** reloj de pared **alrededor de cada
+    acción** (`time.monotonic()` envolviendo la llamada que dispara el job).
+    Las transformaciones son perezosas, pero las acciones son síncronas: medir
+    alrededor de la acción sí atribuye el tiempo, y **no** hace falta
+    `SparkListener`. Sustituye al `setJobGroup` + listener de `plan.md` §5 (se
+    sincroniza el plan al cerrar la tarea).
+  - **Contrato:** los 16 campos actuales se conservan; se añaden `timings_s`,
+    `merge_metrics` y `config` (aditivo). `merge_metrics` nunca rompe el run:
+    si `DESCRIBE HISTORY` no está disponible (local sin Delta), vale `None`.
+  - **Desvío respecto a `tasks.md` original:** `DESCRIBE DETAIL` de las 8
+    tablas **no** entra en `_run_once` (serían consultas nuevas por silver y
+    rompería el «0 acciones nuevas»): se hace en **T-05**, que es su sitio.
+  - **Nota:** `DESCRIBE HISTORY` es SQL de **Spark** en el clúster del job, no
+    del SQL warehouse (0,43 € por despertar). Ninguna sesión de SQL Editor.
+  - **Hecho cuando:** el resumen conserva los 16 campos de negocio con los
+    mismos valores y añade los 3 nuevos; el número de acciones no crece
+    (test de contrato: mismas claves de `timings_s`, mismos conteos y mismo
+    número de llamadas al `MERGE`); tests en verde; banco local con tabla de
+    tiempos por paso y tamaño del código de `explain("codegen")`.
+  - **Aprobación previa:** **dada el 2026-10-28** (fichero
+    `Silver_Incremental.py`, zonas `SUMMARY_FIELDS`/`_run_once`/`_summary`,
+    diff esquemático presentado).
   - **Evidencia:** salida de la suite, tabla de tiempos del banco y fila en
     `evidence.md`. **0 €.**
-  - **Estado (2026-10-28): APARCADA por decisión de secuencia.** No hace falta
-    para probar P1: el resumen por acción se añadirá si el run A/B con 8
-    particiones no basta para ver qué queda. El barrido de `_run_once` y el
-    reproceso ya están descritos en `design-performance.md` §3.5.
+  - **Estado (2026-10-29): CERRADA**, verificación independiente **PASA**
+    (2 rondas: 4 menores corregidos). 37 tests del fichero en verde
+    (864,85 s). El banco local (`local[4]`, 8 particiones, `--label before`):
+    **full 56,9 s / 42,5 s**, **wide 98,2 / 88,3 s**, **small 68,9 / 65,6 s**;
+    en wide, `changed_empty` (keyed del bronce completo) **26,7 s**,
+    `recompute_nulls` (primera materialización de la cadena) **26,6 s**,
+    `merge` (referencia, sin Delta) **12,4 s**, resto de acciones **12,6 s** y
+    **~20 % del reloj fuera de los pasos** (planificación, `cache`/`unpersist`,
+    `DESCRIBE HISTORY`, `_config`). En small, `changed_empty` sigue costando
+    **24,6 s** aunque solo cambien 310 filas. **H1 confirmada como condición
+    presente**: `explain("codegen")` = **2.640.741 caracteres, 8 subtrees** y
+    aviso «Code grows beyond 64 KB» **disparado** (del log4j del JVM).
+    `[NO VERIFICADO]` el MERGE real y la escritura física del `full`.
+    **Siguiente:** T-03b con estos números.
 
 ## 2. Optimización
 
