@@ -160,6 +160,35 @@
       consulta** (11 acciones × ~20–30 s) y el `MERGE`. Siguiente paso: T-02
       (medir por acción) y, con eso, recortar acciones (P3) y/o el coste por
       tarea (P2). Consume 2 runs de los 3; el abortado gastó ~0,02 €.
+  - **Sub-bloque T-03b (2026-10-30): aplicado y medido en local; verificado.**
+    Correcciones aprobadas por la persona el 2026-10-29:
+    - **C1 — 7 pasos cronometrados** en vez de 11 acciones: `changed.isEmpty()` +
+      `count` → un `count`; los dos guards y el conteo de `recompute` → **una**
+      agregación (`recompute_check`: filas, `_ingest_date` no nulo y
+      `countDistinct` de la clave, con los **mismos** mensajes de error);
+      `merge_src.count()` desaparece (`merge_rows = recomputadas + marcadores`);
+      `deleted_groups = markers_count`.
+    - **C2 — corte de linaje**: `localCheckpoint(eager=True)` explícito en
+      `keyed` y `recompute`. **No reduce consultas** (Spark paga la
+      materialización con su propia ejecución): el pase queda en **9 ejecuciones
+      de datos + 1 de metadatos** con el MERGE de Delta. Lo que compra es el
+      plan del MERGE: paso `merge` de referencia **12,4 s → ~1,5 s**.
+    - **C3 — un escaneo del destino**: `target` cacheado una vez y liberado con
+      `unpersist(blocking=True)` **antes** del MERGE, para que `target_count` no
+      lea el snapshot pre-MERGE.
+    - **C4 — `merge_metrics` cronometrado** como paso propio.
+    - **Banco local (`after` frente a `before`)**: wide **98,2 / 88,3 → 53–56 s**;
+      small **68,9 / 65,6 → 30–36 s**; el control `full` (código sin cambios)
+      también bajó (56,9 → 31–45 s), así que **la ganancia absoluta no es
+      atribuible entera** a T-03b; la diferencial sí: `merge_source_count` +
+      `merge` = **16,2 s → 2,1 s**. Ratios: wide/full ~1,5–1,8 (RF-2a no se
+      demuestra en local), small/full **~1,0–1,2** (RF-2b sí).
+    - **Verificación independiente: PASA** (dos rondas; corregidos el `eager`
+      por defecto y los docstrings) y **PASA** en el cierre. 37 tests del
+      fichero en verde.
+    - **Pendiente:** el run instrumentado (3.º y último del presupuesto) decide
+      RF-2a en clúster; `_key` materializada (T-04) y el corte del codegen
+      (T-03a) quedan como palancas con evidencia.
   - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
     para poder revertir una sin la otra. El fix de `keyed` compartido que se
     revirtió en la 008 (caché del frame `keyed` entre los dos pases de
