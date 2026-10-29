@@ -657,7 +657,8 @@ def test_group_migration_expels_the_orphan(spark, monkeypatch):
                  D(2026, 10, 11), 350.0),
     ])
     target = _publish(_toy_transform(_prepared(spark, initial)), "__p6_target")
-    _install_reference_merge(monkeypatch, [])
+    calls = []
+    _install_reference_merge(monkeypatch, calls)
 
     summary = inc.run(
         spark, target, _prepared(spark, final), source="indeed",
@@ -671,6 +672,9 @@ def test_group_migration_expels_the_orphan(spark, monkeypatch):
     assert summary["recomputed_groups"] == 1
     assert summary["deleted_groups"] == 1
     assert summary["merge_rows"] == 2
+    # The arithmetic (recompute + markers) must equal the real MERGE source:
+    # a future filter or dedup in merge_source cannot break it in silence.
+    assert summary["merge_rows"] == calls[-1]["merge_src"].count()
     assert summary["target_rows"] == 2
     actual = spark.read.table(target)
     expected = _toy_transform(_prepared(spark, final))
@@ -1946,19 +1950,17 @@ def test_repeat_window_envelope(spark, monkeypatch):
 # business values unchanged and the metadata reads degrading without Delta
 # ---------------------------------------------------------------------------
 
-#: One step per action that ``_run_once`` already had in incremental mode.
+#: One step per action of ``_run_once`` in incremental mode after T-03b:
+#: 7 data actions plus the ``DESCRIBE HISTORY`` metadata query.
 TIMING_STEPS_INCREMENTAL = {
-    "window",             # window_bounds (tableExists + read + max)
-    "changed_empty",      # changed.isEmpty()
-    "affected_count",     # affected.count()
-    "recompute_nulls",    # require_no_null_ingest_date
-    "recompute_unique",   # require_unique_groups
-    "changed_count",      # changed.count()
-    "recompute_count",    # recompute.count()
-    "markers_count",      # markers.count()
-    "merge_source_count", # merge_src.count()
-    "merge",              # MERGE WITH SCHEMA EVOLUTION
-    "target_count",       # target.count() after the MERGE
+    "window",           # window_bounds (tableExists + read + max)
+    "changed_count",    # count over the window (+ keyed checkpoint)
+    "affected_count",   # affected.count() (+ first scan of the target)
+    "recompute_check",  # recompute checkpoint + one validation aggregation
+    "markers_count",    # markers.count()
+    "merge",            # MERGE WITH SCHEMA EVOLUTION
+    "merge_metrics",    # DESCRIBE HISTORY LIMIT 2 (metadata)
+    "target_count",     # target.count() after the MERGE
 }
 
 
@@ -2167,7 +2169,7 @@ def test_incremental_summary_adds_no_action_and_keeps_the_16_values(
         from_date=D(2026, 12, 1),
     )
     assert set(empty["timings_s"]) == {
-        "window", "changed_empty", "target_count"}
+        "window", "changed_count", "target_count"}
     assert empty["written"] is False
     assert len(calls) == 1
 
