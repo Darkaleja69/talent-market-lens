@@ -285,7 +285,7 @@
     run ni sesión SQL; solo lectura gratuita de la API de runs). **T-08
     confirmará** la decisión con el run B.
 
-- [ ] **T-05 — Layout físico: medir y decidir** (~30 min)
+- [x] **T-05 — Layout físico: medir y decidir** (~30 min)
   - **Objetivo:** medir `numFiles`, `sizeInBytes` y tamaño medio por tabla
     (bronce, silver, oro) y decidir `OPTIMIZE`, `liquid clustering` o **no
     cambiar**, con el efecto en oro y exports si se toca.
@@ -296,12 +296,57 @@
   - **Evidencia:** `DESCRIBE DETAIL` por tabla (leído en el clúster del job, sin
     warehouse) y fila en `evidence.md`. **0 €** de runs; el clúster de lectura,
     si se abre uno, cuesta céntimos.
-  - **Estado (2026-10-30): evidencia parcial a favor de «no cambiar».** Cada
-    `MERGE` deja `numTargetFilesAdded = 1` y `numTargetFilesRemoved = 0/1` por
-    pase y tabla, con `numTargetBytesAdded` de 41,1 KB–656,1 KB: **estado
-    estacionario**, sin explosión de ficheros pequeños y con un fichero por
-    escritura, coherente con H6 descartada. Falta el `DESCRIBE DETAIL` de las
-    8 tablas (`numFiles`/`sizeInBytes` reales) para cerrar la decisión.
+  - **Estado (2026-10-30): CERRADA — «no cambiar»**, sin `OPTIMIZE`, sin
+    `liquid clustering` y sin particionado. Detalle en
+    `design-layout-compute.md`. **Evidencia** (`DESCRIBE DETAIL` de las **18
+    tablas** del catálogo `job_offers_dev` en un clúster all-purpose de lectura,
+    salida literal en `docs/media/performance/2026-10-30-describe-detail-dev.txt`;
+    filas = `numRecords` de Delta, no un `COUNT(*)` independiente): **42
+    ficheros / 98.369.519 B** en total, con **bronce 18 ficheros**
+    (`infojobs` **5 × 0,43 MB** = 2,14 MB, la media por fichero más baja de
+    bronce; `indeed` 1, `linkedin` 6, `multi_site` 6), `offers_*` **2 ficheros**
+    cada una (0,76–7,96 MB de media), `companies_*` **1** (12,3–236,7 kB) y oro
+    **1 fichero** por tabla salvo `dim_skill_list` y `dim_currency` con **4
+    diminutos** (1,55/2,33 kB de media; 6,2/9,3 kB en total). Rango de filas:
+    **19** (`dim_currency`) a **44.928** (`fact_offer_skills`).
+    **`partitionColumns` y `clusteringColumns` = `[]` en las 18** y
+    **`delta.enableDeletionVectors` activa en las 18** (propiedad de tabla; no
+    dice cuántos DVs hay). **Se descarta `OPTIMIZE`** porque `fact_offers` ya es
+    **1 fichero** (26.302 filas / 19,15 MB), en las tablas de 2 ficheros
+    compactar **reescribe 1,5–15,9 MB** para bajar de 2 a 1 y en las dos
+    dimensiones compactaría **6,2/9,3 kB** (ganancia no medible); además
+    `OPTIMIZE` reescribe solo los ficheros que compacta (con **1 fichero no
+    reescribe nada**: solo actúa donde hay ≥2) y se supone que, con DVs activos,
+    materializa los borrados (`[NO VERIFICADO]`).
+    **Se descarta `liquid clustering`** porque ninguna consulta de oro o de los
+    exports filtra por una columna que pueda podarse (leen la tabla completa),
+    el paso `window` cuesta 5,7–6,3 s y clusterizar no podaría nada con **1
+    fichero de 19,15 MB** (habría que partirlo en varios para aprovechar la
+    poda, justo lo que `OPTIMIZE` evita); cada `MERGE` pagaría el reparto por la
+    clave. **Se descarta particionar** porque ninguna tabla supera 44.928 filas
+    ni 33,09 MB y no hay filtro dominante por fecha en oro/exports (particionar
+    por `_ingest_date` crearía una partición por lote). **DVs**: el pase 1 deja
+    **1** y el segundo pase es **consistente con** reescribir el fichero del
+    primero (T-04; la ruta no se mide), así que no se acumulan más allá de un
+    pase; `DESCRIBE DETAIL` no informa del número vigente
+    (`[NO VERIFICADO]`) y no se justifica `OPTIMIZE` solo por purgarlos.
+    **Los `MERGE` dejan el recuento estacionario en el run de dos pases**
+    (`filesAdded=1`, `filesRemoved=0/1`): los **2 ficheros** de cada `offers_*`
+    son **consistentes con** base + el fichero del último pase (la ruta no se
+    mide). **Efecto en oro y exports: ninguno**, **un fichero por tabla** en
+    `pbi_export_dev` (7 ficheros / 34.241.722 B) y `web_export_dev` (5 /
+    3.689.553 B), que se escriben desde la tabla lógica y no copiando ficheros
+    Delta. **Revisión** si una tabla pasa de **50 ficheros** (o de **10** en una
+    `offers_*`), si la media por fichero baja de **1 MB** en una tabla de más de
+    **10 MB**, si aparece un **filtro selectivo dominante** (≥90 % de filas
+    descartadas) en oro/exports, si el volumen crece **≥10×** o si se ven
+    **decenas de DVs** vigentes. **`[NO VERIFICADO]`**: número de DVs vigentes,
+    `minFileBytes`/`maxFileBytes` (`None` en la salida), tiempos por tabla de oro
+    y exports (solo el de tarea: oro 56 s, exports 92 s), la causa de los 4
+    ficheros de las dos dimensiones y el efecto real de un `OPTIMIZE` (no
+    ejecutado: escritura física con aprobación previa). **Coste: céntimos**
+    (clúster all-purpose ~2–3 min, duración exacta no registrada). **T-06**
+    añadirá la sección de compute al mismo documento.
 
 - [ ] **T-06 — Compute y concurrencia: decisión** (~30 min)
   - **Objetivo:** decidir el compute de producción con la evidencia de T-01 y

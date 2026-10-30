@@ -176,7 +176,17 @@ al menos un despertar.
   55–458 filas con `numTargetRowsCopied=0`; conteos finales idénticos a A
   (3.112 / 2.527 / 12.543 / 10.072) y repetición idempotente; bronce **383 s de
   arranque + 134 s de ejecución** (**56 % del run**). → **~0,23 €**.
-- **Total de la 010:** ~0,62 € de 1,8 € (3 runs de evidencia + 1 abortado).
+- **T-05 (2026-10-30), clúster all-purpose de lectura, catálogo
+  `job_offers_dev`: `DESCRIBE DETAIL` de las 18 tablas y recuento de los
+  exports:** **~2–3 min** de uso — **estimación**: **duración exacta no
+  registrada** — → **céntimos**. Se anota como **estimación**, no como importe
+  cerrado: la tarifa de all-purpose **no está medida** (`[NO VERIFICADO]`) y se
+  **supone** superior a la de jobs (`[NO VERIFICADO]`); con la referencia de
+  jobs de este documento (~0,75 €/h), 2–3 min serían **~3–4 céntimos**, una
+  **cota inferior** del coste real. Sin runs y sin sesión SQL.
+- **Total de la 010:** ~0,62 € de 1,8 € (3 runs de evidencia + 1 abortado), más
+  los **céntimos** del clúster de lectura de T-05 (estimación, sin cifra
+  exacta).
 
 ## Cierre de la spec 009 (2026-10-24)
 
