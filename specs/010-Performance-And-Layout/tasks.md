@@ -230,7 +230,7 @@
   - **Evidencia:** tiempos antes/después por etapa, `explain` del plan nuevo y
     fila en `evidence.md`. **0 €.**
 
-- [ ] **T-04 — MERGE real: medir y decidir** (~45 min)
+- [x] **T-04 — MERGE real: medir y decidir** (~45 min)
   - **Objetivo:** cerrar H3 con números: duración y filas reescritas del
     `MERGE`, y decidir si compensa materializar `_key` en silver (o una tabla
     de stage) para convertir el `ON` en igualdad de columna.
@@ -245,21 +245,45 @@
     queda documentado el motivo y el coste aceptado. **Aprobación previa** del
     diff y de la migración.
   - **Evidencia:** `operationMetrics` del MERGE (paso 14 de `plan.md` §2.2),
-    comparación de tiempos y fila en `evidence.md`. **0 €** en esta tarea; las
-    métricas se leen en T-08.
-  - **Estado (2026-10-30): decisión preliminar tomada con las `operationMetrics`
-    del run `879269828668729` — «no materializar `_key`».** Las ocho pasadas dan
-    `numTargetRowsCopied = 0`, `numTargetRowsUpdated` = filas del origen,
-    `numTargetFilesAdded = 1`, `numTargetBytesRemoved` = los bytes del pase
-    anterior, `executionTimeMs` 5,9–23,3 s, `rewriteTimeMs` 2,9–13,0 s,
-    `scanTimeMs` 2,1–6,8 s y `materializeSourceTimeMs` 0,7–3,4 s. El `MERGE`
-    **no reescribe la tabla entera** (H3 en su parte fuerte queda descartada) y
-    su coste es reescritura de un fichero + `ON` con expresión; una columna
-    interna no arregla un problema que no existe. Coste aceptado y documentado:
-    el `merge` sigue siendo el segundo paso más caro (19–29 s por pase) y se
-    atacará, si se quiere, con una tabla de *stage* o partiendo la clave; **no**
-    por contrato. Pendiente solo el `explain` de confirmación (0 €) y anotarlo
-    en `evidence.md` al cerrar.
+    comparación de tiempos y fila en `evidence.md`. **0 €** en esta tarea: las
+    métricas son del resumen del run `879269828668729` de T-03, leído por la API
+    de runs, y **T-08 confirmará** la decisión con el run B.
+  - **Estado (2026-10-30): CERRADA — decisión «no materializar `_key`»**, con la
+    medición por delante y el plan local `[NO VERIFICADO]`. Detalle en
+    `design-performance.md` §9. **Evidencia** (run `879269828668729` de T-03,
+    cuatro silvers × dos pases = **8 `MERGE` reales**): `numTargetRowsCopied = 0`
+    en las ocho pasadas, `numTargetFilesAdded = 1` por pase y
+    `numTargetBytesRemoved` del pase 2 = `numTargetBytesAdded` del pase 1
+    (453.383 / 66.087 / 656.076 / 41.133 B) ⇒ **el `MERGE` no reescribe la tabla
+    entera**: escribe un fichero con las 55–458 filas afectadas y el segundo
+    pase es consistente con retirar el fichero del primero (la ruta no se mide).
+    `executionTimeMs` 5,9–23,3 s, `scanTimeMs` 2,1–6,8 s,
+    `materializeSourceTimeMs` 0,7–3,4 s, `rewriteTimeMs` 2,9–13,0 s; paso
+    `merge` **10,5–28,9 s** por pase (**19,1–28,9 s** en frío y **10,5–21,4 s**
+    en el segundo), **entre los tres pasos más caros de cada pase**: primero en
+    `offers_infojobs` (los dos pases), segundo en `offers_indeed` y en el segundo
+    pase de `offers_multi_site`, y tercero en `offers_linkedin` (los dos pases)
+    y en el primer pase de `offers_multi_site`. `inserted = deleted = 0`,
+    `updated = affected` (55–458), `target_rows` idénticos a A y
+    `deleted_groups = 0`: idempotente **en conteos** (el contenido de los
+    exports se cierra en T-08/T-06b). El pase 1 deja **1 deletion vector** por
+    tabla; el pase 2 no añade ninguno (`delta.enableDeletionVectors` activa en
+    las tablas del catálogo dev medidas; salida literal en
+    `docs/media/performance/2026-10-30-describe-detail-dev.txt`). **H3**: la
+    parte «reescribe el destino entero» queda descartada; queda el coste del
+    `ON` con expresión, sin plan que lo explique. **Coste aceptado:**
+    10,5–28,9 s por pase; alternativas descartadas con motivo (columna `_key`
+    materializada: no arregla un problema que no existe, su techo es el paso
+    `merge` completo y toca contrato/RESTORE; tabla de stage: añade una escritura
+    por pase y su limpieza; partir la clave: cambia el modelo de dedup).
+    **`[NO VERIFICADO]` el plan físico**: el
+    `explain` local arranca con Spark 4.2.0 y Delta desde JARs locales, pero
+    este host Windows no tiene `winutils.exe`/`hadoop.dll` y falla en
+    `listStatus` → `NativeIO$Windows.access0` (`UnsatisfiedLinkError`); **no se
+    instaló nada**. Quedan sin verificar el `Exchange` sobre la expresión del
+    `ON`, la poda por fichero y si el destino se escanea completo. **0 €** (sin
+    run ni sesión SQL; solo lectura gratuita de la API de runs). **T-08
+    confirmará** la decisión con el run B.
 
 - [ ] **T-05 — Layout físico: medir y decidir** (~30 min)
   - **Objetivo:** medir `numFiles`, `sizeInBytes` y tamaño medio por tabla

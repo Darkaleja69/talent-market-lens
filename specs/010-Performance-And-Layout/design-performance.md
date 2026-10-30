@@ -494,3 +494,161 @@ lanzaron los dos runs, ya con el cambio desplegado:
 - `[NO VERIFICADO]`: las tareas por stage del run B (no se capturó su Spark
   UI); los exports A/B byte a byte (B sobrescribió los de A y no se guardó su
   SHA-256; la equivalencia está por conteos e idempotencia).
+
+## 9. Decisión del MERGE (T-04)
+
+**Decisión (2026-10-30): no materializar `_key` en silver y no crear tabla de
+stage.** El `ON` sigue siendo la expresión calculada a los dos lados y el
+`MERGE` se queda como está. La decisión se toma con las `operationMetrics` del
+run `879269828668729` de T-03 (**8 pasadas reales de `MERGE`**, cuatro silvers ×
+dos pases de `repeat_window`), no con el plan: el `explain` local no se ha
+podido obtener (§9.4). **0 €**: sin run ni sesión SQL; solo lectura gratuita de
+la API de runs (el resumen lo publica el propio notebook).
+
+### 9.1 La medición que la sostiene
+
+La columna «Pase (s)» es la duración del **pase** completo tal como llega en la
+medición del run; **no es `timings_s`**, que es el diccionario de tiempos por
+paso. El paso `merge` sale de ese diccionario y dura **10,5–28,9 s**
+(**19,1–28,9 s** en el pase en frío y **10,5–21,4 s** en el segundo pase). Las
+columnas de escritura salen de `merge_metrics`, leídas con `DESCRIBE HISTORY`
+**en el clúster del job** (metadatos de Spark, no el SQL warehouse).
+
+| Tabla | Pase | `changed` | `affected` | `target_rows` | Pase (s) | `filesAdded` | `filesRemoved` | `bytesAdded` | `bytesRemoved` | `DVadded` | `copied` | `updated` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `offers_indeed` | 1 | 229 | 226 | 3.112 | 138,2 | 1 | 0 | 453.383 | 0 | 1 | 0 | 226 |
+| `offers_indeed` | 2 | 229 | 226 | 3.112 | 110,5 | 1 | 1 | 453.383 | 453.383 | 0 | 0 | 226 |
+| `offers_infojobs` | 1 | 55 | 55 | 2.527 | 123,8 | 1 | 0 | 66.087 | 0 | 1 | 0 | 55 |
+| `offers_infojobs` | 2 | 55 | 55 | 2.527 | 89,4 | 1 | 1 | 66.087 | 66.087 | 0 | 0 | 55 |
+| `offers_linkedin` | 1 | 485 | 458 | 12.543 | 136,6 | 1 | 0 | 656.076 | 0 | 1 | 0 | 458 |
+| `offers_linkedin` | 2 | 485 | 458 | 12.543 | 112,3 | 1 | 1 | 656.076 | 656.076 | 0 | 0 | 458 |
+| `offers_multi_site` | 1 | 122 | 121 | 10.072 | 136,7 | 1 | 0 | 41.133 | 0 | 1 | 0 | 121 |
+| `offers_multi_site` | 2 | 122 | 121 | 10.072 | 112,2 | 1 | 1 | 41.133 | 41.133 | 0 | 0 | 121 |
+
+| Tabla | Pase | `executionTimeMs` | `scanTimeMs` | `materializeSourceTimeMs` | `rewriteTimeMs` |
+|---|---|---|---|---|---|
+| `offers_indeed` | 1 | 12.233 | 2.841 | 1.891 | 7.442 |
+| `offers_indeed` | 2 | 7.215 | 2.182 | 731 | 4.245 |
+| `offers_infojobs` | 1 | 23.280 | 6.814 | 3.443 | 12.968 |
+| `offers_infojobs` | 2 | 12.941 | 5.179 | 1.087 | 6.584 |
+| `offers_linkedin` | 1 | 13.512 | 4.934 | 999 | 7.434 |
+| `offers_linkedin` | 2 | 5.857 | 2.092 | 819 | 2.905 |
+| `offers_multi_site` | 1 | 15.298 | 5.656 | 1.091 | 8.491 |
+| `offers_multi_site` | 2 | 8.628 | 3.307 | 1.021 | 4.238 |
+
+En las **ocho** pasadas:
+
+- **`numTargetRowsCopied = 0`.** Delta no ha copiado ni una fila del destino: no
+  hay reescritura de filas no afectadas.
+- **`numTargetFilesAdded = 1`.** Un solo fichero nuevo por pase, con
+  **41,1 KB–656,1 KB**; el resto de ficheros de la tabla no se reescribe
+  (`bytesRemoved=0` en el primer pase y un único fichero retirado en el
+  segundo).
+- **`numTargetBytesRemoved` del pase 2 = `numTargetBytesAdded` del pase 1**
+  (las cuatro tablas, byte a byte: 453.383 / 66.087 / 656.076 / 41.133). Es
+  **consistente con** retirar el fichero añadido en el pase 1 (la ruta del
+  fichero no se mide): reescribe el fichero de las filas cambiadas, no la
+  tabla.
+- **`numTargetRowsInserted = 0`, `numTargetRowsDeleted = 0`,
+  `numTargetRowsMatchedDeleted = 0`,
+  `numTargetRowsNotMatchedBySourceUpdated = 0`,
+  `numTargetChangeFilesAdded = 0`.** Es una actualización pura de grupos
+  existentes: `updated` = `affected` (55–458) y `target_rows` no cambia.
+- **`target_rows` idénticos a los del run A** (3.112 / 2.527 / 12.543 / 10.072)
+  y `deleted_groups = 0`: idempotente **en conteos**; el contenido de los
+  exports se cierra en T-08/T-06b.
+- **`scanTimeMs` 2,1–6,8 s** y **`materializeSourceTimeMs` 0,7–3,4 s**: las dos
+  partes del `MERGE` que tocan la expresión de la clave cuestan, juntas,
+  **≤ 10,3 s por pase** (máximo real: infojobs pase 1, 6.814 + 3.443 =
+  10.257 ms), dentro de un `executionTimeMs` de 5,9–23,3 s.
+
+### 9.2 Lectura de H3
+
+`plan.md` §4 describía H3 así: «el `ON` es una expresión calculada a los dos
+lados, sin `_key` almacenada; no hay poda por estadísticas y **el destino se
+reescribe entero**».
+
+- **«El destino se reescribe entero» queda descartada.** `numTargetRowsCopied=0`
+  en las ocho pasadas, `filesAdded=1` y `bytesRemoved=0` en el primer pase. La
+  hipótesis se formuló antes de tener métricas; ya no se sostiene.
+- **Lo que queda de H3 es el coste del `ON` con expresión**, no un problema de
+  escritura: el paso `merge` (**10,5–28,9 s** por pase; **19,1–28,9 s** en el
+  pase en frío y **10,5–21,4 s** en el segundo) **está entre los tres pasos más
+  caros de cada pase: primero en `offers_infojobs` (los dos pases), segundo en
+  `offers_indeed` y en el segundo pase de `offers_multi_site`, y tercero en
+  `offers_linkedin` (los dos pases) y en el primer pase de `offers_multi_site`**.
+  En los segundos puestos queda por delante `recompute_check`
+  (**41,09–50,44 s**); en los terceros, también `changed_count` (22,124 s en
+  `offers_multi_site` pase 1; 25,065 s y 11,310 s en `offers_linkedin` pases 1 y
+  2). El plan no se ha podido leer (§9.4), así que **no se afirma** si esa
+  expresión impide poda por fichero ni si hay un `Exchange` sobre ella; lo
+  medido es su factura, no su causa.
+- **El pase 1 deja 1 deletion vector** por tabla (`numDeletionVectorsAdded=1`):
+  las 55–458 filas actualizadas se marcan como borradas en el fichero base y se
+  escriben en un fichero nuevo, sin reescribir el base (`filesRemoved=0`,
+  `bytesRemoved=0`). El pase 2 **no añade ningún DV** y es **consistente con**
+  retirar el fichero añadido en el pase 1 (la ruta no se mide). **Matiz
+  medido:** que el pase 2 «materialice» el DV del pase 1 no se deduce de las
+  métricas —si lo materializara, retiraría también el fichero base, y
+  `numTargetBytesRemoved` coincide con el tamaño del fichero del pase 1—.
+  **Handoff a T-05 (layout).** Hecho medido: `delta.enableDeletionVectors` está
+  **activa en las tablas del catálogo dev medidas** (18 filas de `DESCRIBE
+  DETAIL`: las 14 de bronze, silver de ofertas y gold, más las 4 `companies_*`),
+  salida literal en
+  `docs/media/performance/2026-10-30-describe-detail-dev.txt` (clúster de
+  lectura del 2026-10-30). `DESCRIBE DETAIL` **no** informa del número de DVs.
+  **Inferencia** (no medida): con esta ventana, el pase 1 añade 1 DV y el pase 2
+  reescribe el fichero del pase 1, así que los DVs **no se acumulan más allá de
+  un pase**. T-05 decidirá si eso justifica `OPTIMIZE`; su alcance no cambia.
+
+### 9.3 Coste aceptado y alternativas descartadas
+
+Coste que se acepta: **10,5–28,9 s por pase** en el paso `merge` (**19,1–28,9 s**
+en el pase en frío y **10,5–21,4 s** en el segundo), que está entre los tres
+pasos más caros de cada pase: primero en `offers_infojobs` (los dos pases),
+segundo en `offers_indeed` y en el segundo pase de `offers_multi_site`, y
+tercero en `offers_linkedin` (los dos pases) y en el primer pase de
+`offers_multi_site`. Con `executionTimeMs` 5,9–23,3 s, el pase completo
+(89,4–138,2 s) cabe de sobra en el gate RF-2a (226 s). No se toca el contrato de
+silver ni se gasta un run.
+
+| Alternativa | Por qué se descarta |
+|---|---|
+| **Columna `_key` materializada** en silver (la excepción controlada de la spec) | **No arregla un problema que no existe**: el destino ya no se reescribe entero. Toca contrato (`_key` interna en las cuatro silvers, proyección explícita en oro y exports), exige migración, tests y `RESTORE` disponible. Su ganancia máxima sería el paso `merge` completo (**10,5–28,9 s** por pase) y, dentro de él, el reparto del `ON` no se conoce: el plan físico no se ha podido leer (`[NO VERIFICADO]`, §9.4); `scanTimeMs` y `materializeSourceTimeMs` son cotas de escaneo y materialización, **no** la atribución del `ON`. |
+| **Tabla de stage** por run (materializar `merge_src`) | Añade **una escritura Delta por pase** y su limpieza (versiones, ficheros, DV) para ahorrar, como máximo, el paso `merge` completo (10,5–28,9 s), cuyo reparto interno no se conoce. Además duplica el estado que hay que mantener y complica la idempotencia. El origen ya es una vista temporal: pasarlo a tabla suma I/O sin ganancia medida. |
+| **Partir la clave** (dedup por columnas sueltas o por hash precalculado de negocio) | Cambia el **modelo de dedup** (identidad del grupo semántico): choca con «sin cambio de semántica» y con la equivalencia A/B de RF-4. No hay evidencia de que el `ON` sea el cuello. |
+
+Queda **abierto, con evidencia a favor de no hacerlo**: si en el futuro el
+`merge` crece con el volumen, la palanca barata sería volver a medir el plan y,
+solo entonces, decidir entre `_key` o stage. Hoy no se justifica.
+
+### 9.4 Qué **no** se ha verificado
+
+- **El plan físico del `MERGE` en local (`explain`) no se ha podido obtener**,
+  así que quedan `[NO VERIFICADO]`: si hay `Exchange`/shuffle sobre la
+  expresión del `ON`, si el destino tiene poda por fichero o partición y si se
+  escanea completo. El intento (script temporal fuera del repositorio,
+  `%TEMP%\opencode\t04_merge_explain\`) arrancó Spark 4.2.0 con Delta cargado
+  desde JARs locales (`local[2]`, 8 particiones, AQE activo, la misma expresión
+  de `key_sql`; la traza completa de la primera variante no se conservó), pero
+  **este host Windows no tiene `winutils.exe` ni `hadoop.dll`**:
+  - `[NO VERIFICADO]` (anotado durante la sesión, no conservado en `out.txt`):
+    `CREATE TABLE ... USING DELTA` falló en
+    `RawLocalFileSystem.setPermission` → `Shell.getWinUtilsPath` (`HADOOP_HOME
+    and hadoop.home.dir are unset`).
+  - Una tabla Delta vacía creada a mano falla al planificar en
+    `RawLocalFileSystem.listStatus` → `FileUtil.canRead` →
+    `NativeIO$Windows.access0`: `UnsatisfiedLinkError` (falta `hadoop.dll`).
+
+  **No se ha instalado nada**, como manda la tarea: el `explain` queda
+  `[NO VERIFICADO]` con este error, y la decisión se sostiene en las
+  `operationMetrics` del run real, que es la evidencia de mayor rango. Los
+  tests del proyecto ya asumen esta limitación (saltan las escrituras en
+  Windows sin `HADOOP_HOME`).
+- **El reparto del `ON` dentro del `merge`**: `scanTimeMs` y
+  `materializeSourceTimeMs` son cotas, no la atribución de la expresión.
+- **La materialización del DV del pase 1 en el pase 2**: ver el matiz de §9.2.
+- **La extrapolación a producción**: la spec anota **190 filas** ingeridas en
+  indeed el 27-oct, menos que este run de dos pases; que el coste por pase sea
+  igual o menor es una expectativa, no una medida (`[NO VERIFICADO]` hasta
+  T-09).
