@@ -348,7 +348,7 @@
     (clúster all-purpose ~2–3 min, duración exacta no registrada). **T-06**
     añadirá la sección de compute al mismo documento.
 
-- [ ] **T-06 — Compute y concurrencia: decisión** (~30 min)
+- [x] **T-06 — Compute y concurrencia: decisión** (~30 min)
   - **Objetivo:** decidir el compute de producción con la evidencia de T-01 y
     T-07/T-08: `D4ds_v4` single node, `D8ds_v4`, multi-nodo o serverless;
     paralelo o secuencial; la **config definitiva de particiones** (`.yml` del
@@ -358,8 +358,56 @@
     con medida, coste por run y motivo de descarte del resto; si cambia el
     `.yml`, diff aprobado y `bundle validate` en verde (el validate y los
     deploys los ejecuta la persona, según `AGENTS.md`).
-  - **Evidencia:** tiempos y spill por configuración, coste estimado y fila en
-    `evidence.md`. **0 €** (sin runs extra; la reserva exige aprobación).
+  - **Estado (2026-10-30): CERRADA — se mantiene la configuración actual**, sin
+    tocar ningún `.yml`. **Decisión**: `Standard_D4ds_v4` **single node**
+    (4 vCPU / 16 GiB), `CLASSIC_PREVIEW`, `17.3.x-scala2.13`,
+    `runtime_engine: STANDARD` (Photon **fuera**), `PERFORMANCE_OPTIMIZED`,
+    `max_concurrent_runs: 1` y **cuatro silvers en paralelo** tras el bronce.
+    **Particiones**: `spark.sql.shuffle.partitions: "8"` en el job cluster (ya
+    estaba, commit `61da8c5`) y AQE con el valor por defecto; la config efectiva
+    del run es
+    `{"shuffle_partitions":"8","adaptive_enabled":"true","overrides":{"shuffle_partitions":"8"}}`.
+    **`timeout_seconds: 1800`** a nivel de job **se queda y no se sube**
+    (prohibido por la spec); las tareas siguen con `timeout_seconds: 0` porque
+    el tope del job acota el run. **No se ha tocado ningún
+    `.yml`**, así que **no hay `bundle validate` ni aprobación
+    previa pendiente**: la única clave de compute del `.yml`
+    (`shuffle_partitions`) se aprobó y aplicó en T-03.
+    **Evidencia** (run `879269828668729`, 2026-10-30, leído por la API de runs,
+    sin run nuevo ni SQL): **927,1 s** (15 m 27 s), 8/8 en verde ⇒ **RF-3
+    cumplido** (927 s ≤ 1350 s: **31,3 % de margen sobre el gate** y **48,5 %
+    sobre los 1800 s** de producción). **Camino crítico** (ventanas de tarea,
+    relativas al inicio): bronce **517,5 s** (**383 s de `setup_duration` +
+    134 s de ejecución**), silvers en paralelo **298,5 s** de ventana (máximo de
+    ejecución **295 s**; linkedin 295, indeed 290, multi_site 288, infojobs 255),
+    oro **58,7 s** de ventana (56 s de ejecución) y exports en paralelo
+    **49,8 s** de ventana (47 s de ejecución). **Aritmética reproducible**:
+    517,5 + 298,5 + 58,7 + 49,8 = **924,5 s**; + **1,3 s** de huecos entre tareas
+    = **925,8 s** de la primera a la última; + **1,3 s** de arranque/cierre =
+    **927,1 s** medidos. **Coste: 0,17–0,23 € por run** según duración
+    (808–974 s); la referencia de **~0,24 €/run** de `plan.md` §7.2 corresponde a
+    15–19 min y es solo orden de magnitud. **El arranque es el 41 % del reloj**
+    (383 s) y se **supone** independiente del tamaño del nodo
+    (`[NO VERIFICADO]`). **Descartadas**: `D2ds_v6`
+    (0,13 €; en la 009 **no completó**: `DRIVER_NOT_RESPONDING` a los 18,2 min,
+    run `954013261343017`; que con la mitad de núcleos sea más lento es
+    **inferencia**, no medida), `D8ds_v4` (0,48 €; **estimación** de ahorro
+    ≤200 s —398 s paralelizables de 927— por 2× coste, sin medición y con el
+    presupuesto agotado 3/3), multi-nodo (mismo argumento y más superficie) y
+    serverless (DBU sin medir; spike pendiente). **Revisión**: en **T-07/T-08**
+    (runs A y B en dev) con los mismos criterios; la revisión **exige
+    presupuesto aprobado**: a 2026-10-30 los **3 runs** están consumidos
+    (T-03 A/B/T-03b), y se reabre si el run pasa de **1350 s**, si un pase de
+    silver pasa de **226 s** o si la Spark UI muestra **spill/memoria**.
+    **`[NO VERIFICADO]`**: tiempos de `D8ds_v4`/multi-nodo/serverless en este
+    repo, DBU de serverless, estabilidad de los 383 s de arranque (medidos **una
+    vez**, un run), independencia del arranque respecto al tamaño del nodo (un
+    solo run, con `D4ds_v4`), spill del run y factura por run. Detalle en
+    `design-layout-compute.md` §9.
+  - **Evidencia:** camino crítico, `config` y coste del run `879269828668729`
+    (API de runs), `timings_s`/`merge_metrics` del resumen y tabla de opciones de
+    `plan.md` §7.2; fila en `evidence.md`. **0 €** (sin runs extra; la reserva
+    exige aprobación).
 
 - [ ] **T-06b — `sha256` de los exports dentro de `meta.json`** (~45 min)
   - **Objetivo:** que la equivalencia byte a byte de RF-4 deje de depender de copiar ficheros a

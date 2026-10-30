@@ -184,9 +184,15 @@ al menos un despertar.
   **supone** superior a la de jobs (`[NO VERIFICADO]`); con la referencia de
   jobs de este documento (~0,75 €/h), 2–3 min serían **~3–4 céntimos**, una
   **cota inferior** del coste real. Sin runs y sin sesión SQL.
-- **Total de la 010:** ~0,62 € de 1,8 € (3 runs de evidencia + 1 abortado), más
-  los **céntimos** del clúster de lectura de T-05 (estimación, sin cifra
-  exacta).
+- **T-06 (2026-10-30), decisión de compute: 0 €.** Sin run ni sesión SQL: el
+  camino crítico y la `config` se leen del run `879269828668729` por la API de
+  runs, y la decisión (mantener `D4ds_v4` single node) se documenta en
+  `design-layout-compute.md` §9. Referencia de coste por run: **0,17–0,23 €**
+  según duración (808–974 s); el **~0,24 €/run** de `plan.md` §7.2 corresponde a
+  15–19 min y es solo orden de magnitud.
+- **Total de la 010:** ~0,62 € de 1,8 € (3 runs de evidencia + 1 abortado), con
+  runs de **0,17–0,23 €**, más los **céntimos** del clúster de lectura de T-05
+  (estimación, sin cifra exacta). T-06 no añade gasto.
 
 ## Cierre de la spec 009 (2026-10-24)
 
