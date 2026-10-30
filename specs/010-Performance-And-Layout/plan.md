@@ -224,6 +224,7 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
 | T-04 MERGE (local + revisión de contrato) | 0 | 0 € |
 | T-05 layout | 0 | 0 € |
 | T-06 compute (decisión con T-07/T-08) | 0 | 0 € |
+| T-06b `sha256` de los exports en `meta.json` | 0 | 0 € |
 | T-07 run A (full) | 1 | ~0,24 € |
 | T-08 run B (incremental + repetición) | 1 | ~0,24 € |
 | Reserva (reintento o comparación de compute, con aprobación) | 1 | ~0,24 € |

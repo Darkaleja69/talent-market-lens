@@ -292,6 +292,30 @@
   - **Evidencia:** tiempos y spill por configuración, coste estimado y fila en
     `evidence.md`. **0 €** (sin runs extra; la reserva exige aprobación).
 
+- [ ] **T-06b — `sha256` de los exports dentro de `meta.json`** (~45 min)
+  - **Objetivo:** que la equivalencia byte a byte de RF-4 deje de depender de copiar ficheros a
+    mano: `Prepare_PBI_Export` y `Prepare_Web_Export` añaden a su `meta.json` la lista de ficheros
+    publicados con `{name, bytes, sha256}`.
+  - **Motivo (fallo de proceso del 2026-10-30):** en el run `879269828668729` no se capturaron
+    los SHA-256 de los exports antes de que el run los sobrescribiera (`gold/pbi_export_dev`,
+    `gold/web_export_dev`) y la equivalencia de RF-4 quedó sostenida solo por conteos,
+    `meta.json` e idempotencia. Con el hash dentro del propio `meta.json`, cada run deja la huella
+    del anterior sin intervención humana.
+  - **Por qué es barato y seguro:** el hash se calcula al publicar cada fichero (el módulo ya
+    recorre la carpeta temporal para moverla y borrar los `.crc`), así que no añade lecturas de
+    datos ni consultas al warehouse; el cambio es **aditivo** en el contrato (Power BI lee las
+    claves que ya existen) y el `meta.json` no se hashea a sí mismo (evita recursión).
+  - **Hecho cuando:** los dos `meta.json` incluyen `files: [{name, bytes, sha256}]`; los tests de
+    contrato comprueban que el hash corresponde a los bytes escritos y que es estable entre dos
+    ejecuciones idénticas; no cambia ninguna clave existente; **aprobación previa** de los dos
+    módulos (diff y motivo), porque tocan el contrato de los exports.
+  - **Verificación real:** el primer run que publique exports lo deja escrito. Se usa el de
+    **T-09** (producción programada, coste ya en la cadencia de la 009); un run de dev exigiría
+    aprobación porque el presupuesto de la 010 está **agotado (3/3)**. `[NO VERIFICADO]` hasta
+    entonces.
+  - **Evidencia:** salida de los tests, `meta.json` con los hashes y fila en `evidence.md`.
+    **0 €.**
+
 ## 3. Validación y producción
 
 - [ ] **T-07 — Run A (reconstrucción completa) en dev** (~20 min)
@@ -314,8 +338,9 @@
     --params backfill_from=...,backfill_to=...,repeat_window=true`; lo ejecuta la
     persona. **Antes de lanzar B**, copiar el SHA-256 de los 12 Parquet y los
     `meta.json` de los exports de A: B los sobrescribe y sin esa captura la
-    comparación byte a byte se pierde (pasó el 2026-10-28). La ventana exacta se
-    anota en el resumen.
+    comparación byte a byte se pierde (pasó el 2026-10-28 y otra vez el
+    2026-10-30; **T-06b** elimina la captura manual metiendo los hashes en el
+    `meta.json`). La ventana exacta se anota en el resumen.
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics`, SHA-256
     A/B, conteos, coste y fila en `evidence.md`.
 
