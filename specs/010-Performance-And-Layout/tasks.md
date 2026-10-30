@@ -131,7 +131,7 @@
 
 ## 2. Optimización
 
-- [ ] **T-03 — Camino incremental: pasadas, caché y codegen** (~90 min)
+- [x] **T-03 — Camino incremental: pasadas, caché y codegen** (~90 min)
   - **Objetivo:** aplicar solo los cambios que T-01 justifique. Por orden:
     **(1) P1, particiones de *shuffle*** (`spark.sql.shuffle.partitions` de 200 a
     8–16, con la config efectiva ya leída en T-02), **(2)** coste por tarea y
@@ -189,6 +189,33 @@
     - **Pendiente:** el run instrumentado (3.º y último del presupuesto) decide
       RF-2a en clúster; `_key` materializada (T-04) y el corte del codegen
       (T-03a) quedan como palancas con evidencia.
+  - **Cierre (2026-10-30): T-03 CERRADA con RF-2a cumplido.** Run
+    `879269828668729` (SUCCESS 8/8, **927 s**, 15 m 27 s) con la ventana
+    2026-10-24…2026-10-28 y `repeat_window=true`:
+    - **Pases por silver: 123,8–138,2 s** (frío) y **89,4–112,3 s** (caliente),
+      frente a **249–318 s** y **173–249 s** del mismo run antes de T-03b:
+      **2,0–2,6×** menos. El criterio `T_inc ≤ 226 s` se cumple con **39 %** de
+      margen en frío y **50–60 %** en caliente; contra el rebuild de A
+      (117–169 s de módulo, 167–204 s de tarea) el pase frío queda dentro de la
+      banda y el caliente por debajo, con 55–458 filas en vez de 31k.
+    - **RF-3 cumplido**: 927 s ≤ 1350 s (31 % de margen). Descomposición:
+      bronce **383 s de arranque del clúster + 134 s de ejecución = 56 % del
+      run**, silvers 255–295 s (dos pases + `companies_*`), oro 56 s y exports
+      92 s. **El incremental ya no es el cuello del run**: el coste dominante es
+      arrancar el clúster y el bronce (T-06).
+    - **Integridad**: `target_rows` idénticos a A (3.112 / 2.527 / 12.543 /
+      10.072), `deleted_groups=0`, `inserted=0`, repetición idempotente.
+      `config` confirma **AQE activo** y 8 particiones (cierra el
+      `[NO VERIFICADO]` de T-01).
+    - **Lo que queda por paso** (frío, s): `recompute_check` **26,1–50,4** (la
+      cadena de `build_offers` para **55 filas**: es compilación/codegen, no
+      datos), `merge` 19,2–28,9, `changed_count` (keyed del bronce)
+      11,2–25,1, `affected_count` 6,5–11,5, `window` 5,7–6,3 y el resto 9,7–18,2.
+    - **Fallo de proceso (mío):** los SHA-256 de los exports no se capturaron
+      antes del run; la equivalencia queda por conteos, `meta.json` y la
+      idempotencia del segundo pase. Mitigación propuesta: que los exports
+      escriban el `sha256` de cada fichero en su `meta.json` (spec nueva o
+      T-10), y anotarlo en la lista de T-08.
   - **Commits:** **dos**, uno por familia de cambio (codegen; pasadas y caché),
     para poder revertir una sin la otra. El fix de `keyed` compartido que se
     revirtió en la 008 (caché del frame `keyed` entre los dos pases de
@@ -220,6 +247,19 @@
   - **Evidencia:** `operationMetrics` del MERGE (paso 14 de `plan.md` §2.2),
     comparación de tiempos y fila en `evidence.md`. **0 €** en esta tarea; las
     métricas se leen en T-08.
+  - **Estado (2026-10-30): decisión preliminar tomada con las `operationMetrics`
+    del run `879269828668729` — «no materializar `_key`».** Las ocho pasadas dan
+    `numTargetRowsCopied = 0`, `numTargetRowsUpdated` = filas del origen,
+    `numTargetFilesAdded = 1`, `numTargetBytesRemoved` = los bytes del pase
+    anterior, `executionTimeMs` 5,9–23,3 s, `rewriteTimeMs` 2,9–13,0 s,
+    `scanTimeMs` 2,1–6,8 s y `materializeSourceTimeMs` 0,7–3,4 s. El `MERGE`
+    **no reescribe la tabla entera** (H3 en su parte fuerte queda descartada) y
+    su coste es reescritura de un fichero + `ON` con expresión; una columna
+    interna no arregla un problema que no existe. Coste aceptado y documentado:
+    el `merge` sigue siendo el segundo paso más caro (19–29 s por pase) y se
+    atacará, si se quiere, con una tabla de *stage* o partiendo la clave; **no**
+    por contrato. Pendiente solo el `explain` de confirmación (0 €) y anotarlo
+    en `evidence.md` al cerrar.
 
 - [ ] **T-05 — Layout físico: medir y decidir** (~30 min)
   - **Objetivo:** medir `numFiles`, `sizeInBytes` y tamaño medio por tabla
@@ -232,6 +272,12 @@
   - **Evidencia:** `DESCRIBE DETAIL` por tabla (leído en el clúster del job, sin
     warehouse) y fila en `evidence.md`. **0 €** de runs; el clúster de lectura,
     si se abre uno, cuesta céntimos.
+  - **Estado (2026-10-30): evidencia parcial a favor de «no cambiar».** Cada
+    `MERGE` deja `numTargetFilesAdded = 1` y `numTargetFilesRemoved = 0/1` por
+    pase y tabla, con `numTargetBytesAdded` de 41,1 KB–656,1 KB: **estado
+    estacionario**, sin explosión de ficheros pequeños y con un fichero por
+    escritura, coherente con H6 descartada. Falta el `DESCRIBE DETAIL` de las
+    8 tablas (`numFiles`/`sizeInBytes` reales) para cerrar la decisión.
 
 - [ ] **T-06 — Compute y concurrencia: decisión** (~30 min)
   - **Objetivo:** decidir el compute de producción con la evidencia de T-01 y

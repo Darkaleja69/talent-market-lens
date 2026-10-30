@@ -169,7 +169,14 @@ al menos un despertar.
   silver: **249–318 s** el primero y **173–249 s** el segundo; el `MERGE`
   escribió 55–458 filas; conteos finales **idénticos a A** (3.112 / 2.527 /
   12.543 / 10.072) → **~0,20 €**.
-- **Total de la 010:** ~0,39 € de 1,8 € (2 runs de evidencia + 1 abortado).
+- **T-03b (2026-10-30), run con el código de T-02/T-03b (incremental + repetición):**
+  `879269828668729`, **SUCCESS**, 8/8, **927 s** (15 m 27 s); pases por silver
+  **123,8–138,2 s** el primero y **89,4–112,3 s** el segundo (frente a
+  249–318 s y 173–249 s del run anterior: **2,0–2,6×**); `MERGE` de
+  55–458 filas con `numTargetRowsCopied=0`; conteos finales idénticos a A
+  (3.112 / 2.527 / 12.543 / 10.072) y repetición idempotente; bronce **383 s de
+  arranque + 134 s de ejecución** (**56 % del run**). → **~0,23 €**.
+- **Total de la 010:** ~0,62 € de 1,8 € (3 runs de evidencia + 1 abortado).
 
 ## Cierre de la spec 009 (2026-10-24)
 
