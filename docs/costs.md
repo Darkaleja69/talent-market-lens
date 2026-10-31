@@ -190,9 +190,12 @@ al menos un despertar.
   `design-layout-compute.md` §9. Referencia de coste por run: **0,17–0,23 €**
   según duración (808–974 s); el **~0,24 €/run** de `plan.md` §7.2 corresponde a
   15–19 min y es solo orden de magnitud.
-- **Total de la 010:** ~0,62 € de 1,8 € (3 runs de evidencia + 1 abortado), con
-  runs de **0,17–0,23 €**, más los **céntimos** del clúster de lectura de T-05
-  (estimación, sin cifra exacta). T-06 no añade gasto.
+- **Total de la 010:** **~0,62 € gastados**; **~1,08–1,10 € previstos** con los
+  **2 runs aprobados el 2026-10-31** para T-07/T-08 (**5 runs** de presupuesto:
+  los 3 ya gastados + 2 ampliados; hay además 1 intento abortado), **techo
+  1,8 €** y **0 sesiones SQL**. Runs de **0,17–0,23 €**, más los **céntimos**
+  del clúster de lectura de T-05 (estimación, sin cifra exacta). T-06 no añade
+  gasto.
 
 ## Cierre de la spec 009 (2026-10-24)
 

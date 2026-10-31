@@ -225,11 +225,11 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
 | T-05 layout | 0 | 0 € |
 | T-06 compute (decisión con T-07/T-08) | 0 | 0 € |
 | T-06b `sha256` de los exports en `meta.json` | 0 | 0 € |
-| T-07 run A (full) | 1 | ~0,24 € |
-| T-08 run B (incremental + repetición) | 1 | ~0,24 € |
-| Reserva (reintento o comparación de compute, con aprobación) | 1 | ~0,24 € |
+| T-07 run A (full) | 1 (**nuevo**, aprobado el 2026-10-31) | ~0,24 € |
+| T-08 run B (incremental + repetición) | 1 (**nuevo**, aprobado el 2026-10-31) | ~0,24 € |
+| Reserva (reintento o comparación de compute, con aprobación) | 1 (**no autorizado**) | ~0,24 € |
 | Producción (T-09) | run programado | ya en la cadencia de la 009 |
-| **Total** | **3** | **~0,72 €** (techo 1,8 €; 0 SQL) |
+| **Total** | **5** (3 originales, **ya gastados** en T-03/T-03b, + 2 ampliados) | **~1,08–1,10 €** (techo 1,8 €; 0 SQL) |
 
 Reglas y encaje con la 009:
 
@@ -237,6 +237,14 @@ Reglas y encaje con la 009:
   **aprobado el 2026-10-28**: **3 runs y 0 SQL**. Renunciar a la sesión ahorra
   ~1,29 € y el run extra cuesta ~0,24 €, así que el gasto previsto (~0,72 €)
   queda **por debajo del techo de 1,8 €**.
+- **Historial — ampliación aprobada el 2026-10-31:** **2 runs más** para **T-07**
+  (run A) y **T-08** (run B). Los 3 runs del reparto del 2026-10-28 **ya se
+  gastaron** en T-03 A/B (`485578578869927`, 808 s; `269508392317481`, 974 s) y
+  T-03b (`879269828668729`, 927 s), más un intento abortado (~0,62 € en total).
+  La validación A/B de T-07/T-08 **no se puede hacer con esos runs porque el
+  código cambió en T-03b**: el total pasa a **5 runs** con **~1,08–1,10 €**
+  previstos y **0 SQL**, dentro del techo de 1,8 €; el run de reserva **sigue no
+  autorizado**.
 - El bloque B de la 008 se fue a **~1,6 €** (5 runs por duración) y la 008 queda
   en ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
   marginal que se confirma en la Account Console y **no** consume el techo de la

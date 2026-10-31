@@ -21,6 +21,8 @@
 > spec. La propuesta cambia el reparto de la 009 (2 runs + 1 sesión SQL) por
 > 3 runs y 0 SQL: ahorra ~1,29 € de sesión y añade ~0,24 € de run. El run de
 > reserva no se gasta sin aprobación. Cada run se anota en `docs/costs.md`.
+> **Ampliación (2026-10-31): 2 runs más** para T-07/T-08 (total 5; ~1,08–1,10 €,
+> techo 1,8 €; 0 SQL).
 
 ## Convención de commits
 
@@ -392,13 +394,15 @@
     (0,13 €; en la 009 **no completó**: `DRIVER_NOT_RESPONDING` a los 18,2 min,
     run `954013261343017`; que con la mitad de núcleos sea más lento es
     **inferencia**, no medida), `D8ds_v4` (0,48 €; **estimación** de ahorro
-    ≤200 s —398 s paralelizables de 927— por 2× coste, sin medición y con el
-    presupuesto agotado 3/3), multi-nodo (mismo argumento y más superficie) y
+    ≤200 s —398 s paralelizables de 927— por 2× coste, sin medición y con los
+    2 runs nuevos asignados a T-07/T-08 (decisión del 2026-10-31)), multi-nodo
+    (mismo argumento y más superficie) y
     serverless (DBU sin medir; spike pendiente). **Revisión**: en **T-07/T-08**
-    (runs A y B en dev) con los mismos criterios; la revisión **exige
-    presupuesto aprobado**: a 2026-10-30 los **3 runs** están consumidos
-    (T-03 A/B/T-03b), y se reabre si el run pasa de **1350 s**, si un pase de
-    silver pasa de **226 s** o si la Spark UI muestra **spill/memoria**.
+    (runs A y B en dev) con los mismos criterios; la revisión en T-07/T-08
+    **exige presupuesto aprobado**: a 2026-10-31 están aprobados **2 runs más**
+    (total 5) para esa validación, y se reabre si el run pasa de **1350 s**, si
+    un pase de silver pasa de **226 s** o si la Spark UI muestra
+    **spill/memoria**.
     **`[NO VERIFICADO]`**: tiempos de `D8ds_v4`/multi-nodo/serverless en este
     repo, DBU de serverless, estabilidad de los 383 s de arranque (medidos **una
     vez**, un run), independencia del arranque respecto al tamaño del nodo (un
@@ -428,8 +432,8 @@
     módulos (diff y motivo), porque tocan el contrato de los exports.
   - **Verificación real:** el primer run que publique exports lo deja escrito. Se usa el de
     **T-09** (producción programada, coste ya en la cadencia de la 009); un run de dev exigiría
-    aprobación porque el presupuesto de la 010 está **agotado (3/3)**. `[NO VERIFICADO]` hasta
-    entonces.
+    aprobación porque los 2 runs aprobados el 2026-10-31 están asignados a **T-07/T-08**.
+    `[NO VERIFICADO]` hasta entonces.
   - **Evidencia:** salida de los tests, `meta.json` con los hashes y fila en `evidence.md`.
     **0 €.**
 
@@ -439,7 +443,7 @@
   - **Hecho cuando:** 8/8 tareas en verde, silvers ≤ **3 m 46 s** (A2), run
     completo ≤ **22 m 30 s**, exports escritos con `meta.json` válido y SHA-256
     de los 12 Parquet registrado, y `timings_s`/`merge_metrics` en la salida.
-  - **Ejecución (run 1 de 3):** `databricks bundle deploy -t dev --profile vs_code`
+  - **Ejecución (run 4 de 5):** `databricks bundle deploy -t dev --profile vs_code`
     (gratis) y `databricks bundle run elt -t dev --profile vs_code`; los ejecuta
     la persona. Sin SQL.
   - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, SHA-256,
@@ -451,7 +455,7 @@
     actualizadas/borradas); los exports son **idénticos byte a byte** a los de
     A; la repetición deja el mismo contenido; y el tiempo cumple el criterio de
     `plan.md` §3.
-  - **Ejecución (run 2 de 3):** `bundle run elt -t dev --profile vs_code
+  - **Ejecución (run 5 de 5):** `bundle run elt -t dev --profile vs_code
     --params backfill_from=...,backfill_to=...,repeat_window=true`; lo ejecuta la
     persona. **Antes de lanzar B**, copiar el SHA-256 de los 12 Parquet y los
     `meta.json` de los exports de A: B los sobrescribe y sin esa captura la
