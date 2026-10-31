@@ -317,6 +317,30 @@ def build_fact_offers(offers, dim_cur):
     return df.select(*keep)
 
 
+def keep_best(df, partition_cols):
+    """Keep one row per partition, preferring the most complete offer.
+
+    Business order: rows with a non-empty description first, then rows with a
+    non-null salary_min_annual, then the most recent posted_date. Ties are
+    broken by source_scraper and job_id ascending (nulls last) so two runs
+    always pick the same row for an otherwise tied group.
+    """
+    from pyspark.sql import Window
+    from pyspark.sql import functions as F
+
+    w = Window.partitionBy(*partition_cols).orderBy(
+        F.when(F.col("description_clean").isNotNull()
+               & (F.trim(F.col("description_clean")) != ""), 1)
+         .otherwise(0).desc(),
+        F.when(F.col("salary_min_annual").isNotNull(), 1).otherwise(0).desc(),
+        F.col("posted_date").desc_nulls_last(),
+        F.col("source_scraper").asc_nulls_last(),
+        F.col("job_id").asc_nulls_last())
+    return (df.withColumn("_rn", F.row_number().over(w))
+              .filter(F.col("_rn") == 1)
+              .drop("_rn"))
+
+
 def build_gold(spark, offers, calendar_start=None, calendar_end=None):
     """Construye todas las tablas Oro y devuelve un dict nombre -> DataFrame.
 
