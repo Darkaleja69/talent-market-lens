@@ -421,6 +421,10 @@ def local_export_io(monkeypatch):
         with open(_local(path), "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
 
+    def _read_text(spark, path):
+        with open(_local(path), "r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+
     # The writer calls these helpers through the shared module object.
     monkeypatch.setattr(w, "_write_parquet", _write_parquet)
     monkeypatch.setattr(w, "_fs_delete", _delete)
@@ -428,6 +432,7 @@ def local_export_io(monkeypatch):
     monkeypatch.setattr(w, "_fs_rename", _rename)
     monkeypatch.setattr(w, "_fs_size", _size)
     monkeypatch.setattr(w, "_fs_write_text", _write_text)
+    monkeypatch.setattr(w, "_fs_read_text", _read_text)
 
 
 GEO_SAMPLES = [
@@ -691,6 +696,105 @@ def test_write_pbi_export_records_published_files_hashes(
     p.write_pbi_export(spark, exported, dest, meta=meta)
     second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
     assert second["files"] == files
+
+
+@requires_spark
+def test_write_pbi_export_carries_previous_run_fingerprints(
+        spark, tmp_path, local_export_io):
+    tables_first = _build_export(spark, _gold_tables(spark))
+    # A different content on the second run makes the two ``files`` lists
+    # distinguishable, so "carried from the immediately previous run" can be
+    # told apart from "accumulated" or "stale".
+    tables_second = dict(tables_first)
+    tables_second["dim_skill_list"] = tables_first["dim_skill_list"].unionByName(
+        spark.createDataFrame([("Java", "Programming Languages")],
+                              ["SkillName", "SkillCategory"]))
+    dest = tmp_path / "pbi_export_previous"
+
+    def _run(exported, generated_at):
+        counts, data_date = p.collect_export_stats(exported)
+        meta = p.build_meta(counts, data_date, generated_at=generated_at)
+        p.write_pbi_export(spark, exported, dest, meta=meta)
+        return json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    first = _run(tables_first, dt.datetime(2026, 10, 23, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (a) First run: there is no previous export to carry.
+    assert "previous_files" not in first
+    assert "previous_generated_at" not in first
+
+    second = _run(tables_second, dt.datetime(2026, 10, 24, 12, 0,
+                                             tzinfo=dt.timezone.utc))
+    # (b) The second run keeps exactly the first run's fingerprints.
+    assert second["previous_files"] == first["files"]
+    assert second["previous_generated_at"] == first["generated_at"]
+    assert second["files"] != first["files"]
+
+    third = _run(tables_first, dt.datetime(2026, 10, 25, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (c) One level only: the third run carries the second run's ``files``
+    # (six entries), never the previous ``previous_files`` (no nesting and no
+    # accumulation).
+    assert third["previous_files"] == second["files"]
+    assert third["previous_generated_at"] == second["generated_at"]
+    assert third["previous_files"] != first["files"]
+    assert len(third["previous_files"]) == len(p.PBI_TABLES)
+    assert all("previous_files" not in entry
+               for entry in third["previous_files"])
+
+    # (d) meta.json is in neither list and never hashes itself.
+    for payload in (first, second, third):
+        assert "meta.json" not in [e["name"] for e in payload["files"]]
+        assert "meta.json" not in [
+            e["name"] for e in payload.get("previous_files", [])]
+
+    # (e) The additive keys do not change any pre-existing value.
+    counts, data_date = p.collect_export_stats(tables_second)
+    expected = p.build_meta(counts, data_date,
+                            generated_at=second["generated_at"])
+    assert set(second) == set(expected) | {"files", "previous_files",
+                                           "previous_generated_at"}
+    for key in ("export_version", "data_date", "generated_at", "mode",
+                "audience", "tables"):
+        assert second[key] == expected[key]
+    assert second["size_bytes"] == sum(e["bytes"] for e in second["files"])
+
+
+@requires_spark
+def test_write_pbi_export_ignores_unusable_previous_meta(
+        spark, tmp_path, local_export_io):
+    exported = _build_export(spark, _gold_tables(spark))
+    counts, data_date = p.collect_export_stats(exported)
+    meta = p.build_meta(counts, data_date,
+                        generated_at=dt.datetime(2026, 10, 23, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    dest = tmp_path / "pbi_export_unusable_previous"
+    dest.mkdir()
+    meta_path = dest / "meta.json"
+
+    def _write_and_load():
+        p.write_pbi_export(spark, exported, dest, meta=meta)
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+
+    # Corrupt JSON: the export completes and no previous keys are carried.
+    meta_path.write_text("{not json", encoding="utf-8")
+    corrupt = _write_and_load()
+    assert "previous_files" not in corrupt
+    assert "previous_generated_at" not in corrupt
+
+    # Valid JSON without ``files``: nothing to carry.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-20T00:00:00Z"}),
+                         encoding="utf-8")
+    no_files = _write_and_load()
+    assert "previous_files" not in no_files
+    assert "previous_generated_at" not in no_files
+
+    # Empty ``files`` list: same contract, nothing to carry.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-20T00:00:00Z",
+                                     "files": []}), encoding="utf-8")
+    empty_files = _write_and_load()
+    assert "previous_files" not in empty_files
+    assert "previous_generated_at" not in empty_files
 
 
 @requires_spark

@@ -24,7 +24,11 @@ public web export in ``Prepare_Web_Export``:
   byte-level identity of a run survives the next one. The hashes come from
   reading the already-published files (one driver-side read per Parquet,
   ~34 MB here), never from a Gold table nor the SQL warehouse; ``meta.json``
-  never hashes itself.
+  never hashes itself. Before overwriting ``meta.json``, ``write_pbi_export``
+  reads the previous one (through ``Prepare_Web_Export``) and copies its
+  ``files`` and ``generated_at`` into ``previous_files`` and
+  ``previous_generated_at`` (one level only, never nested), so runs A and B
+  can be compared from a single read of B's payload.
 
 The geography and the file helpers are shared with the public export on
 purpose: both exports must show the same countries/regions and keep the same
@@ -343,9 +347,18 @@ def write_pbi_export(spark, tables, dest, meta=None, size_provider=None):
     ``size_provider`` (called without arguments) to override it. ``files``
     always lists the six published Parquets with their real size and SHA-256
     (read back from the files, sorted by name), so ``meta.json`` never hashes
-    itself. When ``meta`` is not ``None``, a copy is updated with the real size,
-    forced to ``mode: full``/``audience: pbi``, written to ``meta.json`` and
-    returned; otherwise ``None`` is returned.
+    itself.
+
+    The previous ``meta.json`` (if any) is read **before** it is overwritten and
+    its ``files``/``generated_at`` are copied into ``previous_files``/
+    ``previous_generated_at`` through ``Prepare_Web_Export._previous_files``;
+    only that one level is carried (never a nested ``previous_files``), and no
+    list ever includes ``meta.json``. Unreadable or invalid previous metadata
+    is ignored, so the export cannot fail for it.
+
+    When ``meta`` is not ``None``, a copy is updated with the real size, forced
+    to ``mode: full``/``audience: pbi``, ``files`` and the previous-run keys,
+    written to ``meta.json`` and returned; otherwise ``None`` is returned.
     """
     dest_uri = web_export._as_uri(dest)
 
@@ -373,10 +386,16 @@ def write_pbi_export(spark, tables, dest, meta=None, size_provider=None):
             for name in tables)
 
     updated = dict(meta)
+    # One level only: never nest a previous-run payload carried by the caller.
+    updated.pop("previous_files", None)
+    updated.pop("previous_generated_at", None)
     updated["size_bytes"] = size_bytes
     updated["mode"] = PBI_MODE
     updated["audience"] = PBI_AUDIENCE
     updated["files"] = web_export._published_files(spark, dest_uri, tables)
+    # Read the previous meta.json before overwriting it so its hashes survive
+    # in the new payload.
+    updated.update(web_export._previous_files(spark, dest_uri))
     web_export._fs_write_text(spark, f"{dest_uri}/meta.json",
                               meta_json(updated))
     return updated

@@ -438,17 +438,21 @@
   - **Por qué es barato y seguro:** el hash se calcula sobre los ficheros ya publicados: añade una
     lectura local por Parquet publicado para calcular el hash (34 MB en PBI, 4 MB en web), sin
     tocar tablas ni el warehouse; el cambio es **aditivo** en el contrato (Power BI lee las claves
-    que ya existen) y el `meta.json` no se hashea a sí mismo (evita recursión).
-  - **Hecho cuando:** los dos `meta.json` incluyen `files: [{name, bytes, sha256}]`; los tests de
+    que ya existen y las nuevas `previous_files`/`previous_generated_at` no cambian la semántica de
+    ninguna otra) y el `meta.json` no se hashea a sí mismo (evita recursión).
+  - **Hecho cuando:** los dos `meta.json` incluyen `files: [{name, bytes, sha256}]` y, desde la
+    segunda ejecución, `previous_files` (la lista `files` del run anterior, copiada una sola vez,
+    sin anidar ni acumular) y `previous_generated_at` (su `generated_at`); `meta.json` no aparece
+    en ninguna de las dos listas y las claves previas conservan su valor. Los tests de
     `test_web_export.py` y `test_pbi_export.py` comprueban, contra los ficheros escritos en disco,
-    que hay una entrada por tabla (con `name` `<tabla>.parquet`, sin `meta.json`), que `bytes` y
-    `sha256` corresponden a los bytes reales del fichero y que dos ejecuciones consecutivas dejan
-    el mismo `files`; no cambia ninguna clave existente; **aprobación previa** de los dos módulos
-    (diff y motivo), porque tocan el contrato de los exports.
-  - **Verificación real:** el primer run que publique exports lo deja escrito. Se usa el de
-    **T-09** (producción programada, coste ya en la cadencia de la 009); un run de dev exigiría
-    aprobación porque los 2 runs aprobados el 2026-10-31 están asignados a **T-07/T-08**.
-    `[NO VERIFICADO]` hasta entonces.
+    que hay una entrada por tabla (con `name` `<tabla>.parquet`), que `bytes` y `sha256`
+    corresponden a los bytes reales, que la primera ejecución no deja claves `previous_*`, que la
+    segunda copia exactamente el `files`/`generated_at` de la primera y que la tercera copia los de
+    la segunda (sin anidar); **aprobación previa** de los dos módulos (diff y motivo), porque tocan
+    el contrato de los exports.
+  - **Verificación real:** el primer run que publique exports lo deja escrito; se comprueba en
+    **T-07/T-08** (dev) y queda confirmado en T-09 (producción programada, coste ya en la cadencia
+    de la 009). `[NO VERIFICADO]` hasta entonces.
   - **Evidencia:** salida de los tests, `meta.json` con los hashes y fila en `evidence.md`.
     **0 €.**
 
@@ -456,15 +460,18 @@
 
 - [ ] **T-07 — Run A (reconstrucción completa) en dev** (~20 min)
   - **Hecho cuando:** 8/8 tareas en verde, silvers ≤ **3 m 46 s** (A2), run
-    completo ≤ **22 m 30 s**, exports escritos con `meta.json` válido y SHA-256
-    de los 12 Parquet registrado, y `timings_s`/`merge_metrics` en la salida.
+    completo ≤ **22 m 30 s**, exports escritos con `meta.json` válido y sus
+    `files` (nombre, bytes y SHA-256 de cada Parquet) registrados, y
+    `timings_s`/`merge_metrics` en la salida.
   - **Ejecución (run 4 de 5):** `databricks bundle deploy -t dev --profile vs_code`
-    (gratis) y `databricks bundle run elt -t dev --profile vs_code`; los ejecuta
-    la persona. Sin SQL.
-  - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, SHA-256,
-    líneas `PERF_DIAGNOSTICS=` y `PERF_MERGE_PLAN=` (proxy del join del `ON`,
-    `scope` y `note` en el payload) de la tarea `Gold_Complete_Catalog` (logs
-    del run), coste en `docs/costs.md` y fila en `evidence.md`.
+    (gratis) y `databricks bundle run elt -t dev --profile vs_code
+    --params force_full=true` (reconstrucción completa); los ejecuta la persona.
+    Sin SQL.
+  - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, el
+    `meta.json` de cada export con `files` (nombre, bytes y SHA-256 de cada
+    Parquet), líneas `PERF_DIAGNOSTICS=` y `PERF_MERGE_PLAN=` (proxy del join
+    del `ON`, `scope` y `note` en el payload) de la tarea `Gold_Complete_Catalog`
+    (logs del run), coste en `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y
@@ -474,13 +481,13 @@
     `plan.md` §3.
   - **Ejecución (run 5 de 5):** `bundle run elt -t dev --profile vs_code
     --params backfill_from=...,backfill_to=...,repeat_window=true`; lo ejecuta la
-    persona. **Antes de lanzar B**, copiar el SHA-256 de los 12 Parquet y los
-    `meta.json` de los exports de A: B los sobrescribe y sin esa captura la
-    comparación byte a byte se pierde (pasó el 2026-10-28 y otra vez el
-    2026-10-30; **T-06b** elimina la captura manual metiendo los hashes en el
-    `meta.json`). La ventana exacta se anota en el resumen.
+    persona. **Ya no hace falta copiar los hashes**: el `meta.json` de B deja
+    los de A en `previous_files` (T-06b). Se comparan `files` de A
+    (`previous_files` de B) con `files` de B. La ventana exacta se anota en el
+    resumen.
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics` (evidencia
-    principal del `MERGE`), SHA-256 A/B, conteos, líneas `PERF_DIAGNOSTICS=` y
+    principal del `MERGE`), `files` de A (`previous_files` de B) frente a
+    `files` de B, conteos, líneas `PERF_DIAGNOSTICS=` y
     `PERF_MERGE_PLAN=` (proxy del join del `ON`, `scope` y `note` en el payload)
     de la tarea `Gold_Complete_Catalog` (logs del run), coste y fila en
     `evidence.md`.

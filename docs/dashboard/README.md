@@ -99,6 +99,9 @@ Freshness and export metadata, written after the Parquet files:
 | `tables` | Row count per contract table. |
 | `sources` | Row count per `source_scraper`. |
 | `size_bytes` | Total size of the four Parquet files. |
+| `files` | Size and SHA-256 of each Parquet published by **this** run (`meta.json` never hashes itself). |
+| `previous_files` | `files` of the **previous** run, copied once and never nested; the site ignores it. |
+| `previous_generated_at` | `generated_at` of the previous run, so the A/B fingerprints are compared from a single read. |
 
 ### Degradation behavior
 

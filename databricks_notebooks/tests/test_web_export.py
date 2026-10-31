@@ -638,9 +638,10 @@ def local_export_io(monkeypatch):
     Spark's writer needs ``winutils.exe`` (HADOOP_HOME) to chmod output
     directories, and Hadoop's local FileSystem metadata raises
     ``UnsatisfiedLinkError`` without the native library. On such hosts the
-    low-level writer and the file-operation helpers are replaced with
-    os/pyarrow equivalents, so the export layout (one file per table), rename,
-    idempotency, size and meta.json logic stay under test. Linux, Databricks
+    low-level writer, the text reader and the file-operation helpers are
+    replaced with os/pyarrow equivalents, so the export layout (one file per
+    table), rename, idempotency, size and meta.json logic (including the
+    previous-run fingerprints) stay under test. Linux, Databricks
     and Windows with HADOOP_HOME run the real Spark + Hadoop path (T-06 runs
     it for real on a cluster).
     """
@@ -699,12 +700,17 @@ def local_export_io(monkeypatch):
         with open(_local(path), "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
 
+    def _read_text(spark, path):
+        with open(_local(path), "r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+
     monkeypatch.setattr(w, "_write_parquet", _write_parquet)
     monkeypatch.setattr(w, "_fs_delete", _delete)
     monkeypatch.setattr(w, "_single_part_file", _single_part)
     monkeypatch.setattr(w, "_fs_rename", _rename)
     monkeypatch.setattr(w, "_fs_size", _size)
     monkeypatch.setattr(w, "_fs_write_text", _write_text)
+    monkeypatch.setattr(w, "_fs_read_text", _read_text)
 
 
 GEO_SAMPLES = [
@@ -1009,6 +1015,137 @@ def test_write_web_export_records_published_files_hashes(
     w.write_web_export(spark, tables, dest, meta=meta)
     second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
     assert second["files"] == files
+
+
+@requires_spark
+def test_write_web_export_carries_previous_run_fingerprints(
+        spark, tmp_path, local_export_io):
+    gold = _gold_tables(spark)
+    tables_first = w.build_web_export(spark, gold["fact_offers"],
+                                      gold["fact_offer_skills"],
+                                      gold["dim_skill_list"],
+                                      gold["dim_calendar"])
+    # A different content on the second run makes the two ``files`` lists
+    # distinguishable, so "carried from the immediately previous run" can be
+    # told apart from "accumulated" or "stale".
+    tables_second = dict(tables_first)
+    tables_second["dim_skill_list"] = tables_first["dim_skill_list"].unionByName(
+        spark.createDataFrame([("Java", "Programming Languages")],
+                              ["SkillName", "SkillCategory"]))
+    dest = tmp_path / "web_export_previous"
+
+    def _run(tables, generated_at):
+        counts, sources, data_date = w.collect_export_stats(tables)
+        meta = w.build_meta(counts, sources, data_date,
+                            generated_at=generated_at)
+        w.write_web_export(spark, tables, dest, meta=meta)
+        return json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    first = _run(tables_first, dt.datetime(2026, 10, 6, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (a) First run: there is no previous export to carry.
+    assert "previous_files" not in first
+    assert "previous_generated_at" not in first
+
+    second = _run(tables_second, dt.datetime(2026, 10, 7, 12, 0,
+                                             tzinfo=dt.timezone.utc))
+    # (b) The second run keeps exactly the first run's fingerprints.
+    assert second["previous_files"] == first["files"]
+    assert second["previous_generated_at"] == first["generated_at"]
+    assert second["files"] != first["files"]
+
+    third = _run(tables_first, dt.datetime(2026, 10, 8, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (c) One level only: the third run carries the second run's ``files``
+    # (four entries), never the previous ``previous_files`` (no nesting and no
+    # accumulation).
+    assert third["previous_files"] == second["files"]
+    assert third["previous_generated_at"] == second["generated_at"]
+    assert third["previous_files"] != first["files"]
+    assert len(third["previous_files"]) == len(tables_first)
+    assert all("previous_files" not in entry
+               for entry in third["previous_files"])
+
+    # (d) meta.json is in neither list and never hashes itself.
+    for payload in (first, second, third):
+        assert "meta.json" not in [e["name"] for e in payload["files"]]
+        assert "meta.json" not in [
+            e["name"] for e in payload.get("previous_files", [])]
+
+    # (e) The additive keys do not change any pre-existing value.
+    counts, sources, data_date = w.collect_export_stats(tables_second)
+    expected = w.build_meta(counts, sources, data_date,
+                            generated_at=second["generated_at"])
+    assert set(second) == set(expected) | {"files", "previous_files",
+                                           "previous_generated_at"}
+    for key in ("export_version", "data_date", "generated_at", "mode",
+                "tables", "sources"):
+        assert second[key] == expected[key]
+    assert second["size_bytes"] == sum(e["bytes"] for e in second["files"])
+
+
+@requires_spark
+def test_fs_read_text_reads_multiline_json_from_file_uri(spark, tmp_path):
+    # Deliberately without ``local_export_io``: this locks the real reader
+    # seam (``spark.read.text`` over ``file:///``), which the write tests
+    # replace on Windows hosts.
+    path = tmp_path / "meta.json"
+    payload = {
+        "files": [{"name": "fact_offers.parquet", "bytes": 10,
+                   "sha256": "a" * 64}],
+        "generated_at": "2026-10-06T12:00:00Z",
+        "tables": {"fact_offers": 1},
+    }
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(w.meta_json(payload))
+    text = w._fs_read_text(spark, path.as_uri())
+    assert text.count("\n") >= 3
+    assert json.loads(text) == payload
+
+
+@requires_spark
+def test_write_web_export_ignores_unusable_previous_meta(
+        spark, tmp_path, local_export_io, capsys):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    counts, sources, data_date = w.collect_export_stats(tables)
+    meta = w.build_meta(counts, sources, data_date,
+                        generated_at=dt.datetime(2026, 10, 6, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    dest = tmp_path / "web_export_unusable_previous"
+    dest.mkdir()
+    meta_path = dest / "meta.json"
+
+    def _write_and_load():
+        w.write_web_export(spark, tables, dest, meta=meta)
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+
+    # Corrupt JSON: the export completes, no previous keys and the failure is
+    # visible in the notebook log (never silent).
+    meta_path.write_text("{not json", encoding="utf-8")
+    corrupt = _write_and_load()
+    assert "previous_files" not in corrupt
+    assert "previous_generated_at" not in corrupt
+    assert ("[web_export] no se pudo leer el meta.json anterior: "
+            "JSONDecodeError:") in capsys.readouterr().out
+
+    # Valid JSON without ``files``: ignored silently, no previous keys.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-01T00:00:00Z",
+                                     "mode": "full"}), encoding="utf-8")
+    no_files = _write_and_load()
+    assert "previous_files" not in no_files
+    assert "previous_generated_at" not in no_files
+    assert "no se pudo leer" not in capsys.readouterr().out
+
+    # Empty ``files`` list: same contract, nothing to carry.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-01T00:00:00Z",
+                                     "files": []}), encoding="utf-8")
+    empty_files = _write_and_load()
+    assert "previous_files" not in empty_files
+    assert "previous_generated_at" not in empty_files
+    assert "no se pudo leer" not in capsys.readouterr().out
 
 
 @requires_spark

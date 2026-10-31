@@ -19,6 +19,10 @@ under ``docs/dashboard``:
   survives the next run without manual copies. The hashes come from reading the
   already-published files (one driver-side read per Parquet, ~4 MB here), never
   from a Gold table nor the SQL warehouse; ``meta.json`` never hashes itself.
+  Before overwriting ``meta.json``, ``write_web_export`` reads the previous one
+  and copies its ``files`` and ``generated_at`` into ``previous_files`` and
+  ``previous_generated_at`` (one level only, never nested), so the last two
+  runs can be compared from a single read of the current payload.
 - ``geo_country`` ports the M partition of ``Fact_Offers`` (trim, US states
   used as country, language aliases, empty -> ``(Not specified)``).
 - ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog; ``region_map_df`` turns
@@ -752,6 +756,75 @@ def _published_files(spark, dest_uri, names) -> list:
     return sorted(files, key=lambda entry: entry["name"])
 
 
+def _fs_read_text(spark, path) -> str:
+    """Read a published UTF-8 text file (the previous ``meta.json``).
+
+    ``spark.read.text`` is the portable route: the same Spark session resolves
+    ``abfss://`` with the cluster credentials on Databricks and ``file:///``
+    locally, with no extra dependency and no driver-side credentials. The lines
+    are joined with ``\\n``; the trailing newline ``dbutils.fs.put`` may append
+    never reaches the parsed payload.
+    """
+    lines = spark.read.text(path).collect()
+    return "\n".join(row[0] for row in lines)
+
+
+_NOT_FOUND_MARKERS = (
+    "FileNotFoundException",      # Hadoop / dbutils on Databricks
+    "PATH_NOT_FOUND",             # Spark AnalysisException on Databricks
+    "Path does not exist",        # Spark local Hadoop
+    "No such file or directory",  # OS-level fallback
+)
+
+
+def _is_missing_path_error(exc) -> bool:
+    """True when ``exc`` only means "the file does not exist yet"."""
+    if isinstance(exc, FileNotFoundError):
+        return True
+    message = str(exc)
+    return any(marker in message for marker in _NOT_FOUND_MARKERS)
+
+
+def _previous_files(spark, dest_uri) -> dict:
+    """Carry the previous run's fingerprints into the new ``meta.json``.
+
+    Reads ``<dest_uri>/meta.json`` **before** it is overwritten. Returns
+    ``{"previous_files": [...], "previous_generated_at": "<iso>"}`` when the
+    file exists, parses as JSON and has a non-empty ``files`` list; ``{}``
+    otherwise. Only the previous ``files`` list is copied (one level: an older
+    ``previous_files`` is never nested or accumulated), and ``meta.json`` never
+    appears in it.
+
+    Failures are tolerated on purpose (this is additive metadata and must never
+    break the export), with two exact outcomes:
+
+    - silence (``{}``): the file is missing (normal first run) or its structure
+      is unusable (not a JSON object, ``files`` not a list, or empty);
+    - logged (``[web_export] no se pudo leer el meta.json anterior: ...`` and
+      ``{}``): a read or parse error (corrupt JSON, credentials, permissions).
+      In that case the A/B comparison loses the previous run's fingerprints.
+    """
+    try:
+        text = _fs_read_text(spark, f"{dest_uri}/meta.json")
+        previous = json.loads(text)
+    except Exception as exc:  # noqa: BLE001 - additive metadata, never breaks
+        if not _is_missing_path_error(exc):
+            print(
+                f"[web_export] no se pudo leer el meta.json anterior: "
+                f"{type(exc).__name__}: {exc}"[:300])
+        return {}
+    if not isinstance(previous, dict):
+        return {}
+    files = previous.get("files")
+    if not isinstance(files, list) or not files:
+        return {}
+    carried = {"previous_files": files}
+    generated_at = previous.get("generated_at")
+    if generated_at is not None:
+        carried["previous_generated_at"] = generated_at
+    return carried
+
+
 def _fs_write_text(spark, path, text) -> None:
     """Write UTF-8 text as a single file (create/overwrite).
 
@@ -800,10 +873,17 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
     ``size_provider`` (called without arguments) to override it, e.g. a
     wrapper around ``dbutils.fs.ls``. ``files`` always lists the four published
     Parquets with their real size and SHA-256 (read back from the files, sorted
-    by name), so ``meta.json`` never hashes itself. When ``meta`` is not
-    ``None``, a copy is updated with the real size, the derived ``mode`` and
-    ``files``, written to ``meta.json`` and returned; otherwise ``None`` is
-    returned.
+    by name), so ``meta.json`` never hashes itself.
+
+    The previous ``meta.json`` (if any) is read **before** it is overwritten and
+    its ``files``/``generated_at`` are copied into ``previous_files``/
+    ``previous_generated_at``; only that one level is carried (never a nested
+    ``previous_files``), and no list ever includes ``meta.json``. Unreadable or
+    invalid previous metadata is ignored, so the export cannot fail for it.
+
+    When ``meta`` is not ``None``, a copy is updated with the real size, the
+    derived ``mode``, ``files`` and the previous-run keys, written to
+    ``meta.json`` and returned; otherwise ``None`` is returned.
     """
     dest_uri = _as_uri(dest)
 
@@ -830,9 +910,15 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
                          for name in tables)
 
     updated = dict(meta)
+    # One level only: never nest a previous-run payload carried by the caller.
+    updated.pop("previous_files", None)
+    updated.pop("previous_generated_at", None)
     updated["size_bytes"] = size_bytes
     updated["mode"] = ("aggregated" if export_exceeds_limit(size_bytes)
                        else "full")
     updated["files"] = _published_files(spark, dest_uri, tables)
+    # Read the previous meta.json before overwriting it so its hashes survive
+    # in the new payload.
+    updated.update(_previous_files(spark, dest_uri))
     _fs_write_text(spark, f"{dest_uri}/meta.json", meta_json(updated))
     return updated
