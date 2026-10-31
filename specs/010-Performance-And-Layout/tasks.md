@@ -558,7 +558,7 @@
     valida en T-09** con **dos runs manuales de producción sobre el mismo
     bronce** (A `full` y B incremental), no con dos domingos programados.
 
-- [ ] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
+- [x] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; **dos runs manuales de
     validación en producción, con el mismo bronce** (A `force_full=true` y B
@@ -581,8 +581,8 @@
     `specs/008-Delta-Incremental/{tasks,evidence}.md`.
   - **Evidencia:** ids de deploy y runs, conteos, hashes, estado del warehouse,
     id del workflow del dashboard y fila en `evidence.md`.
-  - **Estado (2026-10-31): código y A/B hechos; pendiente dashboard y
-    confirmación del warehouse.** Deploy `-t prod` con `pause_status: PAUSED` y
+  - **Estado (2026-10-31): CERRADA CON DESVIACIÓN APROBADA.** Deploy `-t prod`
+    con `pause_status: PAUSED` y
     dos runs manuales: **A `321262594455396`** (SUCCESS 8/8, **915 s**, silvers
     `full` 149,8–190,7 s, exports con `files`) y **B `317888374535056`**
     (SUCCESS 8/8, **747 s**, incremental con `backfill_from=2026-10-18`,
@@ -600,8 +600,9 @@
     test local (**22 passed, 1 skipped**). **Decisión de la persona
     (2026-10-31): no se repite el A/B**; el fix se despliega y el run
     programado del 8-nov lo usará, pero **RF-4 queda `[NO VERIFICADO]` en
-    producción**. Pendiente: `workflow_dispatch` del dashboard y comprobar
-    el SQL warehouse `STOPPED` antes y después.
+    producción**. Dashboard publicado con `workflow_dispatch` (confirmado por
+    la persona; id no capturado) y SQL warehouse `STOPPED` (Serverless Starter
+    Warehouse, 0 clústeres).
 
 ## 4. Cierre
 
