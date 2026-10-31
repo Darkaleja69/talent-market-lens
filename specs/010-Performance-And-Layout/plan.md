@@ -222,6 +222,12 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
   se **pausa** y se reanuda el lunes siguiente; el dashboard se publica con
   `workflow_dispatch` tras B y el cron del lunes lo republica. SQL warehouse
   `STOPPED` antes y después.
+- **Resultado del A/B (2026-10-31):** A/B ejecutado; RF-3, `MERGE` e
+  idempotencia en verde; **RF-4 no se cumple** por un empate no determinista en
+  `_keep_best` de oro (una fila de skills y una fuente cambian). No hubo lote
+  nuevo. Corregido en `Prepare_Gold.keep_best`; la persona aprueba **no repetir
+  el A/B** y dejar RF-4 `[NO VERIFICADO]` en producción. El run programado del
+  8-nov usará el fix.
 
 ## 9. Presupuesto
 
