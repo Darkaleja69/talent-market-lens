@@ -284,15 +284,17 @@
     este host Windows no tiene `winutils.exe`/`hadoop.dll` y falla en
     `listStatus` → `NativeIO$Windows.access0` (`UnsatisfiedLinkError`); **no se
     instaló nada**. El plan interno del `MERGE` **no** es accesible sin
-    ejecutarlo (`EXPLAIN MERGE` solo devuelve el comando); la celda de
-    diagnóstico de `gold_build.ipynb` lo devuelve en `merge_plan` dentro del
-    `notebook_output` de la tarea `Gold_Complete_Catalog` (**proxy** del join
-    del `ON`, `scope` y `note` en el payload) y las `operationMetrics` del
-    `DESCRIBE HISTORY` son la evidencia principal. El
-    proxy mide el `Exchange` sobre la expresión calculada; la poda por fichero y
-    si el destino se escanea completo siguen sin medirse. **0 €** (sin run ni
-    sesión SQL; solo lectura gratuita de la API de runs). **T-08 confirmará** la
-    decisión con el run B.
+    ejecutarlo (`EXPLAIN MERGE` solo devuelve el comando). El recuento de DVs y
+    el proxy del join del `ON` son **`[NO VERIFICADO]`** y **no medibles**: el
+    recuento de DVs no es accesible (la ruta la gestiona Unity Catalog y
+    `dbutils.fs.ls` la rechaza con `INVALID_PARAMETER_VALUE`) y el proxy del
+    plan degenera en `HashAggregate + Exchange SinglePartition` sobre
+    `LocalTableScan <empty>`; las celdas se retiraron el 2026-10-31 para no
+    añadir trabajo al run. Las
+    `operationMetrics` del `DESCRIBE HISTORY` son la evidencia principal; la
+    poda por fichero y si el destino se escanea completo siguen sin medirse.
+    **0 €** (sin run ni sesión SQL; solo lectura gratuita de la API de runs).
+    **T-08 confirmará** la decisión con el run B.
 
 - [x] **T-05 — Layout físico: medir y decidir** (~30 min)
   - **Objetivo:** medir `numFiles`, `sizeInBytes` y tamaño medio por tabla
@@ -337,12 +339,13 @@
     por `_ingest_date` crearía una partición por lote). **DVs**: el pase 1 deja
     **1** y el segundo pase es **consistente con** reescribir el fichero del
     primero (T-04; la ruta no se mide), así que no se acumulan más allá de un
-    pase; `DESCRIBE DETAIL` no informa del número vigente
-    (`[NO VERIFICADO]`; **se captura en el próximo run** en `diagnostics` del
-    `notebook_output` de `Gold_Complete_Catalog`, que recorre el `_delta_log`
-    de cada `offers_*`; el recuento es una **aproximación**: con checkpoint o
-    compactación puede quedarse corta o contar de más, y `mismatch` (frente a
-    `numFiles`) señala las discrepancias) y no se justifica `OPTIMIZE` solo por
+    pase; `DESCRIBE DETAIL` no informa del número vigente, que queda
+    **`[NO VERIFICADO]`** y **no medible**: el recuento de DVs no es accesible
+    (la ruta la gestiona Unity Catalog y `dbutils.fs.ls` la rechaza con
+    `INVALID_PARAMETER_VALUE`) y el proxy del plan degenera en
+    `HashAggregate + Exchange SinglePartition` sobre `LocalTableScan <empty>`;
+    las celdas se retiraron el 2026-10-31 para no añadir trabajo al run. Por
+    eso no se justifica `OPTIMIZE` solo por
     purgarlos.
     **Los `MERGE` dejan el recuento estacionario en el run de dos pases**
     (`filesAdded=1`, `filesRemoved=0/1`): los **2 ficheros** de cada `offers_*`
@@ -354,11 +357,12 @@
     `offers_*`), si la media por fichero baja de **1 MB** en una tabla de más de
     **10 MB**, si aparece un **filtro selectivo dominante** (≥90 % de filas
     descartadas) en oro/exports, si el volumen crece **≥10×** o si se ven
-    **decenas de DVs** vigentes. **`[NO VERIFICADO]`**: número de DVs vigentes
-    (**próximo run**: `diagnostics` del `notebook_output` de
-    `Gold_Complete_Catalog`; **aproximación**: con checkpoint o compactación
-    puede quedarse corta o contar de más, y `mismatch` (frente a `numFiles`)
-    señala las discrepancias),
+    **decenas de DVs** vigentes. **`[NO VERIFICADO]`**: número de DVs vigentes;
+    **no medible**: el recuento de DVs no es accesible (la ruta la gestiona
+    Unity Catalog y `dbutils.fs.ls` la rechaza con `INVALID_PARAMETER_VALUE`) y
+    el proxy del plan degenera en `HashAggregate + Exchange SinglePartition`
+    sobre `LocalTableScan <empty>`; las celdas se retiraron el 2026-10-31 para
+    no añadir trabajo al run,
     `minFileBytes`/`maxFileBytes` (`None` en la salida), tiempos por tabla de oro
     y exports (solo el de tarea: oro 56 s, exports 92 s), la causa de los 4
     ficheros de las dos dimensiones y el efecto real de un `OPTIMIZE` (no
@@ -474,10 +478,9 @@
   - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, el
     `meta.json` de cada export con `files` (nombre, bytes y SHA-256 de cada
     Parquet) leído del `notebook_output` (`dbutils.notebook.exit`) de las dos
-    tareas de export, `diagnostics` y `merge_plan` (proxy del join del `ON`,
-    `scope` y `note` en el payload) del `notebook_output`
-    (`dbutils.notebook.exit`) de la tarea `Gold_Complete_Catalog`, coste en
-    `docs/costs.md` y fila en `evidence.md`.
+    tareas de export, coste en `docs/costs.md` y fila en `evidence.md`.
+    **No medibles** (celdas retiradas el 2026-10-31): el recuento de DVs
+    vigentes y el plan del `MERGE`; motivos en T-04/T-05.
   - **Estado (2026-10-31): CERRADA** — run **`221895134926434`** (job
     `320947022571947`, perfil `vs_code`, `force_full=true`), **SUCCESS 8/8**,
     **816,0 s (13 m 36 s)** según la API de runs. **RF-3**: 816 s ≤ 1350 s con
@@ -510,8 +513,13 @@
     verificación real (que A escribiera `files` en `meta.json` con el código
     desplegado) se confirma en T-08; si A no lo tuviera, `previous_files` vendrá
     vacío y habrá que capturar los hashes de otra forma antes de comparar.
-    `diagnostics` y `merge_plan` tampoco vienen en la respuesta del run
-    (`[NO VERIFICADO]`): quedan para T-08. **Coste ~0,20 €** (anotado en
+    El recuento de DVs y el proxy del plan del `MERGE` quedan
+    **`[NO VERIFICADO]`** y son **no medibles**: el recuento de DVs no es
+    accesible (la ruta la gestiona Unity Catalog y `dbutils.fs.ls` la rechaza
+    con `INVALID_PARAMETER_VALUE`) y el proxy del plan degenera en
+    `HashAggregate + Exchange SinglePartition` sobre `LocalTableScan <empty>`;
+    las celdas se retiraron el 2026-10-31 para no añadir trabajo al run.
+    **Coste ~0,20 €** (anotado en
     `docs/costs.md`). Verificación independiente pendiente.
 
 - [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
@@ -529,10 +537,9 @@
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics` (evidencia
     principal del `MERGE`), `files` de A (`previous_files` de B) frente a
     `files` de B leídos del `notebook_output` (`dbutils.notebook.exit`) de las
-    dos tareas de export, conteos, `diagnostics` y `merge_plan` (proxy del join
-    del `ON`, `scope` y `note` en el payload) del `notebook_output`
-    (`dbutils.notebook.exit`) de la tarea `Gold_Complete_Catalog`, coste y fila
-    en `evidence.md`.
+    dos tareas de export, conteos, coste y fila en `evidence.md`.
+    **No medibles** (celdas retiradas el 2026-10-31): el recuento de DVs
+    vigentes y el plan del `MERGE`; motivos en T-04/T-05.
   - **Estado (2026-10-31): run B ejecutado; RF-4 se valida en T-09, no aquí.**
     Run B **`549237053478569`**. La comparación de `files` de B con
     `previous_files` (run A `221895134926434`) **no deja ningún fichero con el
