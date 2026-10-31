@@ -283,10 +283,11 @@
     este host Windows no tiene `winutils.exe`/`hadoop.dll` y falla en
     `listStatus` → `NativeIO$Windows.access0` (`UnsatisfiedLinkError`); **no se
     instaló nada**. El plan interno del `MERGE` **no** es accesible sin
-    ejecutarlo (`EXPLAIN MERGE` solo devuelve el comando); la celda
-    `PERF_MERGE_PLAN=` de `gold_build.ipynb` captura en el próximo run un
-    **proxy** del join del `ON` (`scope` y `note` en el payload) y las
-    `operationMetrics` del `DESCRIBE HISTORY` son la evidencia principal. El
+    ejecutarlo (`EXPLAIN MERGE` solo devuelve el comando); la celda de
+    diagnóstico de `gold_build.ipynb` lo devuelve en `merge_plan` dentro del
+    `notebook_output` de la tarea `Gold_Complete_Catalog` (**proxy** del join
+    del `ON`, `scope` y `note` en el payload) y las `operationMetrics` del
+    `DESCRIBE HISTORY` son la evidencia principal. El
     proxy mide el `Exchange` sobre la expresión calculada; la poda por fichero y
     si el destino se escanea completo siguen sin medirse. **0 €** (sin run ni
     sesión SQL; solo lectura gratuita de la API de runs). **T-08 confirmará** la
@@ -336,9 +337,9 @@
     **1** y el segundo pase es **consistente con** reescribir el fichero del
     primero (T-04; la ruta no se mide), así que no se acumulan más allá de un
     pase; `DESCRIBE DETAIL` no informa del número vigente
-    (`[NO VERIFICADO]`; **se captura en el próximo run** con la celda
-    `PERF_DIAGNOSTICS=` de `gold_build.ipynb`, que recorre el `_delta_log` de
-    cada `offers_*`; el recuento es una **aproximación**: con checkpoint o
+    (`[NO VERIFICADO]`; **se captura en el próximo run** en `diagnostics` del
+    `notebook_output` de `Gold_Complete_Catalog`, que recorre el `_delta_log`
+    de cada `offers_*`; el recuento es una **aproximación**: con checkpoint o
     compactación puede quedarse corta o contar de más, y `mismatch` (frente a
     `numFiles`) señala las discrepancias) y no se justifica `OPTIMIZE` solo por
     purgarlos.
@@ -353,9 +354,10 @@
     **10 MB**, si aparece un **filtro selectivo dominante** (≥90 % de filas
     descartadas) en oro/exports, si el volumen crece **≥10×** o si se ven
     **decenas de DVs** vigentes. **`[NO VERIFICADO]`**: número de DVs vigentes
-    (**próximo run**: celda `PERF_DIAGNOSTICS=` de `gold_build.ipynb`;
-    **aproximación**: con checkpoint o compactación puede quedarse corta o contar
-    de más, y `mismatch` (frente a `numFiles`) señala las discrepancias),
+    (**próximo run**: `diagnostics` del `notebook_output` de
+    `Gold_Complete_Catalog`; **aproximación**: con checkpoint o compactación
+    puede quedarse corta o contar de más, y `mismatch` (frente a `numFiles`)
+    señala las discrepancias),
     `minFileBytes`/`maxFileBytes` (`None` en la salida), tiempos por tabla de oro
     y exports (solo el de tarea: oro 56 s, exports 92 s), la causa de los 4
     ficheros de las dos dimensiones y el efecto real de un `OPTIMIZE` (no
@@ -469,9 +471,11 @@
     Sin SQL.
   - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, el
     `meta.json` de cada export con `files` (nombre, bytes y SHA-256 de cada
-    Parquet), líneas `PERF_DIAGNOSTICS=` y `PERF_MERGE_PLAN=` (proxy del join
-    del `ON`, `scope` y `note` en el payload) de la tarea `Gold_Complete_Catalog`
-    (logs del run), coste en `docs/costs.md` y fila en `evidence.md`.
+    Parquet) leído del `notebook_output` (`dbutils.notebook.exit`) de las dos
+    tareas de export, `diagnostics` y `merge_plan` (proxy del join del `ON`,
+    `scope` y `note` en el payload) del `notebook_output`
+    (`dbutils.notebook.exit`) de la tarea `Gold_Complete_Catalog`, coste en
+    `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y
@@ -487,10 +491,11 @@
     resumen.
   - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics` (evidencia
     principal del `MERGE`), `files` de A (`previous_files` de B) frente a
-    `files` de B, conteos, líneas `PERF_DIAGNOSTICS=` y
-    `PERF_MERGE_PLAN=` (proxy del join del `ON`, `scope` y `note` en el payload)
-    de la tarea `Gold_Complete_Catalog` (logs del run), coste y fila en
-    `evidence.md`.
+    `files` de B leídos del `notebook_output` (`dbutils.notebook.exit`) de las
+    dos tareas de export, conteos, `diagnostics` y `merge_plan` (proxy del join
+    del `ON`, `scope` y `note` en el payload) del `notebook_output`
+    (`dbutils.notebook.exit`) de la tarea `Gold_Complete_Catalog`, coste y fila
+    en `evidence.md`.
 
 - [ ] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
