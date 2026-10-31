@@ -141,8 +141,9 @@ dos exports deberán conservar su contrato, sin columnas internas (`_key`,
 > contenido de esas dimensiones no depende de las filas que toca el `MERGE`, así
 > que la diferencia mide el **escritor** (el orden de filas de `coalesce(1)` no
 > es determinista), no la lógica incremental. El criterio de contenido se valida
-> en **T-09** con el primer run de producción (`full`) y el domingo siguiente
-> (incremental).
+> en **T-09** con **dos runs manuales de producción sobre el mismo bronce**
+> (A `full` y B incremental); el run programado del domingo se pausa esa semana
+> y se reanuda el lunes siguiente.
 
 ### RF-5 — Idempotencia y watermark
 **Criterio (EARS):** Cuando se repita la misma ventana dentro del notebook, el
@@ -166,8 +167,8 @@ decisión sea no cambiar nada.
 ### RF-8 — Herencia de la 008
 **Criterio (EARS):** Cuando el incremental quepa y la equivalencia esté
 demostrada, el despliegue a producción de T-11 de la 008 deberá quedar cerrado:
-deploy en la ventana previa a un domingo con rollback, run programado 8/8,
-dashboard publicado el lunes y SQL warehouse `STOPPED` antes y después.
+deploy con rollback, runs de producción 8/8 (A/B manual en T-09 y el siguiente
+programado), dashboard publicado y SQL warehouse `STOPPED` antes y después.
 
 ### RF-9 — Observabilidad y presupuesto
 **Criterio (EARS):** Cuando termine cada run, el resumen del notebook deberá
@@ -213,13 +214,13 @@ la 009; cada run se anotará en `docs/costs.md` con motivo, id y coste.
   documentadas.
 - Run A (full) y run B (incremental + repetición) en dev: 8/8, RF-2 y RF-3
   cumplidos, `MERGE` con métricas de escritura e idempotencia demostrada.
-- **RF-4 (equivalencia de contenido de los exports) se valida en T-09**, con el
-  primer run de producción (`full`) y el siguiente (incremental), comparando
-  `files` del segundo contra `previous_files`.
+- **RF-4 (equivalencia de contenido de los exports) se valida en T-09**, con
+  **dos runs manuales de producción sobre el mismo bronce** (A `full` y B
+  incremental), comparando `files` del segundo contra `previous_files`.
 - Ventana vacía sin escritura.
 - Suites `databricks_notebooks` y `scrapers-pipeline` en verde (la suite
   completa es gate de la spec, no de cada tarea).
-- Producción desplegada y verificada con el run programado, el dashboard del
-  lunes y el warehouse `STOPPED`.
+- Producción desplegada y verificada con los runs A/B, el dashboard publicado
+  con `workflow_dispatch` y el warehouse `STOPPED`.
 - Nota `docs/databricks-de/notes/01-spark-performance.md` escrita, roadmap y
   `docs/costs.md` al día, y comprobación real registrada.

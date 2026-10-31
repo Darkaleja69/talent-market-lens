@@ -210,14 +210,18 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
   existente; debe ejecutar el `MERGE`, dejar `timings_s` por etapa y escribir.
   **El run B de dev se ejecutó antes del escritor ordenado**, así que la
   equivalencia de contenido de sus exports no se puede cerrar ahí: el gate de
-  RF-4 **pasa a T-09** (primer run de producción `full` y el siguiente
-  incremental). Si el run no cabe, el resumen dice exactamente en qué paso y se
-  corrige en local antes de gastar el run de reserva.
-- **Producción:** deploy en la ventana previa a un domingo con el
-  `cutover.md` de la 007 (pausa, deploy, reanudar, rollback y `RESTORE`);
-  verificación con el **run programado** (8/8, exports, dashboard del lunes,
-  warehouse `STOPPED`). El primer run en prod será `full` (migración) y el
-  siguiente incremental; ambos se vigilan.
+  RF-4 **pasa a T-09** (dos runs manuales de producción sobre el mismo bronce,
+  A `full` y B incremental). Si el run no cabe, el resumen dice exactamente en
+  qué paso y se corrige en local antes de gastar el run de reserva.
+- **Producción:** deploy con el `cutover.md` de la 007 (pausa, deploy,
+  reanudar, rollback y `RESTORE`). **Decisión del 2026-10-31:** la validación
+  A/B se hace con **dos runs manuales el mismo día y sobre el mismo bronce**
+  (A `force_full=true`, B incremental con `backfill_from`/`backfill_to` y
+  `repeat_window=true`), porque el run programado del domingo ingiere un lote
+  nuevo y rompe la equivalencia de contenido. El run programado de ese domingo
+  se **pausa** y se reanuda el lunes siguiente; el dashboard se publica con
+  `workflow_dispatch` tras B y el cron del lunes lo republica. SQL warehouse
+  `STOPPED` antes y después.
 
 ## 9. Presupuesto
 
@@ -233,7 +237,7 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
 | T-07 run A (full) | 1 (**nuevo**, aprobado el 2026-10-31) | ~0,24 € |
 | T-08 run B (incremental + repetición) | 1 (**nuevo**, aprobado el 2026-10-31) | ~0,24 € |
 | Reserva (reintento o comparación de compute, con aprobación) | 1 (**no autorizado**) | ~0,24 € |
-| Producción (T-09) | run programado | ya en la cadencia de la 009 |
+| Producción (T-09) | 2 runs manuales de producción (A/B) | ~0,40–0,46 €; el programado de esa semana se pausa |
 | **Total** | **5** (3 originales, **ya gastados** en T-03/T-03b, + 2 ampliados) | **~1,08–1,10 €** (techo 1,8 €; 0 SQL) |
 
 Reglas y encaje con la 009:
@@ -250,6 +254,11 @@ Reglas y encaje con la 009:
   código cambió en T-03b**: el total pasa a **5 runs** con **~1,08–1,10 €**
   previstos y **0 SQL**, dentro del techo de 1,8 €; el run de reserva **sigue no
   autorizado**.
+- **Desviación aprobada el 2026-10-31:** la validación A/B de T-09 se hace con
+  **2 runs manuales de producción sobre el mismo bronce**; el run programado
+  del domingo se pausa y se reanuda el lunes siguiente. Coste **~0,40–0,46 €**,
+  dentro del presupuesto de producción de la 009; **no** consume el techo de
+  dev de 1,8 €.
 - El bloque B de la 008 se fue a **~1,6 €** (5 runs por duración) y la 008 queda
   en ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
   marginal que se confirma en la Account Console y **no** consume el techo de la
@@ -289,5 +298,6 @@ Reglas y encaje con la 009:
 5. **Validación (T-07/T-08):** run A y run B; tiempos, `MERGE` e idempotencia.
 6. **Equivalencia de exports (T-09):** comparación A/B de `meta.json` (`files`
    contra `previous_files`) con la escritura ordenada, en producción.
-7. **Producción y cierre (T-09/T-10):** ventana previa a domingo, run
-   programado, dashboard, notas y roadmap.
+7. **Producción y cierre (T-09/T-10):** A/B manual en producción sobre el
+   mismo bronce, pausa del run programado de ese domingo, dashboard por
+   `workflow_dispatch`, notas y roadmap.

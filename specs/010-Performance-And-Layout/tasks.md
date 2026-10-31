@@ -555,23 +555,32 @@
     **equivalencia de contenido** y la escritura se ordena de forma total por
     todas las columnas. La escritura ordenada se implementa después de este run
     y **no se repite el A/B en dev** (no hay run nuevo autorizado): **RF-4 se
-    valida en T-09** con el primer run de producción (`full`) y el domingo
-    siguiente (incremental).
+    valida en T-09** con **dos runs manuales de producción sobre el mismo
+    bronce** (A `full` y B incremental), no con dos domingos programados.
 
 - [ ] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
-    bundle y `RESTORE` de las silvers disponible; el **primer run programado**
-    reconstruye (migración) y cierra 8/8; el **domingo siguiente** el run es
-    incremental real, se comparan los `sha256` de `files` de B con
-    `previous_files` (A) —hash igual implica además los mismos bytes— y los
-    **conteos** se comparan con los `tables` del `notebook_output` de cada run;
-    el dashboard vuelve a publicar el lunes; SQL warehouse `STOPPED` antes y
-    después; bitácora del roadmap actualizada.
-  - **Nota:** no añade runs manuales (cadencia de la 009); los comandos de
-    bundle los ejecuta la persona. Al cerrar, se actualizan las filas de T-10 y
-    T-11 en `specs/008-Delta-Incremental/{tasks,evidence}.md`.
-  - **Evidencia:** ids de deploy y runs, conteos, versiones de `RESTORE`,
-    estado del warehouse y fila en `evidence.md`.
+    bundle y `RESTORE` de las silvers disponible; **dos runs manuales de
+    validación en producción, con el mismo bronce** (A `force_full=true` y B
+    incremental con `backfill_from`/`backfill_to` y `repeat_window=true`),
+    cierran 8/8; se comparan los `sha256` de `files` de B con `previous_files`
+    (A) —hash igual implica además los mismos bytes— y los **conteos** con los
+    `tables` del `notebook_output` de cada run; el dashboard se publica con
+    `workflow_dispatch` tras B y el cron del lunes lo republica; SQL warehouse
+    `STOPPED` antes y después; bitácora del roadmap actualizada.
+  - **Desviación aprobada el 2026-10-31:** se sustituye el A/B de dos domingos
+    programados por **A/B manual el mismo día**, porque RF-4 exige el **mismo
+    bronce** y el run programado del domingo ingiere un lote nuevo. El run
+    programado de ese domingo se **pausa** (`pause_status: PAUSED`) y se
+    reanuda el lunes siguiente; no es gate de esta tarea. Coste: 2 runs de
+    producción (~0,20–0,23 € cada uno) y 1 run programado menos esa semana;
+    el gasto va al presupuesto de producción de la 009, no al de dev (5/5
+    consumidos).
+  - **Nota:** los comandos de bundle los ejecuta la persona. Al cerrar, se
+    actualizan las filas de T-10 y T-11 en
+    `specs/008-Delta-Incremental/{tasks,evidence}.md`.
+  - **Evidencia:** ids de deploy y runs, conteos, hashes, estado del warehouse,
+    id del workflow del dashboard y fila en `evidence.md`.
 
 ## 4. Cierre
 
