@@ -144,6 +144,16 @@ dos exports deberán conservar su contrato, sin columnas internas (`_key`,
 > en **T-09** con **dos runs manuales de producción sobre el mismo bronce**
 > (A `full` y B incremental); el run programado del domingo se pausa esa semana
 > y se reanuda el lunes siguiente.
+>
+> **Resultado en producción (2026-10-31):** el A/B manual (A
+> `321262594455396`, B `317888374535056`) cumple RF-3, `MERGE` e idempotencia,
+> pero **RF-4 no se cumple**: los `sha256` de fichero no son estables y el
+> contenido difiere en una fila (`fact_offer_skills` 46.375→46.374; Indeed
+> 2.768→2.767, glassdoor 6.368→6.369). No hubo lote nuevo; la causa es un
+> empate no determinista en `_keep_best` de oro, corregido en
+> `Prepare_Gold.keep_best` con desempate `source_scraper`/`job_id`. La persona
+> aprueba **no repetir el A/B**; **RF-4 queda `[NO VERIFICADO]` en producción**
+> y se cierra como desviación aprobada en T-09/T-10.
 
 ### RF-5 — Idempotencia y watermark
 **Criterio (EARS):** Cuando se repita la misma ventana dentro del notebook, el
@@ -214,13 +224,15 @@ la 009; cada run se anotará en `docs/costs.md` con motivo, id y coste.
   documentadas.
 - Run A (full) y run B (incremental + repetición) en dev: 8/8, RF-2 y RF-3
   cumplidos, `MERGE` con métricas de escritura e idempotencia demostrada.
-- **RF-4 (equivalencia de contenido de los exports) se valida en T-09**, con
-  **dos runs manuales de producción sobre el mismo bronce** (A `full` y B
-  incremental), comparando `files` del segundo contra `previous_files`.
+- **RF-4 se cierra con la desviación aprobada en T-09**: el A/B de producción
+  se ejecutó, pero el contenido difiere por un empate no determinista corregido
+  en `Prepare_Gold.keep_best`; no se repite el A/B y RF-4 queda
+  `[NO VERIFICADO]` en producción.
 - Ventana vacía sin escritura.
 - Suites `databricks_notebooks` y `scrapers-pipeline` en verde (la suite
   completa es gate de la spec, no de cada tarea).
-- Producción desplegada y verificada con los runs A/B, el dashboard publicado
-  con `workflow_dispatch` y el warehouse `STOPPED`.
+- Producción desplegada con los runs A/B, el dashboard publicado con
+  `workflow_dispatch` y el warehouse `STOPPED`; RF-4 con la desviación
+  aprobada.
 - Nota `docs/databricks-de/notes/01-spark-performance.md` escrita, roadmap y
   `docs/costs.md` al día, y comprobación real registrada.

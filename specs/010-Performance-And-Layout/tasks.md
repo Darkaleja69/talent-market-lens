@@ -581,6 +581,27 @@
     `specs/008-Delta-Incremental/{tasks,evidence}.md`.
   - **Evidencia:** ids de deploy y runs, conteos, hashes, estado del warehouse,
     id del workflow del dashboard y fila en `evidence.md`.
+  - **Estado (2026-10-31): código y A/B hechos; pendiente dashboard y
+    confirmación del warehouse.** Deploy `-t prod` con `pause_status: PAUSED` y
+    dos runs manuales: **A `321262594455396`** (SUCCESS 8/8, **915 s**, silvers
+    `full` 149,8–190,7 s, exports con `files`) y **B `317888374535056`**
+    (SUCCESS 8/8, **747 s**, incremental con `backfill_from=2026-10-18`,
+    `backfill_to=2026-10-31`, `repeat_window=true`; `MERGE` con `updated`
+    316/850/1.788/728, `inserted=deleted=0`, `target_rows` idénticos a A).
+    **RF-3 y la parte de `MERGE`/idempotencia se cumplen**; T-06b también
+    (`previous_files` de B = `files` de A).
+    **RF-4 no se cumple:** los `sha256` de fichero no son estables (las
+    dimensiones tienen el mismo tamaño y hash distinto) y el contenido difiere
+    en una fila (`fact_offer_skills` 46.375→46.374; Indeed 2.768→2.767,
+    glassdoor 6.368→6.369). **No hubo lote nuevo**: el landing y el bronce no
+    cambiaron entre A y B. La causa es un empate no determinista en
+    `_keep_best` de `gold_build.ipynb`; corregido con
+    `Prepare_Gold.keep_best` y desempate `source_scraper`/`job_id` asc, con
+    test local (**22 passed, 1 skipped**). **Decisión de la persona
+    (2026-10-31): no se repite el A/B**; el fix se despliega y el run
+    programado del 8-nov lo usará, pero **RF-4 queda `[NO VERIFICADO]` en
+    producción**. Pendiente: `workflow_dispatch` del dashboard y comprobar
+    el SQL warehouse `STOPPED` antes y después.
 
 ## 4. Cierre
 
@@ -590,6 +611,10 @@
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
     completas en verde; comprobación real registrada; `docs/costs.md` con todos
     los runs (dentro del techo de 1,8 €).
+  - **Desviación de RF-4 (2026-10-31):** el A/B de producción no se repite.
+    El fix del empate está probado en local; RF-4 queda `[NO VERIFICADO]` en
+    producción. El cierre de T-10 requiere la aceptación explícita de la
+    persona y se registra así en `evidence.md`.
   - **Hecho cuando:** merge a `main` y tag (`spec-010`) con **RF-2 y RF-3
-    verificados en dev**; **RF-4 verificado en T-09** (producción); y RF-8
+    verificados en dev**; **RF-4 cerrado con la desviación aprobada**; y RF-8
     cerrado.
