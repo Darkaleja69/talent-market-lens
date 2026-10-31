@@ -846,8 +846,24 @@ def _fs_write_text(spark, path, text) -> None:
 
 
 def _write_parquet(df, uri) -> None:
-    """Write ``df`` as a single-part Parquet dataset under the temporary URI."""
-    df.coalesce(1).write.mode("overwrite").parquet(uri)
+    """Write ``df`` as a single-part Parquet dataset under the temporary URI.
+
+    Rows are sorted by **every** column before ``coalesce(1)`` so the published
+    bytes —and therefore the ``sha256`` in ``meta.json``— depend only on the
+    content, never on the non-deterministic row order of a multi-partition
+    frame. Without the total order, two equivalent runs hash differently: the
+    A/B of 2026-10-31 measured same-size dimensions with different hashes;
+    ``fact_offers`` grew +19.342 B (web) / +22.459 B (PBI) with an unattributed
+    cause.
+
+    The global sort is not free: on a large table it adds a full shuffle. These
+    exports are 3–4 MB in web and up to ~34 MB in PBI, so this is the simplest
+    fix; a bigger table would switch to an aggregated row checksum instead.
+    ``orderBy(*df.columns)`` requires sortable columns: a future contract with
+    ``ArrayType``/``MapType`` would fail and this function would have to be
+    revisited.
+    """
+    df.orderBy(*df.columns).coalesce(1).write.mode("overwrite").parquet(uri)
 
 
 def write_web_export(spark, tables, dest, meta=None, size_provider=None):

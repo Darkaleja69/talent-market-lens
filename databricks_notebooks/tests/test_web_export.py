@@ -481,6 +481,49 @@ def test_file_operations_use_hadoop_when_dbutils_is_none(monkeypatch):
     assert hadoop_fs.calls[-1] == ("delete", "/tmp/.meta.json.crc", False)
 
 
+class _WriterSpy:
+    """``DataFrameWriter`` stand-in: records ``mode``/``parquet``."""
+
+    def __init__(self, calls):
+        self._calls = calls
+
+    def mode(self, mode):
+        self._calls.append(("mode", mode))
+        return self
+
+    def parquet(self, uri):
+        self._calls.append(("parquet", uri))
+
+
+class _WriteSpy:
+    """``DataFrame`` stand-in for ``_write_parquet`` (records the chain)."""
+
+    def __init__(self, columns):
+        self.columns = columns
+        self.calls = []
+        self.write = _WriterSpy(self.calls)
+
+    def orderBy(self, *columns):
+        self.calls.append(("orderBy", tuple(columns)))
+        return self
+
+    def coalesce(self, partitions):
+        self.calls.append(("coalesce", partitions))
+        return self
+
+
+def test_write_parquet_orders_by_every_column_before_coalesce():
+    # The total order is what makes sha256 stable across runs (RF-4).
+    spy = _WriteSpy(["b", "a"])
+    w._write_parquet(spy, "file:///tmp/export")
+    assert spy.calls == [
+        ("orderBy", ("b", "a")),
+        ("coalesce", 1),
+        ("mode", "overwrite"),
+        ("parquet", "file:///tmp/export"),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Spark integration: column contract and geographic parity
 # ---------------------------------------------------------------------------
@@ -591,6 +634,15 @@ def _gold_tables(spark):
             "dim_skill_list": skill_list, "dim_calendar": calendar}
 
 
+def _reverse_input_order(spark, df):
+    """Same rows, different input order: two halves unioned in reverse."""
+    rows = df.collect()
+    half = len(rows) // 2
+    first = spark.createDataFrame(rows[:half], schema=df.schema)
+    second = spark.createDataFrame(rows[half:], schema=df.schema)
+    return second.unionByName(first)
+
+
 @pytest.fixture(scope="session")
 def spark():
     """Session reused from other test modules when already active."""
@@ -660,7 +712,9 @@ def local_export_io(monkeypatch):
     def _write_parquet(df, uri):
         base = _local(uri)
         os.makedirs(base, exist_ok=True)
-        pdf = df.toPandas()
+        # Mirror the production writer's total order so the byte-stability
+        # test keeps its meaning on hosts without winutils.
+        pdf = df.orderBy(*df.columns).toPandas()
         for column in pdf.columns:
             if pdf[column].isna().all():
                 pdf[column] = pdf[column].astype("string")
@@ -1015,6 +1069,39 @@ def test_write_web_export_records_published_files_hashes(
     w.write_web_export(spark, tables, dest, meta=meta)
     second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
     assert second["files"] == files
+
+
+@requires_spark
+def test_write_web_export_is_byte_stable_across_input_orders(
+        spark, tmp_path, local_export_io):
+    """Equivalent exports must publish identical bytes, not just equal rows.
+
+    The A/B of 2026-10-31 showed same-size dimensions with different hashes:
+    the row order of ``coalesce(1)`` is not deterministic. The writer sorts by
+    every column before coalescing, so the same rows delivered in another order
+    produce the same Parquet bytes and the same ``files`` fingerprints.
+    """
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    reversed_tables = {name: _reverse_input_order(spark, df)
+                       for name, df in tables.items()}
+    counts, sources, data_date = w.collect_export_stats(tables)
+    meta = w.build_meta(counts, sources, data_date,
+                        generated_at=dt.datetime(2026, 10, 6, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    forward_dir = tmp_path / "ordered_forward"
+    reverse_dir = tmp_path / "ordered_reverse"
+
+    forward = w.write_web_export(spark, tables, forward_dir, meta=meta)
+    reverse = w.write_web_export(spark, reversed_tables, reverse_dir, meta=meta)
+
+    assert forward["tables"] == reverse["tables"]
+    assert forward["files"] == reverse["files"]
+    for entry in forward["files"]:
+        assert (forward_dir / entry["name"]).read_bytes() == \
+            (reverse_dir / entry["name"]).read_bytes()
 
 
 @requires_spark

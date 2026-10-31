@@ -318,6 +318,15 @@ def _build_export(spark, tables):
         tables["dim_companies"], tables["dim_currency"])
 
 
+def _reverse_input_order(spark, df):
+    """Same rows, different input order: two halves unioned in reverse."""
+    rows = df.collect()
+    half = len(rows) // 2
+    first = spark.createDataFrame(rows[:half], schema=df.schema)
+    second = spark.createDataFrame(rows[half:], schema=df.schema)
+    return second.unionByName(first)
+
+
 @pytest.fixture(scope="session")
 def spark():
     """Session reused from other test modules when already active."""
@@ -381,7 +390,9 @@ def local_export_io(monkeypatch):
     def _write_parquet(df, uri):
         base = _local(uri)
         os.makedirs(base, exist_ok=True)
-        pdf = df.toPandas()
+        # Mirror the production writer's total order so the byte-stability
+        # test keeps its meaning on hosts without winutils.
+        pdf = df.orderBy(*df.columns).toPandas()
         for column in pdf.columns:
             if pdf[column].isna().all():
                 pdf[column] = pdf[column].astype("string")
@@ -696,6 +707,37 @@ def test_write_pbi_export_records_published_files_hashes(
     p.write_pbi_export(spark, exported, dest, meta=meta)
     second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
     assert second["files"] == files
+
+
+@requires_spark
+def test_write_pbi_export_is_byte_stable_across_input_orders(
+        spark, tmp_path, local_export_io):
+    """Equivalent exports must publish identical bytes, not just equal rows.
+
+    The A/B of 2026-10-31 showed same-size dimensions with different hashes:
+    the row order of ``coalesce(1)`` is not deterministic. The writer sorts by
+    every column before coalescing, so the same rows delivered in another order
+    produce the same Parquet bytes and the same ``files`` fingerprints.
+    """
+    exported = _build_export(spark, _gold_tables(spark))
+    reversed_exported = {name: _reverse_input_order(spark, df)
+                         for name, df in exported.items()}
+    counts, data_date = p.collect_export_stats(exported)
+    meta = p.build_meta(counts, data_date,
+                        generated_at=dt.datetime(2026, 10, 23, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    forward_dir = tmp_path / "ordered_forward"
+    reverse_dir = tmp_path / "ordered_reverse"
+
+    forward = p.write_pbi_export(spark, exported, forward_dir, meta=meta)
+    reverse = p.write_pbi_export(spark, reversed_exported, reverse_dir,
+                                 meta=meta)
+
+    assert forward["tables"] == reverse["tables"]
+    assert forward["files"] == reverse["files"]
+    for entry in forward["files"]:
+        assert (forward_dir / entry["name"]).read_bytes() == \
+            (reverse_dir / entry["name"]).read_bytes()
 
 
 @requires_spark
