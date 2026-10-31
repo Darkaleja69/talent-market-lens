@@ -6,7 +6,7 @@ examen: frases propias, comandos usados, errores cometidos y dudas abiertas.
 
 ## Índice (se crean al empezar cada spec)
 
-- [ ] `01-spark-performance.md` (spec 010)
+- [x] `01-spark-performance.md` (spec 010)
 - [ ] `02-delta.md` (spec 008)
 - [ ] `03-streaming.md` (spec 011)
 - [ ] `04-incremental-architecture.md` (spec 008)

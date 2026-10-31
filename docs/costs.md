@@ -156,7 +156,7 @@ al menos un despertar.
   comparación de exports; el incremental necesita rendimiento (spec 010) antes
   de T-11.
 
-## Runs de la spec 010 (en curso)
+## Runs de la spec 010
 
 - **T-03 (2026-10-28), intento abortado antes de medir:** run `16957686724897`,
   **CANCELED** a los 108 s (el job desplegado aún no tenía el `spark_conf`; el
@@ -215,6 +215,18 @@ al menos un despertar.
   techo de dev). El fix del empate no añade runs; el run programado de esa
   semana se pausó (1 run menos). Dashboard con `workflow_dispatch` y warehouse
   `STOPPED` (0 sesiones SQL).
+
+## Cierre de la spec 010 (2026-11-01)
+
+- **5 runs de dev consumidos (5/5)** —T-03 A/B, T-03b, T-07 A y T-08 B, con
+  sus ids arriba— más **1 intento abortado**: **~1,05 €** frente al techo de
+  **1,8 €**; **0 sesiones SQL**. Presupuesto de dev agotado; el run de reserva
+  no se gastó.
+- **T-05** (clúster de lectura): **céntimos** (estimación; duración exacta no
+  registrada). **T-06**: **0 €**. **T-10**: **0 €** (solo documentación).
+- **Producción T-09**: **~0,44 €** (A ~0,24 € + B ~0,20 €), fuera del techo de
+  dev y dentro del presupuesto de producción de la 009; el run programado de
+  esa semana se pausó (1 run menos).
 
 ## Cierre de la spec 009 (2026-10-24)
 

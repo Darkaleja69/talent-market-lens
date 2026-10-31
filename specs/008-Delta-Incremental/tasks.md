@@ -314,7 +314,7 @@
     comprobados. `[NO VERIFICADO]`: efectos reales (MERGE, primera ejecución
     completa, equivalencia de `companies_*` y exports) en T-10/T-11.
 
-- [ ] **T-10 — Validación en dev (runs 1 y 2 de 2)** (~30 min)
+- [x] **T-10 — Validación en dev (runs 1 y 2 de 2)** (~30 min)
   - **Hecho cuando:** **run A** cierra 8/8 tareas y es la migración (tabla sin
     `_ingest_date` → reconstrucción completa con `overwrite`), con silver
     ≤ 2,8–3,6 min de T-05 y total ≤ 13 m 16 s, y exports con `meta.json`
@@ -379,8 +379,21 @@
     pasan como tareas heredadas a la 010 y la 008 cierra con el bloque A.
   - **Coste:** 5 runs (~1,20 €) de los 2 aprobados (~0,48 €); el exceso
     (~0,72 €) se descuenta del presupuesto de la 010. 0 sesiones SQL.
+  - **Estado (2026-10-31): CERRADA POR HERENCIA.** Validada en la spec 010:
+    runs dev A `221895134926434` y B `549237053478569` (T-07/T-08), producción
+    A `321262594455396` y B `317888374535056` (T-09); RF-4 queda
+    `[NO VERIFICADO]` con desviación aprobada por el empate de `_keep_best`;
+    dashboard publicado y warehouse `STOPPED`. El detalle vive en
+    `specs/010-*/tasks.md` y `evidence.md`. **Desviación registrada
+    (2026-11-01):** el gate original de T-10 (≤ 13 m 16 s) queda superado por
+    **20 s** en el run heredado A (`221895134926434`, **816 s**); el criterio
+    aplicable es RF-3 de la 010 (**≤ 1350 s**), que se cumple. El criterio de
+    «primer run programado + domingo siguiente» de T-11 se sustituye por el
+    **A/B manual de T-09** sobre el mismo bronce y el **run programado del
+    8-nov** como comprobación posterior; no se repite ningún run y **RF-4
+    sigue `[NO VERIFICADO]`**.
 
-- [ ] **T-11 — Producción (ventana previa a domingo)** (~30 min)
+- [x] **T-11 — Producción (ventana previa a domingo)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; el **primer run programado**
     reconstruye las silvers completas (migración, sin one-off) y cierra 8/8 con
@@ -395,6 +408,19 @@
     validación A/B. El procedimiento (`cutover.md`) sigue siendo el de la 007.
   - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
     `RESTORE`, estado del warehouse y fila en `evidence.md`.
+  - **Estado (2026-10-31): CERRADA POR HERENCIA.** Despliegue a producción y
+    A/B manual ejecutados en la spec 010: A `321262594455396` y B
+    `317888374535056` (T-09), con RF-3, `MERGE` e idempotencia en verde; RF-4
+    queda `[NO VERIFICADO]` con desviación aprobada por el empate de
+    `_keep_best`; dashboard publicado y warehouse `STOPPED`. El detalle vive
+    en `specs/010-*/tasks.md` y `evidence.md`. **Desviación registrada
+    (2026-11-01):** el gate original de T-10 (≤ 13 m 16 s) queda superado por
+    **20 s** en el run heredado A (`221895134926434`, **816 s**); el criterio
+    aplicable es RF-3 de la 010 (**≤ 1350 s**), que se cumple. El criterio de
+    «primer run programado + domingo siguiente» de T-11 se sustituye por el
+    **A/B manual de T-09** sobre el mismo bronce y el **run programado del
+    8-nov** como comprobación posterior; no se repite ningún run y **RF-4
+    sigue `[NO VERIFICADO]`**.
 
 - [ ] **T-12 — Cierre de la spec**
   - Notas `docs/databricks-de/notes/02-delta.md` y
