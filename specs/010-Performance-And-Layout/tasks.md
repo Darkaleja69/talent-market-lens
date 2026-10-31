@@ -278,14 +278,19 @@
     materializada: no arregla un problema que no existe, su techo es el paso
     `merge` completo y toca contrato/RESTORE; tabla de stage: añade una escritura
     por pase y su limpieza; partir la clave: cambia el modelo de dedup).
-    **`[NO VERIFICADO]` el plan físico**: el
+    **`[NO VERIFICADO]` el plan interno del `MERGE`**: el
     `explain` local arranca con Spark 4.2.0 y Delta desde JARs locales, pero
     este host Windows no tiene `winutils.exe`/`hadoop.dll` y falla en
     `listStatus` → `NativeIO$Windows.access0` (`UnsatisfiedLinkError`); **no se
-    instaló nada**. Quedan sin verificar el `Exchange` sobre la expresión del
-    `ON`, la poda por fichero y si el destino se escanea completo. **0 €** (sin
-    run ni sesión SQL; solo lectura gratuita de la API de runs). **T-08
-    confirmará** la decisión con el run B.
+    instaló nada**. El plan interno del `MERGE` **no** es accesible sin
+    ejecutarlo (`EXPLAIN MERGE` solo devuelve el comando); la celda
+    `PERF_MERGE_PLAN=` de `gold_build.ipynb` captura en el próximo run un
+    **proxy** del join del `ON` (`scope` y `note` en el payload) y las
+    `operationMetrics` del `DESCRIBE HISTORY` son la evidencia principal. El
+    proxy mide el `Exchange` sobre la expresión calculada; la poda por fichero y
+    si el destino se escanea completo siguen sin medirse. **0 €** (sin run ni
+    sesión SQL; solo lectura gratuita de la API de runs). **T-08 confirmará** la
+    decisión con el run B.
 
 - [x] **T-05 — Layout físico: medir y decidir** (~30 min)
   - **Objetivo:** medir `numFiles`, `sizeInBytes` y tamaño medio por tabla
@@ -331,7 +336,12 @@
     **1** y el segundo pase es **consistente con** reescribir el fichero del
     primero (T-04; la ruta no se mide), así que no se acumulan más allá de un
     pase; `DESCRIBE DETAIL` no informa del número vigente
-    (`[NO VERIFICADO]`) y no se justifica `OPTIMIZE` solo por purgarlos.
+    (`[NO VERIFICADO]`; **se captura en el próximo run** con la celda
+    `PERF_DIAGNOSTICS=` de `gold_build.ipynb`, que recorre el `_delta_log` de
+    cada `offers_*`; el recuento es una **aproximación**: con checkpoint o
+    compactación puede quedarse corta o contar de más, y `mismatch` (frente a
+    `numFiles`) señala las discrepancias) y no se justifica `OPTIMIZE` solo por
+    purgarlos.
     **Los `MERGE` dejan el recuento estacionario en el run de dos pases**
     (`filesAdded=1`, `filesRemoved=0/1`): los **2 ficheros** de cada `offers_*`
     son **consistentes con** base + el fichero del último pase (la ruta no se
@@ -342,7 +352,10 @@
     `offers_*`), si la media por fichero baja de **1 MB** en una tabla de más de
     **10 MB**, si aparece un **filtro selectivo dominante** (≥90 % de filas
     descartadas) en oro/exports, si el volumen crece **≥10×** o si se ven
-    **decenas de DVs** vigentes. **`[NO VERIFICADO]`**: número de DVs vigentes,
+    **decenas de DVs** vigentes. **`[NO VERIFICADO]`**: número de DVs vigentes
+    (**próximo run**: celda `PERF_DIAGNOSTICS=` de `gold_build.ipynb`;
+    **aproximación**: con checkpoint o compactación puede quedarse corta o contar
+    de más, y `mismatch` (frente a `numFiles`) señala las discrepancias),
     `minFileBytes`/`maxFileBytes` (`None` en la salida), tiempos por tabla de oro
     y exports (solo el de tarea: oro 56 s, exports 92 s), la causa de los 4
     ficheros de las dos dimensiones y el efecto real de un `OPTIMIZE` (no
@@ -449,7 +462,9 @@
     (gratis) y `databricks bundle run elt -t dev --profile vs_code`; los ejecuta
     la persona. Sin SQL.
   - **Evidencia:** id del run, tabla de tiempos por tarea y por paso, SHA-256,
-    coste en `docs/costs.md` y fila en `evidence.md`.
+    líneas `PERF_DIAGNOSTICS=` y `PERF_MERGE_PLAN=` (proxy del join del `ON`,
+    `scope` y `note` en el payload) de la tarea `Gold_Complete_Catalog` (logs
+    del run), coste en `docs/costs.md` y fila en `evidence.md`.
 
 - [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y
@@ -464,8 +479,11 @@
     comparación byte a byte se pierde (pasó el 2026-10-28 y otra vez el
     2026-10-30; **T-06b** elimina la captura manual metiendo los hashes en el
     `meta.json`). La ventana exacta se anota en el resumen.
-  - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics`, SHA-256
-    A/B, conteos, coste y fila en `evidence.md`.
+  - **Evidencia:** id del run, `timings_s` por paso, `merge_metrics` (evidencia
+    principal del `MERGE`), SHA-256 A/B, conteos, líneas `PERF_DIAGNOSTICS=` y
+    `PERF_MERGE_PLAN=` (proxy del join del `ON`, `scope` y `note` en el payload)
+    de la tarea `Gold_Complete_Catalog` (logs del run), coste y fila en
+    `evidence.md`.
 
 - [ ] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
