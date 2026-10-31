@@ -209,6 +209,12 @@ al menos un despertar.
   abortado). Runs de **0,17–0,23 €** según duración, más los **céntimos** del
   clúster de lectura de T-05 (estimación, sin cifra exacta); T-06 no añade
   gasto.
+- **T-09 (2026-10-31), A/B manual de producción:** A `321262594455396`,
+  915 s (15 m 15 s) → **~0,24 €**; B `317888374535056`, 747 s (12 m 27 s) →
+  **~0,20 €**; total **~0,44 €** (presupuesto de producción de la 009, no del
+  techo de dev). El fix del empate no añade runs; el run programado de esa
+  semana se pausó (1 run menos). Dashboard con `workflow_dispatch` y warehouse
+  `STOPPED` (0 sesiones SQL).
 
 ## Cierre de la spec 009 (2026-10-24)
 
