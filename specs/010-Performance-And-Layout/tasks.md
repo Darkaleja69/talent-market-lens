@@ -422,14 +422,16 @@
     `gold/web_export_dev`) y la equivalencia de RF-4 quedó sostenida solo por conteos,
     `meta.json` e idempotencia. Con el hash dentro del propio `meta.json`, cada run deja la huella
     del anterior sin intervención humana.
-  - **Por qué es barato y seguro:** el hash se calcula al publicar cada fichero (el módulo ya
-    recorre la carpeta temporal para moverla y borrar los `.crc`), así que no añade lecturas de
-    datos ni consultas al warehouse; el cambio es **aditivo** en el contrato (Power BI lee las
-    claves que ya existen) y el `meta.json` no se hashea a sí mismo (evita recursión).
+  - **Por qué es barato y seguro:** el hash se calcula sobre los ficheros ya publicados: añade una
+    lectura local por Parquet publicado para calcular el hash (34 MB en PBI, 4 MB en web), sin
+    tocar tablas ni el warehouse; el cambio es **aditivo** en el contrato (Power BI lee las claves
+    que ya existen) y el `meta.json` no se hashea a sí mismo (evita recursión).
   - **Hecho cuando:** los dos `meta.json` incluyen `files: [{name, bytes, sha256}]`; los tests de
-    contrato comprueban que el hash corresponde a los bytes escritos y que es estable entre dos
-    ejecuciones idénticas; no cambia ninguna clave existente; **aprobación previa** de los dos
-    módulos (diff y motivo), porque tocan el contrato de los exports.
+    `test_web_export.py` y `test_pbi_export.py` comprueban, contra los ficheros escritos en disco,
+    que hay una entrada por tabla (con `name` `<tabla>.parquet`, sin `meta.json`), que `bytes` y
+    `sha256` corresponden a los bytes reales del fichero y que dos ejecuciones consecutivas dejan
+    el mismo `files`; no cambia ninguna clave existente; **aprobación previa** de los dos módulos
+    (diff y motivo), porque tocan el contrato de los exports.
   - **Verificación real:** el primer run que publique exports lo deja escrito. Se usa el de
     **T-09** (producción programada, coste ya en la cadencia de la 009); un run de dev exigiría
     aprobación porque los 2 runs aprobados el 2026-10-31 están asignados a **T-07/T-08**.

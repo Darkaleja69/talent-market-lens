@@ -14,6 +14,11 @@ under ``docs/dashboard``:
   writes one Parquet file per table plus ``meta.json`` (idempotent). The file
   operations route through ``dbutils.fs`` on Databricks (Unity Catalog
   credentials, any access mode) and through the Hadoop FileSystem locally.
+- ``meta.json`` also carries ``files``: one ``{name, bytes, sha256}`` entry per
+  published Parquet, sorted by name, so the byte-level identity of an export
+  survives the next run without manual copies. The hashes come from reading the
+  already-published files (one driver-side read per Parquet, ~4 MB here), never
+  from a Gold table nor the SQL warehouse; ``meta.json`` never hashes itself.
 - ``geo_country`` ports the M partition of ``Fact_Offers`` (trim, US states
   used as country, language aliases, empty -> ``(Not specified)``).
 - ``REGION_MAP`` is the full ``Dim_RegionMap`` catalog; ``region_map_df`` turns
@@ -40,6 +45,7 @@ broader and would remove them, so they must not reach the export.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 
@@ -714,6 +720,38 @@ def _fs_size(spark, path) -> int:
     return int(fs.getFileStatus(jpath).getLen())
 
 
+def _fs_sha256(spark, path) -> str:
+    """Lowercase hex SHA-256 of the published file at ``path``.
+
+    The bytes are read on the driver through Spark's ``binaryFile`` datasource:
+    the same credential-aware route the writer already uses, so it works on
+    Databricks (``abfss://``, Unity Catalog, any access mode) and locally
+    (``file:///``). It is one read per published Parquet: no Gold table and no
+    SQL warehouse involved.
+    """
+    row = spark.read.format("binaryFile").load(path).select("content").head()
+    return hashlib.sha256(bytes(row[0])).hexdigest()
+
+
+def _published_files(spark, dest_uri, names) -> list:
+    """Fingerprint the already-published Parquets under ``dest_uri``.
+
+    Returns ``[{"name": "<name>.parquet", "bytes": <real size>,
+    "sha256": "<hex>"}]`` sorted by file name, read back from the files just
+    written (``meta.json`` is not included, so the payload cannot hash itself).
+    """
+    files = []
+    for name in names:
+        name_parquet = f"{name}.parquet"
+        uri = f"{dest_uri}/{name_parquet}"
+        files.append({
+            "name": name_parquet,
+            "bytes": _fs_size(spark, uri),
+            "sha256": _fs_sha256(spark, uri),
+        })
+    return sorted(files, key=lambda entry: entry["name"])
+
+
 def _fs_write_text(spark, path, text) -> None:
     """Write UTF-8 text as a single file (create/overwrite).
 
@@ -760,9 +798,12 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
 
     ``size_bytes`` sums the real sizes of the four final files; pass
     ``size_provider`` (called without arguments) to override it, e.g. a
-    wrapper around ``dbutils.fs.ls``. When ``meta`` is not ``None``, a copy is
-    updated with the real size and the derived ``mode``, written to
-    ``meta.json`` and returned; otherwise ``None`` is returned.
+    wrapper around ``dbutils.fs.ls``. ``files`` always lists the four published
+    Parquets with their real size and SHA-256 (read back from the files, sorted
+    by name), so ``meta.json`` never hashes itself. When ``meta`` is not
+    ``None``, a copy is updated with the real size, the derived ``mode`` and
+    ``files``, written to ``meta.json`` and returned; otherwise ``None`` is
+    returned.
     """
     dest_uri = _as_uri(dest)
 
@@ -792,5 +833,6 @@ def write_web_export(spark, tables, dest, meta=None, size_provider=None):
     updated["size_bytes"] = size_bytes
     updated["mode"] = ("aggregated" if export_exceeds_limit(size_bytes)
                        else "full")
+    updated["files"] = _published_files(spark, dest_uri, tables)
     _fs_write_text(spark, f"{dest_uri}/meta.json", meta_json(updated))
     return updated

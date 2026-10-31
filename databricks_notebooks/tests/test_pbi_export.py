@@ -10,8 +10,10 @@ and metadata stay under test locally. If pyspark is not installed, only the
 Spark tests skip.
 """
 import datetime as dt
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -645,6 +647,50 @@ def test_write_pbi_export_fixed_files_meta_and_idempotent(
         path = dest / f"{name}.parquet"
         assert spark.read.parquet(path.as_uri()).count() == \
             exported[name].count()
+
+
+@requires_spark
+def test_write_pbi_export_records_published_files_hashes(
+        spark, tmp_path, local_export_io):
+    exported = _build_export(spark, _gold_tables(spark))
+    counts, data_date = p.collect_export_stats(exported)
+    meta = p.build_meta(
+        counts, data_date,
+        generated_at=dt.datetime(2026, 10, 23, 12, 0, tzinfo=dt.timezone.utc))
+    dest = tmp_path / "pbi_export_files"
+
+    written = p.write_pbi_export(spark, exported, dest, meta=meta)
+    payload = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    # One entry per published table, sorted by name; meta.json never hashes
+    # itself.
+    files = payload["files"]
+    assert [entry["name"] for entry in files] == sorted(
+        f"{name}.parquet" for name in p.PBI_TABLES)
+    assert "meta.json" not in [entry["name"] for entry in files]
+
+    # bytes and sha256 describe the files actually on disk.
+    for entry in files:
+        assert set(entry) == {"name", "bytes", "sha256"}
+        raw = (dest / entry["name"]).read_bytes()
+        assert entry["bytes"] == len(raw) > 0
+        assert entry["sha256"] == hashlib.sha256(raw).hexdigest()
+        assert re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])
+
+    # Additive contract: size_bytes still sums the Parquet files and every
+    # pre-existing key keeps its value (files is the only new key).
+    assert payload["size_bytes"] == sum(entry["bytes"] for entry in files)
+    assert files == written["files"]
+    assert set(payload) == set(meta) | {"files"}
+    for key in ("export_version", "data_date", "generated_at", "audience",
+                "tables"):
+        assert payload[key] == meta[key]
+    assert payload["mode"] == "full"
+
+    # A second identical run leaves the same fingerprints (no manual capture).
+    p.write_pbi_export(spark, exported, dest, meta=meta)
+    second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+    assert second["files"] == files
 
 
 @requires_spark

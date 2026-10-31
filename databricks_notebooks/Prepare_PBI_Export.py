@@ -19,6 +19,12 @@ public web export in ``Prepare_Web_Export``:
 - ``build_pbi_export`` projects the six Gold tables and ``write_pbi_export``
   writes one fixed-name Parquet per table plus ``meta.json`` (idempotent,
   ``coalesce(1)``), reusing the file helpers of ``Prepare_Web_Export``.
+- ``meta.json`` also carries ``files``: one ``{name, bytes, sha256}`` entry per
+  published Parquet, sorted by name (shared with the public export), so the
+  byte-level identity of a run survives the next one. The hashes come from
+  reading the already-published files (one driver-side read per Parquet,
+  ~34 MB here), never from a Gold table nor the SQL warehouse; ``meta.json``
+  never hashes itself.
 
 The geography and the file helpers are shared with the public export on
 purpose: both exports must show the same countries/regions and keep the same
@@ -334,10 +340,12 @@ def write_pbi_export(spark, tables, dest, meta=None, size_provider=None):
     so re-running never duplicates rows nor leaves temporaries.
 
     ``size_bytes`` sums the real sizes of the six final files; pass
-    ``size_provider`` (called without arguments) to override it. When ``meta``
-    is not ``None``, a copy is updated with the real size, forced to
-    ``mode: full``/``audience: pbi``, written to ``meta.json`` and returned;
-    otherwise ``None`` is returned.
+    ``size_provider`` (called without arguments) to override it. ``files``
+    always lists the six published Parquets with their real size and SHA-256
+    (read back from the files, sorted by name), so ``meta.json`` never hashes
+    itself. When ``meta`` is not ``None``, a copy is updated with the real size,
+    forced to ``mode: full``/``audience: pbi``, written to ``meta.json`` and
+    returned; otherwise ``None`` is returned.
     """
     dest_uri = web_export._as_uri(dest)
 
@@ -368,6 +376,7 @@ def write_pbi_export(spark, tables, dest, meta=None, size_provider=None):
     updated["size_bytes"] = size_bytes
     updated["mode"] = PBI_MODE
     updated["audience"] = PBI_AUDIENCE
+    updated["files"] = web_export._published_files(spark, dest_uri, tables)
     web_export._fs_write_text(spark, f"{dest_uri}/meta.json",
                               meta_json(updated))
     return updated
