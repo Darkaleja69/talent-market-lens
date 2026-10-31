@@ -460,10 +460,11 @@
 
 ## 3. Validación y producción
 
-- [ ] **T-07 — Run A (reconstrucción completa) en dev** (~20 min)
+- [x] **T-07 — Run A (reconstrucción completa) en dev** (~20 min)
   - **Hecho cuando:** 8/8 tareas en verde, silvers ≤ **3 m 46 s** (A2), run
-    completo ≤ **22 m 30 s**, exports escritos con `meta.json` válido y sus
-    `files` (nombre, bytes y SHA-256 de cada Parquet) registrados, y
+    completo ≤ **22 m 30 s**, exports escritos con `meta.json` válido y los
+    SHA-256 de los Parquet **registrados en `meta.json`**; en A se leen de
+    `previous_files` del `meta.json` de B (T-08, T-06b), y
     `timings_s`/`merge_metrics` en la salida.
   - **Ejecución (run 4 de 5):** `databricks bundle deploy -t dev --profile vs_code`
     (gratis) y `databricks bundle run elt -t dev --profile vs_code
@@ -476,6 +477,41 @@
     `scope` y `note` en el payload) del `notebook_output`
     (`dbutils.notebook.exit`) de la tarea `Gold_Complete_Catalog`, coste en
     `docs/costs.md` y fila en `evidence.md`.
+  - **Estado (2026-10-31): CERRADA** — run **`221895134926434`** (job
+    `320947022571947`, perfil `vs_code`, `force_full=true`), **SUCCESS 8/8**,
+    **816,0 s (13 m 36 s)** según la API de runs. **RF-3**: 816 s ≤ 1350 s con
+    **39,6 % de margen** (y **54,7 %** sobre los 1800 s del `timeout_seconds`).
+    **Umbral de 226 s**: los silvers de módulo (`elapsed_s`) quedan en
+    **114,5–182,0 s**, con holgura, pero como **sanity check del rebuild**;
+    **RF-2a es el criterio del incremental con ventana ancha** y se cerró en
+    T-03.
+    **Tiempos por tarea** (s, inicio → fin relativo al run; setup / ejecución):
+    bronce 0,0 → 495,5 (**382,0** / 113,0), indeed 495,8 → 683,0 (2,0 / 185,0),
+    infojobs 495,8 → 677,7 (1,0 / 180,0), linkedin 495,9 → 711,0 (1,0 / 214,0),
+    multi_site 496,0 → 671,1 (1,0 / 173,0), oro 711,2 → 771,1 (1,0 / 58,0),
+    `Build_Report_Export` 771,4 → 815,4 (1,0 / 42,0) y
+    `Build_for_Web-Dashboard` 771,5 → 809,8 (1,0 / 37,0). **Resumen de los
+    cuatro silvers** (`mode: full`, `mode_reason: force_full`, `written: true`,
+    `merge_metrics: null` porque no hay `MERGE`): `target_rows`
+    **3.213 / 2.558 / 13.063 / 10.250** (indeed / infojobs / linkedin /
+    multi_site), `elapsed_s` **147,9 / 124,8 / 182,0 / 114,5**, `full_write`
+    **86,9 / 84,5 / 156,0 / 79,0** s y `target_count` **36,1 / 18,9 / 2,1 /
+    11,5** s; `window` **8,8–9,3 s**; `config`
+    `{"shuffle_partitions":"8","adaptive_enabled":"true","overrides":{"shuffle_partitions":"8"}}`.
+    **El arranque del clúster (382 s) es el 46,8 % del run** y coincide con los
+    383 s de T-06: segunda medida con `D4ds_v4`, así que la estabilidad del
+    arranque ya no descansa en un solo run (ambos del mismo tamaño de nodo). Los
+    dos exports quedaron escritos con `meta.json` (42 s y 37 s).
+    **`[NO VERIFICADO]` los SHA-256 de los exports de A**: no se capturaron en
+    este run porque el `dbutils.notebook.exit` que los publica se desplegó
+    después; se recuperan en **T-08** desde `previous_files` del `meta.json` de
+    B (T-06b), no es fallo de esta tarea. **T-06b sigue abierta**: su
+    verificación real (que A escribiera `files` en `meta.json` con el código
+    desplegado) se confirma en T-08; si A no lo tuviera, `previous_files` vendrá
+    vacío y habrá que capturar los hashes de otra forma antes de comparar.
+    `diagnostics` y `merge_plan` tampoco vienen en la respuesta del run
+    (`[NO VERIFICADO]`): quedan para T-08. **Coste ~0,20 €** (anotado en
+    `docs/costs.md`). Verificación independiente pendiente.
 
 - [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y

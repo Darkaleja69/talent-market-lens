@@ -190,12 +190,19 @@ al menos un despertar.
   `design-layout-compute.md` §9. Referencia de coste por run: **0,17–0,23 €**
   según duración (808–974 s); el **~0,24 €/run** de `plan.md` §7.2 corresponde a
   15–19 min y es solo orden de magnitud.
-- **Total de la 010:** **~0,62 € gastados**; **~1,08–1,10 € previstos** con los
-  **2 runs aprobados el 2026-10-31** para T-07/T-08 (**5 runs** de presupuesto:
-  los 3 ya gastados + 2 ampliados; hay además 1 intento abortado), **techo
-  1,8 €** y **0 sesiones SQL**. Runs de **0,17–0,23 €**, más los **céntimos**
-  del clúster de lectura de T-05 (estimación, sin cifra exacta). T-06 no añade
-  gasto.
+- **T-07 (2026-10-31), run A (reconstrucción completa con `force_full=true`):**
+  `221895134926434` (job `320947022571947`), **SUCCESS**, 8/8, **816 s**
+  (13 m 36 s); **arranque 382 s = 46,8 % del run** y el bronce completo
+  (495,5 s) es el **60,7 %**; silvers **114,5–182,0 s** de módulo (tareas
+  173–214 s), oro 58 s y exports 42/37 s → **~0,20 €** (método por duración de
+  este documento: 816 s ≈ 13,6 min, dentro de la banda medida de **0,17–0,23 €**
+  para runs de 808–974 s). Consume el **run 4 de 5** del presupuesto.
+- **Total de la 010:** **~0,82 € gastados** de los **1,8 €** de techo y
+  **~1,02–1,05 € previstos** al cerrar T-08 (**queda 1 run** de los 5
+  aprobados: los 3 de T-03/T-03b + T-07 ya gastado + el run B de T-08; hay
+  además 1 intento abortado), **0 sesiones SQL**. Runs de **0,17–0,23 €** según
+  duración, más los **céntimos** del clúster de lectura de T-05 (estimación, sin
+  cifra exacta); T-06 no añade gasto.
 
 ## Cierre de la spec 009 (2026-10-24)
 
