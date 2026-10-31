@@ -1,0 +1,36 @@
+# 2026-10-30 · catálogo `job_offers_dev` · celda de cuaderno en el clúster de lectura del job · salida literal
+# Bloque 1: `DESCRIBE DETAIL` por tabla (columnas separadas por tabuladores). Bloque 2: recuento de ficheros/bytes de los exports.
+schema	table	rows	numFiles	sizeInBytes	avgFileBytes	minFileBytes	maxFileBytes	partitionColumns	clusteringColumns	deletionVectors	lastModified
+bronze	indeed	3366	1	7201037	7201037	None	None	[]	[]	true	2026-10-30 07:06:35
+bronze	infojobs	2706	5	2143999	428800	None	None	[]	[]	true	2026-10-30 07:06:15
+bronze	linkedin	15220	6	33092854	5515476	None	None	[]	[]	true	2026-10-30 07:06:22
+bronze	multi_site	11222	6	13421544	2236924	None	None	[]	[]	true	2026-10-30 07:06:15
+silver	offers_indeed	3112	2	3017241	1508620	None	None	[]	[]	true	2026-10-30 07:11:00
+silver	offers_infojobs	2527	2	1989647	994824	None	None	[]	[]	true	2026-10-30 07:10:13
+silver	offers_linkedin	12543	2	15912334	7956167	None	None	[]	[]	true	2026-10-30 07:11:00
+silver	offers_multi_site	10072	2	1517405	758702	None	None	[]	[]	true	2026-10-30 07:11:00
+silver	companies_indeed	1497	1	17827	17827	None	None	[]	[]	true	2026-10-30 07:11:20
+silver	companies_infojobs	1019	1	12337	12337	None	None	[]	[]	true	2026-10-30 07:10:43
+silver	companies_linkedin	4131	1	236739	236739	None	None	[]	[]	true	2026-10-30 07:11:29
+silver	companies_multi_site	4498	1	43537	43537	None	None	[]	[]	true	2026-10-30 07:11:14
+gold	fact_offers	26302	1	19150630	19150630	None	None	[]	[]	true	2026-10-30 07:12:08
+gold	fact_offer_skills	44928	1	275982	275982	None	None	[]	[]	true	2026-10-30 07:12:16
+gold	dim_skill_list	95	4	6200	1550	None	None	[]	[]	true	2026-10-30 07:12:21
+gold	dim_calendar	2919	1	21110	21110	None	None	[]	[]	true	2026-10-30 07:12:24
+gold	companies_complete_catalog	10027	1	299770	299770	None	None	[]	[]	true	2026-10-30 07:12:30
+gold	dim_currency	19	4	9326	2332	None	None	[]	[]	true	2026-10-30 07:12:19
+
+gold/pbi_export_dev files=7 bytes=34241722 avg=4891675
+    dim_calendar.parquet 30909
+    dim_companies.parquet 480022
+    dim_currency.parquet 2744
+    dim_skill_list.parquet 2411
+    fact_offer_skills.parquet 382712
+    fact_offers.parquet 33342583
+    meta.json 341
+gold/web_export_dev files=5 bytes=3689553 avg=737911
+    dim_calendar.parquet 30910
+    dim_skill_list.parquet 2412
+    fact_offer_skills.parquet 382713
+    fact_offers.parquet 3273038
+    meta.json 480

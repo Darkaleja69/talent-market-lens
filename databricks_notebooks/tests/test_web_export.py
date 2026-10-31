@@ -10,6 +10,7 @@ exported table and the geographic parity between ``project_fact_offers`` and
 the pure functions. If pyspark is not installed, only the Spark tests skip.
 """
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -480,6 +481,49 @@ def test_file_operations_use_hadoop_when_dbutils_is_none(monkeypatch):
     assert hadoop_fs.calls[-1] == ("delete", "/tmp/.meta.json.crc", False)
 
 
+class _WriterSpy:
+    """``DataFrameWriter`` stand-in: records ``mode``/``parquet``."""
+
+    def __init__(self, calls):
+        self._calls = calls
+
+    def mode(self, mode):
+        self._calls.append(("mode", mode))
+        return self
+
+    def parquet(self, uri):
+        self._calls.append(("parquet", uri))
+
+
+class _WriteSpy:
+    """``DataFrame`` stand-in for ``_write_parquet`` (records the chain)."""
+
+    def __init__(self, columns):
+        self.columns = columns
+        self.calls = []
+        self.write = _WriterSpy(self.calls)
+
+    def orderBy(self, *columns):
+        self.calls.append(("orderBy", tuple(columns)))
+        return self
+
+    def coalesce(self, partitions):
+        self.calls.append(("coalesce", partitions))
+        return self
+
+
+def test_write_parquet_orders_by_every_column_before_coalesce():
+    # The total order is what makes sha256 stable across runs (RF-4).
+    spy = _WriteSpy(["b", "a"])
+    w._write_parquet(spy, "file:///tmp/export")
+    assert spy.calls == [
+        ("orderBy", ("b", "a")),
+        ("coalesce", 1),
+        ("mode", "overwrite"),
+        ("parquet", "file:///tmp/export"),
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Spark integration: column contract and geographic parity
 # ---------------------------------------------------------------------------
@@ -590,6 +634,15 @@ def _gold_tables(spark):
             "dim_skill_list": skill_list, "dim_calendar": calendar}
 
 
+def _reverse_input_order(spark, df):
+    """Same rows, different input order: two halves unioned in reverse."""
+    rows = df.collect()
+    half = len(rows) // 2
+    first = spark.createDataFrame(rows[:half], schema=df.schema)
+    second = spark.createDataFrame(rows[half:], schema=df.schema)
+    return second.unionByName(first)
+
+
 @pytest.fixture(scope="session")
 def spark():
     """Session reused from other test modules when already active."""
@@ -637,9 +690,10 @@ def local_export_io(monkeypatch):
     Spark's writer needs ``winutils.exe`` (HADOOP_HOME) to chmod output
     directories, and Hadoop's local FileSystem metadata raises
     ``UnsatisfiedLinkError`` without the native library. On such hosts the
-    low-level writer and the file-operation helpers are replaced with
-    os/pyarrow equivalents, so the export layout (one file per table), rename,
-    idempotency, size and meta.json logic stay under test. Linux, Databricks
+    low-level writer, the text reader and the file-operation helpers are
+    replaced with os/pyarrow equivalents, so the export layout (one file per
+    table), rename, idempotency, size and meta.json logic (including the
+    previous-run fingerprints) stay under test. Linux, Databricks
     and Windows with HADOOP_HOME run the real Spark + Hadoop path (T-06 runs
     it for real on a cluster).
     """
@@ -658,7 +712,9 @@ def local_export_io(monkeypatch):
     def _write_parquet(df, uri):
         base = _local(uri)
         os.makedirs(base, exist_ok=True)
-        pdf = df.toPandas()
+        # Mirror the production writer's total order so the byte-stability
+        # test keeps its meaning on hosts without winutils.
+        pdf = df.orderBy(*df.columns).toPandas()
         for column in pdf.columns:
             if pdf[column].isna().all():
                 pdf[column] = pdf[column].astype("string")
@@ -698,12 +754,17 @@ def local_export_io(monkeypatch):
         with open(_local(path), "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
 
+    def _read_text(spark, path):
+        with open(_local(path), "r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+
     monkeypatch.setattr(w, "_write_parquet", _write_parquet)
     monkeypatch.setattr(w, "_fs_delete", _delete)
     monkeypatch.setattr(w, "_single_part_file", _single_part)
     monkeypatch.setattr(w, "_fs_rename", _rename)
     monkeypatch.setattr(w, "_fs_size", _size)
     monkeypatch.setattr(w, "_fs_write_text", _write_text)
+    monkeypatch.setattr(w, "_fs_read_text", _read_text)
 
 
 GEO_SAMPLES = [
@@ -961,6 +1022,217 @@ def test_write_web_export_single_files_meta_and_idempotent(
         path = dest / f"{name}.parquet"
         assert spark.read.parquet(path.as_uri()).count() == \
             tables[name].count()
+
+
+@requires_spark
+def test_write_web_export_records_published_files_hashes(
+        spark, tmp_path, local_export_io):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    table_counts, source_counts, data_date = w.collect_export_stats(tables)
+    meta = w.build_meta(table_counts, source_counts, data_date,
+                        generated_at=dt.datetime(2026, 10, 6, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    dest = tmp_path / "web_export_files"
+
+    written = w.write_web_export(spark, tables, dest, meta=meta)
+    payload = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    # One entry per published table, sorted by name; meta.json never hashes
+    # itself.
+    files = payload["files"]
+    assert [entry["name"] for entry in files] == sorted(
+        f"{name}.parquet" for name in tables)
+    assert "meta.json" not in [entry["name"] for entry in files]
+
+    # bytes and sha256 describe the files actually on disk.
+    for entry in files:
+        assert set(entry) == {"name", "bytes", "sha256"}
+        raw = (dest / entry["name"]).read_bytes()
+        assert entry["bytes"] == len(raw) > 0
+        assert entry["sha256"] == hashlib.sha256(raw).hexdigest()
+        assert re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])
+
+    # Additive contract: size_bytes still sums the Parquet files and every
+    # pre-existing key keeps its value (files is the only new key).
+    assert payload["size_bytes"] == sum(entry["bytes"] for entry in files)
+    assert files == written["files"]
+    assert set(payload) == set(meta) | {"files"}
+    for key in ("export_version", "data_date", "generated_at", "tables",
+                "sources"):
+        assert payload[key] == meta[key]
+    assert payload["mode"] == "full"
+
+    # A second identical run leaves the same fingerprints (no manual capture).
+    w.write_web_export(spark, tables, dest, meta=meta)
+    second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+    assert second["files"] == files
+
+
+@requires_spark
+def test_write_web_export_is_byte_stable_across_input_orders(
+        spark, tmp_path, local_export_io):
+    """Equivalent exports must publish identical bytes, not just equal rows.
+
+    The A/B of 2026-10-31 showed same-size dimensions with different hashes:
+    the row order of ``coalesce(1)`` is not deterministic. The writer sorts by
+    every column before coalescing, so the same rows delivered in another order
+    produce the same Parquet bytes and the same ``files`` fingerprints.
+    """
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    reversed_tables = {name: _reverse_input_order(spark, df)
+                       for name, df in tables.items()}
+    counts, sources, data_date = w.collect_export_stats(tables)
+    meta = w.build_meta(counts, sources, data_date,
+                        generated_at=dt.datetime(2026, 10, 6, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    forward_dir = tmp_path / "ordered_forward"
+    reverse_dir = tmp_path / "ordered_reverse"
+
+    forward = w.write_web_export(spark, tables, forward_dir, meta=meta)
+    reverse = w.write_web_export(spark, reversed_tables, reverse_dir, meta=meta)
+
+    assert forward["tables"] == reverse["tables"]
+    assert forward["files"] == reverse["files"]
+    for entry in forward["files"]:
+        assert (forward_dir / entry["name"]).read_bytes() == \
+            (reverse_dir / entry["name"]).read_bytes()
+
+
+@requires_spark
+def test_write_web_export_carries_previous_run_fingerprints(
+        spark, tmp_path, local_export_io):
+    gold = _gold_tables(spark)
+    tables_first = w.build_web_export(spark, gold["fact_offers"],
+                                      gold["fact_offer_skills"],
+                                      gold["dim_skill_list"],
+                                      gold["dim_calendar"])
+    # A different content on the second run makes the two ``files`` lists
+    # distinguishable, so "carried from the immediately previous run" can be
+    # told apart from "accumulated" or "stale".
+    tables_second = dict(tables_first)
+    tables_second["dim_skill_list"] = tables_first["dim_skill_list"].unionByName(
+        spark.createDataFrame([("Java", "Programming Languages")],
+                              ["SkillName", "SkillCategory"]))
+    dest = tmp_path / "web_export_previous"
+
+    def _run(tables, generated_at):
+        counts, sources, data_date = w.collect_export_stats(tables)
+        meta = w.build_meta(counts, sources, data_date,
+                            generated_at=generated_at)
+        w.write_web_export(spark, tables, dest, meta=meta)
+        return json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    first = _run(tables_first, dt.datetime(2026, 10, 6, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (a) First run: there is no previous export to carry.
+    assert "previous_files" not in first
+    assert "previous_generated_at" not in first
+
+    second = _run(tables_second, dt.datetime(2026, 10, 7, 12, 0,
+                                             tzinfo=dt.timezone.utc))
+    # (b) The second run keeps exactly the first run's fingerprints.
+    assert second["previous_files"] == first["files"]
+    assert second["previous_generated_at"] == first["generated_at"]
+    assert second["files"] != first["files"]
+
+    third = _run(tables_first, dt.datetime(2026, 10, 8, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (c) One level only: the third run carries the second run's ``files``
+    # (four entries), never the previous ``previous_files`` (no nesting and no
+    # accumulation).
+    assert third["previous_files"] == second["files"]
+    assert third["previous_generated_at"] == second["generated_at"]
+    assert third["previous_files"] != first["files"]
+    assert len(third["previous_files"]) == len(tables_first)
+    assert all("previous_files" not in entry
+               for entry in third["previous_files"])
+
+    # (d) meta.json is in neither list and never hashes itself.
+    for payload in (first, second, third):
+        assert "meta.json" not in [e["name"] for e in payload["files"]]
+        assert "meta.json" not in [
+            e["name"] for e in payload.get("previous_files", [])]
+
+    # (e) The additive keys do not change any pre-existing value.
+    counts, sources, data_date = w.collect_export_stats(tables_second)
+    expected = w.build_meta(counts, sources, data_date,
+                            generated_at=second["generated_at"])
+    assert set(second) == set(expected) | {"files", "previous_files",
+                                           "previous_generated_at"}
+    for key in ("export_version", "data_date", "generated_at", "mode",
+                "tables", "sources"):
+        assert second[key] == expected[key]
+    assert second["size_bytes"] == sum(e["bytes"] for e in second["files"])
+
+
+@requires_spark
+def test_fs_read_text_reads_multiline_json_from_file_uri(spark, tmp_path):
+    # Deliberately without ``local_export_io``: this locks the real reader
+    # seam (``spark.read.text`` over ``file:///``), which the write tests
+    # replace on Windows hosts.
+    path = tmp_path / "meta.json"
+    payload = {
+        "files": [{"name": "fact_offers.parquet", "bytes": 10,
+                   "sha256": "a" * 64}],
+        "generated_at": "2026-10-06T12:00:00Z",
+        "tables": {"fact_offers": 1},
+    }
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(w.meta_json(payload))
+    text = w._fs_read_text(spark, path.as_uri())
+    assert text.count("\n") >= 3
+    assert json.loads(text) == payload
+
+
+@requires_spark
+def test_write_web_export_ignores_unusable_previous_meta(
+        spark, tmp_path, local_export_io, capsys):
+    gold = _gold_tables(spark)
+    tables = w.build_web_export(spark, gold["fact_offers"],
+                                gold["fact_offer_skills"],
+                                gold["dim_skill_list"], gold["dim_calendar"])
+    counts, sources, data_date = w.collect_export_stats(tables)
+    meta = w.build_meta(counts, sources, data_date,
+                        generated_at=dt.datetime(2026, 10, 6, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    dest = tmp_path / "web_export_unusable_previous"
+    dest.mkdir()
+    meta_path = dest / "meta.json"
+
+    def _write_and_load():
+        w.write_web_export(spark, tables, dest, meta=meta)
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+
+    # Corrupt JSON: the export completes, no previous keys and the failure is
+    # visible in the notebook log (never silent).
+    meta_path.write_text("{not json", encoding="utf-8")
+    corrupt = _write_and_load()
+    assert "previous_files" not in corrupt
+    assert "previous_generated_at" not in corrupt
+    assert ("[web_export] no se pudo leer el meta.json anterior: "
+            "JSONDecodeError:") in capsys.readouterr().out
+
+    # Valid JSON without ``files``: ignored silently, no previous keys.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-01T00:00:00Z",
+                                     "mode": "full"}), encoding="utf-8")
+    no_files = _write_and_load()
+    assert "previous_files" not in no_files
+    assert "previous_generated_at" not in no_files
+    assert "no se pudo leer" not in capsys.readouterr().out
+
+    # Empty ``files`` list: same contract, nothing to carry.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-01T00:00:00Z",
+                                     "files": []}), encoding="utf-8")
+    empty_files = _write_and_load()
+    assert "previous_files" not in empty_files
+    assert "previous_generated_at" not in empty_files
+    assert "no se pudo leer" not in capsys.readouterr().out
 
 
 @requires_spark

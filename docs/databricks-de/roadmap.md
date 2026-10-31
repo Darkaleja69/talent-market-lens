@@ -49,13 +49,21 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
   (el filtro de «último mes» es de negocio, en gold/BI). Claves: `job_id` y
   `site + job_id` (multi_site). Incluye migración/compactación de lo ya
   acumulado y validación en dev antes de prod.
+- **Dedup de negocio en oro sin localización (hallazgo 2026-10-21, spec 008).**
+  `gold_build.ipynb` deduplica ofertas por `title_norm + company_norm +
+  salary_filled` y **no** incluye localización ni fecha de publicación: dos
+  anuncios legítimos de la misma empresa con el mismo título y salario en
+  ciudades distintas se colapsan en uno, y una republicación con salario
+  distinto no se colapsa. Candidata a spec nueva (un único resultado: dedup de
+  negocio por oferta con localización y ventana temporal), no se corrige en la
+  008.
 
 ## Calendario
 
 | Semana | Fechas | Foco | Estado |
 |---|---|---|---|
 | 1 | 12–18 oct | **Spec 007 (preparación):** recon del workspace, roadmap y documentos | hecha |
-| 2–3 | 19 oct – 1 nov | **Spec 007 (código)** y **Spec 009 (coste y cadencia)** | 007 hecha; 009 en curso |
+| 2-3 | 19 oct - 1 nov | **Spec 007 (código)** y **Spec 009 (coste y cadencia)** | 007 y 009 hechas (009 cerrada el 24-oct) |
 | 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (arranca con el bronce upsert, paso B) | pendiente |
 | 7 | 23-29 nov | **Spec 010:** rendimiento, layout físico y compute | pendiente |
 | 8 | 30 nov – 6 dic | **Spec 011:** streaming y observabilidad | pendiente |

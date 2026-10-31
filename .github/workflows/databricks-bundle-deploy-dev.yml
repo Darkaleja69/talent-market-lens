@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   deploy-dev:
-    # Only allow dispatching from the spec branch or main.
-    if: github.ref_name == 'spec/007-elt-as-code' || github.ref_name == 'main'
+    # Only allow dispatching from the spec branches or main.
+    if: github.ref_name == 'spec/007-elt-as-code' || github.ref_name == 'spec/008-delta-incremental' || github.ref_name == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: dev

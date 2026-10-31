@@ -2,6 +2,15 @@ resources:
   jobs:
     elt:
       name: ${var.job_name}
+      parameters:
+        - name: backfill_from
+          default: ""
+        - name: backfill_to
+          default: ""
+        - name: repeat_window
+          default: ""
+        - name: force_full
+          default: ""
       job_clusters:
         - job_cluster_key: tm-lens-job
           new_cluster:
@@ -13,6 +22,8 @@ resources:
             kind: CLASSIC_PREVIEW
             node_type_id: Standard_D4ds_v4
             runtime_engine: STANDARD
+            spark_conf:
+              spark.sql.shuffle.partitions: "8"
             spark_version: 17.3.x-scala2.13
       tasks:
         - task_key: Bronze_Ingestion
@@ -39,6 +50,10 @@ resources:
           notebook_task:
             base_parameters:
               catalog: ${var.catalog}
+              from_date: "{{job.parameters.backfill_from}}"
+              to_date: "{{job.parameters.backfill_to}}"
+              repeat_window: "{{job.parameters.repeat_window}}"
+              force_full: "{{job.parameters.force_full}}"
             notebook_path: ${workspace.file_path}/databricks_notebooks/silver_indeed.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
@@ -53,6 +68,10 @@ resources:
           notebook_task:
             base_parameters:
               catalog: ${var.catalog}
+              from_date: "{{job.parameters.backfill_from}}"
+              to_date: "{{job.parameters.backfill_to}}"
+              repeat_window: "{{job.parameters.repeat_window}}"
+              force_full: "{{job.parameters.force_full}}"
             notebook_path: ${workspace.file_path}/databricks_notebooks/silver_infojobs.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
@@ -67,6 +86,10 @@ resources:
           notebook_task:
             base_parameters:
               catalog: ${var.catalog}
+              from_date: "{{job.parameters.backfill_from}}"
+              to_date: "{{job.parameters.backfill_to}}"
+              repeat_window: "{{job.parameters.repeat_window}}"
+              force_full: "{{job.parameters.force_full}}"
             notebook_path: ${workspace.file_path}/databricks_notebooks/silver_linkedin.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS
@@ -81,6 +104,10 @@ resources:
           notebook_task:
             base_parameters:
               catalog: ${var.catalog}
+              from_date: "{{job.parameters.backfill_from}}"
+              to_date: "{{job.parameters.backfill_to}}"
+              repeat_window: "{{job.parameters.repeat_window}}"
+              force_full: "{{job.parameters.force_full}}"
             notebook_path: ${workspace.file_path}/databricks_notebooks/silver_multisite.ipynb
             source: WORKSPACE
           run_if: ALL_SUCCESS

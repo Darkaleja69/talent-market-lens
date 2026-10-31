@@ -10,8 +10,10 @@ and metadata stay under test locally. If pyspark is not installed, only the
 Spark tests skip.
 """
 import datetime as dt
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -316,6 +318,15 @@ def _build_export(spark, tables):
         tables["dim_companies"], tables["dim_currency"])
 
 
+def _reverse_input_order(spark, df):
+    """Same rows, different input order: two halves unioned in reverse."""
+    rows = df.collect()
+    half = len(rows) // 2
+    first = spark.createDataFrame(rows[:half], schema=df.schema)
+    second = spark.createDataFrame(rows[half:], schema=df.schema)
+    return second.unionByName(first)
+
+
 @pytest.fixture(scope="session")
 def spark():
     """Session reused from other test modules when already active."""
@@ -379,7 +390,9 @@ def local_export_io(monkeypatch):
     def _write_parquet(df, uri):
         base = _local(uri)
         os.makedirs(base, exist_ok=True)
-        pdf = df.toPandas()
+        # Mirror the production writer's total order so the byte-stability
+        # test keeps its meaning on hosts without winutils.
+        pdf = df.orderBy(*df.columns).toPandas()
         for column in pdf.columns:
             if pdf[column].isna().all():
                 pdf[column] = pdf[column].astype("string")
@@ -419,6 +432,10 @@ def local_export_io(monkeypatch):
         with open(_local(path), "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
 
+    def _read_text(spark, path):
+        with open(_local(path), "r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+
     # The writer calls these helpers through the shared module object.
     monkeypatch.setattr(w, "_write_parquet", _write_parquet)
     monkeypatch.setattr(w, "_fs_delete", _delete)
@@ -426,6 +443,7 @@ def local_export_io(monkeypatch):
     monkeypatch.setattr(w, "_fs_rename", _rename)
     monkeypatch.setattr(w, "_fs_size", _size)
     monkeypatch.setattr(w, "_fs_write_text", _write_text)
+    monkeypatch.setattr(w, "_fs_read_text", _read_text)
 
 
 GEO_SAMPLES = [
@@ -645,6 +663,180 @@ def test_write_pbi_export_fixed_files_meta_and_idempotent(
         path = dest / f"{name}.parquet"
         assert spark.read.parquet(path.as_uri()).count() == \
             exported[name].count()
+
+
+@requires_spark
+def test_write_pbi_export_records_published_files_hashes(
+        spark, tmp_path, local_export_io):
+    exported = _build_export(spark, _gold_tables(spark))
+    counts, data_date = p.collect_export_stats(exported)
+    meta = p.build_meta(
+        counts, data_date,
+        generated_at=dt.datetime(2026, 10, 23, 12, 0, tzinfo=dt.timezone.utc))
+    dest = tmp_path / "pbi_export_files"
+
+    written = p.write_pbi_export(spark, exported, dest, meta=meta)
+    payload = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    # One entry per published table, sorted by name; meta.json never hashes
+    # itself.
+    files = payload["files"]
+    assert [entry["name"] for entry in files] == sorted(
+        f"{name}.parquet" for name in p.PBI_TABLES)
+    assert "meta.json" not in [entry["name"] for entry in files]
+
+    # bytes and sha256 describe the files actually on disk.
+    for entry in files:
+        assert set(entry) == {"name", "bytes", "sha256"}
+        raw = (dest / entry["name"]).read_bytes()
+        assert entry["bytes"] == len(raw) > 0
+        assert entry["sha256"] == hashlib.sha256(raw).hexdigest()
+        assert re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])
+
+    # Additive contract: size_bytes still sums the Parquet files and every
+    # pre-existing key keeps its value (files is the only new key).
+    assert payload["size_bytes"] == sum(entry["bytes"] for entry in files)
+    assert files == written["files"]
+    assert set(payload) == set(meta) | {"files"}
+    for key in ("export_version", "data_date", "generated_at", "audience",
+                "tables"):
+        assert payload[key] == meta[key]
+    assert payload["mode"] == "full"
+
+    # A second identical run leaves the same fingerprints (no manual capture).
+    p.write_pbi_export(spark, exported, dest, meta=meta)
+    second = json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+    assert second["files"] == files
+
+
+@requires_spark
+def test_write_pbi_export_is_byte_stable_across_input_orders(
+        spark, tmp_path, local_export_io):
+    """Equivalent exports must publish identical bytes, not just equal rows.
+
+    The A/B of 2026-10-31 showed same-size dimensions with different hashes:
+    the row order of ``coalesce(1)`` is not deterministic. The writer sorts by
+    every column before coalescing, so the same rows delivered in another order
+    produce the same Parquet bytes and the same ``files`` fingerprints.
+    """
+    exported = _build_export(spark, _gold_tables(spark))
+    reversed_exported = {name: _reverse_input_order(spark, df)
+                         for name, df in exported.items()}
+    counts, data_date = p.collect_export_stats(exported)
+    meta = p.build_meta(counts, data_date,
+                        generated_at=dt.datetime(2026, 10, 23, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    forward_dir = tmp_path / "ordered_forward"
+    reverse_dir = tmp_path / "ordered_reverse"
+
+    forward = p.write_pbi_export(spark, exported, forward_dir, meta=meta)
+    reverse = p.write_pbi_export(spark, reversed_exported, reverse_dir,
+                                 meta=meta)
+
+    assert forward["tables"] == reverse["tables"]
+    assert forward["files"] == reverse["files"]
+    for entry in forward["files"]:
+        assert (forward_dir / entry["name"]).read_bytes() == \
+            (reverse_dir / entry["name"]).read_bytes()
+
+
+@requires_spark
+def test_write_pbi_export_carries_previous_run_fingerprints(
+        spark, tmp_path, local_export_io):
+    tables_first = _build_export(spark, _gold_tables(spark))
+    # A different content on the second run makes the two ``files`` lists
+    # distinguishable, so "carried from the immediately previous run" can be
+    # told apart from "accumulated" or "stale".
+    tables_second = dict(tables_first)
+    tables_second["dim_skill_list"] = tables_first["dim_skill_list"].unionByName(
+        spark.createDataFrame([("Java", "Programming Languages")],
+                              ["SkillName", "SkillCategory"]))
+    dest = tmp_path / "pbi_export_previous"
+
+    def _run(exported, generated_at):
+        counts, data_date = p.collect_export_stats(exported)
+        meta = p.build_meta(counts, data_date, generated_at=generated_at)
+        p.write_pbi_export(spark, exported, dest, meta=meta)
+        return json.loads((dest / "meta.json").read_text(encoding="utf-8"))
+
+    first = _run(tables_first, dt.datetime(2026, 10, 23, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (a) First run: there is no previous export to carry.
+    assert "previous_files" not in first
+    assert "previous_generated_at" not in first
+
+    second = _run(tables_second, dt.datetime(2026, 10, 24, 12, 0,
+                                             tzinfo=dt.timezone.utc))
+    # (b) The second run keeps exactly the first run's fingerprints.
+    assert second["previous_files"] == first["files"]
+    assert second["previous_generated_at"] == first["generated_at"]
+    assert second["files"] != first["files"]
+
+    third = _run(tables_first, dt.datetime(2026, 10, 25, 12, 0,
+                                           tzinfo=dt.timezone.utc))
+    # (c) One level only: the third run carries the second run's ``files``
+    # (six entries), never the previous ``previous_files`` (no nesting and no
+    # accumulation).
+    assert third["previous_files"] == second["files"]
+    assert third["previous_generated_at"] == second["generated_at"]
+    assert third["previous_files"] != first["files"]
+    assert len(third["previous_files"]) == len(p.PBI_TABLES)
+    assert all("previous_files" not in entry
+               for entry in third["previous_files"])
+
+    # (d) meta.json is in neither list and never hashes itself.
+    for payload in (first, second, third):
+        assert "meta.json" not in [e["name"] for e in payload["files"]]
+        assert "meta.json" not in [
+            e["name"] for e in payload.get("previous_files", [])]
+
+    # (e) The additive keys do not change any pre-existing value.
+    counts, data_date = p.collect_export_stats(tables_second)
+    expected = p.build_meta(counts, data_date,
+                            generated_at=second["generated_at"])
+    assert set(second) == set(expected) | {"files", "previous_files",
+                                           "previous_generated_at"}
+    for key in ("export_version", "data_date", "generated_at", "mode",
+                "audience", "tables"):
+        assert second[key] == expected[key]
+    assert second["size_bytes"] == sum(e["bytes"] for e in second["files"])
+
+
+@requires_spark
+def test_write_pbi_export_ignores_unusable_previous_meta(
+        spark, tmp_path, local_export_io):
+    exported = _build_export(spark, _gold_tables(spark))
+    counts, data_date = p.collect_export_stats(exported)
+    meta = p.build_meta(counts, data_date,
+                        generated_at=dt.datetime(2026, 10, 23, 12, 0,
+                                                 tzinfo=dt.timezone.utc))
+    dest = tmp_path / "pbi_export_unusable_previous"
+    dest.mkdir()
+    meta_path = dest / "meta.json"
+
+    def _write_and_load():
+        p.write_pbi_export(spark, exported, dest, meta=meta)
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+
+    # Corrupt JSON: the export completes and no previous keys are carried.
+    meta_path.write_text("{not json", encoding="utf-8")
+    corrupt = _write_and_load()
+    assert "previous_files" not in corrupt
+    assert "previous_generated_at" not in corrupt
+
+    # Valid JSON without ``files``: nothing to carry.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-20T00:00:00Z"}),
+                         encoding="utf-8")
+    no_files = _write_and_load()
+    assert "previous_files" not in no_files
+    assert "previous_generated_at" not in no_files
+
+    # Empty ``files`` list: same contract, nothing to carry.
+    meta_path.write_text(json.dumps({"generated_at": "2026-10-20T00:00:00Z",
+                                     "files": []}), encoding="utf-8")
+    empty_files = _write_and_load()
+    assert "previous_files" not in empty_files
+    assert "previous_generated_at" not in empty_files
 
 
 @requires_spark

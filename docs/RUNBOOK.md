@@ -111,11 +111,14 @@ Details: `schemaLocation` and `checkpointLocation` under
 `silver_indeed.ipynb`, `silver_infojobs.ipynb`,
 `silver_linkedin.ipynb`, `silver_multisite.ipynb`.
 
-Each one: reads `bronze.<source>`, renames columns, applies
-`Enrich_Job_Offers_Dataframes.enrich()`, normalizes company/location, de-duplicates
-and writes `silver.offers_<source>` and `silver.companies_<source>`.
+Each one: reads `bronze.<source>`, applies the source chain (rename, `enrich`,
+company/location normalization, de-dup) and writes `silver.offers_<source>` by
+`MERGE` on the semantic key (`Silver_Incremental.run`); `companies_<source>` is
+still rebuilt. The first run with this code rebuilds silver completely (the
+table has no `_ingest_date`); later runs recompute only the affected groups.
 
-**Parameters:** `catalog`, `bronze_schema`, `silver_schema`.
+**Parameters:** `catalog`, `bronze_schema`, `silver_schema`, `lookback_days`,
+`from_date`, `to_date`, `force_full`, `repeat_window` (see §9.7).
 
 ### 5.3 Gold — `gold_build.ipynb`
 
@@ -272,6 +275,58 @@ Verify the report does not use the SQL warehouse: keep the warehouse `STOPPED`,
 run a full refresh and check that it is still `STOPPED` and that
 `/api/2.0/sql/history/queries?filter_by.warehouse_id=<id>` shows no query in the
 refresh window.
+
+### 9.6 Bronze dedupe one-off (spec 008)
+
+`resources/oneoff.job.yml` defines a manual, unscheduled job (`dedupe_oneoff`)
+with four chained tasks —one per source— over
+`databricks_notebooks/oneoff_dedupe_bronze.ipynb`. It collapses bronze to one row
+per key (`INSERT OVERWRITE`; the latest capture wins, `_ingest_date` breaks
+ties) and keeps rows without a usable key. No schedule: it costs nothing unless
+it is run.
+
+- Dev: `databricks bundle run dedupe_oneoff -t dev --profile <profile>`
+  (~9 min, ~0.11 €; it counts against the three dev runs budgeted for spec 008).
+- Each task prints the before/after counts and the `RESTORE` line, and returns a
+  JSON summary that can be read with
+  `databricks jobs get-run-output <task_run_id>`.
+- `dry_run=true` (widget) prints the counts without writing.
+- Rollback: `RESTORE TABLE <table> TO VERSION AS OF <n>` with the version the
+  one-off printed for that table. It is SQL: ~0.43 € per warehouse wake-up, so
+  request it first and group it in a single 10-minute window.
+- Prod: follow `specs/008-Delta-Incremental/cutover.md` (pause, deploy, one-off,
+  unpause, verify the scheduled Sunday run).
+
+### 9.7 Silver incremental and backfill (spec 008)
+
+The four silver offer notebooks write by `MERGE` on the semantic key
+(`Silver_Incremental.py`). The first run after deploying this code finds the
+table without `_ingest_date` and rebuilds it completely; later runs recompute
+only the affected groups from `max(_ingest_date) - lookback_days` (7 days).
+
+Parameters (widgets and the job parameters `backfill_from`, `backfill_to`,
+`repeat_window` and `force_full`, empty by default):
+
+- `from_date` / `to_date` (`YYYY-MM-DD`): force a window (backfill).
+- `force_full=true`: full rebuild. Required after a bronze `RESTORE`, rewrite or
+  deletion (including a `job_id`/`site` change) and after changing the company
+  alias patterns. It can be set as a widget or as the job parameter `force_full`.
+- `repeat_window=true`: runs the same window twice and returns
+  `{"repeat_window": true, "runs": [...]}`; used to prove idempotency.
+- `lookback_days`: window size, default 7.
+
+Dev backfill: `databricks bundle run elt -t dev --profile <profile> --params
+backfill_from=2026-10-01,backfill_to=2026-10-25,repeat_window=true`. Cost: reads
+the whole bronze (~31k rows) to select candidate groups but only enriches the
+affected ones; no SQL warehouse.
+
+Evidence: each notebook returns a JSON summary (mode, window, counts, elapsed)
+readable with `databricks jobs get-run-output <task_run_id>`.
+
+Rollback: redeploy the previous bundle commit; if a silver table is left
+inconsistent, `RESTORE TABLE silver.offers_<source> TO VERSION AS OF <n>` (SQL:
+group it in a single 10-minute window and request it first). Prod only in a
+window before a Sunday, never a manual full run outside the schedule.
 
 > **Known debt:** `resources/elt.job.yml` versions the failure-notification
 > email. It predates the bundle and the repository is public; it is an accepted
