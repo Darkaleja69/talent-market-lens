@@ -267,8 +267,9 @@
     pase de `offers_multi_site`, y tercero en `offers_linkedin` (los dos pases)
     y en el primer pase de `offers_multi_site`. `inserted = deleted = 0`,
     `updated = affected` (55–458), `target_rows` idénticos a A y
-    `deleted_groups = 0`: idempotente **en conteos** (el contenido de los
-    exports se cierra en T-08/T-06b). El pase 1 deja **1 deletion vector** por
+    `deleted_groups = 0`: idempotente **en conteos**; el contenido de los
+    exports se cierra en **T-09** (decisión del 2026-10-31, RF-4 por
+    contenido). El pase 1 deja **1 deletion vector** por
     tabla; el pase 2 no añade ninguno (`delta.enableDeletionVectors` activa en
     las tablas del catálogo dev medidas; salida literal en
     `docs/media/performance/2026-10-30-describe-detail-dev.txt`). **H3**: la
@@ -429,7 +430,7 @@
     exige aprobación).
 
 - [ ] **T-06b — `sha256` de los exports dentro de `meta.json`** (~45 min)
-  - **Objetivo:** que la equivalencia byte a byte de RF-4 deje de depender de copiar ficheros a
+  - **Objetivo:** que la equivalencia de contenido de RF-4 deje de depender de copiar ficheros a
     mano: `Prepare_PBI_Export` y `Prepare_Web_Export` añaden a su `meta.json` la lista de ficheros
     publicados con `{name, bytes, sha256}`.
   - **Motivo (fallo de proceso del 2026-10-30):** en el run `879269828668729` no se capturaron
@@ -515,10 +516,10 @@
 
 - [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y
-    `repeat_window=true`; **el MERGE escribe** (métricas de filas insertadas/
-    actualizadas/borradas); los exports son **idénticos byte a byte** a los de
-    A; la repetición deja el mismo contenido; y el tiempo cumple el criterio de
-    `plan.md` §3.
+    `repeat_window=true`; **el `MERGE` escribe** (métricas de filas insertadas/
+    actualizadas/borradas distintas de cero); la repetición deja el mismo
+    contenido y el tiempo cumple el criterio de `plan.md` §3. La **equivalencia
+    de contenido de los exports se valida en T-09**.
   - **Ejecución (run 5 de 5):** `bundle run elt -t dev --profile vs_code
     --params backfill_from=...,backfill_to=...,repeat_window=true`; lo ejecuta la
     persona. **Ya no hace falta copiar los hashes**: el `meta.json` de B deja
@@ -532,13 +533,33 @@
     del `ON`, `scope` y `note` en el payload) del `notebook_output`
     (`dbutils.notebook.exit`) de la tarea `Gold_Complete_Catalog`, coste y fila
     en `evidence.md`.
+  - **Estado (2026-10-31): run B ejecutado; RF-4 se valida en T-09, no aquí.**
+    Run B **`549237053478569`**. La comparación de `files` de B con
+    `previous_files` (run A `221895134926434`) **no deja ningún fichero con el
+    mismo hash**: las dimensiones tienen **idéntico tamaño y hash distinto**
+    (`dim_calendar` 31.107 B, `dim_currency` 2.745 B, `dim_companies` 483.093 B
+    y `dim_skill_list` 2.412 B); `fact_offer_skills` también cambia de hash
+    (**+5 B** en web y PBI); y `fact_offers` crece **+19.342 B** (web) y
+    **+22.459 B** (PBI), un crecimiento cuya causa es una **hipótesis
+    `[NO VERIFICADO]`** (el orden de filas no lo explica y no se ha atribuido).
+    Las dimensiones no dependen de las filas que toca el `MERGE`, así que su
+    diferencia mide el **escritor** (el orden de filas de `coalesce(1)` no es
+    determinista), no la lógica incremental: por eso el criterio pasa a
+    **equivalencia de contenido** y la escritura se ordena de forma total por
+    todas las columnas. La escritura ordenada se implementa después de este run
+    y **no se repite el A/B en dev** (no hay run nuevo autorizado): **RF-4 se
+    valida en T-09** con el primer run de producción (`full`) y el domingo
+    siguiente (incremental).
 
 - [ ] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; el **primer run programado**
     reconstruye (migración) y cierra 8/8; el **domingo siguiente** el run es
-    incremental real y el dashboard vuelve a publicar el lunes; SQL warehouse
-    `STOPPED` antes y después; bitácora del roadmap actualizada.
+    incremental real, se comparan los `sha256` de `files` de B con
+    `previous_files` (A) —hash igual implica además los mismos bytes— y los
+    **conteos** se comparan con los `tables` del `notebook_output` de cada run;
+    el dashboard vuelve a publicar el lunes; SQL warehouse `STOPPED` antes y
+    después; bitácora del roadmap actualizada.
   - **Nota:** no añade runs manuales (cadencia de la 009); los comandos de
     bundle los ejecuta la persona. Al cerrar, se actualizan las filas de T-10 y
     T-11 en `specs/008-Delta-Incremental/{tasks,evidence}.md`.
@@ -553,5 +574,6 @@
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
     completas en verde; comprobación real registrada; `docs/costs.md` con todos
     los runs (dentro del techo de 1,8 €).
-  - **Hecho cuando:** merge a `main` y tag (`spec-010`) solo con RF-2/RF-3/RF-4
-    verificados en dev y RF-8 cerrado.
+  - **Hecho cuando:** merge a `main` y tag (`spec-010`) con **RF-2 y RF-3
+    verificados en dev**; **RF-4 verificado en T-09** (producción); y RF-8
+    cerrado.

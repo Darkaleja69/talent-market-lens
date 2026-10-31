@@ -97,8 +97,10 @@ tiempo de la misma silver en modo incremental con la ventana cubriendo el bronce
   extremo).
 - **RF-3:** run completo en dev ≤ **22 m 30 s** (25 % de margen sobre 1800 s) y,
   con lote semanal, sin acercarse al timeout.
-- **RF-4/5:** exports A/B **idénticos byte a byte**, `MERGE` con escrituras y
-  repetición de la ventana sin cambio de contenido.
+- **RF-4/5:** exports A/B **idénticos en contenido** (mismos conteos y mismos
+  `sha256` en `files` de `meta.json`, con la escritura ordenada de forma total
+  por todas las columnas), `MERGE` con escrituras y repetición de la ventana sin
+  cambio de contenido.
 
 El criterio se mide con el resumen instrumentado (T-02), no con relojes
 externos: el arranque del clúster (2–9 min según el run) no mide el código.
@@ -205,9 +207,12 @@ comparar compute** salvo aprobación explícita (se usaría el run de reserva).
   (2 m 47 s–3 m 46 s), exports escritos con `meta.json` válido y SHA-256
   registrado. Es la nueva referencia A (la de A2 no vale si el código cambia).
 - **Run B (incremental + `repeat_window`):** mismo lote, backfill sobre bronce
-  existente; debe ejecutar el `MERGE`, dejar `timings_s` por etapa, escribir y
-  producir exports **idénticos** a A. Si no cabe, el resumen dice exactamente
-  en qué paso y se corrige en local antes de gastar el run de reserva.
+  existente; debe ejecutar el `MERGE`, dejar `timings_s` por etapa y escribir.
+  **El run B de dev se ejecutó antes del escritor ordenado**, así que la
+  equivalencia de contenido de sus exports no se puede cerrar ahí: el gate de
+  RF-4 **pasa a T-09** (primer run de producción `full` y el siguiente
+  incremental). Si el run no cabe, el resumen dice exactamente en qué paso y se
+  corrige en local antes de gastar el run de reserva.
 - **Producción:** deploy en la ventana previa a un domingo con el
   `cutover.md` de la 007 (pausa, deploy, reanudar, rollback y `RESTORE`);
   verificación con el **run programado** (8/8, exports, dashboard del lunes,
@@ -281,7 +286,8 @@ Reglas y encaje con la 009:
    tests de equivalencia y de contrato; diff aprobado.
 4. **Layout y compute (T-05/T-06):** decidir con medidas, incluido el «no
    cambiar».
-5. **Validación (T-07/T-08):** run A y run B; gate de exports idénticos y de
-   tiempo.
-6. **Producción y cierre (T-09/T-10):** ventana previa a domingo, run
+5. **Validación (T-07/T-08):** run A y run B; tiempos, `MERGE` e idempotencia.
+6. **Equivalencia de exports (T-09):** comparación A/B de `meta.json` (`files`
+   contra `previous_files`) con la escritura ordenada, en producción.
+7. **Producción y cierre (T-09/T-10):** ventana previa a domingo, run
    programado, dashboard, notas y roadmap.

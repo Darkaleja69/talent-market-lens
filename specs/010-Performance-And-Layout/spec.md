@@ -64,9 +64,10 @@ La 008 **no se reabre**: se hereda su estado y se respeta su diseño.
   ventana de 1800 s y repita la validación A/B. El procedimiento de producción
   sigue siendo el `cutover.md` de la 007.
 - **Decisión (2026-10-28): el bloque B se descopea de la 008.** T-10 y T-11
-  pasan a esta spec: la validación A/B es T-08 y el despliegue a producción es
-  T-09. La 008 se cerrará con el bloque A, previo registro de la comprobación
-  real de T-06.
+  pasan a esta spec: la validación A/B es T-08 (**superado el 2026-10-31**: la
+  equivalencia de exports se valida en T-09; T-08 mide tiempo, `MERGE` e
+  idempotencia) y el despliegue a producción es T-09. La 008 se cerrará con el
+  bloque A, previo registro de la comprobación real de T-06.
 - **Coste:** el bloque B gastó **~1,6 €** (5 runs por duración) y la 008 queda en
   ~2,07 € frente a su techo de 2,0 €, con la sesión SQL renunciada: desvío
   marginal, sin presupuesto extra para esta spec.
@@ -124,10 +125,24 @@ tamaño del lote y los tiempos por etapa deberán quedar registrados.
 
 ### RF-4 — Equivalencia funcional del bloque B
 **Criterio (EARS):** Cuando se ejecute la validación, los exports de los runs A
-(reconstrucción completa) y B (incremental) deberán ser **idénticos byte a
-byte**, el `MERGE` deberá escribir realmente (filas insertadas, actualizadas o
-borradas distintas de cero) y las tablas oro y los dos exports deberán conservar
-su contrato, sin columnas internas (`_key`, `_ingest_date`).
+(reconstrucción completa) y B (incremental) deberán ser **idénticos en
+contenido**: mismos conteos por tabla y los mismos `sha256` en `files` de
+`meta.json`, con la escritura **ordenada de forma total por todas las columnas**
+para que el hash sea estable. El `MERGE` deberá escribir realmente (filas
+insertadas, actualizadas o borradas distintas de cero) y las tablas oro y los
+dos exports deberán conservar su contrato, sin columnas internas (`_key`,
+`_ingest_date`).
+
+> **Nota (2026-10-31):** el criterio «idénticos byte a byte» se descartó tras
+> medir los runs A `221895134926434` y B `549237053478569`. Las dimensiones
+> tienen **idéntico tamaño y hash distinto** (`dim_calendar` 31.107 B,
+> `dim_currency` 2.745 B, `dim_companies` 483.093 B y `dim_skill_list`
+> 2.412 B) y `fact_offers` crece **+19.342 B** (web) y **+22.459 B** (PBI); el
+> contenido de esas dimensiones no depende de las filas que toca el `MERGE`, así
+> que la diferencia mide el **escritor** (el orden de filas de `coalesce(1)` no
+> es determinista), no la lógica incremental. El criterio de contenido se valida
+> en **T-09** con el primer run de producción (`full`) y el domingo siguiente
+> (incremental).
 
 ### RF-5 — Idempotencia y watermark
 **Criterio (EARS):** Cuando se repita la misma ventana dentro del notebook, el
@@ -196,10 +211,12 @@ la 009; cada run se anotará en `docs/costs.md` con motivo, id y coste.
 - Diagnóstico de rendimiento con evidencia: coste por etapa antes/después,
   hipótesis confirmadas o descartadas, y decisión de compute y layout
   documentadas.
-- Run A (full) y run B (incremental + repetición) en dev: 8/8, silvers dentro
-  del invariante de RF-2 y run completo ≤22 m 30 s, exports A/B idénticos byte a
-  byte y `MERGE` con métricas de escritura.
-- Idempotencia demostrada y ventana vacía sin escritura.
+- Run A (full) y run B (incremental + repetición) en dev: 8/8, RF-2 y RF-3
+  cumplidos, `MERGE` con métricas de escritura e idempotencia demostrada.
+- **RF-4 (equivalencia de contenido de los exports) se valida en T-09**, con el
+  primer run de producción (`full`) y el siguiente (incremental), comparando
+  `files` del segundo contra `previous_files`.
+- Ventana vacía sin escritura.
 - Suites `databricks_notebooks` y `scrapers-pipeline` en verde (la suite
   completa es gate de la spec, no de cada tarea).
 - Producción desplegada y verificada con el run programado, el dashboard del

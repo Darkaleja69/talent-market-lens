@@ -460,11 +460,12 @@ Referencia: `plan.md` §3 y RF-2/RF-3 de la spec.
 | **RF-2b** (ventana ≤1 % del bronce) | `T_inc ≤ 75 s` por silver | Ídem, escenario pequeño del banco |
 | **RF-3** (run completo en dev) | ≤ **22 m 30 s**, 8/8 en verde | Duración del run por la API, con el lote anotado |
 | **Invariante de diseño** | `T_inc` con ventana ancha **< `T_full`** (2 m 47 s–3 m 46 s) | Mismo banco, mismo lote; **misma simetría** (duración de tarea con `companies_*` o `timings_s` sin él, en los dos lados) |
-| **RF-4/RF-5** | Exports A/B idénticos byte a byte, `MERGE` con escrituras, repetición sin cambio | SHA-256 de los 12 Parquet + `operationMetrics` |
+| **RF-4/RF-5** | Exports A/B **idénticos en contenido** (`sha256` de `files`, escritura ordenada; **T-09**, producción), `MERGE` con escrituras y repetición sin cambio (**T-08**) | Comparación de `files` contra `previous_files` en `meta.json` (10 Parquet: 6 PBI + 4 web) + `operationMetrics` |
 | **Gate intermedio de P1** | ≤ **16–32 tareas** por stage y ≤ **~300 tareas** por silver; `spark.sql.shuffle.partitions` efectivo documentado | Spark UI (stages) + resumen del run |
 
-El criterio no se cumple «en local» ni «por cálculo»: se cumple cuando el run A y
-el run B de T-07/T-08 lo miden con el resumen instrumentado. Este documento fija
+El criterio no se cumple «en local» ni «por cálculo»: se cumple con los runs de
+T-07/T-08 (tiempo, `MERGE` e idempotencia) y, para RF-4, con la comparación A/B
+de `meta.json` en **T-09** (producción, escritura ordenada). Este documento fija
 **qué** hay que mover y **cómo** se sabrá si se movió.
 
 ## 8. Resultado del primer cambio (medido el 2026-10-28)
@@ -492,8 +493,8 @@ lanzaron los dos runs, ya con el cambio desplegado:
   (P2). Para decidir cuánto se gana con cada una, el resumen necesita los
   tiempos por acción: **T-02 vuelve a la mesa**.
 - `[NO VERIFICADO]`: las tareas por stage del run B (no se capturó su Spark
-  UI); los exports A/B byte a byte (B sobrescribió los de A y no se guardó su
-  SHA-256; la equivalencia está por conteos e idempotencia).
+  UI); los exports A/B no se capturaron (B sobrescribió los de A y no se guardó
+  su SHA-256; la equivalencia está por conteos e idempotencia).
 
 ## 9. Decisión del MERGE (T-04)
 
@@ -545,7 +546,7 @@ En las **ocho** pasadas:
   (`bytesRemoved=0` en el primer pase y un único fichero retirado en el
   segundo).
 - **`numTargetBytesRemoved` del pase 2 = `numTargetBytesAdded` del pase 1**
-  (las cuatro tablas, byte a byte: 453.383 / 66.087 / 656.076 / 41.133). Es
+  (las cuatro tablas, con bytes idénticos: 453.383 / 66.087 / 656.076 / 41.133). Es
   **consistente con** retirar el fichero añadido en el pase 1 (la ruta del
   fichero no se mide): reescribe el fichero de las filas cambiadas, no la
   tabla.
@@ -556,7 +557,7 @@ En las **ocho** pasadas:
   existentes: `updated` = `affected` (55–458) y `target_rows` no cambia.
 - **`target_rows` idénticos a los del run A** (3.112 / 2.527 / 12.543 / 10.072)
   y `deleted_groups = 0`: idempotente **en conteos**; el contenido de los
-  exports se cierra en T-08/T-06b.
+  exports se cierra en **T-09** (decisión del 2026-10-31, RF-4 por contenido).
 - **`scanTimeMs` 2,1–6,8 s** y **`materializeSourceTimeMs` 0,7–3,4 s**: las dos
   partes del `MERGE` que tocan la expresión de la clave cuestan, juntas,
   **≤ 10,3 s por pase** (máximo real: infojobs pase 1, 6.814 + 3.443 =

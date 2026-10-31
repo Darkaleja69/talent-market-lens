@@ -197,12 +197,18 @@ al menos un despertar.
   173–214 s), oro 58 s y exports 42/37 s → **~0,20 €** (método por duración de
   este documento: 816 s ≈ 13,6 min, dentro de la banda medida de **0,17–0,23 €**
   para runs de 808–974 s). Consume el **run 4 de 5** del presupuesto.
-- **Total de la 010:** **~0,82 € gastados** de los **1,8 €** de techo y
-  **~1,02–1,05 € previstos** al cerrar T-08 (**queda 1 run** de los 5
-  aprobados: los 3 de T-03/T-03b + T-07 ya gastado + el run B de T-08; hay
-  además 1 intento abortado), **0 sesiones SQL**. Runs de **0,17–0,23 €** según
-  duración, más los **céntimos** del clúster de lectura de T-05 (estimación, sin
-  cifra exacta); T-06 no añade gasto.
+- **T-08 (2026-10-31), run B (incremental + repetición), run 5 de 5:**
+  `549237053478569` (job `320947022571947`, perfil `vs_code`,
+  `backfill_from=2026-10-24`, `backfill_to=2026-10-28`, `repeat_window=true`),
+  **SUCCESS**, 8/8, **985 s** (16 m 25 s) → **~0,23 €** (método por duración:
+  985 s ≈ 16,4 min, dentro de la banda de **0,17–0,23 €**). Consume el **run 5
+  de 5** del presupuesto.
+- **Total de la 010:** **~1,05 € gastados** de los **1,8 €** de techo;
+  **presupuesto de dev agotado (5/5)** y **0 sesiones SQL** (los 3 runs de
+  T-03/T-03b + el run A de T-07 + el run B de T-08; hay además 1 intento
+  abortado). Runs de **0,17–0,23 €** según duración, más los **céntimos** del
+  clúster de lectura de T-05 (estimación, sin cifra exacta); T-06 no añade
+  gasto.
 
 ## Cierre de la spec 009 (2026-10-24)
 
