@@ -312,7 +312,8 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     ES/EN, tooltip con la fecha completa y título/caption actualizados, sin
     regresiones de encaje a 1440×900 (T-28) ni de temas (T-27).
 
-- [ ] **T-33 — Scroll de las páginas del dashboard** (~20 min)
+- [x] **T-33 — Scroll de las páginas del dashboard** (~20 min) — **DESCARTADA
+  (2026-11-01)**
   - **RF:** RF-7, RF-16.
   - **Hecho cuando:** se reproduce el caso reportado por la persona (página,
     ventana y gesto) y el scroll funciona en todas las páginas, con la
@@ -320,6 +321,13 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     mediciones locales dan scroll correcto con rueda (sobre y fuera de
     gráficos) y contenido que cabe entero en ventanas altas (Market Pulse,
     Roles & Skills y Salary Insights a 2160×1350).
+  - **Estado (2026-11-01): DESCARTADA por decisión de la persona.** No se
+    reprodujo en local: el scroll con rueda funciona dentro y fuera de los
+    gráficos y el contenido cabe entero en ventanas altas (Market Pulse,
+    Roles & Skills y Salary Insights a 2160×1350). No se aportó un caso
+    concreto (página, ventana y gesto) que permitiese reproducirlo en la web
+    pública. **No hay código cambiado por esta tarea**; no se finge un
+    arreglo. Evidencia: `evidence-2026-11-01.md` (§T-33).
 
 ## 5. Publicación y documentación
 
@@ -328,9 +336,9 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
   - **Depende de:** T-10–T-14.
   - **Hecho cuando:** `docs/index.html` presenta el proyecto y enlaza al
     dashboard y a la evidencia de Power BI; `README.md` y `docs/es/README.md`
-    documentan la URL pública, la actualización diaria, el export y que Power BI
-    queda como evidencia; `docs/dashboard/README.md` fija las versiones del CDN
-    y el contrato de datos.
+    documentan la URL pública, la actualización semanal (spec 009), el export y
+    que Power BI queda como evidencia; `docs/dashboard/README.md` fija las
+    versiones del CDN y el contrato de datos.
 
 - [x] **T-16 — Instantánea local reproducible** (~25 min)
   - **RF:** RF-11.
@@ -340,7 +348,7 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     `-DryRun` y permite servir `docs/` en local con los mismos nombres y rutas
     que Pages; no sube nada ni publica; la web funciona con la instantánea.
 
-- [ ] **T-17 — Workflow, secreto y Pages** (~25 min)
+- [x] **T-17 — Workflow, secreto y Pages** (~25 min)
   - **RF:** RF-5.
   - **Depende de:** T-15.
   - **Hecho cuando:** `.github/workflows/dashboard.yml` descarga los cinco
@@ -351,8 +359,20 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     configurados; un `workflow_dispatch` real publica el sitio y la URL sirve
     las vistas sin login. Si la descarga falla, el job falla y no hay deploy
     parcial.
+  - **Resultado (2026-11-01):** workflow revisado y runs reales verificados;
+    `workflow_dispatch` y `schedule` (`0 1 * * MON`), descarga de los cinco
+    ficheros con `curl` y `WEB_EXPORT_SAS` (sin `-v`, sin `set -x` y con
+    errores enmascarados), ensamblado de `_site/`, validación de ficheros y
+    frescura, permisos (`contents: read`, `pages: write`, `id-token: write`) y
+    concurrencia `pages` serializada; el deploy (`deploy-pages`) solo corre si
+    el build pasa. Run que publicó el sitio: #15 `41227952110`
+    (`workflow_dispatch`, `main`, 2026-10-31T18:08:51Z, 34 s, artefacto
+    `github-pages` de 6,39 MB); run manual previo #13 `40074522809`
+    (2026-10-24, 26 s) y run programado #14 `40276725938` (2026-10-26, 32 s),
+    ambos en verde. Evidencia: `evidence-2026-11-01.md` (§T-17).
 
-- [ ] **T-18 — Ciclo diario y frescura** (~20 min)
+- [x] **T-18 — Ciclo diario y frescura** (~20 min) — **hecha con desviación
+  aprobada (cadencia semanal, spec 009)**
   - **RF:** RF-3, RF-5.
   - **Depende de:** T-17.
   - **Hecho cuando:** tras un export nuevo, un `dispatch` publica datos
@@ -360,6 +380,21 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     (01:00 UTC, posterior al job de Databricks de las 23:30) queda configurado
     (empieza a correr al fusionar a `main`) y el flujo no versiona datos ni
     credenciales.
+  - **Resultado (2026-11-01):** **hecha con desviación aprobada**. La cadencia
+    diaria de este `hecho cuando` queda sustituida por la **semanal** de la
+    spec 009 (RF-1): job de Databricks los domingos a las 23:00
+    `Europe/Madrid` y workflow los lunes a las 01:00 UTC (`0 1 * * MON`). El
+    `dispatch` #15 `41227952110` publicó el export `data_date` 2026-10-31 el
+    2026-10-31T18:08:51Z y el header muestra «Datos: 31 de octubre de 2026»;
+    el run programado #14 `40276725938` (2026-10-26) confirma el `schedule`.
+    El guard de frescura se probó con el código exacto del workflow: con el
+    `meta.json` local de 2026-10-10 sale `ERROR: los datos tienen 22 dias ...`
+    y no despliega; con el `meta.json` vivo (1 día) valida. Los datos no se
+    versionan (`docs/data/` está en `.gitignore`) y la SAS solo vive en el
+    secreto. Evidencia: `evidence-2026-11-01.md` (§T-18).
+  - **Hallazgo de T-20 (2026-11-01):** la metodología y la portada declaraban
+    publicación diaria; corregidas en `docs/dashboard/i18n.js` (ES/EN, commit
+    `a320dde`) y `docs/index.html` (ES/EN, commit `98b2615`).
 
 ## 6. Verificación y cierre
 
@@ -371,7 +406,7 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     del último dato y el workflow falla sin publicar a medias; el modo
     `aggregated` (si aplica) se comporta igual.
 
-- [ ] **T-20 — Comprobación real y cierre de la spec** (~25 min)
+- [x] **T-20 — Comprobación real y cierre de la spec** (~25 min)
   - **RF:** RF-5–RF-16.
   - **Depende de:** T-18, T-19.
   - **Hecho cuando:** la URL pública se abre en incógnito (escritorio y
@@ -382,3 +417,17 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     y `scrapers-pipeline/tests`) están en verde; el resultado se registra en
     `specs/006-Public-Web-Dashboard/evidence-<fecha>.md`; la persona valida el
     push/merge antes de cerrar.
+  - **Resultado (2026-11-01):** URL pública comprobada en escritorio
+    (1440×900) y móvil (390×844); 5 rutas en es/en (Market Pulse, Roles &
+    Skills, Salary Insights, Opportunity Explorer y Metodología) y portada;
+    filtros globales (país y modalidad), búsqueda y enlaces reales; consola y
+    red sin errores (0 mensajes y 0 respuestas 4xx/5xx); 8 KPIs cotejados
+    contra el export publicado de la misma fecha (`data_date` 2026-10-31);
+    suites en verde (`databricks_notebooks/tests`: 187 passed + 1 skipped;
+    `scrapers-pipeline/tests`: 1133 passed). Evidencia:
+    `evidence-2026-11-01.md` (§T-20). Cotejo con Power BI del refresh del
+    31-oct: 5/5 KPIs exactos; `Companies Hiring` alineado en 10.111 con la
+    medida del commit `757afad` (la diferencia histórica 10.112 → 10.111 por
+    el nombre `42` queda documentada). Limitaciones `[NO VERIFICADO]`:
+    mecanismo histórico del catálogo, logs de GitHub Actions y `build_type` de
+    Pages.

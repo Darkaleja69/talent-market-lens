@@ -30,7 +30,8 @@ repositorio no crece y el sitio se actualiza solo.
 
 - Privacidad: el explorador muestra título, empresa y URL reales (ofertas
   públicas); sin descripciones ni columnas internas de calidad.
-- Actualización: diaria vía GitHub Actions (`schedule` + `workflow_dispatch`).
+- Actualización: semanal vía GitHub Actions (`schedule` + `workflow_dispatch`;
+  spec 009).
 - App sin build (CDN), coherente con "stack simple" de la constitución;
   Vite/TS como mejora futura solo si crece.
 - UI bilingüe español/inglés con selector; los datos se muestran tal cual
@@ -43,7 +44,7 @@ repositorio no crece y el sitio se actualiza solo.
 ```
 Databricks Gold (Delta)                                  [ya existe]
   └─ task final: Prepare_Web_Export → Parquet + meta.json → ADLS <container>/gold/web_export/
-       └─ GitHub Actions (cron diario + workflow_dispatch)
+       └─ GitHub Actions (cron semanal + workflow_dispatch; spec 009)
             ├─ descarga con curl usando SAS solo-lectura (secret WEB_EXPORT_SAS)
             ├─ ensambla _site/ = docs/ + data/
             └─ deploy GitHub Pages (gratis, repo público)
@@ -72,7 +73,7 @@ La app no conoce nada del pipeline: solo el contrato de ficheros de §6.
 | Descarga CI | `curl` con SAS solo-lectura | Evita AzCopy en el runner; archivos y nombres fijos |
 | Cliente | DuckDB-WASM + ECharts por CDN | SQL completo en el navegador; mapas ECharts |
 | App | HTML + ES modules (sin build) | Sin npm; código legible para revisores |
-| Hosting/CI | GitHub Pages + GitHub Actions | Gratis en repo público; deploy diario |
+| Hosting/CI | GitHub Pages + GitHub Actions | Gratis en repo público; deploy semanal (spec 009) |
 | Tests | pytest (patrón existente) | Funciones puras + integración Spark del export |
 
 Las versiones del CDN (DuckDB-WASM y ECharts) y del GeoJSON se fijan en el
@@ -462,7 +463,7 @@ se cotejan con el informe o sus capturas en la comprobación real.
 | *Range requests* en Pages | Cargar el Parquet completo y `registerFileBuffer`, sin depender de 206 |
 | SAS en GitHub | Solo lectura, ámbito mínimo, rotación; nunca la SAS de la landing; no se imprime en logs |
 | Fallo del workflow | El deploy no ocurre; el sitio anterior queda intacto y la web muestra la última fecha |
-| Job diario | Tarea nueva al final, idempotente; no se tocan las existentes |
+| Job semanal (spec 009) | Tarea nueva al final, idempotente; no se tocan las existentes |
 | Deriva del mapeo geográfico | `REGION_MAP` versionada y con tests; si el modelo cambia, se actualiza la constante |
 | Caché de Pages | Frescura visible vía `meta.json`; sin datos viejos silenciosos |
 | CDN caído o versión cambiada | Versiones fijadas y documentadas; aviso visible si no carga |
