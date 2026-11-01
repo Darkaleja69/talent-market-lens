@@ -166,7 +166,7 @@ export const MESSAGES = {
     'view.methodology.pipeline.step4':
       'Una tarea final del job genera el export Parquet y un fichero meta.json con la frescura, los recuentos y la versión del export.',
     'view.methodology.pipeline.step5':
-      'GitHub Actions descarga ese export cada día con una credencial de solo lectura.',
+      'GitHub Actions descarga ese export una vez por semana, los lunes a las 01:00 UTC, después del job de Databricks de los domingos a las 23:00 Europe/Madrid, con una credencial de solo lectura; si el export tiene más de 8 días, falla sin publicar.',
     'view.methodology.pipeline.step6':
       'El sitio se despliega como web estática en GitHub Pages; los datos no se guardan en el repositorio.',
     'view.methodology.pipeline.step7':
@@ -460,7 +460,7 @@ export const MESSAGES = {
     'view.methodology.pipeline.step4':
       'A final job task produces the Parquet export and a meta.json file with freshness, row counts and the export version.',
     'view.methodology.pipeline.step5':
-      'GitHub Actions downloads that export every day with a read-only credential.',
+      'GitHub Actions downloads that export once a week, on Mondays at 01:00 UTC, after the Databricks job that runs on Sundays at 23:00 Europe/Madrid, with a read-only credential; if the export is more than 8 days old, it fails without publishing.',
     'view.methodology.pipeline.step6':
       'The site is deployed as a static website on GitHub Pages; the data is never stored in the repository.',
     'view.methodology.pipeline.step7':
