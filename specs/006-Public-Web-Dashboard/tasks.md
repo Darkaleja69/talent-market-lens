@@ -336,9 +336,9 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
   - **Depende de:** T-10–T-14.
   - **Hecho cuando:** `docs/index.html` presenta el proyecto y enlaza al
     dashboard y a la evidencia de Power BI; `README.md` y `docs/es/README.md`
-    documentan la URL pública, la actualización diaria, el export y que Power BI
-    queda como evidencia; `docs/dashboard/README.md` fija las versiones del CDN
-    y el contrato de datos.
+    documentan la URL pública, la actualización semanal (spec 009), el export y
+    que Power BI queda como evidencia; `docs/dashboard/README.md` fija las
+    versiones del CDN y el contrato de datos.
 
 - [x] **T-16 — Instantánea local reproducible** (~25 min)
   - **RF:** RF-11.
