@@ -168,6 +168,66 @@ al menos un despertar.
   comparación de exports; el incremental necesita rendimiento (spec 010) antes
   de T-11.
 
+## Runs de la spec 010 (en curso)
+
+- **T-03 (2026-10-28), intento abortado antes de medir:** run `16957686724897`,
+  **CANCELED** a los 108 s (el job desplegado aún no tenía el `spark_conf`; el
+  bronce estaba arrancando) → **~0,02 €**. No cuenta como evidencia.
+- **T-03 (2026-10-28), run A (referencia `force_full`, ya con 8 particiones):**
+  `485578578869927`, **SUCCESS**, 8/8, **808 s** (13 m 28 s); silvers 117–169 s
+  de módulo (tareas 167–204 s); oro 54 s; exports 35/37 s → **~0,17 €**.
+- **T-03 (2026-10-28), run B (incremental + `repeat_window`, ventana 24–28):**
+  `269508392317481`, **SUCCESS**, 8/8, **974 s** (16 m 14 s); dos pases por
+  silver: **249–318 s** el primero y **173–249 s** el segundo; el `MERGE`
+  escribió 55–458 filas; conteos finales **idénticos a A** (3.112 / 2.527 /
+  12.543 / 10.072) → **~0,20 €**.
+- **T-03b (2026-10-30), run con el código de T-02/T-03b (incremental + repetición):**
+  `879269828668729`, **SUCCESS**, 8/8, **927 s** (15 m 27 s); pases por silver
+  **123,8–138,2 s** el primero y **89,4–112,3 s** el segundo (frente a
+  249–318 s y 173–249 s del run anterior: **2,0–2,6×**); `MERGE` de
+  55–458 filas con `numTargetRowsCopied=0`; conteos finales idénticos a A
+  (3.112 / 2.527 / 12.543 / 10.072) y repetición idempotente; bronce **383 s de
+  arranque + 134 s de ejecución** (**56 % del run**). → **~0,23 €**.
+- **T-05 (2026-10-30), clúster all-purpose de lectura, catálogo
+  `job_offers_dev`: `DESCRIBE DETAIL` de las 18 tablas y recuento de los
+  exports:** **~2–3 min** de uso — **estimación**: **duración exacta no
+  registrada** — → **céntimos**. Se anota como **estimación**, no como importe
+  cerrado: la tarifa de all-purpose **no está medida** (`[NO VERIFICADO]`) y se
+  **supone** superior a la de jobs (`[NO VERIFICADO]`); con la referencia de
+  jobs de este documento (~0,75 €/h), 2–3 min serían **~3–4 céntimos**, una
+  **cota inferior** del coste real. Sin runs y sin sesión SQL.
+- **T-06 (2026-10-30), decisión de compute: 0 €.** Sin run ni sesión SQL: el
+  camino crítico y la `config` se leen del run `879269828668729` por la API de
+  runs, y la decisión (mantener `D4ds_v4` single node) se documenta en
+  `design-layout-compute.md` §9. Referencia de coste por run: **0,17–0,23 €**
+  según duración (808–974 s); el **~0,24 €/run** de `plan.md` §7.2 corresponde a
+  15–19 min y es solo orden de magnitud.
+- **T-07 (2026-10-31), run A (reconstrucción completa con `force_full=true`):**
+  `221895134926434` (job `320947022571947`), **SUCCESS**, 8/8, **816 s**
+  (13 m 36 s); **arranque 382 s = 46,8 % del run** y el bronce completo
+  (495,5 s) es el **60,7 %**; silvers **114,5–182,0 s** de módulo (tareas
+  173–214 s), oro 58 s y exports 42/37 s → **~0,20 €** (método por duración de
+  este documento: 816 s ≈ 13,6 min, dentro de la banda medida de **0,17–0,23 €**
+  para runs de 808–974 s). Consume el **run 4 de 5** del presupuesto.
+- **T-08 (2026-10-31), run B (incremental + repetición), run 5 de 5:**
+  `549237053478569` (job `320947022571947`, perfil `vs_code`,
+  `backfill_from=2026-10-24`, `backfill_to=2026-10-28`, `repeat_window=true`),
+  **SUCCESS**, 8/8, **985 s** (16 m 25 s) → **~0,23 €** (método por duración:
+  985 s ≈ 16,4 min, dentro de la banda de **0,17–0,23 €**). Consume el **run 5
+  de 5** del presupuesto.
+- **Total de la 010:** **~1,05 € gastados** de los **1,8 €** de techo;
+  **presupuesto de dev agotado (5/5)** y **0 sesiones SQL** (los 3 runs de
+  T-03/T-03b + el run A de T-07 + el run B de T-08; hay además 1 intento
+  abortado). Runs de **0,17–0,23 €** según duración, más los **céntimos** del
+  clúster de lectura de T-05 (estimación, sin cifra exacta); T-06 no añade
+  gasto.
+- **T-09 (2026-10-31), A/B manual de producción:** A `321262594455396`,
+  915 s (15 m 15 s) → **~0,24 €**; B `317888374535056`, 747 s (12 m 27 s) →
+  **~0,20 €**; total **~0,44 €** (presupuesto de producción de la 009, no del
+  techo de dev). El fix del empate no añade runs; el run programado de esa
+  semana se pausó (1 run menos). Dashboard con `workflow_dispatch` y warehouse
+  `STOPPED` (0 sesiones SQL).
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento

@@ -336,6 +336,42 @@ def test_write_gold_reejecucion_idempotente(spark):
 
 
 # ---------------------------------------------------------------------------
+# keep_best: el desempate debe ser determinista entre ejecuciones
+# ---------------------------------------------------------------------------
+
+def test_keep_best_tie_is_deterministic(spark):
+    schema = T.StructType([
+        T.StructField("job_id", T.StringType(), True),
+        T.StructField("source_scraper", T.StringType(), True),
+        T.StructField("description_clean", T.StringType(), True),
+        T.StructField("salary_min_annual", T.DoubleType(), True),
+        T.StructField("posted_date", T.DateType(), True),
+        T.StructField("title_norm", T.StringType(), True),
+        T.StructField("company_norm", T.StringType(), True),
+        T.StructField("salary_filled", T.DoubleType(), True),
+    ])
+    base = ("1", "alpha", "desc", 1000.0, dt.date(2026, 9, 1), "t", "c", 1000.0)
+
+    # Empate en job_id, descripcion, salario y fecha: decide source_scraper.
+    same_job = [base, ("1", "zeta", "desc", 1000.0, dt.date(2026, 9, 1),
+                       "t", "c", 1000.0)]
+    for rows in (same_job, list(reversed(same_job))):
+        out = g.keep_best(spark.createDataFrame(rows, schema), ["job_id"]).collect()
+        assert len(out) == 1
+        assert out[0]["source_scraper"] == "alpha"
+
+    # Empate en la clave de negocio: decide job_id ascendente.
+    same_key = [base, ("2", "alpha", "desc", 1000.0, dt.date(2026, 9, 1),
+                       "t", "c", 1000.0)]
+    for rows in (same_key, list(reversed(same_key))):
+        out = g.keep_best(
+            spark.createDataFrame(rows, schema),
+            ["title_norm", "company_norm", "salary_filled"]).collect()
+        assert len(out) == 1
+        assert out[0]["job_id"] == "1"
+
+
+# ---------------------------------------------------------------------------
 # Reintento ante fallos transitorios de infraestructura (no de aserciones).
 # En Windows/local Spark puede lanzar "Python worker failed to connect back"
 # de forma intermitente en el primer job tras arrancar el worker.

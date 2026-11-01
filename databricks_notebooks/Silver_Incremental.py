@@ -31,7 +31,16 @@ from __future__ import annotations
 import datetime as dt
 import time
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Callable,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 from uuid import uuid4
 
 from pyspark.sql import Column, DataFrame
@@ -56,6 +65,8 @@ REASON_TABLE_MISSING = "table_missing"
 REASON_MISSING_INGEST_DATE = "missing_ingest_date"
 
 #: Fields of the summary returned by :func:`run` (design-incremental.md §5.5).
+#: The first 16 are the business contract of the 008; the last three are the
+#: instrumentation of spec 010 T-02 (additive).
 SUMMARY_FIELDS = (
     "source",
     "mode",
@@ -73,6 +84,9 @@ SUMMARY_FIELDS = (
     "written",
     "target_rows",
     "elapsed_s",
+    "timings_s",
+    "merge_metrics",
+    "config",
 )
 
 
@@ -350,6 +364,19 @@ def recompute_groups(
     return transform(candidates)
 
 
+#: Validation errors of the recompute, shared by the public guards and the
+#: single-aggregation check of the run (the tests match these texts).
+_MISSING_INGEST_DATE_ERROR = "El recalculo no tiene _ingest_date."
+_NULL_INGEST_DATE_ERROR = (
+    "El recalculo tiene filas con _ingest_date nulo: no se puede "
+    "distinguir una fila real de un marcador de borrado."
+)
+_DUPLICATED_GROUP_ERROR = (
+    "El recalculo devuelve mas de una fila por grupo (_key): el MERGE "
+    "fallaria por multiples filas del origen para una fila del destino."
+)
+
+
 def require_no_null_ingest_date(recompute: DataFrame) -> None:
     """Fail before the MERGE when a recomputed row has no ``_ingest_date``.
 
@@ -357,13 +384,10 @@ def require_no_null_ingest_date(recompute: DataFrame) -> None:
     would delete its group instead of updating it.
     """
     if INGEST_DATE_COLUMN not in recompute.columns:
-        raise ValueError("El recalculo no tiene _ingest_date.")
+        raise ValueError(_MISSING_INGEST_DATE_ERROR)
     nulls = recompute.where(F.col(INGEST_DATE_COLUMN).isNull()).limit(1)
     if not nulls.isEmpty():
-        raise ValueError(
-            "El recalculo tiene filas con _ingest_date nulo: no se puede "
-            "distinguir una fila real de un marcador de borrado."
-        )
+        raise ValueError(_NULL_INGEST_DATE_ERROR)
 
 
 def require_unique_groups(recompute: DataFrame) -> None:
@@ -376,11 +400,33 @@ def require_unique_groups(recompute: DataFrame) -> None:
         .limit(1)
     )
     if not duplicated.isEmpty():
-        raise ValueError(
-            "El recalculo devuelve mas de una fila por grupo (_key): el MERGE "
-            "fallaria por multiples filas del origen para una fila del "
-            "destino."
-        )
+        raise ValueError(_DUPLICATED_GROUP_ERROR)
+
+
+def _recompute_check(recompute: DataFrame) -> int:
+    """Validate ``recompute`` with one job; return its row count.
+
+    It replaces ``require_no_null_ingest_date`` + ``require_unique_groups`` +
+    ``recompute.count()`` with a single aggregation over the materialised
+    frame: total rows, rows with ``_ingest_date`` and distinct ``_key``. A
+    group with more than one row shows up as one distinct key fewer, so the
+    duplicate rule is ``countDistinct(key) != rows``. The errors are the same
+    ``ValueError`` texts of the public guards, which stay public for direct
+    use and for the tests.
+    """
+    if INGEST_DATE_COLUMN not in recompute.columns:
+        raise ValueError(_MISSING_INGEST_DATE_ERROR)
+    row = recompute.agg(
+        F.count(F.lit(1)).alias("rows"),
+        F.count(F.col(INGEST_DATE_COLUMN)).alias("dated"),
+        F.countDistinct(key_expression()).alias("groups"),
+    ).first()
+    rows = int(row["rows"])
+    if int(row["dated"]) != rows:
+        raise ValueError(_NULL_INGEST_DATE_ERROR)
+    if int(row["groups"]) != rows:
+        raise ValueError(_DUPLICATED_GROUP_ERROR)
+    return rows
 
 
 def orphan_markers(
@@ -514,6 +560,96 @@ def merge_into_silver(
 
 
 # ---------------------------------------------------------------------------
+# Instrumentation (wall clock around actions that already exist)
+# ---------------------------------------------------------------------------
+
+T = TypeVar("T")
+
+
+def _timed(timings: dict, step: str, action: Callable[[], T]) -> T:
+    """Run ``action`` once and accumulate its wall-clock seconds in ``step``.
+
+    Spark transformations are lazy but actions are synchronous, so the clock
+    around the call that triggers the job does attribute the time. The value
+    of ``action`` is returned untouched and its exception is re-raised (the
+    elapsed time is kept): the instrumentation never hides a failure.
+    """
+    started = time.monotonic()
+    try:
+        return action()
+    finally:
+        elapsed = time.monotonic() - started
+        timings[step] = timings.get(step, 0.0) + elapsed
+
+
+def _merge_metrics(spark, target_table: str) -> Optional[dict]:
+    """``operationMetrics`` of the last MERGE version, or ``None``.
+
+    It is read with ``DESCRIBE HISTORY`` **in the job cluster**: Spark SQL on
+    the same session, never the SQL warehouse (one wake-up costs ~0.43 EUR).
+
+    The last **two** versions are inspected because the newest one is not
+    necessarily the MERGE of this run: a concurrent ``WRITE`` or an
+    ``OPTIMIZE`` would otherwise be reported as merge metrics. Only a row
+    whose ``operation`` is ``MERGE`` (case-insensitive) qualifies; when
+    neither of the two is a MERGE the summary says ``None`` instead of
+    inventing it.
+
+    Any failure degrades to ``None`` and the run continues: local tests work
+    with temporary views (no Delta), and a permission or history problem must
+    never fail a write that already happened. This is a metadata read, not an
+    action over data, so it is not part of ``timings_s``.
+    """
+    try:
+        rows = spark.sql(
+            f"DESCRIBE HISTORY {target_table} LIMIT 2"
+        ).collect()
+        for row in rows:
+            values = row.asDict()
+            operation = str(values.get("operation") or "").strip().upper()
+            if operation != "MERGE":
+                continue
+            metrics = values.get("operationMetrics")
+            if not metrics:
+                return None
+            return {str(name): value for name, value in dict(metrics).items()}
+        return None
+    except Exception:  # noqa: BLE001 - a metadata read never fails the run
+        return None
+
+
+#: Spark settings of the summary: summary name -> session key.
+_CONFIG_KEYS = {
+    "shuffle_partitions": "spark.sql.shuffle.partitions",
+    "adaptive_enabled": "spark.sql.adaptive.enabled",
+}
+
+
+def _config(spark) -> dict:
+    """**Effective** Spark config of the summary, plus the explicit overrides.
+
+    ``spark.conf.get(key)`` returns the effective value: the session override
+    or, when the key is not set, the runtime's built-in default (``"true"``
+    for AQE). Reading only the override with a ``None`` default made the
+    summary look like AQE was disabled. ``overrides`` keeps just the keys this
+    session set explicitly. No query is involved, so a run without overrides
+    still reports the real configuration.
+    """
+    config: dict = {}
+    overrides: dict = {}
+    for name, key in _CONFIG_KEYS.items():
+        try:
+            config[name] = spark.conf.get(key)
+        except Exception:  # noqa: BLE001 - key without a built-in default
+            config[name] = None
+        override = spark.conf.get(key, None)
+        if override is not None:
+            overrides[name] = override
+    config["overrides"] = overrides
+    return config
+
+
+# ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
 
@@ -580,25 +716,83 @@ def _run_once(
     to_date,
     force_full,
 ) -> dict:
-    """One run: window, affected groups, recompute and a single commit."""
+    """One run: window, affected groups, recompute and a single commit.
+
+    ``timings_s`` wraps **every job this run triggers** with
+    ``time.monotonic()`` (no ``SparkListener``): each step groups the actions
+    it needs, and the eager checkpoints of the lineage cut are materialised
+    inside the step that invokes them. The step names are stable and
+    documented here:
+
+    * ``window``: ``window_bounds`` (``tableExists``, the read and
+      ``max(_ingest_date)``).
+    * ``changed_count``: one ``count()`` over the window; when it is 0 the
+      run short-circuits with the early summary (``written=False``). It also
+      materialises the ``keyed`` checkpoint, the bronze-wide pass.
+    * ``affected_count``: ``affected.count()``; it is where the cached
+      target is scanned for the first time.
+    * ``recompute_check``: materialises the ``recompute`` checkpoint (the
+      expensive pass over the business chain) and validates it in one
+      aggregation (rows, non-null ``_ingest_date`` and distinct keys). It
+      replaces the two public guards plus ``recompute.count()``.
+    * ``markers_count``: ``markers.count()``. The markers are the only rows
+      of the MERGE source that are not recomputed, so
+      ``merge_rows = recomputed_groups + deleted_groups`` needs no
+      ``merge_src.count()``.
+    * ``merge``: the single ``MERGE WITH SCHEMA EVOLUTION``.
+    * ``merge_metrics``: the ``DESCRIBE HISTORY`` metadata read (a query, so
+      it is timed; it is not an action over data).
+    * ``target_count``: the final ``count()`` of the target (both modes).
+    * ``full_write``: the transform plus ``saveAsTable`` (full mode only).
+
+    ``keyed`` and ``recompute`` use ``localCheckpoint(eager=True)`` instead
+    of ``cache()``: the lineage is cut, so the later queries (validation,
+    ``recompute_keys``, ``markers``, ``merge_src`` and the MERGE) do not
+    re-plan or re-compile the 2.64 M characters that ``build_offers``
+    generates, and the MERGE plan is much cheaper (the reference ``merge``
+    step went from 12.4 s to ~1.5 s locally). The checkpoint is **not free**:
+    Spark pays its materialisation with its own SQL execution, so the pass
+    has the **7 timed steps + the 2 checkpoint executions + the metadata
+    read**. With the Delta MERGE that is **9 data SQL executions + 1 metadata
+    execution**, not 7+1 (``changed_count`` and ``recompute_check`` each
+    appear as their action plus a ``localCheckpoint`` execution). C1's goal
+    is to reduce the number of queries, not to hide them in the timings.
+
+    The target is cached once for its two pre-merge scans (``old_groups`` and
+    ``markers``) and released before the MERGE: the final ``target_count``
+    must read the committed table, not the cached pre-merge snapshot.
+    """
     started = time.monotonic()
-    bounds = window_bounds(
-        spark,
-        target_table,
-        lookback_days=lookback_days,
-        from_date=from_date,
-        to_date=to_date,
-        force_full=force_full,
+    timings: dict = {}
+    bounds = _timed(
+        timings,
+        "window",
+        lambda: window_bounds(
+            spark,
+            target_table,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+            force_full=force_full,
+        ),
     )
 
     if bounds.mode == MODE_FULL:
         # Single pass: the transform feeds the write directly. Caching and
         # counting before the write tripled the runtime of the full rebuild.
         offers = transform(prepared)
-        offers.write.mode("overwrite") \
-            .option("overwriteSchema", "true") \
-            .saveAsTable(target_table)
-        target_rows = spark.read.table(target_table).count()
+
+        def write_full():
+            offers.write.mode("overwrite") \
+                .option("overwriteSchema", "true") \
+                .saveAsTable(target_table)
+
+        _timed(timings, "full_write", write_full)
+        target_rows = _timed(
+            timings,
+            "target_count",
+            lambda: spark.read.table(target_table).count(),
+        )
         return _summary(
             source,
             bounds,
@@ -611,33 +805,62 @@ def _run_once(
             written=True,
             target_rows=target_rows,
             elapsed_s=time.monotonic() - started,
+            timings_s=timings,
+            merge_metrics=None,  # the full mode overwrites, it never merges
+            config=_config(spark),
         )
 
-    target = spark.read.table(target_table)  # window_bounds checked it exists
     keys = list(source_spec.silver_keys)
     cached: List[DataFrame] = []
 
     def keep(df: DataFrame) -> DataFrame:
+        """Cache a frame for the rest of the run and register its cleanup."""
         df = df.cache()
         cached.append(df)
         return df
 
+    def checkpoint(df: DataFrame) -> DataFrame:
+        """Cut the lineage of a frame; it is materialised at this call.
+
+        ``localCheckpoint(eager=True)`` is explicit (PySpark's default is
+        also eager, but the intent must not depend on it): the data is
+        materialised inside the timed step that invokes this helper and the
+        plan is replaced by a reference to it. **It is not free**: Spark pays
+        that materialisation with its own SQL execution, so the pass has the
+        7 timed steps + the 2 checkpoint executions + the metadata read, that
+        is **9 data executions + 1 metadata execution** with the Delta MERGE.
+        C1's goal is to reduce the number of queries, not to hide them in the
+        timings. What the cut buys is a much cheaper MERGE plan: the
+        reference ``merge`` step went from 12.4 s to ~1.5 s (local bench).
+        """
+        df = df.localCheckpoint(eager=True)
+        cached.append(df)
+        return df
+
     try:
-        # 1. Exact key over bronze: same normalization the silver will use.
-        keyed = keep(
-            normalize_company(prepared).withColumn(
-                KEY,
-                key_from_columns(
-                    F.col(KEY_COLUMNS[0]),
-                    F.col(KEY_COLUMNS[1]),
-                    normalize_city_column(F.col(KEY_COLUMNS[2])),
-                ),
-            )
+        # One scan of the target for the two pre-merge joins.
+        target = keep(spark.read.table(target_table))
+
+        # 1. Exact key over bronze, lazy until ``changed_count``.
+        keyed_plan = normalize_company(prepared).withColumn(
+            KEY,
+            key_from_columns(
+                F.col(KEY_COLUMNS[0]),
+                F.col(KEY_COLUMNS[1]),
+                normalize_city_column(F.col(KEY_COLUMNS[2])),
+            ),
         )
 
-        # 2. Window.
-        changed = keep(changed_since(keyed, bounds))
-        if changed.isEmpty():
+        # 2. Window: a single count decides the empty window and the metric.
+        def materialize_changed():
+            keyed = checkpoint(keyed_plan)
+            changed = keep(changed_since(keyed, bounds))
+            return keyed, changed, changed.count()
+
+        keyed, changed, changed_rows = _timed(
+            timings, "changed_count", materialize_changed)
+
+        if changed_rows == 0:
             return _summary(
                 source,
                 bounds,
@@ -648,8 +871,15 @@ def _run_once(
                 merge_rows=0,
                 new_columns=[],
                 written=False,
-                target_rows=target.count(),
+                target_rows=_timed(
+                    timings,
+                    "target_count",
+                    target.count,
+                ),
                 elapsed_s=time.monotonic() - started,
+                timings_s=timings,
+                merge_metrics=None,  # nothing was merged
+                config=_config(spark),
             )
 
         # 3. Affected groups: new keys (bronze) and old keys (silver by id).
@@ -658,14 +888,20 @@ def _run_once(
         old_groups = target.join(changed_ids, keys, "left_semi")
         keys_old = old_groups.select(key_expression().alias(KEY))
         affected = keep(keys_new.unionByName(keys_old).distinct())
+        affected_groups = _timed(
+            timings, "affected_count", affected.count)
 
         # 4. Candidates: exact equality of the key, no superset.
         candidates = select_candidates(keyed, affected)
+        recompute_plan = recompute_groups(candidates, transform=transform)
 
-        # 5. Full group recompute with the notebook chain.
-        recompute = keep(recompute_groups(candidates, transform=transform))
-        require_no_null_ingest_date(recompute)
-        require_unique_groups(recompute)
+        # 5. Materialise the chain once and validate it in one aggregation.
+        def materialize_recompute():
+            recompute = checkpoint(recompute_plan)
+            return recompute, _recompute_check(recompute)
+
+        recompute, recomputed_groups = _timed(
+            timings, "recompute_check", materialize_recompute)
 
         # The key is derived here: the chain already dropped it from recompute.
         recompute_keys = keep(
@@ -674,23 +910,32 @@ def _run_once(
 
         # 6. Affected groups that have no rows left in bronze.
         markers = keep(orphan_markers(target, affected, recompute_keys))
+        deleted_groups = _timed(timings, "markers_count", markers.count)
+        # Markers are the only source rows that are not recomputed.
+        merge_rows = recomputed_groups + deleted_groups
 
         # 7. Source of the MERGE: contract + new columns, no internal ones.
         merge_src = keep(merge_source(recompute, markers, target.columns))
-
-        # 8. Inspect the cached frames while the target is still the old one,
-        #    then a single commit with a view name unique per run.
-        changed_rows = changed.count()
-        affected_groups = affected.count()
-        recomputed_groups = recompute.count()
-        deleted_groups = markers.count()
-        merge_rows = merge_src.count()
         new_columns = [
             name for name in recompute.columns if name not in target.columns
         ]
+        # Release the pre-merge snapshot: the final count must read the table.
+        target.unpersist(blocking=True)
+        cached = [frame for frame in cached if frame is not target]
+
+        # 8. Single commit with a view name unique per run.
         view_name = f"__silver_batch_{source}_{uuid4().hex[:8]}"
-        merge_into_silver(
-            spark, target_table, merge_src, view_name=view_name
+        _timed(
+            timings,
+            "merge",
+            lambda: merge_into_silver(
+                spark, target_table, merge_src, view_name=view_name
+            ),
+        )
+        merge_metrics = _timed(
+            timings,
+            "merge_metrics",
+            lambda: _merge_metrics(spark, target_table),
         )
 
         return _summary(
@@ -703,8 +948,15 @@ def _run_once(
             merge_rows=merge_rows,
             new_columns=new_columns,
             written=True,
-            target_rows=spark.read.table(target_table).count(),
+            target_rows=_timed(
+                timings,
+                "target_count",
+                lambda: spark.read.table(target_table).count(),
+            ),
             elapsed_s=time.monotonic() - started,
+            timings_s=timings,
+            merge_metrics=merge_metrics,
+            config=_config(spark),
         )
     finally:
         for df in cached:
@@ -729,8 +981,16 @@ def _summary(
     written: bool,
     target_rows: int,
     elapsed_s: float,
+    timings_s: Mapping[str, float],
+    merge_metrics: Optional[Mapping[str, object]],
+    config: Mapping[str, object],
 ) -> dict:
-    """16-field summary of a run (design-incremental.md §5.5)."""
+    """19-field summary of a run: 16 business fields plus instrumentation.
+
+    ``timings_s`` is the wall-clock seconds per step (``_run_once`` documents
+    the names); ``merge_metrics`` is ``None`` when Delta history is not
+    available; ``config`` carries the two Spark keys read by the run.
+    """
     return {
         "source": source,
         "mode": bounds.mode,
@@ -748,4 +1008,14 @@ def _summary(
         "written": bool(written),
         "target_rows": int(target_rows),
         "elapsed_s": round(float(elapsed_s), 1),
+        "timings_s": {
+            step: round(float(seconds), 3)
+            for step, seconds in timings_s.items()
+        },
+        "merge_metrics": (
+            None
+            if merge_metrics is None
+            else {str(name): value for name, value in merge_metrics.items()}
+        ),
+        "config": dict(config),
     }
