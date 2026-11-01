@@ -392,9 +392,9 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     y no despliega; con el `meta.json` vivo (1 día) valida. Los datos no se
     versionan (`docs/data/` está en `.gitignore`) y la SAS solo vive en el
     secreto. Evidencia: `evidence-2026-11-01.md` (§T-18).
-  - **Hallazgo de T-20 (2026-11-01):** la metodología declaraba descarga
-    diaria; corregido en `docs/dashboard/i18n.js` (ES/EN) en el commit
-    `a320dde`.
+  - **Hallazgo de T-20 (2026-11-01):** la metodología y la portada declaraban
+    publicación diaria; corregidas en `docs/dashboard/i18n.js` (ES/EN, commit
+    `a320dde`) y `docs/index.html` (ES/EN, commit `98b2615`).
 
 ## 6. Verificación y cierre
 
