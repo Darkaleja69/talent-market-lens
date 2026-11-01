@@ -363,7 +363,8 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     (2026-10-24, 26 s) y run programado #14 `40276725938` (2026-10-26, 32 s),
     ambos en verde. Evidencia: `evidence-2026-11-01.md` (§T-17).
 
-- [ ] **T-18 — Ciclo diario y frescura** (~20 min)
+- [x] **T-18 — Ciclo diario y frescura** (~20 min) — **hecha con desviación
+  aprobada (cadencia semanal, spec 009)**
   - **RF:** RF-3, RF-5.
   - **Depende de:** T-17.
   - **Hecho cuando:** tras un export nuevo, un `dispatch` publica datos
@@ -371,6 +372,18 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     (01:00 UTC, posterior al job de Databricks de las 23:30) queda configurado
     (empieza a correr al fusionar a `main`) y el flujo no versiona datos ni
     credenciales.
+  - **Resultado (2026-11-01):** **hecha con desviación aprobada**. La cadencia
+    diaria de este `hecho cuando` queda sustituida por la **semanal** de la
+    spec 009 (RF-1): job de Databricks los domingos a las 23:00
+    `Europe/Madrid` y workflow los lunes a las 01:00 UTC (`0 1 * * MON`). El
+    `dispatch` #15 `41227952110` publicó el export `data_date` 2026-10-31 el
+    2026-10-31T18:08:51Z y el header muestra «Datos: 31 de octubre de 2026»;
+    el run programado #14 `40276725938` (2026-10-26) confirma el `schedule`.
+    El guard de frescura se probó con el código exacto del workflow: con el
+    `meta.json` local de 2026-10-10 sale `ERROR: los datos tienen 22 dias ...`
+    y no despliega; con el `meta.json` vivo (1 día) valida. Los datos no se
+    versionan (`docs/data/` está en `.gitignore`) y la SAS solo vive en el
+    secreto. Evidencia: `evidence-2026-11-01.md` (§T-18).
 
 ## 6. Verificación y cierre
 

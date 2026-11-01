@@ -94,6 +94,11 @@ versionar datos ni usar credenciales de escritura; si la descarga o el
 ensamblado fallan, deberá fallar de forma visible sin publicar un sitio
 incompleto.
 
+> **Nota (2026-11-01):** la cadencia diaria de RF-5 queda **sustituida por la
+> semanal** acordada en la spec 009 (job de Databricks los domingos a las 23:00
+> `Europe/Madrid`; dashboard los lunes a las 01:00 UTC). El workflow conserva
+> el guard de frescura: falla si `meta.json.data_date` tiene más de 8 días.
+
 ### RF-6 — Sitio estático sin backend ni build
 
 **Criterio de aceptación (EARS):** La web deberá ser HTML, CSS y módulos ES
