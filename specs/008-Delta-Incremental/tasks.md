@@ -3,7 +3,8 @@
 > Detalle del **bloque A**, afinado al arrancar la 008 (2026-10-21) y
 > **actualizado el 2026-10-24** con la herencia de la 009 (coste y cadencia) y
 > con el **bloque B planificado** (§2) mientras T-06 espera el run programado
-> del domingo.
+> del domingo. **Cerrada el 2026-11-01:** bloque A con su comprobación real
+> registrada y bloque B cerrado por herencia de la 010 (T-08/T-09).
 > Formato de trabajo según `AGENTS.md`: **la persona decide** el alcance y
 > revisa; el asistente prepara las tareas, implementa el código y lo commitea
 > tras la verificación independiente. Ninguna tarea se marca como hecha sin su
@@ -149,7 +150,7 @@
     `bronze_ingest` no devuelve resumen (hueco de observabilidad anotado para la
     010); la igualdad de los exports lo sustituye como prueba.
 
-- [ ] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
+- [x] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
   - **Hecho cuando:** en la ventana **previa a un domingo**, la one-off de
     migración de prod se ejecuta **antes** del primer lote del ingest nuevo
     (conteos antes/después por fuente y `RESTORE` disponible), se hace
@@ -166,12 +167,25 @@
     espera al domingo siguiente, con la web mostrando la fecha real de los datos.
   - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, versiones de
     `RESTORE`, estado final, coste en `docs/costs.md` y fila en `evidence.md`.
-  - **Estado:** **one-off de producción hecha el 2026-10-24.** Deploy `-t prod`
-    con el ingest nuevo y el job `dedupe_oneoff`; run `164560238285705` en verde,
-    4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas duplicadas eliminadas (indeed
-    9.769→3.039, infojobs 45.171→2.617, linkedin 17.285→14.289, multi_site
-    12.169→11.096), `RESTORE` a 19/20/60/50. **Pendiente la comprobación real:**
-    el run programado del domingo y el dashboard del lunes.
+    El id del deploy no quedó registrado (`[NO VERIFICADO]`).
+  - **Estado:** **cerrada el 2026-11-01.** One-off de producción hecha el
+    2026-10-24: deploy `-t prod` con el ingest nuevo y el job `dedupe_oneoff`;
+    run `164560238285705` en verde, 4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas
+    duplicadas eliminadas (indeed 9.769→3.039, infojobs 45.171→2.617, linkedin
+    17.285→14.289, multi_site 12.169→11.096), `RESTORE` a 19/20/60/50.
+    **Comprobación real:** run programado del domingo `636564838129029`,
+    **SUCCESS 8/8**, 2026-10-25 23:00:51 → 23:14:52 (Madrid), **840,9 s
+    (14 min 01 s)**: bronce setup 383 s + ejecución 132 s; silvers en paralelo
+    linkedin 217 s, multi_site 186 s, indeed 173 s e infojobs 171 s; oro 57 s;
+    exports 37 s y 41 s. Dashboard publicado por el workflow `40276725938`
+    (build 05:53:59Z → deploy 05:54:26Z del 26-oct; la validación de `data_date`
+    ≤ 8 días pasó) y SQL warehouse **STOPPED** (Serverless Starter Warehouse,
+    0 clústeres). **`[NO VERIFICADO]`:** los conteos del export de ese run —su
+    `meta.json` fue sobrescrito por los runs del 31-oct, el contenedor no tiene
+    versionado de blobs y el run no guarda `notebook.exit`— y la fecha exacta de
+    `data_date` del dashboard (solo se sabe que era ≤ 8 días). Coste
+    **~0,20 €** (la estimación de la 009 daba ~0,24 €; la banda medida de la
+    010, 808–974 s ≈ 0,17–0,23 €, sitúa 841 s en ~0,20 €).
 
 ## 2. Bloque B — Silvers incrementales
 
@@ -179,14 +193,15 @@
 > domingo). Diseño en `plan.md` §10. Alcance decidido: **silver de ofertas
 > incremental** por grupo semántico; `companies_*` y **oro completos**.
 >
-> **2026-10-28: bloque B bloqueado por rendimiento.** T-07–T-09 están cerradas
-> (diseño, módulo y notebooks con tests en verde), pero T-10 no se puede
-> validar: tres runs incrementales seguidos (`TIMEDOUT` a los ~30 min) sin
-> escribir nada. El incremental cuesta ≥4× la reconstrucción completa y el
-> `MERGE` real sigue sin medirse. **T-11 no se toca.** El trabajo de
-> rendimiento pasa a la **spec 010**, junto con la repetición de la validación
-> A/B; la decisión de descopear el bloque B (y cerrar la 008 con el bloque A)
-> queda en manos de la persona.
+> **2026-10-28: bloque B BLOQUEADO y DESCOPEADO a la 010.** T-07–T-09 están
+> cerradas (diseño, módulo y notebooks con tests en verde), pero T-10 no se
+> puede validar: tres runs incrementales seguidos (`TIMEDOUT` a los ~30 min)
+> sin escribir nada. El incremental cuesta **≈6–7×** la reconstrucción
+> completa y el `MERGE` real sigue sin medirse. **T-11 no se toca.** Decisión de
+> la persona el 2026-10-28: **el bloque B se descopea**; T-10, T-11 y su
+> validación pasan a la **spec 010** (rendimiento) y esta spec se cerrará con el
+> **bloque A**, previa verificación de T-06. El diseño (`design-incremental.md`)
+> y el código se conservan en la rama como referencia.
 
 - [x] **T-07 — Diseño del incremental** (~30 min)
   - **Objetivo:** fijar en `design-incremental.md` la unidad de incremental
@@ -314,7 +329,7 @@
     comprobados. `[NO VERIFICADO]`: efectos reales (MERGE, primera ejecución
     completa, equivalencia de `companies_*` y exports) en T-10/T-11.
 
-- [x] **T-10 — Validación en dev (runs 1 y 2 de 2)** (~30 min)
+- [x] **T-10 — Validación en dev (A/B) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
   - **Hecho cuando:** **run A** cierra 8/8 tareas y es la migración (tabla sin
     `_ingest_date` → reconstrucción completa con `overwrite`), con silver
     ≤ 2,8–3,6 min de T-05 y total ≤ 13 m 16 s, y exports con `meta.json`
@@ -336,11 +351,11 @@
     ventana exacta queda en el resumen. El lote del run A incluye los ficheros
     del landing desde el run de T-05 (24-oct): se anota el tamaño para que la
     comparación de tiempos con T-05 sea honesta.
-  - **Coste:** 2 runs (~0,48 €), anotados en `docs/costs.md`.
+  - **Coste previsto:** 2 runs (~0,48 €), anotados en `docs/costs.md`.
   - **Evidencia:** ids, tabla comparativa de tiempos y exports A/B, fila en
     `evidence.md`.
   - **Estado (2026-10-28): BLOQUEADA por rendimiento.** La validación se
-    intentó con **5 runs de dev** (~1,20 €) y no se cerró:
+    intentó con **5 runs de dev** y no se cerró:
     - **A** `263658658061220`: **SUCCESS**, 8/8, **22 min 18 s**, migración
       confirmada (`mode="full"`, `mode_reason="missing_ingest_date"` en las
       cuatro silvers) y lote de **+56 ofertas** en el export (26.057 → 26.113).
@@ -352,48 +367,59 @@
       sin resumen ni comparación A/B; los exports quedaron en el estado de A.
     - **A2** `207866361330883`: **SUCCESS**, 8/8, **14 min 39 s**, con el modo
       `full` en una sola pasada; silvers **2 m 47 s–3 m 46 s** (línea base
-      T-05). Es la referencia funcional y de exports del bloque B.
+      T-05). Es la referencia funcional y de exports del bloque B (conteos
+      3.096 / 2.527 / 12.504 / 10.068; última versión de las cuatro silvers).
     - **B2** `1056455747512203` (backfill 25–27, `repeat_window`):
-      **TIMEDOUT** a los 30 min 37 s. **No escribió nada**: las versiones Delta
-      siguen en las de A2 (indeed v11 3.096 filas, infojobs v12 2.527,
-      linkedin v8 12.504, multi_site v11 10.068). El bronce de indeed solo
-      ingirió **190 filas** el 27-oct, así que el tiempo no lo explica el
-      volumen.
+      **TIMEDOUT** a los 30 min 37 s. **No escribió nada**: las silvers siguen
+      en la versión de A2. El bronce de indeed ingirió **190 filas** el 27-oct.
     - **B3** `1015448868873733` (repetición con `keyed` compartido):
       **TIMEDOUT** a los 30 min 30 s (bronce 8 m 06 s; silvers cortadas a los
-      22 min 04 s); tampoco escribió. El fix de `keyed` no era el cuello: la
-      medición local da **~45 s por pase** con el aviso de codegen «Code grows
-      beyond 64 KB» en `build_offers`, y el único paso no medido es el `MERGE`.
-    - **Lectura:** con una ventana de 7 días que cubre casi todo el bronce, el
-      camino incremental cuesta **≥4× la reconstrucción completa** (2 m 47 s–
-      3 m 46 s por silver en A2) y ni siquiera termina. No es volumen: es
-      coste fijo por pases y por el `MERGE`. **No se lanza un cuarto run.**
+      **22 min 04 s** de tarea; tampoco escribió. El fix de
+      `keyed` no era el cuello: la medición local da **~45 s por pase** con el
+      aviso de codegen «Code grows beyond 64 KB» en `build_offers`. El `MERGE` y
+      la concurrencia de las cuatro silvers son lo único no medido aquí.
+    - **Lectura:** `_ingest_date` es la **fecha del lote**, no la de captura,
+      así que la ventana de 7 días (y el backfill 25–27) **recalcula casi todo
+      el bronce**: B2/B3 son el peor caso, no un caso incremental pequeño. Aun
+      así, el camino incremental cuesta **≈6–7× la reconstrucción completa**
+      (2 m 47 s–3 m 46 s por silver en A2: 22 m 04 s en B3 y ~27 min en B,
+      duraciones de tarea) y no termina. El reparto entre
+      volumen, pasadas/caché, codegen, `MERGE` y concurrencia **lo mide la
+      010**; aquí no se da por supuesto. **No se lanza un cuarto run.**
   - **Por qué bloquea:** T-11 desplegaría a producción un mecanismo que no
     cabe en la ventana de 1800 s (el run de prod ya gasta ~19 min) y la 008 no
-    puede demostrar RF-7 (equivalencia), RF-8 (idempotencia) ni RF-10 (exports
-    A/B idénticos) aunque los tests locales estén en verde.
+    puede demostrar RF-7 (equivalencia), RF-8 (idempotencia), RF-9 (reproceso
+    por rango) ni RF-10 (exports A/B idénticos) aunque los tests locales estén
+    en verde; RF-11 (producción) depende de todo lo anterior.
   - **Qué la desbloquea:** la **spec 010** (rendimiento, layout y compute)
-    debe medir el coste real (Spark UI de B2/B3 + instrumentación por pasos),
+    debe medir el coste real (Spark UI de B2/B3 + instrumentación por etapa),
     dejar el incremental por debajo de la reconstrucción completa y repetir la
-    validación A/B. Si la persona decide **descopear el bloque B**, T-10 y T-11
-    pasan como tareas heredadas a la 010 y la 008 cierra con el bloque A.
-  - **Coste:** 5 runs (~1,20 €) de los 2 aprobados (~0,48 €); el exceso
-    (~0,72 €) se descuenta del presupuesto de la 010. 0 sesiones SQL.
-  - **Estado (2026-10-31): CERRADA POR HERENCIA.** Validada en la spec 010:
-    runs dev A `221895134926434` y B `549237053478569` (T-07/T-08), producción
-    A `321262594455396` y B `317888374535056` (T-09); RF-4 queda
-    `[NO VERIFICADO]` con desviación aprobada por el empate de `_keep_best`;
-    dashboard publicado y warehouse `STOPPED`. El detalle vive en
-    `specs/010-*/tasks.md` y `evidence.md`. **Desviación registrada
-    (2026-11-01):** el gate original de T-10 (≤ 13 m 16 s) queda superado por
-    **20 s** en el run heredado A (`221895134926434`, **816 s**); el criterio
-    aplicable es RF-3 de la 010 (**≤ 1350 s**), que se cumple. El criterio de
-    «primer run programado + domingo siguiente» de T-11 se sustituye por el
-    **A/B manual de T-09** sobre el mismo bronce y el **run programado del
-    8-nov** como comprobación posterior; no se repite ningún run y **RF-4
-    sigue `[NO VERIFICADO]`**.
+    validación A/B. **Decisión del 2026-10-28: el bloque B se descopea**; esta
+    tarea y T-11 se cierran desde la 010 (T-08 y T-09 de su `tasks.md`), y la
+    008 se cerrará con el bloque A una vez registrada la comprobación real de
+    T-06.
+  - **Coste:** 5 runs (**A 0,28 €, B 0,38 €, A2 0,18 €, B2 0,38 € y B3
+    0,38 €**; **~1,60 €**) que, con los ~0,46 € del bloque A, dejan la 008 en
+    **~2,07 €** frente al techo de 2,0 € (0 sesiones SQL). La cifra exacta se
+    confirma en la Account Console; el desvío es marginal y no requiere
+    presupuesto extra.
+  - **Cierre por herencia (2026-11-01):** **cerrada** con lo registrado por la
+    spec 010. **Dev (T-07/T-08):** run A `221895134926434` (`force_full`,
+    **816,0 s**) y run B `549237053478569` (incremental + `repeat_window`,
+    **985,3 s**), 8/8; el `MERGE` real de las 8 pasadas da `updated`
+    55/226/458/121, `inserted=deleted=0` y `numTargetRowsCopied=0`, y la
+    repetición deja el **mismo contenido**. **Desviación registrada:** el A
+    supera el gate original de T-10 (≤ 13 m 16 s) en **20 s**; el criterio
+    aplicable es el RF-3 de la 010 (**≤ 1350 s**), que se cumple. La comparación
+    de exports pasó a **equivalencia de contenido** (los bytes no son estables:
+    `coalesce(1)` no ordena); en producción el contenido difirió en una fila y
+    **RF-4 quedó `[NO VERIFICADO]`** (T-11). El coste del paso se corrigió en la
+    010: el run B mide **183,5–199,6 s** por silver en frío y **98,9–128,9 s** en
+    caliente, frente a los **~27 min de tarea** que no terminaban en este bloque.
+    Detalle en `specs/010-Performance-And-Layout/{tasks,evidence}.md`
+    (T-07/T-08).
 
-- [x] **T-11 — Producción (ventana previa a domingo)** (~30 min)
+- [x] **T-11 — Producción (ventana previa a domingo) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; el **primer run programado**
     reconstruye las silvers completas (migración, sin one-off) y cierra 8/8 con
@@ -406,37 +432,50 @@
   - **Dependencia (2026-10-28):** **no se despliega a producción** hasta que la
     010 deje el incremental por debajo de la ventana de 1800 s y repita la
     validación A/B. El procedimiento (`cutover.md`) sigue siendo el de la 007.
+  - **Estado (2026-11-01): cerrada por herencia (010 T-09).** Producción
+    desplegada el 2026-10-31 con el incremental y `pause_status: PAUSED`; dos
+    runs manuales sobre el **mismo bronce**: A `321262594455396` (`force_full`,
+    SUCCESS 8/8, **915 s**, `fact_offers` 27.072, `data_date` 2026-10-31) y B
+    `317888374535056` (incremental, SUCCESS 8/8, **747 s**), con `MERGE`
+    `updated` 316/850/1.788/728, `inserted=deleted=0` y `target_rows` idénticos;
+    `previous_files` de B = `files` de A; dashboard publicado con
+    `workflow_dispatch` y SQL warehouse **STOPPED** al cerrar (el estado previo
+    no se capturó: `[NO VERIFICADO]`; sin sesiones SQL en la ventana). **RF-4
+    queda `[NO VERIFICADO]`**: los exports difieren en una fila por un empate no
+    determinista de oro (`_keep_best`), corregido con desempate
+    `source_scraper`/`job_id` asc y **probado en local**; el run del 8-nov lo
+    usará. La persona decidió no repetir el A/B. **Desviación aprobada:** A/B
+    manual el mismo día en vez de dos domingos programados, porque el run
+    programado ingiere un lote nuevo y rompe la equivalencia. El job se
+    **reanuda el lunes** siguiente (010 T-09) y el **run programado del 8-nov**
+    es la comprobación posterior del fix y del incremental en la cadencia
+    semanal. **`[NO
+    VERIFICADO]`:** el id del deploy y las versiones de `RESTORE` de las silvers
+    no quedaron registrados.
   - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
     `RESTORE`, estado del warehouse y fila en `evidence.md`.
-  - **Estado (2026-10-31): CERRADA POR HERENCIA.** Despliegue a producción y
-    A/B manual ejecutados en la spec 010: A `321262594455396` y B
-    `317888374535056` (T-09), con RF-3, `MERGE` e idempotencia en verde; RF-4
-    queda `[NO VERIFICADO]` con desviación aprobada por el empate de
-    `_keep_best`; dashboard publicado y warehouse `STOPPED`. El detalle vive
-    en `specs/010-*/tasks.md` y `evidence.md`. **Desviación registrada
-    (2026-11-01):** el gate original de T-10 (≤ 13 m 16 s) queda superado por
-    **20 s** en el run heredado A (`221895134926434`, **816 s**); el criterio
-    aplicable es RF-3 de la 010 (**≤ 1350 s**), que se cumple. El criterio de
-    «primer run programado + domingo siguiente» de T-11 se sustituye por el
-    **A/B manual de T-09** sobre el mismo bronce y el **run programado del
-    8-nov** como comprobación posterior; no se repite ningún run y **RF-4
-    sigue `[NO VERIFICADO]`**.
 
-- [ ] **T-12 — Cierre de la spec**
+- [x] **T-12 — Cierre de la spec (bloque A y herencia del bloque B)**
   - Notas `docs/databricks-de/notes/02-delta.md` y
-    `04-incremental-architecture.md` escritas con la plantilla del índice.
+    `04-incremental-architecture.md` escritas con la plantilla del índice, que
+    queda actualizado.
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
-    completas en verde; comprobación real registrada; merge a `main` y tag
-    (`spec-008`) solo con el bloque A y el B verificados.
-  - **Estado (2026-10-28):** el bloque B no está verificado (T-10 bloqueada y
-    T-11 sin ejecutar), así que la 008 **no puede cerrarse completa**. Si la
-    persona descopea el bloque B, la 008 cierra con el bloque A y la 010
-    hereda T-10/T-11; si no, sigue abierta hasta que la 010 desbloquee. Las
-    notas `02-delta.md` y `04-incremental-architecture.md` se escriben al
-    cerrar, no antes.
+    completas en verde; comprobación real del bloque A registrada; merge a
+    `main` y tag (`spec-008`).
+  - **Estado (2026-11-01): cerrada.** Bloque B **descopeado** a la 010 (T-10 y
+    T-11, cerradas allí por T-08/T-09). T-06 registrada con el run
+    `636564838129029`: **8/8 en 14 min 01 s**, dashboard publicado por el
+    workflow `40276725938` y warehouse `STOPPED`; los conteos de ese export
+    quedan `[NO VERIFICADO]`. Suites completas en verde
+    (`databricks_notebooks` **187 passed, 1 skipped**; `scrapers-pipeline`
+    **1133 passed**) y verificación independiente **PASA CON MENORES** tras
+    corregir 8 hallazgos; merge `--no-ff` a `main` con `AGENTS.md` restaurado de
+    `main` y tag `spec-008`.
 
 ## 3. Cierre de la spec
 
 - Notas `docs/databricks-de/notes/02-delta.md` y
   `04-incremental-architecture.md` escritas con la plantilla del índice.
 - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día.
+- **Cerrada el 2026-11-01:** merge `--no-ff` a `main` (con `AGENTS.md`
+  restaurado de `main`) y tag `spec-008`.
