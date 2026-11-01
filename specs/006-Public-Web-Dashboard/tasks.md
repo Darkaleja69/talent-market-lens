@@ -425,5 +425,8 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     contra el export publicado de la misma fecha (`data_date` 2026-10-31);
     suites en verde (`databricks_notebooks/tests`: 187 passed + 1 skipped;
     `scrapers-pipeline/tests`: 1133 passed). Evidencia:
-    `evidence-2026-11-01.md` (§T-20). Limitaciones `[NO VERIFICADO]`: paridad
-    Power BI de la misma fecha, logs de GitHub Actions y `build_type` de Pages.
+    `evidence-2026-11-01.md` (§T-20). Cotejo con Power BI del refresh del
+    31-oct: 4/5 KPIs exactos; `Companies Hiring` −1 (10.111 vs 10.112) por
+    T-31 (nombre `42`), diferencia documentada. Limitaciones `[NO VERIFICADO]`:
+    mecanismo de exclusión del catálogo en Power BI, logs de GitHub Actions y
+    `build_type` de Pages.
