@@ -27,10 +27,19 @@ table Metrics
 		lineageTag: 10d7607c-764d-42b7-86f6-e6c506f5bc1f
 
 	measure 'Companies Hiring' =
-			CALCULATE (
-				DISTINCTCOUNT ( 'Fact_Offers'[company_name] ),
-				TRIM ( 'Fact_Offers'[company_name] ) <> ""
-			)
+			VAR ValidCompanies =
+			    FILTER (
+			        VALUES ( 'Fact_Offers'[company_name] ),
+			        VAR t = TRIM ( 'Fact_Offers'[company_name] )
+			        RETURN
+			            t <> ""
+			                && (
+			                    ISERROR ( VALUE ( SUBSTITUTE ( t, ".", "," ) ) )
+			                        || CONTAINSSTRING ( t, " " )
+			                )
+			    )
+			RETURN
+			    COUNTROWS ( ValidCompanies )
 		formatString: #,##0
 		lineageTag: acc4d52a-51b0-427b-8991-e0d53e781d58
 
