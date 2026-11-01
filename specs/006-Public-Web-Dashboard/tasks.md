@@ -430,4 +430,5 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     medida del commit `757afad` (la diferencia histórica 10.112 → 10.111 por
     el nombre `42` queda documentada). Limitaciones `[NO VERIFICADO]`:
     mecanismo histórico del catálogo, logs de GitHub Actions y `build_type` de
-    Pages.
+    Pages. Publicado y verificado en vivo (run `41339986392`, `main`
+    `ae21116`).
