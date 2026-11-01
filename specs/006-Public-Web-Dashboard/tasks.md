@@ -426,7 +426,8 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     suites en verde (`databricks_notebooks/tests`: 187 passed + 1 skipped;
     `scrapers-pipeline/tests`: 1133 passed). Evidencia:
     `evidence-2026-11-01.md` (§T-20). Cotejo con Power BI del refresh del
-    31-oct: 4/5 KPIs exactos; `Companies Hiring` −1 (10.111 vs 10.112) por
-    T-31 (nombre `42`), diferencia documentada. Limitaciones `[NO VERIFICADO]`:
-    mecanismo de exclusión del catálogo en Power BI, logs de GitHub Actions y
-    `build_type` de Pages.
+    31-oct: 5/5 KPIs exactos; `Companies Hiring` alineado en 10.111 con la
+    medida del commit `757afad` (la diferencia histórica 10.112 → 10.111 por
+    el nombre `42` queda documentada). Limitaciones `[NO VERIFICADO]`:
+    mecanismo histórico del catálogo, logs de GitHub Actions y `build_type` de
+    Pages.
