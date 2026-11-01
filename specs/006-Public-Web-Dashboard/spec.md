@@ -11,13 +11,13 @@ las skills y la geografía que ya produce la capa Gold.
 
 Esta funcionalidad publica un dashboard web estático en GitHub Pages: una tarea
 final del job de Databricks escribe un export Parquet de Gold más un
-`meta.json` de frescura en ADLS; un workflow de GitHub Actions lo descarga a
-diario con una SAS de solo lectura y despliega el sitio; el navegador del
-visitante ejecuta SQL sobre los Parquet con DuckDB-WASM y pinta las vistas con
-ECharts. Los datos no se versionan, no hay backend ni login, y Power BI queda
-como evidencia de la capa BI (`.pbip`, capturas y GIF), no como canal de
-consulta. El embedding temporal de Power BI queda como extra opcional fuera de
-esta spec.
+`meta.json` de frescura en ADLS; un workflow de GitHub Actions lo descarga
+semanalmente (spec 009) con una SAS de solo lectura y despliega el sitio; el
+navegador del visitante ejecuta SQL sobre los Parquet con DuckDB-WASM y pinta
+las vistas con ECharts. Los datos no se versionan, no hay backend ni login, y
+Power BI queda como evidencia de la capa BI (`.pbip`, capturas y GIF), no como
+canal de consulta. El embedding temporal de Power BI queda como extra opcional
+fuera de esta spec.
 
 El trabajo está diseñado para ejecutarse **en paralelo a la spec 004** (rama y
 worktree propios creados desde `main`, sin solapar archivos con la 004/005) y
@@ -40,8 +40,8 @@ sin tocar el pipeline, la landing ni las specs ajenas.
   que mi elección se recuerde.
 - Como visitante, quiero saber de cuándo son los datos y de dónde salen, con
   sus limitaciones, para confiar en lo que veo.
-- Como mantenedor, quiero que el sitio se actualice solo a diario sin
-  commitear datos ni exponer credenciales.
+- Como mantenedor, quiero que el sitio se actualice solo una vez por semana
+  (spec 009) sin commitear datos ni exponer credenciales.
 - Como mantenedor, quiero probar la web en local antes de publicarla.
 - Como mantenedor, quiero que este trabajo no interfiera con la spec 004 ni con
   el pipeline nocturno.
@@ -84,10 +84,10 @@ las vistas analíticas y limitar el explorador a un alcance documentado, de modo
 que el sitio siga cargando de forma razonable; el modo usado quedará registrado
 en `meta.json` y explicado en la metodología.
 
-### RF-5 — Actualización diaria y publicación automática
+### RF-5 — Actualización semanal y publicación automática
 
 **Criterio de aceptación (EARS):** Cuando se ejecute el workflow de GitHub
-Actions (programado a diario o lanzado a mano), deberá descargar el export
+Actions (programado semanalmente o lanzado a mano), deberá descargar el export
 desde ADLS con `curl` y una SAS de solo lectura guardada como secreto
 (`WEB_EXPORT_SAS`), ensamblar el sitio y desplegarlo en GitHub Pages. No deberá
 versionar datos ni usar credenciales de escritura; si la descarga o el
@@ -192,9 +192,9 @@ un sitio en blanco ni datos a medias.
 ### RF-15 — Documentar la publicación y preservar Power BI como evidencia
 
 **Criterio de aceptación (EARS):** Al terminar, los README (raíz y español)
-deberán documentar la URL pública, la actualización diaria y dónde vive el
-export; el proyecto Power BI con sus capturas y GIF se mantendrá como evidencia
-  de la capa BI, con la aclaración de que el canal público es el sitio.
+deberán documentar la URL pública, la actualización semanal (spec 009) y dónde
+vive el export; el proyecto Power BI con sus capturas y GIF se mantendrá como
+evidencia de la capa BI, con la aclaración de que el canal público es el sitio.
 
 ### RF-16 — Interfaz bilingüe (español e inglés)
 
@@ -296,8 +296,8 @@ compartibles.
 - Las suites existentes quedan en verde:
   `python -m pytest databricks_notebooks/tests -q` y
   `python -m pytest scrapers-pipeline/tests -q`.
-- README y documentación describen la URL, el ciclo diario y el export; Power BI
-  queda documentado como evidencia.
+- README y documentación describen la URL, el ciclo semanal (spec 009) y el
+  export; Power BI queda documentado como evidencia.
 - **Comprobación real:** abrir la URL pública en incógnito (escritorio y
   móvil), comprobar las cuatro vistas, filtros, búsqueda y enlaces, cotejar
   4–5 KPIs contra el informe o sus capturas de la misma fecha, y ejecutar un
@@ -315,8 +315,8 @@ compartibles.
   se publican descripciones ni columnas internas; la metodología lo explica.
 - Power BI queda como evidencia (`.pbip` + capturas + GIF); el embed es un
   extra fuera de la spec.
-- Actualización diaria vía GitHub Actions; el cron solo corre en la rama por
-  defecto y durante el desarrollo se usa `workflow_dispatch`.
+- Actualización semanal vía GitHub Actions (spec 009); el cron solo corre en la
+  rama por defecto y durante el desarrollo se usa `workflow_dispatch`.
 - Geografía portada a funciones puras con `Dim_RegionMap` versionada como
   constante; si el modelo cambia, la constante se actualiza con la spec.
 - Solo las ~18 medidas clave; el resto del modelo no se replica.
