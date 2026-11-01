@@ -312,7 +312,8 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     ES/EN, tooltip con la fecha completa y título/caption actualizados, sin
     regresiones de encaje a 1440×900 (T-28) ni de temas (T-27).
 
-- [ ] **T-33 — Scroll de las páginas del dashboard** (~20 min)
+- [x] **T-33 — Scroll de las páginas del dashboard** (~20 min) — **DESCARTADA
+  (2026-11-01)**
   - **RF:** RF-7, RF-16.
   - **Hecho cuando:** se reproduce el caso reportado por la persona (página,
     ventana y gesto) y el scroll funciona en todas las páginas, con la
@@ -320,6 +321,13 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     mediciones locales dan scroll correcto con rueda (sobre y fuera de
     gráficos) y contenido que cabe entero en ventanas altas (Market Pulse,
     Roles & Skills y Salary Insights a 2160×1350).
+  - **Estado (2026-11-01): DESCARTADA por decisión de la persona.** No se
+    reprodujo en local: el scroll con rueda funciona dentro y fuera de los
+    gráficos y el contenido cabe entero en ventanas altas (Market Pulse,
+    Roles & Skills y Salary Insights a 2160×1350). No se aportó un caso
+    concreto (página, ventana y gesto) que permitiese reproducirlo en la web
+    pública. **No hay código cambiado por esta tarea**; no se finge un
+    arreglo. Evidencia: `evidence-2026-11-01.md` (§T-33).
 
 ## 5. Publicación y documentación
 
