@@ -340,7 +340,7 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     `-DryRun` y permite servir `docs/` en local con los mismos nombres y rutas
     que Pages; no sube nada ni publica; la web funciona con la instantánea.
 
-- [ ] **T-17 — Workflow, secreto y Pages** (~25 min)
+- [x] **T-17 — Workflow, secreto y Pages** (~25 min)
   - **RF:** RF-5.
   - **Depende de:** T-15.
   - **Hecho cuando:** `.github/workflows/dashboard.yml` descarga los cinco
@@ -351,6 +351,17 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     configurados; un `workflow_dispatch` real publica el sitio y la URL sirve
     las vistas sin login. Si la descarga falla, el job falla y no hay deploy
     parcial.
+  - **Resultado (2026-11-01):** workflow revisado y runs reales verificados;
+    `workflow_dispatch` y `schedule` (`0 1 * * MON`), descarga de los cinco
+    ficheros con `curl` y `WEB_EXPORT_SAS` (sin `-v`, sin `set -x` y con
+    errores enmascarados), ensamblado de `_site/`, validación de ficheros y
+    frescura, permisos (`contents: read`, `pages: write`, `id-token: write`) y
+    concurrencia `pages` serializada; el deploy (`deploy-pages`) solo corre si
+    el build pasa. Run que publicó el sitio: #15 `41227952110`
+    (`workflow_dispatch`, `main`, 2026-10-31T18:08:51Z, 34 s, artefacto
+    `github-pages` de 6,39 MB); run manual previo #13 `40074522809`
+    (2026-10-24, 26 s) y run programado #14 `40276725938` (2026-10-26, 32 s),
+    ambos en verde. Evidencia: `evidence-2026-11-01.md` (§T-17).
 
 - [ ] **T-18 — Ciclo diario y frescura** (~20 min)
   - **RF:** RF-3, RF-5.
