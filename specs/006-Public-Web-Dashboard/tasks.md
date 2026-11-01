@@ -392,6 +392,9 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     y no despliega; con el `meta.json` vivo (1 día) valida. Los datos no se
     versionan (`docs/data/` está en `.gitignore`) y la SAS solo vive en el
     secreto. Evidencia: `evidence-2026-11-01.md` (§T-18).
+  - **Hallazgo de T-20 (2026-11-01):** la metodología declaraba descarga
+    diaria; corregido en `docs/dashboard/i18n.js` (ES/EN) en el commit
+    `a320dde`.
 
 ## 6. Verificación y cierre
 
@@ -403,7 +406,7 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     del último dato y el workflow falla sin publicar a medias; el modo
     `aggregated` (si aplica) se comporta igual.
 
-- [ ] **T-20 — Comprobación real y cierre de la spec** (~25 min)
+- [x] **T-20 — Comprobación real y cierre de la spec** (~25 min)
   - **RF:** RF-5–RF-16.
   - **Depende de:** T-18, T-19.
   - **Hecho cuando:** la URL pública se abre en incógnito (escritorio y
@@ -414,3 +417,13 @@ cada mes (no el mes); y el scroll de las páginas debe quedar comprobado.
     y `scrapers-pipeline/tests`) están en verde; el resultado se registra en
     `specs/006-Public-Web-Dashboard/evidence-<fecha>.md`; la persona valida el
     push/merge antes de cerrar.
+  - **Resultado (2026-11-01):** URL pública comprobada en escritorio
+    (1440×900) y móvil (390×844); 5 rutas en es/en (Market Pulse, Roles &
+    Skills, Salary Insights, Opportunity Explorer y Metodología) y portada;
+    filtros globales (país y modalidad), búsqueda y enlaces reales; consola y
+    red sin errores (0 mensajes y 0 respuestas 4xx/5xx); 8 KPIs cotejados
+    contra el export publicado de la misma fecha (`data_date` 2026-10-31);
+    suites en verde (`databricks_notebooks/tests`: 187 passed + 1 skipped;
+    `scrapers-pipeline/tests`: 1133 passed). Evidencia:
+    `evidence-2026-11-01.md` (§T-20). Limitaciones `[NO VERIFICADO]`: paridad
+    Power BI de la misma fecha, logs de GitHub Actions y `build_type` de Pages.
