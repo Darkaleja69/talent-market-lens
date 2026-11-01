@@ -98,7 +98,7 @@ al menos un despertar.
   etiqueta. El presupuesto es de **suscripción**, así que la alerta cubre todo
   el gasto aunque el desglose por etiqueta esté incompleto.
 
-## Runs de la spec 008 (en curso)
+## Runs de la spec 008 (cerrada el 2026-11-01)
 
 - **T-04 (2026-10-24), one-off del bronce dev:** run `328818148400464` del job
   `dedupe_oneoff` (`933759794529939`), **SUCCESS**, 4/4 tareas, **8 min 58 s**
@@ -119,9 +119,12 @@ al menos un despertar.
 - **T-06 one-off de prod (2026-10-24):** run `164560238285705`, **SUCCESS**, 4/4,
   **9 min 11 s** → **~0,11 €** (producción, fuera del presupuesto de dev).
   Deduplicó 53.353 filas históricas en las cuatro tablas de prod.
-- **T-06 comprobación real (2026-10-25):** run programado `636564838129029` en
-  verde (producción, ~0,24 €, ya en la cadencia semanal de la 009) y dashboard
-  publicado por el workflow `40276725938`; sin runs manuales.
+- **T-06 comprobación real (2026-10-25):** run programado `636564838129029`,
+  **SUCCESS 8/8** en **14 min 01 s** (840,9 s; bronce 383 s de arranque + 132 s de
+  ejecución; silvers 171–217 s; oro 57 s; exports 37/41 s) → **~0,20 €**
+  (la estimación de la 009 daba ~0,24 €; producción, ya en la cadencia semanal
+  de la 009) y dashboard publicado por el
+  workflow `40276725938`; sin runs manuales.
 - **T-10 A (2026-10-25), migración de las silvers en dev:** run `263658658061220`,
   **SUCCESS**, 8/8 tareas, **22 min 18 s** (bronce setup 6 m 52 s + exec 1 m 57 s;
   silvers 9,8–11,8 min; oro 0,87 min; exports 0,53/0,58 min) → **~0,24 €**.
@@ -168,7 +171,7 @@ al menos un despertar.
   comparación de exports; el incremental necesita rendimiento (spec 010) antes
   de T-11.
 
-## Runs de la spec 010 (en curso)
+## Runs de la spec 010
 
 - **T-03 (2026-10-28), intento abortado antes de medir:** run `16957686724897`,
   **CANCELED** a los 108 s (el job desplegado aún no tenía el `spark_conf`; el
@@ -227,6 +230,18 @@ al menos un despertar.
   techo de dev). El fix del empate no añade runs; el run programado de esa
   semana se pausó (1 run menos). Dashboard con `workflow_dispatch` y warehouse
   `STOPPED` (0 sesiones SQL).
+
+## Cierre de la spec 010 (2026-11-01)
+
+- **5 runs de dev consumidos (5/5)** —T-03 A/B, T-03b, T-07 A y T-08 B, con
+  sus ids arriba— más **1 intento abortado**: **~1,05 €** frente al techo de
+  **1,8 €**; **0 sesiones SQL**. Presupuesto de dev agotado; el run de reserva
+  no se gastó.
+- **T-05** (clúster de lectura): **céntimos** (estimación; duración exacta no
+  registrada). **T-06**: **0 €**. **T-10**: **0 €** (solo documentación).
+- **Producción T-09**: **~0,44 €** (A ~0,24 € + B ~0,20 €), fuera del techo de
+  dev y dentro del presupuesto de producción de la 009; el run programado de
+  esa semana se pausó (1 run menos).
 
 ## Cierre de la spec 009 (2026-10-24)
 

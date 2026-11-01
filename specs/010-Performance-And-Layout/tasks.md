@@ -433,7 +433,7 @@
     `plan.md` §7.2; fila en `evidence.md`. **0 €** (sin runs extra; la reserva
     exige aprobación).
 
-- [ ] **T-06b — `sha256` de los exports dentro de `meta.json`** (~45 min)
+- [x] **T-06b — `sha256` de los exports dentro de `meta.json`** (~45 min)
   - **Objetivo:** que la equivalencia de contenido de RF-4 deje de depender de copiar ficheros a
     mano: `Prepare_PBI_Export` y `Prepare_Web_Export` añaden a su `meta.json` la lista de ficheros
     publicados con `{name, bytes, sha256}`.
@@ -462,6 +462,10 @@
     de la 009). `[NO VERIFICADO]` hasta entonces.
   - **Evidencia:** salida de los tests, `meta.json` con los hashes y fila en `evidence.md`.
     **0 €.**
+  - **Estado (2026-10-31): CERRADA.** Verificación real en **T-09**:
+    `previous_files` del `meta.json` de B (`317888374535056`) = `files` de A
+    (`321262594455396`), con hashes y bytes; tests de `test_pbi_export.py` y
+    `test_web_export.py` en verde. **0 €.**
 
 ## 3. Validación y producción
 
@@ -520,9 +524,11 @@
     `HashAggregate + Exchange SinglePartition` sobre `LocalTableScan <empty>`;
     las celdas se retiraron el 2026-10-31 para no añadir trabajo al run.
     **Coste ~0,20 €** (anotado en
-    `docs/costs.md`). Verificación independiente pendiente.
+    `docs/costs.md`). **Verificación independiente: PASA CON MENORES en el
+    cierre documental de T-10** (menores de registro corregidos el 2026-11-01;
+    evidencia de la API de runs contrastada con el resumen; sin red).
 
-- [ ] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
+- [x] **T-08 — Run B (incremental + repetición) en dev: cierra T-10 de la 008** (~25 min)
   - **Hecho cuando:** el run cierra 8/8 con `backfill_from`/`backfill_to` y
     `repeat_window=true`; **el `MERGE` escribe** (métricas de filas insertadas/
     actualizadas/borradas distintas de cero); la repetición deja el mismo
@@ -557,6 +563,9 @@
     y **no se repite el A/B en dev** (no hay run nuevo autorizado): **RF-4 se
     valida en T-09** con **dos runs manuales de producción sobre el mismo
     bronce** (A `full` y B incremental), no con dos domingos programados.
+    **CERRADA (2026-10-31):** run B `549237053478569`; RF-3, `MERGE` e
+    idempotencia en verde; la equivalencia de exports pasó a T-09 (desviación
+    aprobada) y RF-4 queda `[NO VERIFICADO]` en producción.
 
 - [x] **T-09 — Herencia de la 008: producción (cierra T-11)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
@@ -606,7 +615,7 @@
 
 ## 4. Cierre
 
-- [ ] **T-10 — Cierre de la spec**
+- [x] **T-10 — Cierre de la spec**
   - Nota `docs/databricks-de/notes/01-spark-performance.md` escrita con la
     plantilla del índice (qué se practicó, concepto, comandos, errores, dudas).
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
@@ -619,3 +628,22 @@
   - **Hecho cuando:** merge a `main` y tag (`spec-010`) con **RF-2 y RF-3
     verificados en dev**; **RF-4 cerrado con la desviación aprobada**; y RF-8
     cerrado.
+  - **Estado (2026-11-01): CERRADA.**
+    - **Nota escrita:** `docs/databricks-de/notes/01-spark-performance.md`, con
+      la plantilla del índice y el índice actualizado (`README.md`).
+    - **Roadmap y coste al día:** calendario y bitácora de
+      `docs/databricks-de/roadmap.md`; `docs/costs.md` con el cierre de la 010.
+    - **Suites completas:** **187 passed, 1 skipped** en `python -m pytest databricks_notebooks/tests -q` (3.450 s) y **1133 passed** en `python -m pytest scrapers-pipeline/tests -q` (1.045 s); un intento previo de la suite de notebooks ejecutado en paralelo con la de pipeline falló por timeout de socket del Python worker (entorno), no por el código, y la ejecución en serie pasó completa.
+    - **Comprobación real:** T-09 (A/B manual de producción; RF-3, `MERGE` e
+      idempotencia en verde, dashboard publicado y warehouse `STOPPED`).
+    - **Desviación de RF-4 aceptada explícitamente por la persona:** el A/B no
+      se repite; el fix de `_keep_best` quedó probado en local y RF-4 sigue
+      `[NO VERIFICADO]` en producción.
+    - **Gasto:** **~1,05 €** de dev, por debajo del techo de **1,8 €**; **0
+      sesiones SQL**.
+    - **RF-8 cerrado con desviación aprobada (2026-11-01):** A/B manual de T-09
+      sobre el mismo bronce, dashboard publicado y warehouse `STOPPED`; el run
+      programado del 8-nov queda como comprobación posterior no bloqueante y
+      valida el fix de `_keep_best`. No se repite ningún run. El `STOPPED`
+      previo no se capturó (`[NO VERIFICADO]`; 0 SQL).
+    - **Merge y tag:** merge `--no-ff` a `main` y tag anotado `spec-010`.

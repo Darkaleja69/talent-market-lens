@@ -3,7 +3,8 @@
 > Detalle del **bloque A**, afinado al arrancar la 008 (2026-10-21) y
 > **actualizado el 2026-10-24** con la herencia de la 009 (coste y cadencia) y
 > con el **bloque B planificado** (§2) mientras T-06 espera el run programado
-> del domingo.
+> del domingo. **Cerrada el 2026-11-01:** bloque A con su comprobación real
+> registrada y bloque B cerrado por herencia de la 010 (T-08/T-09).
 > Formato de trabajo según `AGENTS.md`: **la persona decide** el alcance y
 > revisa; el asistente prepara las tareas, implementa el código y lo commitea
 > tras la verificación independiente. Ninguna tarea se marca como hecha sin su
@@ -149,7 +150,7 @@
     `bronze_ingest` no devuelve resumen (hueco de observabilidad anotado para la
     010); la igualdad de los exports lo sustituye como prueba.
 
-- [ ] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
+- [x] **T-06 — Prod con el mecanismo seguro de la 007** (~40 min)
   - **Hecho cuando:** en la ventana **previa a un domingo**, la one-off de
     migración de prod se ejecuta **antes** del primer lote del ingest nuevo
     (conteos antes/después por fuente y `RESTORE` disponible), se hace
@@ -166,14 +167,24 @@
     espera al domingo siguiente, con la web mostrando la fecha real de los datos.
   - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, versiones de
     `RESTORE`, estado final, coste en `docs/costs.md` y fila en `evidence.md`.
-  - **Estado:** **one-off de producción hecha el 2026-10-24.** Deploy `-t prod`
-    con el ingest nuevo y el job `dedupe_oneoff`; run `164560238285705` en verde,
-    4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas duplicadas eliminadas (indeed
-    9.769→3.039, infojobs 45.171→2.617, linkedin 17.285→14.289, multi_site
-    12.169→11.096), `RESTORE` a 19/20/60/50. **Comprobación real en verde
-    (2026-10-28):** run programado del domingo `636564838129029` y dashboard
-    publicado por el workflow `40276725938`. Falta anotar duración, conteos del
-    export y estado del warehouse (`STOPPED`) para cerrar la tarea.
+  - **Estado:** **cerrada el 2026-11-01.** One-off de producción hecha el
+    2026-10-24: deploy `-t prod` con el ingest nuevo y el job `dedupe_oneoff`;
+    run `164560238285705` en verde, 4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas
+    duplicadas eliminadas (indeed 9.769→3.039, infojobs 45.171→2.617, linkedin
+    17.285→14.289, multi_site 12.169→11.096), `RESTORE` a 19/20/60/50.
+    **Comprobación real:** run programado del domingo `636564838129029`,
+    **SUCCESS 8/8**, 2026-10-25 23:00:51 → 23:14:52 (Madrid), **840,9 s
+    (14 min 01 s)**: bronce setup 383 s + ejecución 132 s; silvers en paralelo
+    linkedin 217 s, multi_site 186 s, indeed 173 s e infojobs 171 s; oro 57 s;
+    exports 37 s y 41 s. Dashboard publicado por el workflow `40276725938`
+    (build 05:53:59Z → deploy 05:54:26Z del 26-oct; la validación de `data_date`
+    ≤ 8 días pasó) y SQL warehouse **STOPPED** (Serverless Starter Warehouse,
+    0 clústeres). **`[NO VERIFICADO]`:** los conteos del export de ese run —su
+    `meta.json` fue sobrescrito por los runs del 31-oct, el contenedor no tiene
+    versionado de blobs y el run no guarda `notebook.exit`— y la fecha exacta de
+    `data_date` del dashboard (solo se sabe que era ≤ 8 días). Coste
+    **~0,20 €** (la estimación de la 009 daba ~0,24 €; la banda medida de la
+    010, 808–974 s ≈ 0,17–0,23 €, sitúa 841 s en ~0,20 €).
 
 ## 2. Bloque B — Silvers incrementales
 
@@ -317,7 +328,7 @@
     comprobados. `[NO VERIFICADO]`: efectos reales (MERGE, primera ejecución
     completa, equivalencia de `companies_*` y exports) en T-10/T-11.
 
-- [ ] **T-10 — Validación en dev (A/B) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
+- [x] **T-10 — Validación en dev (A/B) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
   - **Hecho cuando:** **run A** cierra 8/8 tareas y es la migración (tabla sin
     `_ingest_date` → reconstrucción completa con `overwrite`), con silver
     ≤ 2,8–3,6 min de T-05 y total ≤ 13 m 16 s, y exports con `meta.json`
@@ -386,12 +397,28 @@
     tarea y T-11 se cierran desde la 010 (T-08 y T-09 de su `tasks.md`), y la
     008 se cerrará con el bloque A una vez registrada la comprobación real de
     T-06.
-  - **Coste:** 5 runs (~0,38 € cada uno por duración a 0,75 €/h; **~1,6 €**
-    estimados) que, con los ~0,46 € del bloque A, dejan la 008 en **~2,07 €**
-    frente al techo de 2,0 € (0 sesiones SQL). La cifra exacta se confirma en
-    la Account Console; el desvío es marginal y no requiere presupuesto extra.
+  - **Coste:** 5 runs (**A 0,28 €, B 0,38 €, A2 0,18 €, B2 0,38 € y B3
+    0,38 €**; **~1,60 €**) que, con los ~0,46 € del bloque A, dejan la 008 en
+    **~2,07 €** frente al techo de 2,0 € (0 sesiones SQL). La cifra exacta se
+    confirma en la Account Console; el desvío es marginal y no requiere
+    presupuesto extra.
+  - **Cierre por herencia (2026-11-01):** **cerrada** con lo registrado por la
+    spec 010. **Dev (T-07/T-08):** run A `221895134926434` (`force_full`,
+    **816,0 s**) y run B `549237053478569` (incremental + `repeat_window`,
+    **985,3 s**), 8/8; el `MERGE` real de las 8 pasadas da `updated`
+    55/226/458/121, `inserted=deleted=0` y `numTargetRowsCopied=0`, y la
+    repetición deja el **mismo contenido**. **Desviación registrada:** el A
+    supera el gate original de T-10 (≤ 13 m 16 s) en **20 s**; el criterio
+    aplicable es el RF-3 de la 010 (**≤ 1350 s**), que se cumple. La comparación
+    de exports pasó a **equivalencia de contenido** (los bytes no son estables:
+    `coalesce(1)` no ordena); en producción el contenido difirió en una fila y
+    **RF-4 quedó `[NO VERIFICADO]`** (T-11). El coste del paso se corrigió en la
+    010: el run B mide **183,5–199,6 s** por silver en frío y **98,9–128,9 s** en
+    caliente, frente a los **~27 min de tarea** que no terminaban en este bloque.
+    Detalle en `specs/010-Performance-And-Layout/{tasks,evidence}.md`
+    (T-07/T-08).
 
-- [ ] **T-11 — Producción (ventana previa a domingo) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
+- [x] **T-11 — Producción (ventana previa a domingo) — DESCOPEADA a la 010 (2026-10-28)** (~30 min)
   - **Hecho cuando:** tras cerrar T-06, `bundle deploy -t prod` con rollback de
     bundle y `RESTORE` de las silvers disponible; el **primer run programado**
     reconstruye las silvers completas (migración, sin one-off) y cierra 8/8 con
@@ -404,25 +431,44 @@
   - **Dependencia (2026-10-28):** **no se despliega a producción** hasta que la
     010 deje el incremental por debajo de la ventana de 1800 s y repita la
     validación A/B. El procedimiento (`cutover.md`) sigue siendo el de la 007.
-  - **Estado (2026-10-28):** **descopeada a la 010** (T-09 de su `tasks.md`).
-    Esta spec no despliega el incremental; su cierre es el del bloque A.
+  - **Estado (2026-11-01): cerrada por herencia (010 T-09).** Producción
+    desplegada el 2026-10-31 con el incremental y `pause_status: PAUSED`; dos
+    runs manuales sobre el **mismo bronce**: A `321262594455396` (`force_full`,
+    SUCCESS 8/8, **915 s**, `fact_offers` 27.072, `data_date` 2026-10-31) y B
+    `317888374535056` (incremental, SUCCESS 8/8, **747 s**), con `MERGE`
+    `updated` 316/850/1.788/728, `inserted=deleted=0` y `target_rows` idénticos;
+    `previous_files` de B = `files` de A; dashboard publicado con
+    `workflow_dispatch` y SQL warehouse **STOPPED** al cerrar (el estado previo
+    no se capturó: `[NO VERIFICADO]`; sin sesiones SQL en la ventana). **RF-4
+    queda `[NO VERIFICADO]`**: los exports difieren en una fila por un empate no
+    determinista de oro (`_keep_best`), corregido con desempate
+    `source_scraper`/`job_id` asc y **probado en local**; el run del 8-nov lo
+    usará. La persona decidió no repetir el A/B. **Desviación aprobada:** A/B
+    manual el mismo día en vez de dos domingos programados, porque el run
+    programado ingiere un lote nuevo y rompe la equivalencia. **`[NO
+    VERIFICADO]`:** el id del deploy y las versiones de `RESTORE` de las silvers
+    no quedaron registrados.
   - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
     `RESTORE`, estado del warehouse y fila en `evidence.md`.
 
-- [ ] **T-12 — Cierre de la spec (solo bloque A)**
-  - Nota `docs/databricks-de/notes/02-delta.md` escrita con la plantilla del
-    índice. `04-incremental-architecture.md` pasa a la 010 (el incremental ya no
-    se cierra aquí).
+- [x] **T-12 — Cierre de la spec (bloque A y herencia del bloque B)**
+  - Notas `docs/databricks-de/notes/02-delta.md` y
+    `04-incremental-architecture.md` escritas con la plantilla del índice, que
+    queda actualizado.
   - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día; suites
     completas en verde; comprobación real del bloque A registrada; merge a
     `main` y tag (`spec-008`).
-  - **Estado (2026-10-28):** bloque B **descopeado** a la 010 (T-10 y T-11).
-    La 008 se cierra con el bloque A cuando T-06 complete su fila de
-    `evidence.md`: el run `636564838129029` y el workflow `40276725938` están en
-    verde y falta anotar duración, conteos del export y estado del warehouse.
+  - **Estado (2026-11-01): cerrada.** Bloque B **descopeado** a la 010 (T-10 y
+    T-11, cerradas allí por T-08/T-09). T-06 registrada con el run
+    `636564838129029`: **8/8 en 14 min 01 s**, dashboard publicado por el
+    workflow `40276725938` y warehouse `STOPPED`; los conteos de ese export
+    quedan `[NO VERIFICADO]`. Suites completas en verde; merge `--no-ff` a
+    `main` con `AGENTS.md` restaurado de `main` y tag `spec-008`.
 
 ## 3. Cierre de la spec
 
-- Nota `docs/databricks-de/notes/02-delta.md` escrita con la plantilla del
-  índice. `04-incremental-architecture.md` se escribe en la 010.
+- Notas `docs/databricks-de/notes/02-delta.md` y
+  `04-incremental-architecture.md` escritas con la plantilla del índice.
 - Calendario y bitácora de `docs/databricks-de/roadmap.md` al día.
+- **Cerrada el 2026-11-01:** merge `--no-ff` a `main` (con `AGENTS.md`
+  restaurado de `main`) y tag `spec-008`.

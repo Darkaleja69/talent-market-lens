@@ -180,12 +180,26 @@ demostrada, el despliegue a producción de T-11 de la 008 deberá quedar cerrado
 deploy con rollback, runs de producción 8/8 (A/B manual en T-09 y el siguiente
 programado), dashboard publicado y SQL warehouse `STOPPED` antes y después.
 
+**Nota (2026-11-01):** la persona aprueba cerrar RF-8 con el **A/B manual de
+T-09** sobre el mismo bronce, el dashboard publicado y el SQL warehouse
+`STOPPED`; el **run programado del 8-nov** queda como **comprobación posterior
+no bloqueante**. **No se repite ningún run** para validar el último cambio de
+oro (`Prepare_Gold.keep_best`): está probado en local y el run programado lo
+usará; si fallara, se abre spec nueva. El estado `STOPPED` **antes** de los runs
+no se capturó (`[NO VERIFICADO]`); no hubo sesiones SQL.
+
 ### RF-9 — Observabilidad y presupuesto
 **Criterio (EARS):** Cuando termine cada run, el resumen del notebook deberá
 exponer los tiempos por etapa y las métricas del `MERGE` sin pasadas
 adicionales, la evidencia se leerá por la API de runs y el gasto de dev no podrá
 superar **3 runs y 0 sesiones SQL** (~0,72 €) dentro del techo de **1,8 €** de
 la 009; cada run se anotará en `docs/costs.md` con motivo, id y coste.
+
+**Nota (2026-11-01):** la persona aprobó ampliar el presupuesto de dev de **3 a
+5 runs** (decisión del 2026-10-31, `plan.md` §9 y `evidence.md`); el gasto real
+fue **~1,05 €** (5 runs + 1 intento abortado) frente al techo de **1,8 €**, con
+**0 sesiones SQL**. El texto original de 3 runs se conserva como referencia
+histórica.
 
 ## Requisitos no funcionales
 
