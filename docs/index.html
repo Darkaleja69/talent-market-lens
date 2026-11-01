@@ -347,8 +347,8 @@
         <a class="btn btn--primary" href="dashboard/">Abrir el dashboard · Open the dashboard</a>
         <a class="btn btn--ghost" href="#powerbi">Evidencia Power BI · Power BI evidence</a>
       </p>
-      <p class="hero__meta" lang="es">Sin registro · Datos reales · Actualización diaria · Español e inglés en el propio dashboard.</p>
-      <p class="hero__meta" lang="en">No login · Real data · Daily update · Spanish and English inside the dashboard.</p>
+      <p class="hero__meta" lang="es">Sin registro · Datos reales · Actualización semanal · Español e inglés en el propio dashboard.</p>
+      <p class="hero__meta" lang="en">No login · Real data · Weekly update · Spanish and English inside the dashboard.</p>
     </div>
   </header>
 
@@ -395,8 +395,8 @@
         <li>DuckDB-WASM + ECharts</li>
       </ul>
       <div class="dual">
-        <p class="es" lang="es">Los scrapers recogen ofertas de portales públicos; Databricks las procesa en la arquitectura Medallion (Bronze, Silver y Gold); una tarea final del job exporta las tablas Gold a Parquet más <code>meta.json</code> en Azure ADLS Gen2; GitHub Actions descarga el export cada día y publica el sitio; y tu navegador ejecuta SQL con DuckDB-WASM y dibuja los gráficos con ECharts. La fecha de datos visible en el dashboard sale de ese <code>meta.json</code>.</p>
-        <p class="en" lang="en">Scrapers collect postings from public job portals; Databricks processes them through the Medallion architecture (Bronze, Silver and Gold); a final job task exports the Gold tables to Parquet plus <code>meta.json</code> in Azure ADLS Gen2; GitHub Actions downloads the export every day and publishes the site; your browser then runs SQL with DuckDB-WASM and draws the charts with ECharts. The data date shown in the dashboard comes from that <code>meta.json</code>.</p>
+        <p class="es" lang="es">Los scrapers recogen ofertas de portales públicos; Databricks las procesa en la arquitectura Medallion (Bronze, Silver y Gold); una tarea final del job exporta las tablas Gold a Parquet más <code>meta.json</code> en Azure ADLS Gen2; GitHub Actions descarga el export una vez por semana, los lunes a las 01:00 UTC, después del job de Databricks de los domingos a las 23:00 Europe/Madrid, y publica el sitio; y tu navegador ejecuta SQL con DuckDB-WASM y dibuja los gráficos con ECharts. La fecha de datos visible en el dashboard sale de ese <code>meta.json</code>.</p>
+        <p class="en" lang="en">Scrapers collect postings from public job portals; Databricks processes them through the Medallion architecture (Bronze, Silver and Gold); a final job task exports the Gold tables to Parquet plus <code>meta.json</code> in Azure ADLS Gen2; GitHub Actions downloads the export once a week, on Mondays at 01:00 UTC, after the Databricks job that runs on Sundays at 23:00 Europe/Madrid, and publishes the site; your browser then runs SQL with DuckDB-WASM and draws the charts with ECharts. The data date shown in the dashboard comes from that <code>meta.json</code>.</p>
       </div>
       <figure class="figure">
         <img src="images/architecture.png" width="2000" height="510" alt="Arquitectura: scrapers locales → Azure ADLS Gen2 → Bronze (Auto Loader) → Silver (PySpark) → Gold (esquema en estrella) → export Parquet y dashboard web" loading="lazy">
