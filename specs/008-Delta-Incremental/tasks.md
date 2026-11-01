@@ -167,6 +167,7 @@
     espera al domingo siguiente, con la web mostrando la fecha real de los datos.
   - **Evidencia:** ids de deploy/one-off/run del domingo, conteos, versiones de
     `RESTORE`, estado final, coste en `docs/costs.md` y fila en `evidence.md`.
+    El id del deploy no quedó registrado (`[NO VERIFICADO]`).
   - **Estado:** **cerrada el 2026-11-01.** One-off de producción hecha el
     2026-10-24: deploy `-t prod` con el ingest nuevo y el job `dedupe_oneoff`;
     run `164560238285705` en verde, 4/4 tareas, 9 min 11 s, ~0,11 €: 53.353 filas
@@ -445,7 +446,10 @@
     `source_scraper`/`job_id` asc y **probado en local**; el run del 8-nov lo
     usará. La persona decidió no repetir el A/B. **Desviación aprobada:** A/B
     manual el mismo día en vez de dos domingos programados, porque el run
-    programado ingiere un lote nuevo y rompe la equivalencia. **`[NO
+    programado ingiere un lote nuevo y rompe la equivalencia. El job se
+    **reanuda el lunes** siguiente (010 T-09) y el **run programado del 8-nov**
+    es la comprobación posterior del fix y del incremental en la cadencia
+    semanal. **`[NO
     VERIFICADO]`:** el id del deploy y las versiones de `RESTORE` de las silvers
     no quedaron registrados.
   - **Evidencia:** ids de deploy y de los dos runs, conteos, versiones de
@@ -462,8 +466,11 @@
     T-11, cerradas allí por T-08/T-09). T-06 registrada con el run
     `636564838129029`: **8/8 en 14 min 01 s**, dashboard publicado por el
     workflow `40276725938` y warehouse `STOPPED`; los conteos de ese export
-    quedan `[NO VERIFICADO]`. Suites completas en verde; merge `--no-ff` a
-    `main` con `AGENTS.md` restaurado de `main` y tag `spec-008`.
+    quedan `[NO VERIFICADO]`. Suites completas en verde
+    (`databricks_notebooks` **187 passed, 1 skipped**; `scrapers-pipeline`
+    **1133 passed**) y verificación independiente **PASA CON MENORES** tras
+    corregir 8 hallazgos; merge `--no-ff` a `main` con `AGENTS.md` restaurado de
+    `main` y tag `spec-008`.
 
 ## 3. Cierre de la spec
 
