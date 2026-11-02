@@ -89,6 +89,12 @@ Profile, health rules y alertas), no con juguetes.
   preview* y pensados para streams continuos).
 - PySpark local **4.2.0** (banco local viable para streaming y funciones puras; el
   `MERGE` local no es viable en este host por falta de `winutils.exe`, 010 T-04).
+  *Actualización tras T-02: el host tiene `winutils.exe`/`hadoop.dll` en
+  `%LOCALAPPDATA%\hadoop\bin` (fuera del repositorio), así que el banco local escribe
+  Parquet y checkpoints. Con `HADOOP_HOME` y `bin` en el `PATH`, `delta-spark` 4.4.1 y
+  `spark.sql.extensions`/`spark.sql.catalog.spark_catalog` explícitos, el `MERGE` de
+  Delta también funciona en local (dos escrituras del mismo `run_id` dejan una fila).
+  En Linux/CI no hace falta.*
 - **Deuda heredada, no de esta spec:** el `target prod` de `databricks.yml` tenía
   `pause_status: PAUSED` desde el A/B de la 010 (T-09) (repuesto el 2026-11-02 en
   T-01). Sin reponerlo, el run del **8-nov** (comprobación posterior no bloqueante

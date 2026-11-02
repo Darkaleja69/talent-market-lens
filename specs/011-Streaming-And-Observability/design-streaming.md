@@ -3,8 +3,9 @@
 > **Estado (2026-11-02, T-01):** reconocimiento gratuito cerrado. Este documento
 > fija el **estado de partida**, los **umbrales** y el **marco de evaluación**; la
 > **decisión** (adoptar / adoptar parcialmente / no cambiar) se escribe en T-10,
-> después de la demo en Free Edition (**§9**, 2026-11-02). Las secciones 4–7 (banco
-> local, instrumentación y comparación) se completan en T-02 y T-03.
+> después de la demo en Free Edition (**§9**, 2026-11-02). Las secciones 4–5 (banco
+> local y comparación de triggers) se completan en T-02; la instrumentación del
+> bronce, en T-03.
 >
 > Rama `spec/011-streaming-observability`, worktree `talent-market-lens-011`.
 > Cada afirmación lleva su fuente (fichero y línea, o comando) o va marcada
@@ -222,6 +223,107 @@ medir.
 Empate ⇒ **no cambiar**. «Adoptar parcialmente» solo si las piezas adoptadas
 (expectativas, event log, métricas) se justifican por sí mismas y no arrastran la
 migración de tablas.
+
+## 4. Banco local y práctica del dominio 3 (T-02, 0 €)
+
+`databricks_notebooks/streaming_lab.py` es un banco **didáctico**: ningún notebook
+ni tarea del bundle lo importa y todos sus sumideros viven en directorios
+temporales. Corre con PySpark local (`local[2]` en aislamiento; en la suite completa
+puede reutilizar la sesión del módulo anterior, `local[1]`, y la semántica no depende
+de los cores) y **sin Delta**: el banco prueba la semántica de Structured Streaming, no
+la sintaxis de Delta. Los tests están en
+`databricks_notebooks/tests/test_streaming_lab.py` (**6 passed**, 95–169 s de módulo
+según la carga del host) y cada escenario devuelve los números observados, no los
+esperados. Los cinco escenarios se ejecutan **una sola vez** por módulo de test y los
+tests afirman sobre ese resultado.
+
+Requisito de entorno en Windows: Hadoop necesita `winutils.exe` (y `hadoop.dll`)
+para `chmod`; sin él Spark no escribe ni Parquet ni checkpoints. El helper
+`tests/_local_spark.py` detecta `%LOCALAPPDATA%\hadoop\bin`, fija `HADOOP_HOME` y,
+si falta, **salta** los tests con instrucciones (en Linux/CI no hace falta). El
+`conftest.py` global de `databricks_notebooks/tests/` llama a
+`configure_hadoop_home()` **al importar**, antes de que ningún módulo de test cree
+una `SparkSession`: el JVM cachea `hadoop.home.dir` al arrancar y, si otro módulo
+creaba la sesión primero, T-02 se saltaba y los módulos que ramifican por
+`HADOOP_HOME` seguían por su fallback. El efecto buscado es el contrario: que
+`test_web_export.py`, `test_pbi_export.py` y `test_integration_spark.py` usen el
+camino real de Spark, que es el que se quiere verificar. Sin fixture `spark` ni
+restauración de entorno: el proceso de pytest arranca limpio en cada ejecución.
+
+| # | Escenario (`plan.md` §5) | Qué se observa | Números medidos |
+|---|---|---|---|
+| 1 | `checkpoint_restart` | El checkpoint reanuda en el offset confirmado: la segunda ejecución lee **solo** el fichero nuevo | run 1: 2 filas (`batchId` 0); run 2: 1 fila (`batchId` 1); sumidero 3 |
+| 2 | `microbatch_triggers` | `availableNow`, `once` y `processingTime` generan microbatches distintos | `availableNow` 3 batches / 3 filas; `once` 1 batch / 1 fila (2 pendientes); `processingTime` sigue viva y acumula ≥ 2 batches |
+| 3 | `watermark_late_event` | El checkpoint restaura el watermark y descarta el evento tardío; `stateOperators` sale en `lastProgress` | 2 ventanas → 3; la ventana 11:50 **no** aparece (el descarte se evidencia ahí); `numRowsDroppedByWatermark` presente y **0** |
+| 4 | `exactly_once` | El checkpoint evita el reproceso; sin él el sumidero append duplica; el upsert por clave lo arregla | con checkpoint 3 filas y 0 en la 2.ª; sin checkpoint 6; upsert 3 |
+| 5 | `foreach_batch_upsert` | `append` duplica el microbatch reprocesado; el upsert por clave deja una fila con la captura más reciente | append 6 filas; upsert 2 filas (2 claves) |
+
+Lecciones que explican el run real:
+
+- **Exactly-once = checkpoint + sumidero idempotente.** El checkpoint fija los
+  ficheros ya consumidos, pero no es transaccional con la escritura: si el proceso
+  muere entre el commit del offset y la escritura, el relanzamiento puede repetir ese
+  lote (*at-least-once*). La garantía de negocio la da el `MERGE` por clave del
+  bronce (`Upsert_Job_Offers.merge_sql`), no el checkpoint.
+- **El watermark es estado, no una config del lote.** Vive en el checkpoint y se
+  restaura al relanzar; por eso un evento tardío se descarta aunque llegue en otra
+  ejecución.
+- **`availableNow` no es «una sola pasada»:** procesa todo lo pendiente en **varios**
+  microbatches y termina. De ahí que el resumen del bronce (T-03) publique el último
+  microbatch y el total del run.
+- **`stateOperators`** en `lastProgress` es la vista del estado del motor
+  (`operatorName`, `numRowsTotal`, `numRowsUpdated`, `numRowsRemoved`,
+  `numRowsDroppedByWatermark`): dice si hay estado y cuántas filas actualiza o
+  elimina. `stateStoreSave` **no** es un campo de `stateOperators`: vive en
+  `lastProgress.durationMs`. **Ojo:** `numRowsDroppedByWatermark` es el contador del
+  motor y en este escenario vale **0**; el evento tardío se descarta antes de entrar
+  al estado y se evidencia por la **ausencia de la ventana 11:50**, no por ese
+  contador.
+
+## 5. Comparación de triggers y tabla de tiempos (T-02, 0 €)
+
+Medido en `local[2]` (PySpark 4.2.0, Hadoop 3.5.0) con `maxFilesPerTrigger = 1` y un
+fichero JSON por microbatch:
+
+| Trigger | Microbatches | Filas | Termina sola | Lo que no consume |
+|---|---|---|---|---|
+| `availableNow=True` | **3** (uno por fichero) | 3 | sí, tras drenar | nada: deja el checkpoint al día |
+| `once=True` | **1** | 1 | sí, tras **un** batch | los ficheros publicados después; quedan pendientes |
+| `processingTime="200 ms"` | ≥ 2 mientras corre | 4 (recoge un fichero añadido en marcha) | no: hay que pararla | nada, pero el clúster debe seguir vivo |
+
+Nota de runtime: en Spark 4.2, `once` **ignora** `maxFilesPerTrigger` y lee en un
+solo batch todos los ficheros presentes al arrancar (aviso del motor: *The read limit
+MaxFiles: 1 ... is ignored when Trigger.Once is used*); lo que llega después queda
+pendiente para la siguiente ejecución `once`. El test afirma ese comportamiento sin
+fijar el número exacto de ficheros por batch.
+
+Por qué el bronce usa `availableNow`: el job es semanal y batch-like, necesita drenar
+todo lo pendiente en una ejecución y **terminar** (el clúster se apaga y el coste es
+por run). `once` dejaría trabajo pendiente si el lote trae más ficheros de los que
+caben en un trigger, y `processingTime` exigiría un clúster permanente, descartado en
+`plan.md` §4 por el techo de coste.
+
+Tabla de tiempos del banco (`run_all`, una sola ejecución por módulo de test):
+
+| Escenario | ms |
+|---|---:|
+| `checkpoint_restart` | 11.553 |
+| `microbatch_triggers` | 24.169 |
+| `watermark_late_event` | 17.165 |
+| `exactly_once` | 14.528 |
+| `foreach_batch_upsert` | 14.363 |
+| **Total de escenarios** | **81.778** |
+| **Módulo completo** (arranque de Spark incluido) | **98,1 s** (proceso: 99,7 s) |
+
+Medida de **una ejecución concreta** de este host. Depende mucho de la carga: en las
+tres ejecuciones registradas los escenarios fueron **80,6 / 81,8 / 137,2 s** y el
+módulo completo **96,9 / 98,1 / 169,2 s** (el criterio «~3 min» se cumple, con menos
+margen en la máquina cargada). La cifra de 137,2 s es la del host con carga; el resto,
+en reposo.
+
+Caveat de medida: son tiempos de un host Windows con PySpark local; no representan el
+runtime de Databricks (`17.3.x-scala2.13`) ni el bronce real. La validación de tiempos
+del bronce es T-08/T-11.
 
 ## 8. Evaluación del candidato declarativo (Free Edition + extracto CSV)
 

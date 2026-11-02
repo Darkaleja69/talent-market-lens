@@ -104,7 +104,7 @@
 
 ## 2. Práctica local de streaming (dominio 3)
 
-- [ ] **T-02 — Banco local: checkpoint, microbatch, watermark y estado** (~90 min)
+- [x] **T-02 — Banco local: checkpoint, microbatch, watermark y estado** (~90 min)
   - **Objetivo:** demostrar con código y tests propios la semántica que explica el
     run: qué garantiza el checkpoint, qué es un microbatch, qué hace el watermark
     con un evento tardío, dónde vive el estado y cuándo hay exactly-once.
@@ -118,6 +118,30 @@
     comparación `availableNow` / `once` / `processingTime` están en
     `design-streaming.md` §5, y el test no supera ~3 min.
   - **Evidencia:** salida de pytest, tabla de tiempos y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Banco en
+    `databricks_notebooks/streaming_lab.py` (didáctico, sin enganche al job) con
+    `tests/test_streaming_lab.py`, `tests/_local_spark.py` y `tests/conftest.py`:
+    **6 passed** en **98,1 s**
+    (proceso 99,7 s; entre ejecuciones del host, **96,9–169,2 s** según la carga), con
+    los cinco escenarios ejecutados **una sola vez** por módulo.
+    Números y comparación de triggers en `design-streaming.md` §4–§5. Prerrequisito de
+    host: `winutils.exe`/`hadoop.dll` en `%LOCALAPPDATA%\hadoop\bin` (fuera del
+    repositorio; en Linux/CI no hace falta y los tests saltan con instrucciones). El
+    `conftest.py` global de `tests/` llama a `configure_hadoop_home()` al importar,
+    antes de la primera `SparkSession` (el JVM cachea `hadoop.home.dir`), para que el
+    orden de la suite no deje a T-02 sin winutils y para que los módulos que ramifican
+    por `HADOOP_HOME` usen el camino real; verificado con `test_web_export.py`,
+    `test_pbi_export.py` y `test_integration_spark.py`. El `MERGE` de Delta local
+    (necesario en T-04) queda comprobado con `delta-spark` 4.4.1 y
+    `spark.sql.extensions`/`spark.sql.catalog.spark_catalog` explícitos (ver
+    `evidence.md`).
+    **Desviaciones medidas y documentadas:** `once` ignora `maxFilesPerTrigger` en
+    Spark 4.2; el watermark usa `outputMode("update")` + `foreachBatch` a Parquet
+    porque `append` no emite ninguna ventana en la primera ejecución; exactly-once usa
+    `foreachBatch` para que el checkpoint (y no el `_spark_metadata` del file sink) sea
+    la única garantía. **`[NO VERIFICADO]`:** el comportamiento en DBR 17.3 (solo se
+    ejecutó PySpark 4.2.0 local) y la muerte del proceso entre el commit del offset y
+    la escritura (se explica en el docstring, no se simula).
 
 ## 3. Observabilidad del streaming y del run (dominio 6)
 

@@ -57,6 +57,11 @@ más: **sin resumen de bronce, sin tabla de métricas, sin health rules y sin
   paquete, pero el **`MERGE` local no es viable** en este host (la 010 T-04 no pudo
   ni ejecutar el plan por falta de `winutils.exe`/`hadoop.dll`). El banco local
   prueba semántica de streaming y funciones puras, **no** Delta.
+  *Actualización tras T-02: el host tiene `winutils.exe`/`hadoop.dll` en
+  `%LOCALAPPDATA%\hadoop\bin` (fuera del repositorio), así que el banco local escribe
+  Parquet y checkpoints. El banco (T-02) sigue sin usar Delta; el `MERGE` de Delta sí
+  es ejecutable en local con `HADOOP_HOME` y `bin` en el `PATH`, `delta-spark` 4.4.1 y
+  las dos claves de sesión de Delta explícitas. En Linux/CI no hace falta.*
 - `target prod` estaba en **`PAUSED`** desde la 010 T-09: había que reponerlo
   (repuesto el 2026-11-02 en T-01).
 
