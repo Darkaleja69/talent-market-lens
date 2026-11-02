@@ -101,6 +101,10 @@ producción de la 009; con **0,20–0,24 €** por run semanal queda en
 **0,87–1,04 €/mes**. Si la medición cae en la banda alta (> 1,00 €/mes), T-10 lo
 decide con la persona.
 
+**Decisión de la persona (2026-11-02):** el umbral de **1,00 €/mes** se mantiene
+como **referencia y aviso, no como regla dura**; superarlo **abre revisión, no
+bloquea**, y el techo real es el **presupuesto de producción de 3 €/mes de la 009**.
+
 Empate ⇒ **no cambiar**. «Adoptar parcialmente» solo si las piezas adoptadas
 (expectativas, event log, métricas) se justifican por sí mismas y no arrastran la
 migración de tablas.

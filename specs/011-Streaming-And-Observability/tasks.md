@@ -385,7 +385,12 @@
     de T-03–T-06). T-12 se cierra como **no aplicable** y T-13 despliega **solo
     observabilidad**. La tabla completa con umbrales y evidencia está en
     `design-streaming.md` §9. Tiempo y coste de producción del declarativo:
-    `[NO VERIFICADO]`, no aprobado. **0 €.**
+    `[NO VERIFICADO]`, no aprobado. **0 €.** **Aprobada por la persona el
+    2026-11-02** (en conversación): mantener el mecanismo actual y adoptar la
+    observabilidad; no migrar. **Umbral de coste (2026-11-02):** el **1,00 €/mes** se
+    mantiene como referencia y aviso, no como regla dura; superarlo abre revisión y
+    no bloquea, y el techo real es el **presupuesto de producción de 3 €/mes de la
+    009**.
 
 ## 5. Validación y producción
 
