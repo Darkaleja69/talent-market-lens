@@ -226,6 +226,9 @@ def _register_source(source: str, spec: Dict[str, Any]) -> None:
 # pinned to UTC so it is stable, as in bronze_ingest.ipynb.
 spark.conf.set("spark.sql.session.timeZone", "UTC")
 
+# ``spark.conf`` is legitimate here: Lakeflow exposes the pipeline
+# ``configuration`` as Spark conf. In a notebook the same values are arguments
+# (or widgets) of ``mechanism_current.run``, not Spark configuration.
 LANDING_ROOT = _required_conf("landing_root")
 TARGET_SCHEMA = _required_conf("target_schema")
 SCHEMA_PATH = spark.conf.get(

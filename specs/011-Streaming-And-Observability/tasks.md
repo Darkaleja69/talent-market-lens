@@ -263,10 +263,16 @@
     pipelines). Kit en `candidate/`: generador, `schema.json`, manifiesto, CSV de
     **288 filas** (**280 válidas** + **8 inválidas inyectadas**: 4 `missing_key` + 4
     `missing_scraped_at`) y **471.643 B** de CSV (≤ 1 MB); `pipeline_declarative.py`,
-    `mechanism_current.py`, README y tests locales (**2 passed**). Regeneración
+    `mechanism_current.py`, README y tests locales (**8 passed**). Regeneración
     **byte a byte** y `sha256` del manifiesto comprobados. Los CSV **no están
-    versionados** (`candidate/data/` en `.gitignore`). **`[NO VERIFICADO]`:**
-    ejecución real en Free Edition → **T-09b**, pendiente de la persona.
+    versionados** (`candidate/data/` en `.gitignore`). **Incidente T-09b
+    (2026-11-02):** la primera ejecución en Free Edition falló con
+    `[CONFIG_NOT_AVAILABLE.WITHOUT_SUGGESTION] Configuration landing_root is not
+    available. SQLSTATE: 42K0I`: el kit usaba `spark.conf` como bolsa de parámetros
+    y el módulo se ejecutó como notebook. Corrección: `run()` con argumentos
+    **keyword-only** y fallback a widgets, sin `spark.conf` como bolsa de
+    parámetros ni `__main__` (**0 €**). **`[NO VERIFICADO]`:** ejecución real en
+    Free Edition → **T-09b**, pendiente de la persona.
 
 - [ ] **T-09b — Ejecutar la demo en Free Edition y traer evidencia** (~60 min, la persona)
   - **Objetivo:** obtener la evidencia real de los dos mecanismos en el mismo

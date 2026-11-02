@@ -26,6 +26,7 @@ coste marcada `[NO VERIFICADO]`.
 | `pipeline_declarative.py` | Pipeline declarativo para Free Edition. | Sí |
 | `mechanism_current.py` | Mecanismo actual adaptado al mismo CSV. | Sí |
 | `tests/test_generate_dataset.py` | Tests locales del generador (sin Spark). | Sí |
+| `tests/test_mechanism_current.py` | Tests locales de los parámetros y widgets del mecanismo actual (sin Spark ni Databricks). | Sí |
 | `evidence/` | Capturas saneadas de T-09b y su guía de saneado. | Sí |
 
 ## Conteos esperados (manifiesto del 2026-11-02)
@@ -117,7 +118,7 @@ python specs/011-Streaming-And-Observability/candidate/generate_dataset.py `
   --output-dir specs/011-Streaming-And-Observability/candidate `
   --rows 200 --seed 20261102
 
-# 3) Tests locales del generador.
+# 3) Tests locales del generador y de los parámetros del mecanismo actual.
 python -m pytest specs/011-Streaming-And-Observability/candidate/tests -q
 ```
 
@@ -184,6 +185,27 @@ Python** (no como notebooks):
 `Upsert_Job_Offers.py` importa `Deduplicate_Job_Offers`; sin el segundo, el mecanismo
 actual falla al importar.
 
+> **Si el `import` falla en Free Edition (diagnóstico rápido):** comprueba que
+> `mechanism_current.py` es un **fichero** Python y no un notebook, que está en una
+> **carpeta de proyecto** (no en la raíz del home) y que has **reiniciado el kernel**
+> después de crearlo. Como último recurso, carga el módulo por ruta explícita:
+>
+> ```python
+> import importlib.util
+> import sys
+>
+> spec = importlib.util.spec_from_file_location(
+>     "mechanism_current",
+>     "/Workspace/Users/<usuario>/tml-011-kit/mechanism_current.py",
+> )
+> mechanism_current = importlib.util.module_from_spec(spec)
+> sys.modules["mechanism_current"] = mechanism_current
+> spec.loader.exec_module(mechanism_current)
+> ```
+>
+> El cargador por ruta no sustituye al `sys.path`: `mechanism_current` importa
+> `Upsert_Job_Offers`, así que la carpeta debe seguir en `sys.path`.
+
 ### 4. Pipeline declarativo
 
 En **Jobs & Pipelines** → **Create** → **ETL pipeline**:
@@ -207,33 +229,61 @@ reprocesa todo y no sirve como evidencia de exactly-once.
 
 ### 5. Mecanismo actual
 
-Crea un notebook `current_mechanism_demo` con dos celdas:
+`mechanism_current.py` es una **librería**: se importa desde el notebook y se llama
+a `run()`. **No** lo ejecutes como notebook ni con `%run`: desde que no hay
+`__main__` no arranca nada, pero ejecutarlo como notebook no define el módulo ni
+resuelve sus imports. Sus parámetros (`landing_root`, `target_schema` y los
+opcionales `schema_path` y `checkpoint_root`) se pasan como **argumentos** de `run()`
+o como **widgets** del notebook; `schema_path` y `checkpoint_root` usan por defecto
+`<landing_root>/schema.json` y `<landing_root>/_checkpoints/current`. En el pipeline
+esos mismos nombres van en la `configuration` (Lakeflow la expone como `spark.conf`);
+en el notebook **no** se usa `spark.conf` **para pasar parámetros** (la zona horaria
+se sigue fijando dentro de `run()`).
+
+Crea un notebook `current_mechanism_demo` con tres celdas:
 
 ```python
-# Celda 1: modulos en el path y configuracion
+# Celda 1: modulo en el path
 import sys
 sys.path.append("/Workspace/Users/<usuario>/tml-011-kit")
-
-spark.conf.set("landing_root", "/Volumes/workspace/tml_demo/landing")
-spark.conf.set("target_schema", "workspace.bronze_current")
-spark.conf.set("checkpoint_root", "/Volumes/workspace/tml_demo/landing/_checkpoints/current")
 ```
 
 ```python
-# Celda 2: ejecutar y medir la duracion de la ejecucion
+# Celda 2: parametros como widgets (o pasalos directamente a run())
+dbutils.widgets.text("landing_root", "/Volumes/workspace/tml_demo/landing")
+dbutils.widgets.text("target_schema", "workspace.bronze_current")
+dbutils.widgets.text("checkpoint_root", "/Volumes/workspace/tml_demo/landing/_checkpoints/current")
+```
+
+```python
+# Celda 3: ejecutar y medir la duracion de la ejecucion
 import time
 import mechanism_current
 
 started = time.perf_counter()
-mechanism_current.run(spark)
+mechanism_current.run(
+    spark,
+    landing_root=dbutils.widgets.get("landing_root"),
+    target_schema=dbutils.widgets.get("target_schema"),
+    checkpoint_root=dbutils.widgets.get("checkpoint_root"),
+)
 print(f"Duracion de la ejecucion: {time.perf_counter() - started:.1f} s")
 ```
 
-`run()` crea el esquema y las tablas destino si no existen, arranca las cuatro
-consultas con `trigger(availableNow=True)` y espera a todas. **No uses `%run`**:
-importa el módulo y llama a `run()`.
+Sin widgets, pasa los valores directamente a `run()`:
 
-**Segunda ejecución:** vuelve a ejecutar la celda 2 sin subir ficheros nuevos. Los
+```python
+mechanism_current.run(
+    spark,
+    landing_root="/Volumes/workspace/tml_demo/landing",
+    target_schema="workspace.bronze_current",
+)
+```
+
+`run()` crea el esquema y las tablas destino si no existen, arranca las cuatro
+consultas con `trigger(availableNow=True)` y espera a todas.
+
+**Segunda ejecución:** vuelve a ejecutar la celda 3 sin subir ficheros nuevos. Los
 checkpoints del Volume hacen que no se ingiera nada (`numInputRows = 0`). Para
 repetir desde cero, borra el checkpoint:
 

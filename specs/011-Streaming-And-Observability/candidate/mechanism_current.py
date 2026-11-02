@@ -15,14 +15,18 @@ Upload ``Upsert_Job_Offers.py`` **and** its dependency
 ``sys.path`` before importing. It is imported (not ``%run``) and ``run()`` is
 called explicitly; see ``README.md``.
 
-Configuration comes from Spark conf (set them in the notebook):
-``landing_root``, ``target_schema``, optional ``schema_path`` and
-``checkpoint_root``.
+This file is a **library**: import it from a notebook and call ``run()``. There
+is no ``__main__`` block, so executing it does nothing; running it as a notebook
+does not define the module nor resolve its imports. Parameters are the explicit
+arguments of ``run`` or notebook widgets, not Spark conf settings. In the
+pipeline the same names live in ``configuration``, because Lakeflow exposes it
+as ``spark.conf``; a notebook passes them as arguments or widgets.
 """
 from __future__ import annotations
 
+import builtins
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -62,14 +66,61 @@ def _spark_session(spark: Optional[SparkSession] = None) -> SparkSession:
     return SparkSession.builder.getOrCreate()
 
 
-def _conf(spark: SparkSession, name: str, default: Optional[str] = None) -> str:
-    value = spark.conf.get(name, None)
-    if value:
-        return value
+def _dbutils_widget_getter() -> Optional[Callable[[str], Optional[str]]]:
+    """Return ``dbutils.widgets.get`` when a notebook runtime provides it.
+
+    ``dbutils`` is injected into the session globals/builtins; an imported
+    module may only reach it through the Databricks SDK. Both lookups are
+    optional: outside a notebook there is no widget getter.
+    """
+    dbutils = getattr(builtins, "dbutils", None)
+    if dbutils is None:
+        try:
+            from databricks.sdk.runtime import dbutils  # type: ignore[no-redef]
+        except Exception:
+            return None
+    try:
+        getter = getattr(getattr(dbutils, "widgets", None), "get", None)
+    except Exception:
+        return None
+    if getter is None:
+        return None
+
+    def widget_getter(name: str) -> Optional[str]:
+        try:
+            return getter(name)
+        except Exception:
+            return None
+
+    return widget_getter
+
+
+def _resolve(
+    name: str,
+    explicit: Optional[str],
+    widget_getter: Optional[Callable[[str], Optional[str]]],
+    default: Optional[str] = None,
+) -> str:
+    """Resolve one parameter: explicit argument, then widget, then default.
+
+    ``spark.conf`` is deliberately not a source: in a notebook these parameters
+    are arguments (or widgets), not Spark configuration.
+    """
+    if explicit:
+        return explicit
+    if widget_getter is not None:
+        try:
+            widget_value = widget_getter(name)
+        except Exception:
+            widget_value = None
+        if widget_value:
+            return widget_value
     if default is not None:
         return default
     raise ValueError(
-        f"Configura spark.conf '{name}' antes de llamar a run()."
+        f"Falta el parámetro '{name}'. Pásalo como argumento de "
+        f"run({name}=...) o define el widget de notebook con "
+        f"dbutils.widgets.text('{name}', '<valor>')."
     )
 
 
@@ -205,20 +256,44 @@ def make_upsert_handler(source: str, target_schema: str):
     return handler
 
 
-def run(spark: Optional[SparkSession] = None) -> List[Dict[str, Any]]:
-    """Run the current mechanism once per source and wait for all streams."""
-    spark = _spark_session(spark)
-    spark.conf.set("spark.sql.session.timeZone", "UTC")
+def run(
+    spark: Optional[SparkSession] = None,
+    *,
+    landing_root: Optional[str] = None,
+    target_schema: Optional[str] = None,
+    schema_path: Optional[str] = None,
+    checkpoint_root: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Run the current mechanism once per source and wait for all streams.
 
-    landing_root = _conf(spark, "landing_root")
-    target_schema = _conf(spark, "target_schema")
-    schema_path = _conf(
-        spark, "schema_path", f"{landing_root.rstrip('/')}/schema.json"
+    Each parameter comes from the explicit argument first and from the notebook
+    widget with the same name otherwise; ``schema_path`` and ``checkpoint_root``
+    fall back to their landing-root defaults. Required parameters raise a clear
+    error when neither the argument nor the widget is present.
+    """
+    spark = _spark_session(spark)
+    try:
+        spark.conf.set("spark.sql.session.timeZone", "UTC")
+    except Exception as exc:
+        print(
+            "Aviso: no se pudo fijar spark.sql.session.timeZone=UTC "
+            f"({exc}). El runtime ya usa UTC por defecto; se continua."
+        )
+
+    widget_getter = _dbutils_widget_getter()
+    landing_root = _resolve("landing_root", landing_root, widget_getter)
+    target_schema = _resolve("target_schema", target_schema, widget_getter)
+    schema_path = _resolve(
+        "schema_path",
+        schema_path,
+        widget_getter,
+        default=f"{landing_root.rstrip('/')}/schema.json",
     )
-    checkpoint_root = _conf(
-        spark,
+    checkpoint_root = _resolve(
         "checkpoint_root",
-        f"{landing_root.rstrip('/')}/_checkpoints/current",
+        checkpoint_root,
+        widget_getter,
+        default=f"{landing_root.rstrip('/')}/_checkpoints/current",
     )
 
     schema = load_schema(schema_path)
@@ -253,7 +328,3 @@ def run(spark: Optional[SparkSession] = None) -> List[Dict[str, Any]]:
         )
         print(f"Stream {source} finalizada: {query.status['message']}")
     return results
-
-
-if __name__ == "__main__":
-    run()
