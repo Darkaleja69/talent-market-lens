@@ -145,7 +145,7 @@
 
 ## 3. Observabilidad del streaming y del run (dominio 6)
 
-- [ ] **T-03 — Resumen medido del bronce** (~75 min)
+- [x] **T-03 — Resumen medido del bronce** (~75 min)
   - **Objetivo:** cerrar el hueco de la 008: que la tarea de bronce publique por
     fuente `numInputRows`, `batchId`, duración del microbatch y del trigger,
     backlog (si el motor lo expone), filas nuevas en cuarentena y estado del
@@ -162,6 +162,19 @@
     sin filas, con y sin cuarentena) y el notebook no lanza acciones nuevas.
   - **Aprobación previa:** módulo nuevo + celda del notebook de bronce.
   - **Evidencia:** salida de tests, JSON de ejemplo y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Módulo puro
+    `databricks_notebooks/Bronze_Summary.py` (`build_stream_summary`, `merge_summaries`,
+    `quarantine_total`, `to_json`) con `tests/test_bronze_summary.py`: **19 passed** en
+    0,26 s. Contrato de `plan.md` §6 completo y versionado, con `null` explícito,
+    `num_input_rows_total` y `state_operators` copiado de `lastProgress` (ver
+    `design-streaming.md` §6). **Notebook:** solo 2 celdas (de 11); `isEmpty()` →
+    `persist()`+`count()` sobre el frame pequeño de cuarentena (**1 acción por 1**, sin
+    lecturas nuevas), `taskValues` + `notebook.exit` con la cadena JSON, conteo
+    idempotente por `(source, batch_id)` y guarda `len(SOURCES) == len(QUERIES)`.
+    **`[NO VERIFICADO]`:** comportamiento real en DBR 17.3 de `lastProgress`/`status`,
+    límite de 48 KiB de `taskValues` y que el conteo no añada etapas (contraste estático,
+    token a token); se cierra en T-08. `walCommit` es la única clave de commit mapeada
+    (`commitOffsets` no se publica).
 
 - [ ] **T-04 — Tabla `ops.run_metrics` y su módulo** (~60 min)
   - **Objetivo:** que cada run deje una fila consultable en Delta con sus métricas

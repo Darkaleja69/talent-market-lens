@@ -3,9 +3,9 @@
 > **Estado (2026-11-02, T-01):** reconocimiento gratuito cerrado. Este documento
 > fija el **estado de partida**, los **umbrales** y el **marco de evaluación**; la
 > **decisión** (adoptar / adoptar parcialmente / no cambiar) se escribe en T-10,
-> después de la demo en Free Edition (**§9**, 2026-11-02). Las secciones 4–5 (banco
-> local y comparación de triggers) se completan en T-02; la instrumentación del
-> bronce, en T-03.
+> después de la demo en Free Edition (**§9**, 2026-11-02). Las secciones 4–6 (banco
+> local, comparación de triggers e instrumentación del bronce) están cerradas en T-02
+> y T-03.
 >
 > Rama `spec/011-streaming-observability`, worktree `talent-market-lens-011`.
 > Cada afirmación lleva su fuente (fichero y línea, o comando) o va marcada
@@ -324,6 +324,76 @@ en reposo.
 Caveat de medida: son tiempos de un host Windows con PySpark local; no representan el
 runtime de Databricks (`17.3.x-scala2.13`) ni el bronce real. La validación de tiempos
 del bronce es T-08/T-11.
+
+## 6. Instrumentación del bronce (T-03, 0 €)
+
+`databricks_notebooks/Bronze_Summary.py` es un módulo **puro** (solo `json`, sin
+`pyspark`) que construye el resumen del streaming; el notebook solo coordina: recoge
+`query.lastProgress`, `query.recentProgress` y `query.status` de las cuatro consultas,
+llama al módulo y publica
+`dbutils.jobs.taskValues.set("bronze_summary", <cadena JSON>)` y
+`dbutils.notebook.exit(<cadena JSON>)`.
+
+Contrato (aditivo y versionado sobre `plan.md` §6):
+
+| Clave | Regla |
+|---|---|
+| `version` | `1` |
+| `streams[]` | una por fuente, **ordenadas por `source`**; fuentes duplicadas ⇒ `ValueError` |
+| `config` | `catalog`, `bronze_schema`, `checkpoints_root`, `trigger="availableNow"` |
+
+Por fuente:
+
+| Clave | Origen y regla |
+|---|---|
+| `source` | nombre de la fuente |
+| `batch_id` | `lastProgress["batchId"]`; `null` si no hubo microbatch |
+| `num_input_rows` | `lastProgress["numInputRows"]`; `0` en un lote vacío real, `null` sin progreso |
+| `num_input_rows_total` | suma de `numInputRows` de `recentProgress` (todos los microbatches de la consulta); `0` si la lista está vacía, `null` sin progreso |
+| `duration_ms` | `trigger_execution`, `add_batch`, `wal_commit`; las tres claves siempre, `null` si el motor no las expone |
+| `input_rows_per_second` / `processed_rows_per_second` | del progreso; `NaN`/`±Infinity` se publican como `null` |
+| `state_operators` | copia de `lastProgress["stateOperators"]`; `[]` si no está |
+| `backlog` | solo si `sources[].metrics` expone `numFilesOutstanding`/`numBytesOutstanding`; si no, `null` |
+| `checkpoint` | ruta del checkpoint (`…/<fuente>/ckpt`) |
+| `quarantined_rows` | filas **nuevas** en cuarentena del run; suma por lote, idempotente ante reintentos |
+| `status` | `query.status["message"]` (p. ej. `Stopped`) |
+| `note` | solo si no hubo microbatch (`"no microbatch reported by the query"`); aditivo |
+
+Contrato de acciones (RF-2):
+
+- El handler sustituye `new_rows.isEmpty()` por `persist()` + `count()` + escritura +
+  `unpersist()` sobre el **frame pequeño de cuarentena ya calculado**: **una acción por
+  una**, coste O(filas inválidas).
+- **Prohibido**: `count()` del lote, `DESCRIBE HISTORY` por fuente y lecturas nuevas de
+  la landing.
+- El conteo se indexa por `(source, batch_id)`: un reintento de microbatch sobrescribe
+  su entrada en vez de sumar dos veces.
+- Si `SOURCES` y `QUERIES` no cuadran (una quinta fuente o cualquier desajuste de
+  longitud), la celda final **falla antes de publicar**: no hay resúmenes cruzados.
+
+Ejemplo (sintético, 4 fuentes; recortado):
+
+```json
+{"config":{"bronze_schema":"bronze","catalog":"job_offers","checkpoints_root":"abfss://…","trigger":"availableNow"},
+ "streams":[{"source":"indeed","batch_id":12,"num_input_rows":40,"num_input_rows_total":50,
+   "duration_ms":{"trigger_execution":4000,"add_batch":3500,"wal_commit":12},
+   "input_rows_per_second":null,"processed_rows_per_second":60.0,
+   "state_operators":[],"backlog":{"files_outstanding":3,"bytes_outstanding":2048},
+   "checkpoint":"abfss://…/indeed/ckpt","quarantined_rows":3,"status":"Stopped"},
+  {"source":"multi_site","batch_id":4,"num_input_rows":0,"num_input_rows_total":0,
+   "duration_ms":{"trigger_execution":null,"add_batch":null,"wal_commit":null},
+   "input_rows_per_second":null,"processed_rows_per_second":null,
+   "state_operators":[],"backlog":null,"checkpoint":"abfss://…/multi_site/ckpt",
+   "quarantined_rows":0,"status":"Stopped"}],
+ "version":1}
+```
+
+`[NO VERIFICADO]` hasta T-08: contenido real de `lastProgress`/`status` en DBR 17.3,
+límite de 48 KiB de `taskValues`, y que el conteo no añada etapas (aquí solo hay
+contraste estático). `walCommit` es la única clave de commit mapeada (`commitOffsets`
+existe en el progreso real y no se publica). `recentProgress` retiene hasta 100
+entradas (`spark.sql.streaming.numRecentProgressUpdates`), suficiente para el bronce:
+**T-04 usa `num_input_rows_total` para `bronze_rows`**, no `num_input_rows`.
 
 ## 8. Evaluación del candidato declarativo (Free Edition + extracto CSV)
 
