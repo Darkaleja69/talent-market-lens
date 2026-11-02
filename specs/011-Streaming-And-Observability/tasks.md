@@ -84,7 +84,7 @@
     `UNPAUSED` y cada afirmación lleva su fuente o `[NO VERIFICADO]`.
   - **Evidencia:** salidas de CLI/API, capturas y fila en `evidence.md`. **0 €.**
   - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL, 0
-    pipelines). Escritos `design-streaming.md` (§1 estado de partida con landing y
+    pipelines en el workspace pagado). Escritos `design-streaming.md` (§1 estado de partida con landing y
     checkpoints medidos por listado, §2 números de la 010 citados, §3 criterios de
     `plan.md` §3 con sus umbrales, §8 Free Edition + CSV) y
     `design-observability.md` (inventario de fuentes, permisos tabla por tabla,
@@ -210,6 +210,11 @@
 > **Reordenación (2026-11-02, a petición de la persona):** **T-09 se adelanta**
 > para poder probar el kit en Free Edition en paralelo; **T-09b** la ejecuta la
 > persona cuando pueda y **T-10 no se cierra hasta entonces**.
+>
+> **Secuencia (2026-11-02):** **T-10 se cerró antes que T-08** porque la comparación
+> se hizo con la demo de Free Edition (T-09/T-09b) y los datos de la 010; **T-08 pasa
+> a ser la primera medición del resumen del bronce en dev, después de T-03–T-06**, y
+> sigue consumiendo **1 de los 3 runs** (el presupuesto no cambia).
 
 - [ ] **T-08 — Run 1: mecanismo actual medido (A)** (~20 min de persona)
   - **Objetivo:** tener la línea base real del bronce con el resumen nuevo y las
@@ -260,7 +265,7 @@
   - **Evidencia:** salida del script, manifiesto y fila en `evidence.md`. **0 €**
     (solo egress de la descarga).
   - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL, 0
-    pipelines). Kit en `candidate/`: generador, `schema.json`, manifiesto, CSV de
+    pipelines en el workspace pagado). Kit en `candidate/`: generador, `schema.json`, manifiesto, CSV de
     **288 filas** (**280 válidas** + **8 inválidas inyectadas**: 4 `missing_key` + 4
     `missing_scraped_at`) y **471.643 B** de CSV (≤ 1 MB); `pipeline_declarative.py`,
     `mechanism_current.py`, README y tests locales (**8 passed**). Regeneración
@@ -342,7 +347,7 @@
     columnas entre los dos esquemas** (se pedirá aparte). **La decisión
     (adoptar / adoptar parcialmente / no cambiar) se escribe en T-10**, no aquí.
 
-- [ ] **T-10 — Decisión medida y cierre de la evaluación** (~60 min)
+- [x] **T-10 — Decisión medida y cierre de la evaluación** (~60 min)
   - **Objetivo:** decidir **adoptar / adoptar parcialmente / no cambiar** con la
     tabla de `plan.md` §3 y §8.2, sin margen para la opinión.
   - **Hecho cuando:** la tabla tiene las 8 puntuaciones y las 4 puertas duras con su
@@ -352,6 +357,35 @@
     adoptar.
   - **Evidencia:** tabla de decisión, revisión de la persona y fila en
     `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 SQL, 0 pipelines en el
+    workspace pagado; T-09b creó **2 pipelines** en Free Edition). Puertas
+    duras: **contrato ✓** (diff de `workspace.bronze_current.<fuente>` contra
+    `workspace.bronze_lab.<fuente>`: `solo current`, `solo lab` y `tipo distinto`
+    **vacíos en las cuatro fuentes**); **exactly-once ✓** (declarativo: segunda
+    ejecución sin registros; actual: `num_input_rows = 0` y conteos sin mover);
+    **cuarentena ✓** (destino 101/122/47/10 y 1 `missing_key` + 1
+    `missing_scraped_at` por fuente en ambos); **rollback `[NO VERIFICADO]`** (no
+    ensayado; no aplicable al no migrar). Puntuación resumida:
+
+    | # | Criterio | Ganador |
+    |---|---|---|
+    | 1 | Tiempo del bronce | sin ganador |
+    | 2 | Coste por ejecución | A |
+    | 3 | Código propio | **B** |
+    | 4 | Observabilidad | **B** |
+    | 5 | Simplicidad operativa | A |
+    | 6 | Madurez del runtime | A |
+    | 7 | Riesgo de migración | A |
+    | 8 | Reversibilidad | A |
+
+    **B gana 2 de 8** (código propio y observabilidad; en el criterio 3 cumple la
+    rama «elimina el `MERGE` manual», aunque la reducción de líneas sea ≈ 45 %), por
+    debajo de las 5 exigidas: **no se migra** el pipeline declarativo. **Decisión:
+    adoptar parcialmente** (mantener el mecanismo actual y adoptar la observabilidad
+    de T-03–T-06). T-12 se cierra como **no aplicable** y T-13 despliega **solo
+    observabilidad**. La tabla completa con umbrales y evidencia está en
+    `design-streaming.md` §9. Tiempo y coste de producción del declarativo:
+    `[NO VERIFICADO]`, no aprobado. **0 €.**
 
 ## 5. Validación y producción
 
@@ -366,7 +400,7 @@
   - **Evidencia:** ids de los dos runs, resúmenes, `ops.run_metrics` (dos filas
     distintas), tiempos, coste y fila en `evidence.md`. **~0,40 €.**
 
-- [ ] **T-12 — (Condicional) Migración del mecanismo ganador en producción** (~60 min + ventana)
+- [x] **T-12 — (Condicional) Migración del mecanismo ganador en producción** (~60 min + ventana)
   - **Objetivo:** si T-10 decide adoptar, llevar el mecanismo a producción con
     cutover verificado y vuelta atrás; si decide no cambiar, cerrar con el motivo.
   - **Si se adopta:** backup/`RESTORE` disponible, `pause_status: PAUSED`, deploy con
@@ -382,6 +416,11 @@
     disponible y el run programado en verde, o la decisión «no cambiar» está
     registrada.
   - **Evidencia:** deploy, ids, conteos, rollback ensayado y fila en `evidence.md`.
+  - **Estado (2026-11-02): no aplicable.** T-10 decide **no migrar** el pipeline
+    declarativo (B gana 2 de 8; ver `design-streaming.md` §9), así que no hay
+    cutover que ejecutar. Se cierra con el motivo medido, **sin gasto** (0 €) y sin
+    tocar producción; el texto condicional de arriba se conserva por si una revisión
+    futura cambia la decisión.
 
 - [ ] **T-13 — Producción: run programado, dashboard y warehouse** (~30 min)
   - **Objetivo:** comprobación real de la spec: el run semanal se explica solo.

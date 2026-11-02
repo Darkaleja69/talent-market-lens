@@ -3,14 +3,15 @@
 > **Estado (2026-11-02, T-01):** reconocimiento gratuito cerrado. Este documento
 > fija el **estado de partida**, los **umbrales** y el **marco de evaluación**; la
 > **decisión** (adoptar / adoptar parcialmente / no cambiar) se escribe en T-10,
-> después de la demo en Free Edition. Las secciones 4–7 (banco local,
-> instrumentación, comparación y decisión) se completan en T-02, T-03 y T-10.
+> después de la demo en Free Edition (**§9**, 2026-11-02). Las secciones 4–7 (banco
+> local, instrumentación y comparación) se completan en T-02 y T-03.
 >
 > Rama `spec/011-streaming-observability`, worktree `talent-market-lens-011`.
 > Cada afirmación lleva su fuente (fichero y línea, o comando) o va marcada
 > `[NO VERIFICADO]`. **Coste del reconocimiento: 0 €** —0 runs, 0 clústeres,
-> 0 consultas SQL, 0 pipelines—; solo API de Unity Catalog, API de Jobs y listado
-> de AzCopy.
+> 0 consultas SQL, 0 pipelines en el workspace pagado—; solo API de Unity Catalog,
+> API de Jobs y listado de AzCopy. (La demo de T-09b creó **2 pipelines** en Free
+> Edition, fuera del workspace pagado.)
 
 ## 1. Estado de partida del mecanismo (verificado en código)
 
@@ -256,3 +257,73 @@ Qué valida y qué no (regla de adopción de `plan.md` §8.2, sin cambios):
 El plan local (T-02) prueba la semántica de streaming en `local[2]` (checkpoint,
 microbatch, watermark, estado y exactly-once con sumidero idempotente) y **no**
 depende de Free Edition; su tabla de tiempos se añadirá a este documento en §5.
+
+## 9. Decisión (2026-11-02)
+
+Cierra **T-10** con la evidencia de T-09b (dos mecanismos sobre los mismos CSV en
+Free Edition) y el diff de esquemas. **0 €**: 0 runs en el workspace pagado, 0 SQL,
+0 pipelines nuevos en el workspace pagado (T-09b creó **2 pipelines** en Free Edition).
+
+### 9.1 Puertas duras
+
+| Puerta | Resultado | Evidencia |
+|---|---|---|
+| Contrato | **✓** | Diff de `workspace.bronze_current.<fuente>` contra `workspace.bronze_lab.<fuente>` en las cuatro fuentes: `solo current`, `solo lab` y `tipo distinto` **vacíos** (mismas columnas y mismos tipos). Claves (`job_key`; `id_oferta`; `job_id`; `site + job_id`) y columna de captura conservadas por el kit. Límite: el diff es sobre el extracto, no sobre las tablas completas de producción. |
+| Exactly-once | **✓** | Declarativo: segunda ejecución sin registros. Actual: tercera ejecución con `num_input_rows = 0`, `batch_id = 1` y `batches = 1`; los conteos del destino no se mueven (101/122/47/10). |
+| Cuarentena | **✓** | En ambos mecanismos: destino **101/122/47/10** y cuarentena **1 `missing_key` + 1 `missing_scraped_at`** por fuente, igual al manifiesto del kit; ninguna fila inválida llega al destino. |
+| Rollback | **`[NO VERIFICADO]`** | No ensayado (no hubo migración). **No aplicable** con la decisión de no migrar: no hay tablas nuevas ni vuelta atrás que probar. La puerta 4 de `plan.md` §3 queda como `[NO VERIFICADO]` en esta evaluación. |
+
+### 9.2 Criterios puntuables
+
+Regla de `plan.md` §3: se adopta si el candidato gana **≥ 5 de 8** y no pierde
+ninguna puerta. La carga de la prueba la tiene el candidato (B).
+
+| # | Criterio | Umbral (`plan.md` §3) | Ganador | Evidencia |
+|---|---|---|---|---|
+| 1 | Tiempo del bronce | ≤ **134 s** de ejecución y run ≤ **1350 s** | **sin ganador** | A: 113–134 s de ejecución en producción (010) + 382–383 s de arranque. B: sin duración total registrada; `_raw` de **4–7 s** por tabla en la UI de Free Edition **`[NO VERIFICADO]`** —proviene de la captura de la UI, que no está en `candidate/evidence/`—. Free Edition (actual **77,7 s** la primera con DDL y **7,2 s** la segunda) no es extrapolable y el tiempo de producción de B queda `[NO VERIFICADO]`. |
+| 2 | Coste por ejecución | ≤ **0,24 €** en dev y ≤ **1,00 €/mes** en producción | **A** | A: 0,20–0,24 € por run de producción ⇒ **0,87–1,04 €/mes**; el umbral es ≤ **1,00 €/mes**, así que la banda alta (1,04 €/mes) queda **pendiente de esa confirmación con la persona** (`plan.md` §3, nota al criterio 2). B exigiría **serverless/Pro** en el workspace pagado, sin medir, y añade superficie; su coste de producción queda `[NO VERIFICADO]`. |
+| 3 | Código propio | reduce ≥ **50 %** del handler **o** elimina el `MERGE` manual | **B** | Actual: `Upsert_Job_Offers.py` **311** líneas + ~**124** del handler de `bronze_ingest.ipynb` ≈ **435** líneas propias. Declarativo: `pipeline_declarative.py` **240** líneas, que además reimplementa el split y el hash ⇒ reducción ≈ **45 %**, **por debajo del 50 %** (primera rama incumplida). **Pero** elimina el `MERGE` manual: el pipeline usa `dp.create_auto_cdc_flow` y no contiene ningún `MERGE` ⇒ cumple la **segunda rama** del criterio **OR** y gana **B**. El split y el hash siguen siendo código propio. |
+| 4 | Observabilidad | event log/métricas por flujo y grafo nativos, o paridad con el resumen de T-03 | **B** | Grafo, expectativas («2 expectations» fallidas por fuente), métricas por flujo y event log **sin instrumentar**; el run mostró tablas `_raw`/`_valid`/`_quarantine` y SCD1 por fuente. Capturas de `candidate/evidence/` pendientes (`[NO VERIFICADO]`), complementarias. |
+| 5 | Simplicidad operativa | un artefacto menos que mantener o igual | **A** | Un job y un compute frente a **job + pipeline** (y su configuración, grafo y tablas gestionadas). |
+| 6 | Madurez del runtime | sin *preview* obligatorio en la ruta crítica | **A** | **Juicio:** B no acredita *preview* obligatorio en la ruta crítica, pero tampoco aporta ventaja de runtime y añade una dependencia de plataforma (serverless y tablas gestionadas); A corre en el job cluster actual, sin preview. Se mantiene **A** por no mejorar B este criterio. |
+| 7 | Riesgo de migración | las 4 fuentes en ≤ **1 ventana semanal**, sin tocar silver | **A** | B exige renombrar tablas, conmutar la ruta canónica y revisar la dependencia de silver; A no migra. |
+| 8 | Reversibilidad | vuelta al mecanismo actual sin pérdida de datos ni historial | **A** | Las tablas gestionadas por el pipeline complican la vuelta atrás (`RESTORE`/historial y `bronze_legacy`); A no necesita vuelta. |
+
+**Resultado: B gana 2 de 8** (código propio, criterio 3, y observabilidad, criterio
+4). No cumple la regla de adopción (≥ 5 de 8), así que **no se adopta el mecanismo
+declarativo**.
+
+### 9.3 Decisión
+
+**Adoptar parcialmente: se mantiene el mecanismo actual (A) y se adopta la
+observabilidad** —resumen del bronce, `ops.run_metrics`, tarea final con frescura,
+health rules y system tables (T-03–T-06)—. **No se migra** el pipeline declarativo.
+
+Motivo: el declarativo mejora el código propio (elimina el `MERGE` manual, aunque
+reduce las líneas solo ≈ 45 %) y la observabilidad, pero no el coste, la simplicidad
+operativa, el riesgo ni la reversibilidad. El mecanismo actual
+demuestra contrato y exactly-once sobre el extracto real y ya está probado en
+producción (008/010). Las piezas que se adoptan se justifican por sí mismas y **no
+arrastran la migración de tablas** (`plan.md` §3, «adoptar parcialmente»).
+
+Consecuencias:
+
+- **T-12 no aplica:** se cierra como **no aplicable** con el motivo medido, sin
+  gasto y sin tocar producción.
+- **T-13 despliega solo observabilidad:** el run programado valida el job actual con
+  la tarea final, `ops.run_metrics` y las health rules; no hay pipeline nuevo ni
+  cutover.
+- **Coste del declarativo no aprobado:** no se crea ningún pipeline `serverless` de
+  pago; el coste de producción sigue `[NO VERIFICADO]` y queda fuera de esta spec.
+
+### 9.4 Lo que queda `[NO VERIFICADO]`
+
+- **Tiempo de producción del declarativo:** no se ejecutó en el workspace pagado;
+  Free Edition no es extrapolable. `[NO VERIFICADO]`
+- **Coste de producción del declarativo:** exigiría serverless/Pro; no medido y no
+  aprobado. `[NO VERIFICADO]`
+- **Rollback (puerta 4):** no ensayado; no aplicable al no migrar. `[NO VERIFICADO]`
+- **Contrato sobre las tablas completas de producción:** el diff se hizo sobre las
+  tablas del extracto en Free Edition; no hay migración que exija paridad total.
+- **Capturas de `candidate/evidence/` y duración total del pipeline:** evidencia
+  complementaria; no cambian la puntuación. `[NO VERIFICADO]`
