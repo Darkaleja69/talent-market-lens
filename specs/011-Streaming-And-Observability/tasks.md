@@ -271,8 +271,22 @@
     available. SQLSTATE: 42K0I`: el kit usaba `spark.conf` como bolsa de parámetros
     y el módulo se ejecutó como notebook. Corrección: `run()` con argumentos
     **keyword-only** y fallback a widgets, sin `spark.conf` como bolsa de
-    parámetros ni `__main__` (**0 €**). **`[NO VERIFICADO]`:** ejecución real en
-    Free Edition → **T-09b**, pendiente de la persona.
+    parámetros ni `__main__` (**0 €**). **Primera ejecución real del mecanismo
+    actual en Free Edition (2026-11-02):** **77,7 s** la primera y **7,2 s** la
+    segunda, `status` «Stopped» en las cuatro fuentes y `query_id` estable entre
+    runs (id persistido en el checkpoint). Faltaba la cifra de filas: hasta esta
+    mejora el resumen solo tenía `source`, `query_id` y `status`.
+    `mechanism_current.stream_result` añade `num_input_rows`
+    (`lastProgress["numInputRows"]`, **0** si no hubo lote), `batch_id`
+    (`lastProgress["batchId"]`, **`None`** si no hubo lote) y `batches`
+    (`len(query.recentProgress)`), leyendo solo el progreso del motor; la segunda
+    ejecución debe mostrar `num_input_rows: 0` y `batch_id: None` **si no hubo
+    ningún microbatch**; si Spark ejecuta un microbatch vacío, saldrá
+    `num_input_rows: 0` con su `batch_id`. En ambos casos los conteos del destino no
+    cambian, que es la evidencia de exactly-once. Tests del kit: **16 passed**.
+    **0 €**. **`[NO VERIFICADO]`:** el mecanismo declarativo (`AUTO CDC`,
+    `@dp.expect`), las capturas y los conteos de T-09b siguen pendientes de la
+    persona.
 
 - [ ] **T-09b — Ejecutar la demo en Free Edition y traer evidencia** (~60 min, la persona)
   - **Objetivo:** obtener la evidencia real de los dos mecanismos en el mismo

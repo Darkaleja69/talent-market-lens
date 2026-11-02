@@ -256,6 +256,33 @@ def make_upsert_handler(source: str, target_schema: str):
     return handler
 
 
+def stream_result(source: str, query: Any) -> Dict[str, Any]:
+    """Summarise one finished stream from the progress the engine already keeps.
+
+    Reads ``query.id``, ``query.status``, ``query.lastProgress`` and
+    ``query.recentProgress``; it adds no Spark action (no batch, no count over
+    the target tables). ``num_input_rows`` comes from
+    ``lastProgress["numInputRows"]`` and is **0 when there is no batch at all**.
+
+    ``num_input_rows = 0`` with ``batch_id = None`` means the query finished
+    without running any micro-batch: the checkpoint already knew every input
+    file, so nothing was read. That pair is the exactly-once evidence of the
+    second run (the target counts do not change either). A zero with a
+    ``batch_id`` would be an empty micro-batch, which is a different case.
+    """
+    status = getattr(query, "status", None) or {}
+    last = getattr(query, "lastProgress", None)
+    recent = getattr(query, "recentProgress", None) or []
+    return {
+        "source": source,
+        "query_id": query.id,
+        "status": status.get("message"),
+        "num_input_rows": int(last.get("numInputRows") or 0) if last else 0,
+        "batch_id": last.get("batchId") if last else None,
+        "batches": len(recent),
+    }
+
+
 def run(
     spark: Optional[SparkSession] = None,
     *,
@@ -265,6 +292,10 @@ def run(
     checkpoint_root: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Run the current mechanism once per source and wait for all streams.
+
+    Returns one summary per source in ``SOURCE_ORDER`` (see
+    ``stream_result``): ``source``, ``query_id``, ``status``,
+    ``num_input_rows``, ``batch_id`` and ``batches``.
 
     Each parameter comes from the explicit argument first and from the notebook
     widget with the same name otherwise; ``schema_path`` and ``checkpoint_root``
@@ -319,12 +350,11 @@ def run(
     results = []
     for source, query in queries:
         query.awaitTermination()
-        results.append(
-            {
-                "source": source,
-                "query_id": query.id,
-                "status": query.status["message"],
-            }
+        result = stream_result(source, query)
+        results.append(result)
+        print(
+            f"Stream {source} finalizada: {result['status']} "
+            f"(num_input_rows={result['num_input_rows']}, "
+            f"batch_id={result['batch_id']}, batches={result['batches']})"
         )
-        print(f"Stream {source} finalizada: {query.status['message']}")
     return results

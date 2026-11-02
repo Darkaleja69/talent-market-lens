@@ -1,4 +1,7 @@
-"""Local tests for the T-09 current mechanism parameters (no Spark, no Databricks)."""
+"""Local tests for the T-09 current mechanism parameters and stream summary.
+
+No Spark and no Databricks: parameters, widgets and ``stream_result``.
+"""
 from __future__ import annotations
 
 import builtins
@@ -137,3 +140,66 @@ def test_widget_get_error_ends_in_the_clear_value_error(monkeypatch):
 
     with pytest.raises(ValueError, match="landing_root"):
         mc._resolve("landing_root", None, mc._dbutils_widget_getter())
+
+
+def _fake_query(
+    *,
+    query_id="q-1",
+    status="Stopped",
+    last_progress=None,
+    recent_progress=(),
+):
+    return types.SimpleNamespace(
+        id=query_id,
+        status={"message": status},
+        lastProgress=last_progress,
+        recentProgress=list(recent_progress),
+    )
+
+
+def test_stream_result_without_progress_reports_zero_rows_and_no_batch():
+    # A query without ``lastProgress`` did not run any micro-batch.
+    query = types.SimpleNamespace(
+        id="q-1", status={"message": "Stopped"}, recentProgress=[]
+    )
+
+    result = mc.stream_result("indeed", query)
+
+    assert result["num_input_rows"] == 0
+    assert result["batch_id"] is None
+    assert result["batches"] == 0
+
+
+def test_stream_result_reports_an_empty_microbatch_with_its_batch_id():
+    # An empty micro-batch ran: zero rows, but the engine assigned a batch id.
+    progress = {"numInputRows": 0, "batchId": 0}
+    query = _fake_query(last_progress=progress, recent_progress=[progress])
+
+    result = mc.stream_result("indeed", query)
+
+    assert result["num_input_rows"] == 0
+    assert result["batch_id"] == 0
+    assert result["batches"] == 1
+
+
+def test_stream_result_reads_rows_and_batch_from_last_progress():
+    progress = {"numInputRows": 89, "batchId": 3}
+    query = _fake_query(
+        last_progress=progress, recent_progress=[progress, progress]
+    )
+
+    result = mc.stream_result("indeed", query)
+
+    assert result["num_input_rows"] == 89
+    assert result["batch_id"] == 3
+    assert result["batches"] == 2
+
+
+def test_stream_result_keeps_source_query_id_and_status():
+    query = _fake_query(query_id="abc-42", status="Stopped")
+
+    result = mc.stream_result("infojobs", query)
+
+    assert result["source"] == "infojobs"
+    assert result["query_id"] == "abc-42"
+    assert result["status"] == "Stopped"

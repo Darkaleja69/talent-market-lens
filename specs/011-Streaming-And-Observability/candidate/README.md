@@ -26,7 +26,7 @@ coste marcada `[NO VERIFICADO]`.
 | `pipeline_declarative.py` | Pipeline declarativo para Free Edition. | Sí |
 | `mechanism_current.py` | Mecanismo actual adaptado al mismo CSV. | Sí |
 | `tests/test_generate_dataset.py` | Tests locales del generador (sin Spark). | Sí |
-| `tests/test_mechanism_current.py` | Tests locales de los parámetros y widgets del mecanismo actual (sin Spark ni Databricks). | Sí |
+| `tests/test_mechanism_current.py` | Tests locales de los parámetros, widgets y resumen del stream del mecanismo actual (sin Spark ni Databricks). | Sí |
 | `evidence/` | Capturas saneadas de T-09b y su guía de saneado. | Sí |
 
 ## Conteos esperados (manifiesto del 2026-11-02)
@@ -281,11 +281,29 @@ mechanism_current.run(
 ```
 
 `run()` crea el esquema y las tablas destino si no existen, arranca las cuatro
-consultas con `trigger(availableNow=True)` y espera a todas.
+consultas con `trigger(availableNow=True)` y espera a todas. Devuelve (y deja en la
+salida del notebook) un resumen por fuente, en el orden `indeed`, `infojobs`,
+`linkedin`, `multi_site`:
+
+| Campo | Origen | Significado |
+|---|---|---|
+| `source` | — | Fuente del stream. |
+| `query_id` | `query.id` | Id de la consulta; el checkpoint lo persiste, así que se repite entre ejecuciones. |
+| `status` | `query.status["message"]` | Estado final de la consulta (`Stopped` al terminar). |
+| `num_input_rows` | `lastProgress["numInputRows"]` | Filas leídas en el último lote; **0** si no hubo ningún lote. |
+| `batch_id` | `lastProgress["batchId"]` | Último lote del motor; **`None`** si no hubo ninguno. |
+| `batches` | `len(query.recentProgress)` | Lotes que el motor conserva para esa consulta. |
+
+Cada stream se imprime como
+`Stream <fuente> finalizada: <status> (num_input_rows=…, batch_id=…, batches=…)`.
+El resumen solo lee el progreso del motor: **no lanza acciones nuevas** de Spark.
 
 **Segunda ejecución:** vuelve a ejecutar la celda 3 sin subir ficheros nuevos. Los
-checkpoints del Volume hacen que no se ingiera nada (`numInputRows = 0`). Para
-repetir desde cero, borra el checkpoint:
+checkpoints del Volume hacen que no se ingiera nada: el resumen debe mostrar
+`num_input_rows: 0` y `batch_id: None` en las cuatro fuentes **si no hubo ningún
+microbatch**; si Spark ejecuta un microbatch vacío, saldrá `num_input_rows: 0` con su
+`batch_id`. En ambos casos los conteos del destino no cambian, que es la evidencia de
+exactly-once. Para repetir desde cero, borra el checkpoint:
 
 ```python
 dbutils.fs.rm("/Volumes/workspace/tml_demo/landing/_checkpoints/current", True)
@@ -343,7 +361,6 @@ Esperado: destino **101 / 122 / 47 / 10**; cuarentena **2 por fuente** (1
   - Disponibilidad de `AUTO CDC` y de `@dp.expect` en Free Edition.
   - Aceptación de `sequence_by` como `struct(_scraped_ts, _ingest_date)` y de
     `except_column_list` en `dp.create_auto_cdc_flow`.
-  - Disponibilidad de `MERGE WITH SCHEMA EVOLUTION` en el mecanismo actual.
   - Que el pipeline serverless pueda leer `schema.json` del Volume con `open()`.
   - Límites de la UI de Free Edition (event log, métricas de expectativas, Spark UI)
     y cuota de la sesión.
@@ -358,7 +375,7 @@ Esperado: destino **101 / 122 / 47 / 10**; cuarentena **2 por fuente** (1
 | `AUTO CDC` no está disponible | Aplica la contingencia de `plan.md` §8.3: `append_flow` a una tabla y dedup por clave en una tabla posterior. Documenta que la comparación pierde el SCD1 nativo. |
 | `sequence_by` con `struct` falla | Cambia a `sequence_by=F.col("_scraped_ts")`; se pierde el desempate por `_ingest_date` (anótalo). |
 | `except_column_list` falla | Quita el argumento; el destino incluirá `_scraped_ts` (columna extra) y se anota la desviación. |
-| `MERGE WITH SCHEMA EVOLUTION` no está disponible | El mecanismo actual fallará al primer lote: captura el error como evidencia y ejecuta la demo declarativa. No se parchea el módulo de producción en el kit. |
+| `MERGE WITH SCHEMA EVOLUTION` no está disponible | **Verificado en Free Edition el 2026-11-02 con las dos ejecuciones; los conteos quedan pendientes.** Si apareciera, el mecanismo actual fallará al primer lote: captura el error como evidencia y ejecuta la demo declarativa. No se parchea el módulo de producción en el kit. |
 | `open()` del `schema.json` del Volume falla | Sube `schema.json` junto al código y configura `schema_path` a `/Workspace/Users/<usuario>/tml-011-kit/schema.json`. |
 | Los CSV se desalinean | Comprueba que el lector usa `escape='"'` y `header=true`; vuelve a subir el CSV completo. |
 | Auto Loader pide `cloudFiles.schemaLocation` pese al esquema explícito | Añade `.option("cloudFiles.schemaLocation", "<landing_root>/_schemas/<fuente>")` en los dos mecanismos; la carpeta se crea sola. |
