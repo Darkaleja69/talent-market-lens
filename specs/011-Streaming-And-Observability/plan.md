@@ -315,13 +315,13 @@ falla, la decisión es «adoptar parcialmente» o «no cambiar», documentada.
 | T-06 health rules y runbook | 0 | 0 | 0 | 0 € |
 | T-07 sesión SQL | 0 | **1** | 0 | ~0,43 € |
 | T-08 run 1 (A, instrumentado) | **1** | 0 | 0 | ~0,20 € |
-| T-09 kit CSV + demo (Free Edition) | 0 | 0 | 2 ejecuciones | 0 € |
+| T-09 kit CSV + demo (Free Edition) | 0 | 0 | **5 ejecuciones** (2 del declarativo + 3 del actual) | 0 € |
 | T-10 decisión | 0 | 0 | 0 | 0 € |
 | T-11 runs 2 y 3 (repetición) | **2** | 0 | 0 | ~0,40 € |
 | T-12 migración (condicional) | 0 | 0 | 0 | presupuesto de producción |
 | T-13 producción y comprobación | 0 | 0 | 0 | 0 € de dev |
 | T-14 cierre | 0 | 0 | 0 | 0 € |
-| **Total dev** | **3** | **1** | 2 | **~0,95–1,15 €** (techo 2,0 €) |
+| **Total dev** | **3** | **1** | **5** | **~0,95–1,15 €** (techo 2,0 €) |
 
 Reglas:
 

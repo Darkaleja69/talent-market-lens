@@ -284,11 +284,10 @@
     ningún microbatch**; si Spark ejecuta un microbatch vacío, saldrá
     `num_input_rows: 0` con su `batch_id`. En ambos casos los conteos del destino no
     cambian, que es la evidencia de exactly-once. Tests del kit: **16 passed**.
-    **0 €**. **`[NO VERIFICADO]`:** el mecanismo declarativo (`AUTO CDC`,
-    `@dp.expect`), las capturas y los conteos de T-09b siguen pendientes de la
-    persona.
+    **0 €**. **`[NO VERIFICADO]`:** las capturas de `candidate/evidence/` y la
+    duración total del pipeline; **ver el Estado de T-09b** (2026-11-02).
 
-- [ ] **T-09b — Ejecutar la demo en Free Edition y traer evidencia** (~60 min, la persona)
+- [x] **T-09b — Ejecutar la demo en Free Edition y traer evidencia** (~60 min, la persona)
   - **Objetivo:** obtener la evidencia real de los dos mecanismos en el mismo
     entorno y con los mismos datos.
   - **Ejecución (la persona, en la cuenta Free Edition):** subir los CSV, crear los
@@ -297,11 +296,51 @@
     tabla resultante (conteos por fuente, cuarentena por motivo), segunda ejecución
     con 0 filas, y duración de cada ejecución.
   - **Hecho cuando:** las dos ejecuciones de cada mecanismo están en verde, la
-    segunda no ingiere filas, la cuarentena coincide con el manifiesto y las
-    capturas están en `evidence/` del kit (saneadas: sin rutas locales ni correos).
-  - **Evidencia:** capturas, conteos, duraciones y fila en `evidence.md`. **0 €.**
+    segunda no ingiere filas ni mueve los conteos, la cuarentena coincide con el
+    manifiesto y constan en `evidence.md` los **conteos de destino y cuarentena**,
+    las **filas de la repetición** (`num_input_rows`/`batch_id` o «0 registros»),
+    las **duraciones** de cada ejecución y el **`query_id`/`batch_id`** por fuente.
+    Las **capturas** de `evidence/` del kit son **evidencia complementaria
+    opcional**, marcada `[NO VERIFICADO]` mientras no estén; cuando se aporten,
+    deben guardarse saneadas (sin rutas locales ni correos).
+  - **Evidencia:** conteos, filas de la repetición, duraciones, `query_id`/`batch_id`
+    y fila en `evidence.md`; capturas si se aportan. **0 €.**
   - **Nota:** si `AUTO CDC` no está disponible en Free Edition, se aplica la
     contingencia de `plan.md` §8.3 y se documenta.
+  - **Estado (2026-11-02):** **hecha con 0 €** en la cuenta **Free Edition** de la
+    persona (0 runs de dev, 0 clústeres, 0 SQL, 0 pipelines en el workspace pagado).
+    **Mecanismo declarativo** (`workspace.bronze_lab`, **2 ejecuciones**): run 1
+    **completado**, con «2 expectations» fallidas por fuente; por fuente
+    `_raw`/`_valid`: `indeed` **103/101**, `infojobs` **124/122**, `linkedin`
+    **49/47**, `multi_site` **12/10**; `_quarantine` **2** por fuente y tablas SCD1
+    `indeed`/`infojobs`/`linkedin`/`multi_site` con **101/122/47/10** filas
+    «updated»; run 2 **completado sin registros** en todas las tablas («Output
+    records -»). Conteos posteriores: destino **101/122/47/10** (`indeed` 101,
+    `infojobs` 122, `linkedin` 47, `multi_site` 10); cuarentena **2 por fuente**
+    (1 `missing_key` + 1 `missing_scraped_at`). **Mecanismo actual**
+    (`workspace.bronze_current`, **3 ejecuciones**): run 1 **77,7 s** y run 2
+    **7,2 s**, cuatro streams «Stopped»; run 3 (con el resumen nuevo)
+    `num_input_rows = 0`, `batch_id = 1`, `batches = 1` en las cuatro fuentes
+    —microbatch vacío, el caso previsto en la nota de T-09— y `query_id` estable
+    entre ejecuciones (id persistido en el checkpoint). Conteos: destino
+    **101/122/47/10**; cuarentena **1 `missing_key` + 1 `missing_scraped_at`** por
+    fuente.
+    **Conclusión:** los dos mecanismos dan **paridad con el manifiesto** del kit
+    (101/122/47/10 de destino y 2 de cuarentena por fuente, una por motivo) y
+    **exactly-once** en ambos (el run de repetición no añade filas ni duplica: 0
+    registros en el declarativo y `num_input_rows = 0` sin cambios de conteo en el
+    actual). La demo valida **semántica, conteos y cuarentena**; el contrato de
+    columnas queda pendiente del diff entre esquemas. **No** mide tiempo ni coste
+    de producción: Free Edition es serverless gratuito y sus duraciones no son
+    comparables con el run real; el coste de producción sigue siendo estimación
+    sujeta a aprobación.
+    **`[NO VERIFICADO]`:** los ficheros de `candidate/evidence/`
+    (`declarative-run1-graph.png`, `declarative-run1-expectations.png`,
+    `declarative-run1-eventlog.png`, `declarative-run2-zero.png`,
+    `current-run1-eventlog.png`, `current-run2-zero.png`, `counts.sql.txt`,
+    `timings.md`), la **duración total del run del pipeline** y la **comparación de
+    columnas entre los dos esquemas** (se pedirá aparte). **La decisión
+    (adoptar / adoptar parcialmente / no cambiar) se escribe en T-10**, no aquí.
 
 - [ ] **T-10 — Decisión medida y cierre de la evaluación** (~60 min)
   - **Objetivo:** decidir **adoptar / adoptar parcialmente / no cambiar** con la
