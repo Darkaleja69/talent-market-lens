@@ -34,6 +34,8 @@ data/
 *.parquet
 *.csv
 *.jsonl
+# Kit de la demo de la spec 011: los CSV se regeneran con generate_dataset.py
+specs/011-Streaming-And-Observability/candidate/data/
 
 # Ofertas reales, perfiles de navegador y diccionarios de contrasenas
 **/indeed_jobs_*.json

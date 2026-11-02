@@ -207,6 +207,10 @@
 
 ## 4. Evaluación del mecanismo de ingesta
 
+> **Reordenación (2026-11-02, a petición de la persona):** **T-09 se adelanta**
+> para poder probar el kit en Free Edition en paralelo; **T-09b** la ejecuta la
+> persona cuando pueda y **T-10 no se cierra hasta entonces**.
+
 - [ ] **T-08 — Run 1: mecanismo actual medido (A)** (~20 min de persona)
   - **Objetivo:** tener la línea base real del bronce con el resumen nuevo y las
     métricas del run.
@@ -221,7 +225,7 @@
   - **Evidencia:** id del run, resumen de bronce, `ops.run_metrics`, tiempos, coste
     en `docs/costs.md` y fila en `evidence.md`. **~0,20 €.**
 
-- [ ] **T-09 — Kit de la demo para Free Edition (CSV + dos mecanismos)** (~90 min)
+- [x] **T-09 — Kit de la demo para Free Edition (CSV + dos mecanismos)** (~90 min)
   - **Objetivo:** dejar un kit reproducible y sin secretos que permita ejecutar en
     otra cuenta Free Edition los **dos mecanismos sobre los mismos datos** y traer
     evidencia comparable.
@@ -233,6 +237,8 @@
       `missing_key` y una `missing_scraped_at`).
     - `manifest.json`: ficheros, filas, columnas, filas válidas e inválidas por
       motivo, y el `sha256` de cada CSV.
+    - `schema.json`: tipología Spark por columna y fuente, base del esquema de
+      lectura y de las claves y la columna de captura.
     - `pipeline_declarative.py`: streaming tables desde los CSV, `expectations` y
       `AUTO CDC` SCD1 con claves por fuente y `sequence_by` por instante de captura.
     - `mechanism_current.py`: el mecanismo actual adaptado al CSV (Structured
@@ -243,12 +249,24 @@
       repetirlo con otro lote).
   - **Restricciones:** no se sube nada al workspace pagado ni se crea ningún
     pipeline de pago; ningún secreto en el kit; los CSV no superan ~1 MB en total y
-    se versionan (datos ya públicos del landing, sin datos personales).
+    **no se versionan** (`candidate/data/` está en `.gitignore`): solo se versionan
+    el generador, `schema.json`, el manifiesto, el código y el README. Los CSV son
+    datos públicos del landing y **pueden contener datos de contacto públicos** (en
+    este extracto aparecen un correo y un nombre), así que la carpeta no se comparte
+    tal cual.
   - **Hecho cuando:** el script regenera los CSV de forma determinista, el manifiesto
     cuadra (filas válidas + inválidas = filas del CSV), y el kit se puede ejecutar
     en Free Edition sin tocar el proyecto pagado.
   - **Evidencia:** salida del script, manifiesto y fila en `evidence.md`. **0 €**
     (solo egress de la descarga).
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL, 0
+    pipelines). Kit en `candidate/`: generador, `schema.json`, manifiesto, CSV de
+    **288 filas** (**280 válidas** + **8 inválidas inyectadas**: 4 `missing_key` + 4
+    `missing_scraped_at`) y **471.643 B** de CSV (≤ 1 MB); `pipeline_declarative.py`,
+    `mechanism_current.py`, README y tests locales (**2 passed**). Regeneración
+    **byte a byte** y `sha256` del manifiesto comprobados. Los CSV **no están
+    versionados** (`candidate/data/` en `.gitignore`). **`[NO VERIFICADO]`:**
+    ejecución real en Free Edition → **T-09b**, pendiente de la persona.
 
 - [ ] **T-09b — Ejecutar la demo en Free Edition y traer evidencia** (~60 min, la persona)
   - **Objetivo:** obtener la evidencia real de los dos mecanismos en el mismo
