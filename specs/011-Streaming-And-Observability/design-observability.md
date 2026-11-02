@@ -202,6 +202,41 @@ Reglas de diseño:
   (§1.2), consultada desde el clúster del job.
 - `ops` es derivado y reconstruible (no es la copia canónica de nada).
 
+### 3.1 Implementación (T-04, 0 €)
+
+`databricks_notebooks/Run_Metrics.py` (389 líneas) implementa el contrato anterior:
+
+- **Una sola definición de columnas** (`_COLUMN_TYPES`) genera `COLUMNS`, el
+  `TABLE_SCHEMA` de Spark y el DDL de `ensure_table`: no hay tres listas que puedan
+  desincronizarse.
+- `build_run_row` es **puro** (`now` inyectable): normaliza instantes a UTC, calcula
+  `duration_s` con suelo 0, `bronze_rows` como **suma de `num_input_rows_total`** (con
+  fallback por stream a `num_input_rows`) y `quarantine_rows` como suma de
+  `quarantined_rows` (el resumen y la columna no comparten nombre). `data_age_days`
+  se mide contra la fecha UTC de `now` y puede ser negativo si el dato es futuro.
+- `checks_json` / `metrics_json` son estables byte a byte (`sort_keys`, separadores
+  compactos, `allow_nan=False`, no finitos → `null`). **Los `checks` deben llevar
+  tipos JSON nativos** (`str`/`int`/`bool`/`None`/listas/dicts): un `datetime` o un
+  `Decimal` lanzan, y T-05 los construye con esos tipos.
+- `merge_sql` casa por `run_id` y tiene las dos ramas; `ensure_table` crea **solo la
+  tabla** (`CREATE TABLE IF NOT EXISTS … USING DELTA`), nunca el esquema.
+- `record(spark, table, row, logger=None)` **nunca propaga**: valida presencia de las
+  13 columnas y que `run_id`/`job_id` no sean nulos ni vacíos, ignora claves extra,
+  y devuelve `{"status": "ok"|"failed", "error": …}` registrando el fallo.
+
+El **esquema `ops`** se creó por CLI el **2026-11-03** (gratis) en `job_offers_dev`
+(`36f4fdc8-2fbb-4d23-bda7-4b05c3b1b73b`) y `job_offers`
+(`f4c405a5-f330-4582-b627-943a5c3d03df`). La **tabla** la crea el primer `record`
+real: hoy ambos esquemas están vacíos (`databricks tables list`, 0 €), así que el
+`DESCRIBE` de la tabla queda para **T-08**, con el primer run instrumentado.
+
+Tests: **30 passed** (26 puros, incluidos 4 parametrizados de clave nula, + 4 de
+integración) en ~7 min; los 4 de integración se ejecutan en aislamiento con Delta
+local y demuestran que dos escrituras del mismo `run_id` dejan **una** fila y gana la
+segunda.
+`[NO VERIFICADO]`: `tableExists` de tres partes, DDL `USING DELTA` en Unity Catalog y
+`MERGE … UPDATE SET *` en **DBR 17.3**; se cierran en T-08.
+
 ## 4. Tarea final `Publish_Run_Summary`
 
 De `plan.md` §7.2, sin cambios: `run_if: ALL_DONE` y dependencia de las **8

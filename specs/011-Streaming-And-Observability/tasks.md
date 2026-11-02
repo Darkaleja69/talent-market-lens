@@ -176,7 +176,7 @@
     token a token); se cierra en T-08. `walCommit` es la única clave de commit mapeada
     (`commitOffsets` no se publica).
 
-- [ ] **T-04 — Tabla `ops.run_metrics` y su módulo** (~60 min)
+- [x] **T-04 — Tabla `ops.run_metrics` y su módulo** (~60 min)
   - **Objetivo:** que cada run deje una fila consultable en Delta con sus métricas
     de negocio y frescura, idempotente y sin depender del warehouse.
   - **Entregable:** `databricks_notebooks/Run_Metrics.py`
@@ -191,6 +191,19 @@
     caso de error no propagado; el esquema existe en dev y en prod.
   - **Aprobación previa:** módulo nuevo.
   - **Evidencia:** tests, `DESCRIBE` de la tabla y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-03):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Módulo
+    `Run_Metrics.py` con `tests/test_run_metrics.py`: **30 passed** en 7:18 (26 puros,
+    incluidos 4 parametrizados de clave nula, + 4 de integración con Delta local; estos
+    demuestran **una** fila tras dos escrituras del mismo `run_id` y que gana la segunda). Una sola definición genera
+    `COLUMNS`, `TABLE_SCHEMA` y el DDL; `build_run_row` puro con `bronze_rows` = suma de
+    `num_input_rows_total`; JSON estable y estricto; `record` nunca propaga y valida
+    `run_id`/`job_id`. **Esquema `ops` creado por CLI** en `job_offers_dev`
+    (`36f4fdc8-2fbb-4d23-bda7-4b05c3b1b73b`) y `job_offers`
+    (`f4c405a5-f330-4582-b627-943a5c3d03df`). **`DESCRIBE` pendiente:** la tabla nace en
+    el primer `record` real, así que se hace en T-08 (`databricks tables list` vacío hoy).
+    **`[NO VERIFICADO]`:** `tableExists` de tres partes, DDL `USING DELTA` en Unity
+    Catalog y `MERGE … UPDATE SET *` en DBR 17.3 (probado con Spark 4.2.0 + Delta 4.4.1
+    local). `checks` debe llevar tipos JSON nativos (T-05).
 
 - [ ] **T-05 — Tarea final: consolidación y frescura** (~75 min)
   - **Objetivo:** que el run termine con una comprobación explícita y fallo visible
