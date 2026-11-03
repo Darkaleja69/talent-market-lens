@@ -205,7 +205,7 @@
     Catalog y `MERGE … UPDATE SET *` en DBR 17.3 (probado con Spark 4.2.0 + Delta 4.4.1
     local). `checks` debe llevar tipos JSON nativos (T-05).
 
-- [ ] **T-05 — Tarea final: consolidación y frescura** (~75 min)
+- [x] **T-05 — Tarea final: consolidación y frescura** (~75 min)
   - **Objetivo:** que el run termine con una comprobación explícita y fallo visible
     si los datos no son frescos, y que la fila de `ops.run_metrics` quede escrita
     incluso cuando otra tarea falle.
@@ -223,6 +223,25 @@
   - **Nota:** `system.lakeflow` puede tardar; el cierre **no** depende de ella.
   - **Aprobación previa:** notebook nuevo + `.yml` del job.
   - **Evidencia:** `bundle validate`, tests y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-03):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Notebook
+    `run_summary.ipynb` (8 celdas, solo coordinación) + `Run_Metrics.py`
+    (`pending_files`, `build_checks`, `failed_checks`, `parse_data_date`) + tarea
+    `Publish_Run_Summary` en `resources/elt.job.yml` (`run_if: ALL_DONE`, `depends_on` de
+    las 8, 7 parámetros con `{{job.run_id}}`/`{{job.id}}`/`{{job.start_time.iso_datetime}}`).
+    **Tests:** 58 puros passed (0,5 s) + 19 de `Bronze_Summary`; **`bundle validate -t dev`
+    → `Validation OK!`** y grafo de **9 tareas**. La fila se escribe **antes** del `raise`
+    (el `exit` va al final para no tragarse el fallo); `parse_data_date` no lanza (fecha
+    vacía → `null` y falla solo `freshness`); `listing_ok=False` no da verde; `failed_checks`
+    exige `True`; el listado es solo de metadatos y el corte es
+    `commit < mtime < inicio del run` (lo que llega durante el run no cuenta).
+    **Desviaciones motivadas:** `taskValues.get` necesita la tarea productora
+    (`Bronze_Ingestion`); `checkpoints_root` se toma del resumen del bronce (dev
+    `_checkpoints_dev`, prod `_checkpoints`) con fallback; `EXPECTED_SOURCES` vive en
+    `Run_Metrics` (no en `Bronze_Summary`) para no acoplar el módulo puro a Spark.
+    **`[NO VERIFICADO]`:** `taskValues.get`, `dbutils.fs.head/ls` y `fs.listFiles` sobre
+    ABFS, el formato real de `{{job.start_time.iso_datetime}}`, la escritura en
+    `ops.run_metrics` en DBR 17.3 y que la fila quede con otra tarea fallida (`ALL_DONE`
+    real); se cierra en T-08.
 
 - [ ] **T-06 — Health rules, event log y RUNBOOK** (~60 min)
   - **Objetivo:** que un fallo o una duración anómala avisen solos y que la

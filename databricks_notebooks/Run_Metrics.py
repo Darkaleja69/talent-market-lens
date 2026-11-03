@@ -1,4 +1,4 @@
-"""Run-level metrics of the weekly job (spec 011, T-04).
+"""Run-level metrics of the weekly job (spec 011, T-04 and T-05).
 
 Every run of the job leaves one row in ``<catalog>.ops.run_metrics`` with its
 business figures and its freshness, readable from the cluster without waking
@@ -15,12 +15,28 @@ anything, so a missing table never needs a manual migration.
 Two layers:
 
 * pure helpers, no Spark and no I/O: :func:`build_run_row`,
-  :func:`checks_json`, :func:`metrics_json`, :func:`merge_sql` and
-  :func:`table_name`;
+  :func:`parse_data_date`, :func:`pending_files`, :func:`build_checks`,
+  :func:`failed_checks`, :func:`checks_json`, :func:`metrics_json`,
+  :func:`merge_sql` and :func:`table_name`;
 * :func:`record`, the single writer of the table. It is **best effort**: a
   failure is logged and returned as ``{"status": "failed", "error": ...}``
   instead of raising, so a metrics problem never fails a business task.
   ``spark.conf`` is never used as a parameter bag.
+
+The closing task of the job (``run_summary.ipynb``, T-05) is only
+coordination: it reads the bronze task value, ``meta.json`` and the
+landing/checkpoint metadata, and hands them to :func:`pending_files` and
+:func:`build_checks`. The threshold of freshness and the pending-file rule
+live here, where they are tested without a cluster.
+
+``status`` of a row is the **state of the closing** (the four checks), not the
+aggregate of the tasks: the per-task state and durations stay in
+``system.lakeflow.job_task_run_timeline``, which the run never waits for.
+
+The last commit of each checkpoint is read **at closing time**. A run that
+ingests no row writes no new commit (measured with Spark 4.2 locally), so the
+files that were already waiting keep counting as pending: an empty batch never
+hides the backlog.
 """
 import datetime as dt
 import json
@@ -78,6 +94,19 @@ METRICS_VIEW = "__run_metrics"
 
 #: Maximum length of the error returned by :func:`record` (log hygiene).
 _MAX_ERROR_CHARS = 500
+
+#: Maximum age of the published data before the run fails (days). The same
+#: threshold as the dashboard workflow, which refuses to publish older data.
+MAX_DATA_AGE_DAYS = 8
+
+#: Bronze sources of the job, in the order of ``SOURCES`` of
+#: ``bronze_ingest.ipynb``. The notebook owns the tuple and
+#: ``Bronze_Summary`` does not publish it, so it is repeated here instead of
+#: imported: this module stays independent of the notebook code.
+EXPECTED_SOURCES = ("indeed", "linkedin", "infojobs", "multi_site")
+
+#: Pending files published per source (the count is complete, the list is not).
+MAX_EXAMPLES = 3
 
 
 def table_name(catalog, schema=OPS_SCHEMA) -> str:
@@ -185,6 +214,27 @@ def _as_date(value):
     )
 
 
+def parse_data_date(value):
+    """Normalize ``data_date`` to a date, or ``None`` when it is not usable.
+
+    Accepts a ``date``, a ``datetime`` or a ``YYYY-MM-DD`` string. ``None``,
+    an empty string, whitespace, ``"None"``, an unsupported type or an invalid
+    date are published as ``None`` instead of raising: a corrupt ``meta.json``
+    must never abort the closing task before it writes the row, so the value
+    is published as ``null`` and the freshness check is the one that fails.
+    """
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text.lower() == "none":
+            return None
+    elif not isinstance(value, dt.date):
+        return None
+    try:
+        return _as_date(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _stream_sum(bronze_summary, keys):
     """Sum the first reported figure of each stream over ``keys``.
 
@@ -231,8 +281,10 @@ def build_run_row(
     streams respectively, so a summary without streams is a real ``0``.
 
     ``data_date`` accepts a date, a datetime or a ``YYYY-MM-DD`` string and is
-    ``None`` when not given; ``data_age_days`` is its age against UTC and can
-    be negative for a future date.
+    ``None`` when not given; a value that cannot be parsed is also ``None``
+    (see :func:`parse_data_date`), so a corrupt export never raises here.
+    ``data_age_days`` is its age against UTC and can be negative for a future
+    date.
 
     ``checks`` and ``metrics`` are serialized with :func:`checks_json` and
     :func:`metrics_json` (``"{}"`` when ``None``); ``recorded_at`` is ``now``.
@@ -251,7 +303,7 @@ def build_run_row(
         if finished_at is None
         else _as_utc(finished_at, "finished_at")
     )
-    day = None if data_date is None else _as_date(data_date)
+    day = parse_data_date(data_date)
     has_summary = isinstance(bronze_summary, dict)
 
     return {
@@ -282,6 +334,185 @@ def build_run_row(
         "metrics": metrics_json(bronze_summary),
         "recorded_at": reference,
     }
+
+
+def pending_files(files, commits, run_start_ms) -> dict:
+    """Group the landing files the run had not ingested when it started.
+
+    ``files`` are metadata entries of the landing
+    (``{"source": str, "path": str, "modification_ms": int}``; no file is
+    read), ``commits`` maps each source to the last commit of its checkpoint
+    (mtime in ms) and ``run_start_ms`` is the start of the run, in ms. The
+    start is **required** (:class:`ValueError` in Spanish otherwise): without
+    it, a file that lands while the run is executing cannot be told apart
+    from a backlog.
+
+    A file is pending when it is newer than the last commit of its source and
+    older than the start of the run: a file that lands *during* the run is
+    ingested by the next one and is never a backlog of this one. A source
+    without a commit (or with ``None``) counts every file older than the
+    start, which is what the first run of a checkpoint must ingest. Entries
+    without ``source`` or without a numeric ``modification_ms`` are ignored,
+    and ``files=None`` is an empty result. A file without a ``path`` still
+    counts (it exists) but cannot be named in ``oldest``/``examples``.
+
+    The returned dict has an entry (``count``, ``oldest`` path and up to
+    :data:`MAX_EXAMPLES` example paths) **only** for the sources with pending
+    files, so ``{}`` means "nothing pending".
+    """
+    if run_start_ms is None:
+        raise ValueError(
+            "'run_start_ms' es obligatorio: sin el inicio del run no se "
+            "puede separar lo pendiente de lo que llega durante el run."
+        )
+    start = _int_or_none(run_start_ms)
+    if start is None:
+        raise ValueError(
+            "'run_start_ms' debe ser un entero (epoch en milisegundos)."
+        )
+    last_commits = _as_dict(commits)
+    pending = {}
+    oldest_ms = {}
+    for entry in files or ():
+        item = _as_dict(entry)
+        source = item.get("source")
+        if not isinstance(source, str) or not source.strip():
+            continue
+        modification = _int_or_none(item.get("modification_ms"))
+        if modification is None:
+            continue
+        commit = _int_or_none(last_commits.get(source))
+        if commit is not None and modification <= commit:
+            continue
+        if modification >= start:
+            continue
+        detail = pending.setdefault(
+            source, {"count": 0, "oldest": None, "examples": []}
+        )
+        detail["count"] += 1
+        path = item.get("path")
+        if not isinstance(path, str) or not path:
+            continue
+        if source not in oldest_ms or modification < oldest_ms[source]:
+            oldest_ms[source] = modification
+            detail["oldest"] = path
+        if len(detail["examples"]) < MAX_EXAMPLES:
+            detail["examples"].append(path)
+    return pending
+
+
+def _summary_sources(bronze_summary) -> list:
+    """Sorted source names of the streams of ``bronze_summary``.
+
+    A missing summary, a non-list ``streams`` or a stream without a usable
+    ``source`` contributes nothing: the caller decides whether the empty list
+    is a failed check (it is) or a run without bronze.
+    """
+    streams = _as_dict(bronze_summary).get("streams")
+    if not isinstance(streams, (list, tuple)):
+        return []
+    found = set()
+    for stream in streams:
+        entry = _as_dict(stream)
+        source = entry.get("source")
+        if isinstance(source, str) and source.strip():
+            found.add(source)
+    return sorted(found)
+
+
+def build_checks(
+    *,
+    bronze_summary=None,
+    data_date=None,
+    pending=None,
+    listing_ok=True,
+    now=None,
+    max_age_days=MAX_DATA_AGE_DAYS,
+) -> dict:
+    """Build the checks of the run as native JSON values (pure, no I/O).
+
+    ``bronze_summary`` is the payload published by the bronze task,
+    ``data_date`` the one of ``meta.json`` (a date, a datetime or a
+    ``YYYY-MM-DD`` string, parsed with :func:`parse_data_date`),
+    ``pending`` the result of :func:`pending_files` and ``listing_ok``
+    whether the landing could be listed: only an explicit ``True`` keeps the
+    pending check green, so a broken listing is never published as "nothing
+    pending". ``now`` is injectable and defaults to the current UTC time, so
+    the age of the data is reproducible in tests.
+
+    Four checks, in this order:
+
+    * ``bronze_summary``: a summary with at least one stream, and its sources;
+    * ``bronze_sources``: the four :data:`EXPECTED_SOURCES` are present;
+    * ``freshness``: ``data_date`` is known, not in the future and not older
+      than ``max_age_days`` (the age is measured against the UTC date of
+      ``now``);
+    * ``pending_files``: fails when the landing could not be listed or when
+      files were waiting before the run started **and** the bronze ingested no
+      row (a pending file with rows is the backlog of the next run, not a
+      failure).
+
+    Every value is a bool, an int, a string, ``None``, a list or a dict:
+    the payload is serialized by :func:`checks_json` without a ``default``.
+    A malformed ``data_date`` is reported as an absent date instead of
+    raising, so the failure is published in the checks.
+    """
+    reference = _as_utc(
+        dt.datetime.now(dt.timezone.utc) if now is None else now, "now"
+    )
+    sources = _summary_sources(bronze_summary)
+    streams = _as_dict(bronze_summary).get("streams")
+    has_streams = isinstance(streams, (list, tuple)) and len(streams) > 0
+    present = [source for source in EXPECTED_SOURCES if source in sources]
+
+    day = parse_data_date(data_date)
+    age = None if day is None else (reference.date() - day).days
+    fresh = day is not None and 0 <= age <= max_age_days
+
+    listed = listing_ok is True
+    pending_entries = dict(_as_dict(pending))
+    total = 0
+    for detail in pending_entries.values():
+        total += _int_or_none(_as_dict(detail).get("count")) or 0
+    bronze_rows = _stream_sum(
+        bronze_summary, ("num_input_rows_total", "num_input_rows")
+    )
+
+    return {
+        "bronze_summary": {"ok": has_streams, "sources": sources},
+        "bronze_sources": {
+            "ok": len(present) == len(EXPECTED_SOURCES),
+            "expected": len(EXPECTED_SOURCES),
+            "present": len(present),
+        },
+        "freshness": {
+            "ok": fresh,
+            "data_date": None if day is None else day.isoformat(),
+            "data_age_days": age,
+            "max_age_days": max_age_days,
+        },
+        "pending_files": {
+            "ok": listed and not (total > 0 and bronze_rows == 0),
+            "total": total,
+            "by_source": pending_entries,
+            "bronze_rows": bronze_rows,
+            "listing_ok": listed,
+        },
+    }
+
+
+def failed_checks(checks) -> list:
+    """Names of the checks whose ``ok`` is not exactly ``True``, in order.
+
+    Truthiness is not accepted (``1`` or ``"ok"`` would hide a broken check)
+    and a check without ``ok``, or not a dict, counts as failed: the closing
+    task only accepts an explicit ``True``. ``None`` is an empty list.
+    """
+    return [
+        name
+        for name, entry in _as_dict(checks).items()
+        if _as_dict(entry).get("ok") is not True
+    ]
 
 
 def merge_sql(table, view_name=METRICS_VIEW) -> str:

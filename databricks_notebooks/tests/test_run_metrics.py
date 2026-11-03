@@ -1,9 +1,12 @@
-"""Tests for the run metrics module (spec 011, T-04).
+"""Tests for the run metrics module (spec 011, T-04 and T-05).
 
 The pure part pins the thirteen-column contract, the row builder, the stable
-JSON and the best-effort writer without touching Spark. The integration part
-writes to a Delta table with a local Spark session and checks the ``MERGE`` by
-``run_id``: create, idempotency, two runs and an unreachable table.
+JSON and the best-effort writer without touching Spark. The closing task adds
+the landing/checkpoint rule (:func:`Run_Metrics.pending_files`), the checks of
+the run (:func:`Run_Metrics.build_checks`, with an injected ``now``) and the
+notebook that only coordinates them. The integration part writes to a Delta
+table with a local Spark session and checks the ``MERGE`` by ``run_id``:
+create, idempotency, two runs and an unreachable table.
 
 Delta needs ``winutils.exe``/``hadoop.dll`` on Windows (``conftest.py``
 configures ``HADOOP_HOME`` at import time, before the first session), and the
@@ -364,6 +367,53 @@ def test_data_date_is_optional_and_a_future_date_is_negative():
     assert future["data_age_days"] == -3
 
 
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("2026-10-31", dt.date(2026, 10, 31)),
+        (" 2026-10-31 ", dt.date(2026, 10, 31)),
+        (dt.date(2026, 10, 31), dt.date(2026, 10, 31)),
+        (dt.datetime(2026, 10, 31, 23, 30), dt.date(2026, 10, 31)),
+    ],
+)
+def test_parse_data_date_accepts_the_published_contract(value, expected):
+    assert metrics.parse_data_date(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "",
+        "   ",
+        "None",
+        " none ",
+        "no-es-fecha",
+        "2026-13-01",
+        20261031,
+        True,
+        [],
+        {},
+    ],
+)
+def test_parse_data_date_returns_none_instead_of_raising(value):
+    assert metrics.parse_data_date(value) is None
+
+
+def test_build_run_row_without_a_usable_date_does_not_raise():
+    for value in ("", "None", "no-es-fecha", None):
+        row = metrics.build_run_row(
+            run_id="run-1",
+            job_id="job-1",
+            started_at=STARTED,
+            data_date=value,
+            now=NOW,
+        )
+
+        assert row["data_date"] is None
+        assert row["data_age_days"] is None
+
+
 def test_checks_and_metrics_default_to_an_empty_json_object():
     row = metrics.build_run_row(
         run_id="run-1",
@@ -537,6 +587,460 @@ def test_record_truncates_the_error_message():
 
     assert result["status"] == "failed"
     assert len(result["error"]) == 500
+
+
+# ---------------------------------------------------------------------------
+# pending_files: what was waiting in the landing when the run started
+# ---------------------------------------------------------------------------
+
+RUN_START_MS = 1_763_000_000_000
+COMMIT_MS = RUN_START_MS - 3_600_000
+LANDING_ROOT = "abfss://landing@acct.dfs.core.windows.net"
+
+
+def _landing_file(source, name, modification_ms):
+    """Metadata entry of a landing file, as the Hadoop listing builds it."""
+    return {
+        "source": source,
+        "path": f"{LANDING_ROOT}/{source}/{name}",
+        "modification_ms": modification_ms,
+    }
+
+
+def test_pending_files_keeps_only_what_is_newer_than_the_commit():
+    files = [
+        _landing_file("indeed", "already_committed.parquet", COMMIT_MS - 1),
+        _landing_file("indeed", "at_commit.parquet", COMMIT_MS),
+        _landing_file("indeed", "waiting.parquet", COMMIT_MS + 1),
+    ]
+
+    pending = metrics.pending_files(files, {"indeed": COMMIT_MS}, RUN_START_MS)
+
+    waiting = f"{LANDING_ROOT}/indeed/waiting.parquet"
+    assert pending == {
+        "indeed": {"count": 1, "oldest": waiting, "examples": [waiting]}
+    }
+
+
+def test_pending_files_ignores_what_lands_during_the_run():
+    files = [
+        _landing_file("indeed", "at_start.parquet", RUN_START_MS),
+        _landing_file("indeed", "during_run.parquet", RUN_START_MS + 1),
+        _landing_file("indeed", "waiting.parquet", RUN_START_MS - 1),
+    ]
+
+    pending = metrics.pending_files(files, {}, RUN_START_MS)
+
+    assert pending["indeed"]["count"] == 1
+    assert pending["indeed"]["oldest"].endswith("waiting.parquet")
+
+
+def test_pending_files_counts_everything_without_a_commit():
+    files = [
+        _landing_file("infojobs", "a.parquet", 1),
+        _landing_file("infojobs", "b.parquet", 2),
+    ]
+
+    assert metrics.pending_files(files, {}, RUN_START_MS)[
+        "infojobs"
+    ]["count"] == 2
+    assert metrics.pending_files(files, {"infojobs": None}, RUN_START_MS)[
+        "infojobs"
+    ]["count"] == 2
+    # A source with nothing newer than its commit is not published at all.
+    assert metrics.pending_files(files, {"infojobs": 2}, RUN_START_MS) == {}
+
+
+def test_pending_files_without_files_is_empty():
+    assert metrics.pending_files(None, {"indeed": None}, RUN_START_MS) == {}
+    assert metrics.pending_files([], {}, RUN_START_MS) == {}
+    assert metrics.pending_files([], None, RUN_START_MS) == {}
+
+
+def test_pending_files_requires_the_start_of_the_run():
+    with pytest.raises(ValueError, match="run_start_ms"):
+        metrics.pending_files([], {}, None)
+    with pytest.raises(ValueError, match="run_start_ms"):
+        metrics.pending_files([], {}, "not-a-number")
+
+
+def test_pending_files_ignores_incomplete_entries():
+    files = [
+        {"path": "no-source.parquet", "modification_ms": COMMIT_MS + 1},
+        {"source": "indeed", "path": "no-mtime.parquet"},
+        {"source": "indeed", "path": "bad.parquet", "modification_ms": "x"},
+        {"source": "  ", "path": "blank.parquet", "modification_ms": 1},
+        "unexpected",
+        None,
+        _landing_file("indeed", "valid.parquet", COMMIT_MS + 1),
+    ]
+
+    pending = metrics.pending_files(files, {"indeed": COMMIT_MS}, RUN_START_MS)
+
+    assert list(pending) == ["indeed"]
+    assert pending["indeed"]["count"] == 1
+    assert pending["indeed"]["oldest"].endswith("valid.parquet")
+
+
+def test_pending_files_limits_the_examples_and_keeps_the_oldest():
+    files = [
+        _landing_file("indeed", f"file-{index}.parquet", COMMIT_MS + index + 1)
+        for index in range(5)
+    ]
+    files.reverse()
+
+    pending = metrics.pending_files(
+        files, {"indeed": COMMIT_MS}, RUN_START_MS
+    )["indeed"]
+
+    assert pending["count"] == 5
+    assert pending["oldest"].endswith("indeed/file-0.parquet")
+    assert len(pending["examples"]) == metrics.MAX_EXAMPLES == 3
+    assert all(path.endswith(".parquet") for path in pending["examples"])
+
+
+# ---------------------------------------------------------------------------
+# build_checks: the four checks of the run, with native JSON values
+# ---------------------------------------------------------------------------
+
+CHECKS_NOW = dt.datetime(2026, 11, 2, 12, 0, tzinfo=dt.timezone.utc)
+
+ZERO_ROWS_SUMMARY = {
+    "streams": [
+        {"source": source, "num_input_rows_total": 0}
+        for source in ("indeed", "infojobs", "linkedin", "multi_site")
+    ]
+}
+
+
+def test_build_checks_is_green_with_fresh_data_and_no_backlog():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        data_date="2026-10-31",
+        pending={},
+        now=CHECKS_NOW,
+    )
+
+    assert checks == {
+        "bronze_summary": {
+            "ok": True,
+            "sources": ["indeed", "infojobs", "linkedin", "multi_site"],
+        },
+        "bronze_sources": {"ok": True, "expected": 4, "present": 4},
+        "freshness": {
+            "ok": True,
+            "data_date": "2026-10-31",
+            "data_age_days": 2,
+            "max_age_days": metrics.MAX_DATA_AGE_DAYS,
+        },
+        "pending_files": {
+            "ok": True,
+            "total": 0,
+            "by_source": {},
+            "bronze_rows": 135,
+            "listing_ok": True,
+        },
+    }
+
+
+def test_freshness_fails_with_data_older_than_the_threshold():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        data_date="2026-10-24",  # nine days before CHECKS_NOW
+        now=CHECKS_NOW,
+    )
+
+    assert checks["freshness"] == {
+        "ok": False,
+        "data_date": "2026-10-24",
+        "data_age_days": 9,
+        "max_age_days": 8,
+    }
+
+
+def test_freshness_accepts_the_threshold_and_rejects_a_future_date():
+    same_day = metrics.build_checks(data_date="2026-11-02", now=CHECKS_NOW)
+    assert same_day["freshness"]["data_age_days"] == 0
+    assert same_day["freshness"]["ok"] is True
+
+    boundary = metrics.build_checks(data_date="2026-10-25", now=CHECKS_NOW)
+    assert boundary["freshness"]["data_age_days"] == 8
+    assert boundary["freshness"]["ok"] is True
+
+    stricter = metrics.build_checks(
+        data_date="2026-10-25", now=CHECKS_NOW, max_age_days=7
+    )
+    assert stricter["freshness"]["max_age_days"] == 7
+    assert stricter["freshness"]["ok"] is False
+
+    future = metrics.build_checks(data_date="2026-11-05", now=CHECKS_NOW)
+    assert future["freshness"]["data_age_days"] == -3
+    assert future["freshness"]["ok"] is False
+
+
+def test_freshness_fails_without_a_usable_data_date():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY, now=CHECKS_NOW
+    )
+    assert checks["freshness"] == {
+        "ok": False,
+        "data_date": None,
+        "data_age_days": None,
+        "max_age_days": 8,
+    }
+
+    malformed = metrics.build_checks(data_date="not-a-date", now=CHECKS_NOW)
+    assert malformed["freshness"]["ok"] is False
+    assert malformed["freshness"]["data_date"] is None
+
+
+def test_build_checks_without_summary_flags_the_bronze_and_zero_rows():
+    checks = metrics.build_checks(
+        data_date="2026-10-31", pending={}, now=CHECKS_NOW
+    )
+
+    assert checks["bronze_summary"] == {"ok": False, "sources": []}
+    assert checks["bronze_sources"] == {
+        "ok": False,
+        "expected": 4,
+        "present": 0,
+    }
+    assert checks["pending_files"]["bronze_rows"] == 0
+
+    empty = metrics.build_checks(
+        bronze_summary={"streams": []}, now=CHECKS_NOW
+    )
+    assert empty["bronze_summary"]["ok"] is False
+    assert empty["pending_files"]["bronze_rows"] == 0
+
+
+def test_bronze_sources_fails_when_one_source_is_missing():
+    summary = {
+        "streams": [
+            {"source": "indeed"},
+            {"source": "infojobs"},
+            {"source": "linkedin"},
+        ]
+    }
+
+    checks = metrics.build_checks(bronze_summary=summary, now=CHECKS_NOW)
+
+    assert checks["bronze_summary"]["ok"] is True
+    assert checks["bronze_sources"] == {
+        "ok": False,
+        "expected": 4,
+        "present": 3,
+    }
+
+
+def test_pending_files_fail_only_when_the_batch_was_empty():
+    pending = {
+        "indeed": {
+            "count": 2,
+            "oldest": f"{LANDING_ROOT}/indeed/a.parquet",
+            "examples": [f"{LANDING_ROOT}/indeed/a.parquet"],
+        },
+        "infojobs": {
+            "count": 1,
+            "oldest": f"{LANDING_ROOT}/infojobs/b.parquet",
+            "examples": [],
+        },
+    }
+
+    stopped = metrics.build_checks(
+        bronze_summary=ZERO_ROWS_SUMMARY, pending=pending, now=CHECKS_NOW
+    )
+    assert stopped["pending_files"] == {
+        "ok": False,
+        "total": 3,
+        "by_source": pending,
+        "bronze_rows": 0,
+        "listing_ok": True,
+    }
+
+    moved = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY, pending=pending, now=CHECKS_NOW
+    )
+    assert moved["pending_files"]["ok"] is True
+    assert moved["pending_files"]["total"] == 3
+    assert moved["pending_files"]["bronze_rows"] == 135
+
+
+def test_pending_files_fail_when_the_landing_could_not_be_listed():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        data_date="2026-10-31",
+        pending={},
+        listing_ok=False,
+        now=CHECKS_NOW,
+    )
+
+    assert checks["pending_files"] == {
+        "ok": False,
+        "total": 0,
+        "by_source": {},
+        "bronze_rows": 135,
+        "listing_ok": False,
+    }
+
+    # Only an explicit True keeps the check green (None or a truthy value do
+    # not "nothing pending" when the listing did not run).
+    for value in (None, 1, "ok"):
+        unchecked = metrics.build_checks(
+            bronze_summary=BRONZE_SUMMARY, listing_ok=value, now=CHECKS_NOW
+        )
+        assert unchecked["pending_files"]["ok"] is False
+        assert unchecked["pending_files"]["listing_ok"] is False
+
+
+def test_checks_are_serializable_without_a_json_default():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        data_date=dt.date(2026, 10, 31),
+        pending={
+            "indeed": {
+                "count": 1,
+                "oldest": f"{LANDING_ROOT}/indeed/a.parquet",
+                "examples": [f"{LANDING_ROOT}/indeed/a.parquet"],
+            }
+        },
+        now=CHECKS_NOW,
+    )
+
+    encoded = json.dumps(checks, sort_keys=True)  # no default= on purpose
+    assert json.loads(encoded) == checks
+    assert json.loads(metrics.checks_json(checks)) == checks
+    assert "NaN" not in encoded
+    assert "Infinity" not in encoded
+
+
+# ---------------------------------------------------------------------------
+# failed_checks: what the closing task turns into a red run
+# ---------------------------------------------------------------------------
+
+def test_failed_checks_lists_the_false_ones_in_order():
+    checks = {
+        "bronze_summary": {"ok": True},
+        "bronze_sources": {"ok": False},
+        "freshness": {"ok": False},
+        "pending_files": {"ok": True},
+    }
+
+    assert metrics.failed_checks(checks) == ["bronze_sources", "freshness"]
+    assert metrics.failed_checks(None) == []
+    assert metrics.failed_checks({}) == []
+
+
+def test_failed_checks_requires_an_explicit_true():
+    checks = {
+        "a": {},
+        "b": "ok",
+        "c": {"ok": 1},
+        "d": {"ok": False},
+        "e": {"ok": True},
+    }
+
+    assert metrics.failed_checks(checks) == ["a", "b", "c", "d"]
+
+
+# ---------------------------------------------------------------------------
+# Closing notebook: coordination only (spec 011, T-05)
+# ---------------------------------------------------------------------------
+
+RUN_SUMMARY_PATH = os.path.join(DATABRICKS_DIR, "run_summary.ipynb")
+
+
+def _notebook_cells():
+    with open(RUN_SUMMARY_PATH, encoding="utf-8") as handle:
+        notebook = json.load(handle)
+    return ["".join(cell["source"]) for cell in notebook["cells"]]
+
+
+def _notebook_code():
+    return "\n".join(_notebook_cells())
+
+
+def test_run_summary_notebook_exists_and_imports_the_module():
+    assert os.path.exists(RUN_SUMMARY_PATH)
+    code = _notebook_code()
+
+    assert "import json" in code
+    assert "import Run_Metrics" in code
+    assert "Run_Metrics.table_name(CATALOG)" in code
+
+
+def test_run_summary_requires_the_identity_and_the_storage_of_the_run():
+    code = _notebook_code()
+
+    assert 'dbutils.widgets.text("catalog", "job_offers")' in code
+    assert 'dbutils.widgets.text("storage_account", "")' in code
+    assert 'dbutils.widgets.text("container", "landing")' in code
+    assert 'dbutils.widgets.text("export_prefix", "gold/web_export")' in code
+    for name in ("run_id", "job_id", "started_at"):
+        assert f'dbutils.widgets.text("{name}", "")' in code
+    assert "raise ValueError(" in code
+    assert "Faltan parametros obligatorios" in code
+
+
+def test_run_summary_reads_the_bronze_task_value_and_meta_json():
+    code = _notebook_code()
+
+    assert "dbutils.jobs.taskValues.get(" in code
+    # The API needs the task that published the value, not only its key.
+    assert '"Bronze_Ingestion", "bronze_summary"' in code
+    assert "json.loads(raw_summary)" in code
+    assert 'f"{STORAGE_BASE}/{EXPORT_PREFIX}/meta.json"' in code
+    assert "dbutils.fs.head(META_PATH, 65536)" in code
+    assert 'raw_data_date = meta.get("data_date")' in code
+    # A corrupt date is null (the freshness check fails); no private helper.
+    assert "data_date = Run_Metrics.parse_data_date(raw_data_date)" in code
+    assert "_as_date" not in code
+
+
+def test_run_summary_lists_files_and_commits_without_reading_data():
+    code = _notebook_code()
+
+    assert "listFiles(root, True)" in code
+    assert "getModificationTime()" in code
+    assert "dbutils.fs.ls(path)" in code
+    assert "/ckpt/commits" in code
+    # A failed listing is never "nothing pending".
+    assert "source_files, source_ok = _landing_files(source)" in code
+    assert "listing_ok = listing_ok and source_ok" in code
+    assert "return found, False" in code
+    assert "return found, True" in code
+    # Metadata listing only: no table read and no Parquet read.
+    assert "spark.read" not in code
+    assert "spark.table(" not in code
+
+
+def test_run_summary_delegates_the_rules_to_the_module():
+    code = _notebook_code()
+
+    assert "Run_Metrics.pending_files(files, commits, run_start_ms)" in code
+    assert "Run_Metrics.build_checks(" in code
+    assert "listing_ok=listing_ok" in code
+    assert "Run_Metrics.failed_checks(checks)" in code
+    assert "Run_Metrics.build_run_row(" in code
+    assert "Run_Metrics.record(" in code
+    assert "logger=_PrintLogger()" in code
+    # The threshold is the module default, never a number of the notebook.
+    assert "max_age_days" not in code
+
+
+def test_run_summary_fails_after_writing_and_exits_only_when_green():
+    code = _notebook_code()
+
+    write = code.index("Run_Metrics.record(")
+    failure = code.index("raise RuntimeError")
+    exit_call = code.index("dbutils.notebook.exit(")
+
+    # A failed business task must still leave its row: write, then fail.
+    assert write < failure
+    # notebook.exit stops the notebook, so it goes after the failure.
+    assert failure < exit_call
+    assert '"Comprobaciones del run en falso: "' in code
+    assert 'problems.append("record")' in code
 
 
 # ---------------------------------------------------------------------------

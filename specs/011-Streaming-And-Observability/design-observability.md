@@ -257,6 +257,58 @@ tareas** de negocio (bronce + 4 silver + oro + 2 exports).
 La línea base de pendientes medida hoy (28 ficheros, `design-streaming.md` §1.6)
 es la referencia de lo que el primer run tras la reanudación debería consumir.
 
+### 4.1 Implementación (T-05, 0 €)
+
+`databricks_notebooks/run_summary.ipynb` (8 celdas) solo coordina; la lógica vive en
+`Run_Metrics.py` (`pending_files`, `build_checks`, `failed_checks`, `parse_data_date`)
+y los tests puros son **58 passed** en 0,5 s:
+
+1. valida `run_id`, `job_id`, `started_at` y `storage_account` (sin `run_id` no hay
+   fila; falla con mensaje en español);
+2. lee `taskValues.get("Bronze_Ingestion", "bronze_summary", default=None)` (la API
+   real necesita la tarea productora) y tolera que no exista;
+3. lee `meta.json` con `dbutils.fs.head` y normaliza la fecha con
+   `parse_data_date`, que **nunca lanza**: un valor vacío o corrupto se publica como
+   `null` y lo caza el check de frescura (así la fila siempre se escribe);
+4. lista `landing/<fuente>/` y `commits/` del checkpoint **solo con metadatos**
+   (`fs.listFiles` y `dbutils.fs.ls`), nunca lee Parquet;
+5. calcula `pending = pending_files(files, commits, run_start_ms)` con
+   `commit < modification_ms < run_start_ms`: lo que llega **durante** el run no
+   cuenta. Si el listado falla, `listing_ok=False` y el check falla (no hay verde
+   falso);
+6. construye `checks` (JSON nativo) y la fila, y llama a `record` **con logger**;
+7. `raise RuntimeError` si algún check no es `True` o `record` devolvió `failed`,
+   **después** de escribir; `dbutils.notebook.exit` va al final (un `exit` antes del
+   `raise` se tragaría el fallo).
+
+Contrato de `checks`:
+
+```json
+{"bronze_summary": {"ok": true, "sources": ["indeed", "infojobs", "linkedin", "multi_site"]},
+ "bronze_sources": {"ok": true, "expected": 4, "present": 4},
+ "freshness": {"ok": true, "data_date": "2026-10-31", "data_age_days": 2, "max_age_days": 8},
+ "pending_files": {"ok": true, "listing_ok": true, "total": 0, "by_source": {}, "bronze_rows": 135}}
+```
+
+Reglas: `freshness` exige fecha, no futura y ≤ 8 días; `pending_files` solo falla si
+hay pendientes **y** `bronze_rows == 0`; `bronze_sources` exige las 4 fuentes.
+`status` es el **estado del cierre** (los cuatro checks), no el agregado de las
+tareas: los estados por tarea viven en `system.lakeflow` y no se duplican (§3). El
+último commit del checkpoint se lee **al cerrar**; en un run de 0 filas no hay commit
+nuevo (medido con Spark 4.2 local: `batchId = 1`, `numInputRows = 0`, `commits/` sin
+cambios), así que el backlog previo se detecta.
+
+Job: novena tarea `Publish_Run_Summary` con `run_if: ALL_DONE`, `depends_on` de las 8,
+`job_cluster_key: tm-lens-job` y 7 parámetros (catálogo, storage, contenedor,
+`export_prefix` y los dinámicos `{{job.run_id}}`, `{{job.id}}`,
+`{{job.start_time.iso_datetime}}`). `bundle validate -t dev` → `Validation OK!` y el
+grafo resuelto muestra las 9 tareas.
+
+`[NO VERIFICADO]` hasta T-08: `taskValues.get` real, `dbutils.fs.head`/`ls` y
+`fs.listFiles` sobre ABFS, el formato exacto de `{{job.start_time.iso_datetime}}`, la
+escritura en `ops.run_metrics` en DBR 17.3 y que la fila quede cuando falla otra tarea
+(`ALL_DONE` real).
+
 ## 5. Umbrales de alerta
 
 | Alerta | Umbral | Superficie | Estado |
@@ -264,8 +316,8 @@ es la referencia de lo que el primer run tras la reanudación debería consumir.
 | Fallo del run | cualquier tarea fallida | email `on_failure` | ya existe |
 | Duración anómala | `RUN_DURATION_SECONDS` **> 1500 s** (por debajo del `timeout_seconds: 1800`) | health rule del job + email `on_duration_warning_threshold_exceeded` | a desplegar en T-06 |
 | Frescura publicada | `data_date` > **8 días** | workflow del dashboard (falla sin desplegar) | ya existe |
-| Frescura del run | `data_date` > **8 días** | tarea final → `checks` `failed` | T-05 |
-| Ficheros pendientes | pendientes anteriores al inicio del run con lote vacío | tarea final → `checks` `failed` | T-05 |
+| Frescura del run | `data_date` > **8 días** | tarea final → `checks` `failed` | hecho en T-05 |
+| Ficheros pendientes | pendientes anteriores al inicio del run con lote vacío | tarea final → `checks` `failed` | hecho en T-05 |
 | Backlog de streaming | `STREAMING_BACKLOG_*` **no se usan**: se calculan sobre una media de 10 min y estas consultas duran segundos | — | descartado, documentado |
 | Alertas SQL programadas | — | cada despertar ~0,43 € y es recurrente | **rechazado** por coste |
 

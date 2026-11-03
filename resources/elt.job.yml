@@ -164,6 +164,33 @@ resources:
           run_if: ALL_SUCCESS
           timeout_seconds: 0
           webhook_notifications: {}
+        - task_key: Publish_Run_Summary
+          depends_on:
+            - task_key: Bronze_Ingestion
+            - task_key: Silver_Indeed
+            - task_key: Silver_Infojobs
+            - task_key: Silver_Linkedin
+            - task_key: Silver_Multi_site
+            - task_key: Gold_Complete_Catalog
+            - task_key: Build_for_Web-Dashboard
+            - task_key: Build_Report_Export
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              storage_account: ${var.storage_account}
+              container: ${var.container}
+              export_prefix: ${var.export_prefix}
+              run_id: "{{job.run_id}}"
+              job_id: "{{job.id}}"
+              started_at: "{{job.start_time.iso_datetime}}"
+            notebook_path: ${workspace.file_path}/databricks_notebooks/run_summary.ipynb
+            source: WORKSPACE
+          run_if: ALL_DONE
+          timeout_seconds: 0
+          webhook_notifications: {}
       email_notifications:
         no_alert_for_skipped_runs: false
         on_failure:
