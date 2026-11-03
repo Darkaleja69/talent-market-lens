@@ -20,7 +20,7 @@
 | Email de fallo del job | aviso inmediato de run fallido | 0 € | activo (`on_failure`) | alerta base (ya existe) |
 | API de Jobs (`jobs list-runs`, `jobs get-run`) | historial y JSON del run con tiempos por tarea | 0 € | en uso (010) | diagnóstico puntual |
 | Workflow del dashboard (GitHub) | frescura publicada: falla si `data_date` > 8 días | 0 € | activo | frescura en CI |
-| Event log de Spark | trazas, tareas, streaming progress | 0 € (bytes en ADLS) | **no configurado** | T-06 (decisión medida) |
+| Event log de Spark | trazas, tareas, streaming progress | 0 € (bytes en ADLS) | **configurado en el bundle (T-06)**; escritura real → T-08 | T-06 (decisión medida) |
 | `ops.run_metrics` (Delta) | una fila por run con negocio, frescura y `checks` | 0 € | **no existe** | T-04/T-05 |
 
 ### 1.1 Permisos de `system.*` (API de Unity Catalog, 0 €)
@@ -131,23 +131,32 @@ run. En la 010 esta API fue la fuente de los tiempos por tarea
 lunes a las 01:00 UTC y **aborta sin desplegar** si `meta.json.data_date` supera
 8 días (L159–163). Cubre la frescura publicada, no la del job.
 
-### 1.6 Event log: estado actual y qué haría falta
+### 1.6 Event log: estado y qué falta por medir
 
-- Hoy **no hay ninguna clave `spark.eventLog.*`** en el bundle: el `spark_conf`
-  del job cluster solo contiene `spark.sql.shuffle.partitions: "8"`
-  (`resources/elt.job.yml` L25–26). Por tanto no se persiste event log y el
-  diagnóstico depende de la Spark UI en vivo y del JSON del run.
-- Haría falta, en `job_clusters[0].new_cluster.spark_conf`:
-  `spark.eventLog.enabled: true` y `spark.eventLog.dir` apuntando a ADLS (candidato
-  `abfss://landing@joboffershns.dfs.core.windows.net/_eventlogs/`), y
-  opcionalmente `spark.eventLog.rolling.enabled`/`maxFileSize`. El clúster ya
-  escribe en `abfss://landing@…` desde los notebooks de export, así que la ruta es
-  alcanzable; hoy `landing/_eventlogs/` está **vacío** (0 ficheros, listado con
-  AzCopy, 0 €) y su puesta en marcha va con T-06.
+- **Estado: configurado en T-06.** El `spark_conf` del job cluster lleva
+  `spark.eventLog.enabled: "true"`, `spark.eventLog.dir:
+  abfss://${var.container}@${var.storage_account}.dfs.core.windows.net/_eventlogs/`
+  (resuelto por el bundle a `abfss://landing@joboffershns.dfs.core.windows.net/_eventlogs/`)
+  y `spark.eventLog.rolling.enabled: "true"`, junto al
+  `spark.sql.shuffle.partitions: "8"` que ya existía (`resources/elt.job.yml`).
+  `bundle validate -t dev` → `Validation OK!` y `bundle summary -t dev -o json`
+  muestra las cuatro claves con la ruta expandida; el job conserva sus **9 tareas**.
+- La ruta es alcanzable: el clúster ya escribe en `abfss://landing@…` desde los
+  notebooks de export. `landing/_eventlogs/` estaba **vacío** (0 ficheros, listado
+  con AzCopy, 0 €) antes de T-06 y lo llena el primer run. **dev y prod comparten
+  esa ruta** (no hay prefijo por target), así que T-08 tendrá que separar los
+  bytes por run al medir.
+- Las claves se declaran en YAML **con los valores como cadenas** (`"true"`), como
+  el resto de `spark_conf`.
 - **No se puede saber sin un run:** tamaño en bytes por ejecución, si el log
   recoge el progreso de streaming con el detalle que hace falta, retención real en
-  ADLS y utilidad del history server. Todo eso queda `[NO VERIFICADO]` hasta T-06
-  (configuración) y T-08 (medición).
+  ADLS y el valor de retenerlo más allá de la ventana de la Spark UI (~60 días tras
+  el run). **Tamaño y utilidad se miden en T-08** (coste en bytes de
+  `landing/_eventlogs/`), antes de decidir si el event log se queda; hasta entonces
+  el contenido real del directorio sigue `[NO VERIFICADO]`.
+- Si tras el primer run `landing/_eventlogs/` queda vacío o solo con ficheros
+  `.inprogress` (el driver puede destruirse al terminar), la alternativa soportada
+  es **compute log delivery**; se decide en T-08 con los bytes medidos.
 
 ### 1.7 SQL warehouse (metadatos, sin despertarlo)
 
@@ -166,7 +175,7 @@ Queda `STOPPED` antes y después del reconocimiento (RF-6).
 | Que `system.*` sea legible **desde el clúster del job** | requiere un run | T-08 |
 | `numInputRows`, `batchId`, duración del microbatch, backlog | `query.lastProgress` solo existe dentro de un run | T-03/T-08 |
 | Salud del checkpoint (offsets, esquema, commits) | hoy solo se ha listado `commits/`; leerlo exige run o acceso a ficheros | T-03/T-08 |
-| Contenido y tamaño del event log | no está configurado | T-06/T-08 |
+| Contenido y tamaño del event log | configurado en T-06; medirlo exige un run | T-08 |
 | Query Profile | requiere la sesión SQL | T-07 |
 
 ## 3. Diseño de `ops.run_metrics`
@@ -314,11 +323,12 @@ escritura en `ops.run_metrics` en DBR 17.3 y que la fila quede cuando falla otra
 | Alerta | Umbral | Superficie | Estado |
 |---|---|---|---|
 | Fallo del run | cualquier tarea fallida | email `on_failure` | ya existe |
-| Duración anómala | `RUN_DURATION_SECONDS` **> 1500 s** (por debajo del `timeout_seconds: 1800`) | health rule del job + email `on_duration_warning_threshold_exceeded` | a desplegar en T-06 |
+| Duración anómala | `RUN_DURATION_SECONDS` **> 1500 s** (por debajo del `timeout_seconds: 1800`) | health rule del job + email `on_duration_warning_threshold_exceeded` | **configurada en el bundle y validada con `bundle validate`**; el deploy llega en T-08/T-13 |
 | Frescura publicada | `data_date` > **8 días** | workflow del dashboard (falla sin desplegar) | ya existe |
-| Frescura del run | `data_date` > **8 días** | tarea final → `checks` `failed` | hecho en T-05 |
-| Ficheros pendientes | pendientes anteriores al inicio del run con lote vacío | tarea final → `checks` `failed` | hecho en T-05 |
-| Backlog de streaming | `STREAMING_BACKLOG_*` **no se usan**: se calculan sobre una media de 10 min y estas consultas duran segundos | — | descartado, documentado |
+| Frescura del run | `data_date` > **8 días** | tarea final → `checks` `failed` | implementada en el bundle (T-05); efectiva tras el deploy (T-08/T-13) |
+| Ficheros pendientes | pendientes anteriores al inicio del run con lote vacío | tarea final → `checks` `failed` | implementada en el bundle (T-05); efectiva tras el deploy (T-08/T-13) |
+| Event log | sin umbral: se escribe en **cada** run (`spark.eventLog.*` del job cluster, con rolling) | `landing/_eventlogs/` en ADLS; **dev y prod comparten la ruta** (sin prefijo por target) | **configurado en el bundle en T-06**; su coste en bytes se mide en T-08 antes de decidir si se queda |
+| Backlog de streaming | `STREAMING_BACKLOG_*` **no se usan**: los streams son por lotes (`availableNow`), sin backlog continuo que vigilar; además la métrica está en **Public Preview** y el cierre ya detecta pendientes | — | descartado, documentado |
 | Alertas SQL programadas | — | cada despertar ~0,43 € y es recurrente | **rechazado** por coste |
 
 Matiz verificado en el esquema del bundle (CLI 1.21.0, `databricks bundle

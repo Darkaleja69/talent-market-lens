@@ -243,7 +243,7 @@
     `ops.run_metrics` en DBR 17.3 y que la fila quede con otra tarea fallida (`ALL_DONE`
     real); se cierra en T-08.
 
-- [ ] **T-06 — Health rules, event log y RUNBOOK** (~60 min)
+- [x] **T-06 — Health rules, event log y RUNBOOK** (~60 min)
   - **Objetivo:** que un fallo o una duración anómala avisen solos y que la
     monitorización quede escrita con consultas versionadas.
   - **Entregable:** `health.rules[]` (`health` + `rules`, no `health_rules`;
@@ -253,13 +253,41 @@
     T-08 y decisión de mantenerlo o no; sección nueva del RUNBOOK (9.8) con las
     consultas de `system.lakeflow`/`system.billing`, los umbrales y qué hacer en
     cada alerta.
-  - **Descartado y documentado:** `STREAMING_BACKLOG_*` (media de 10 min; estas
-    consultas duran segundos) y alertas SQL programadas (~0,43 €/despertar).
+  - **Descartado y documentado:** `STREAMING_BACKLOG_*` (los streams son por lotes
+    con `availableNow`, así que no hay backlog continuo que vigilar; la métrica
+    está en **Public Preview** y el cierre ya detecta pendientes) y alertas SQL
+    programadas (~0,43 €/despertar).
   - **Hecho cuando:** el `.yml` valida, las alertas están descritas con destinatario
     y umbral, y el RUNBOOK permite diagnosticar un run sin abrir el warehouse.
   - **Aprobación previa:** `.yml` del job.
   - **Evidencia:** `bundle validate`, extracto del RUNBOOK y fila en `evidence.md`.
     **0 €.**
+  - **Estado (2026-11-03):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL; solo
+    `bundle validate/summary`). `resources/elt.job.yml` (+10 líneas, sin borrados):
+    `health.rules[]` en el **job** (`RUN_DURATION_SECONDS` > **1500 s**),
+    `on_duration_warning_threshold_exceeded` con el mismo destinatario que `on_failure`
+    y event log a `abfss://…/_eventlogs/` con rolling (variables `${var…}` resueltas).
+    `Validation OK!`, 9 tareas y timeout 1800 intactos. RUNBOOK §9.8 (EN) / §9.6 (ES)
+    con tabla de alertas, 3 consultas versionadas, diagnóstico sin warehouse en 3
+    pasos y descartes motivados. **Correcciones tras la verificación:** la duración
+    se calcula con `sum(period_end - period_start)` porque las columnas
+    `*_duration_seconds` son **0 en jobs multi-tarea**; las consultas filtran
+    `workspace_id = current_workspace_id()` (`job_id` no es único entre workspaces)
+    y agrupan por `run_id, job_id, trigger_type` (`result_state`/`termination_code`
+    son NULL en las filas intermedias); la vía para los `checks` es
+    `jobs get-run-output` (no existe «notebook enganchado al job cluster») y
+    devuelve el JSON solo con la tarea en verde — si falla, la traza de error; el
+    event log aporta retención más allá de la Spark UI (~60 días), no la sustituye;
+    el motivo de descartar `STREAMING_BACKLOG_*` es `availableNow` + Public Preview,
+    no la duración del run; SQL dentro de un run consume DBUs (no despierta el
+    warehouse) y DBUs no son €; `listing_ok=false` es causa de fallo. **Estados:**
+    health rules **configuradas y validadas, no desplegadas** (deploy en T-08/T-13);
+    los jobs desplegados (dev `320947022571947`, prod `916863262593632`) siguen con
+    **8 tareas** y `ops.run_metrics` la crea el primer `record`.
+    **`[NO VERIFICADO]`:** escritura, tamaño y utilidad real del event log (→ T-08; dev y
+    prod comparten `_eventlogs/`), entrega real del correo de duración (no se puede
+    comprobar sin un run > 1500 s; se observaría en un incidente real, la
+    configuración sí está validada) y lectura real de `system.*` (→ T-07).
 
 - [ ] **T-07 — Sesión SQL única: `system.*` y Query Profile** (~30 min)
   - **Objetivo:** validar los permisos de las tablas de sistema, dejar las consultas

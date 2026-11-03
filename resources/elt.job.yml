@@ -23,6 +23,9 @@ resources:
             node_type_id: Standard_D4ds_v4
             runtime_engine: STANDARD
             spark_conf:
+              spark.eventLog.dir: abfss://${var.container}@${var.storage_account}.dfs.core.windows.net/_eventlogs/
+              spark.eventLog.enabled: "true"
+              spark.eventLog.rolling.enabled: "true"
               spark.sql.shuffle.partitions: "8"
             spark_version: 17.3.x-scala2.13
       tasks:
@@ -193,8 +196,15 @@ resources:
           webhook_notifications: {}
       email_notifications:
         no_alert_for_skipped_runs: false
+        on_duration_warning_threshold_exceeded:
+          - gomeznatesalejandro@gmail.com
         on_failure:
           - gomeznatesalejandro@gmail.com
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1500
       max_concurrent_runs: 1
       notification_settings:
         no_alert_for_canceled_runs: false
