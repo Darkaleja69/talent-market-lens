@@ -327,12 +327,22 @@ significa cada uno, con qué consulta se responde y qué hacer.
 #### 9.6.2 Consultas versionadas
 
 `:job_id` y `:run_id` son parámetros de consulta: en un editor SQL se enlazan y en
-una tarea se sustituyen por valores literales. Se **validan en T-07** (una única
-sesión SQL) y hasta entonces son `[NO VERIFICADO]`. Dentro de un run, como tarea en
-el clúster del job, la consulta **no despierta el SQL warehouse** (consume los DBUs
-del propio run). En el editor SQL además despierta el warehouse (~0,43 € por
-despertar), así que solo cuando un run no sea opción y agrupando las consultas en
-una sola ventana de 10 minutos.
+una tarea se sustituyen por valores literales. Las tres consultas están
+**validadas contra el workspace del proyecto** (una sesión SQL, 2026-11-03, T-07
+de la spec 011). Dentro de un run, como tarea en el clúster del job, la consulta
+**no despierta el SQL warehouse** (consume los DBUs del propio run). En el editor
+SQL además despierta el warehouse (~0,43 € por despertar), así que solo cuando un
+run no sea opción y agrupando las consultas en una sola ventana de 10 minutos.
+
+> **`current_workspace_id()` no resuelve en este workspace.** Con ella la consulta
+> falla con `[UNRESOLVED_ROUTINE] Cannot resolve routine
+> 'current_workspace_id' on search path [system.session, system.builtin,
+> system.ai, job_offers_dev.bronze]` (2026-11-03). Por eso las tres consultas usan
+> el id de workspace literal `7405619889654446`. Ese literal es **específico de
+> este workspace**: en otro hay que sustituirlo (la forma portable sería
+> `current_workspace_id()` donde la función exista). Aquí `workspace_id` es
+> numérico; si fuese texto, se compara con
+> `CAST(workspace_id AS STRING) = '<id>'`.
 
 **1. Últimos runs del job, con su duración real** (`system.lakeflow.job_run_timeline`):
 
@@ -344,24 +354,29 @@ SELECT run_id, job_id, trigger_type,
        max(period_end_time)  AS run_end,
        sum(unix_timestamp(period_end_time) - unix_timestamp(period_start_time)) AS run_seconds
 FROM system.lakeflow.job_run_timeline
-WHERE workspace_id = current_workspace_id()
+WHERE workspace_id = 7405619889654446
   AND job_id = :job_id
   AND period_start_time >= current_timestamp() - INTERVAL 30 DAYS
 GROUP BY run_id, job_id, trigger_type
 ORDER BY run_start DESC
 ```
 
-`workspace_id = current_workspace_id()` no es decorativo: `job_id` solo es único
+`workspace_id = 7405619889654446` no es decorativo: `job_id` solo es único
 **dentro de un workspace**, y la tabla sirve a todos los workspaces de la cuenta.
-El `GROUP BY` usa `run_id`, `job_id` y `trigger_type` porque `result_state` y
-`termination_code` son **NULL** en las filas intermedias de runs de más de 1 h;
-agrupar por ellas partiría un run en varias filas, así que se agregan con
-`max_by(…, period_end_time)`. Las columnas
+Ese literal es el id de **este** workspace (ver la nota de arriba); en otro hay
+que sustituirlo. El `GROUP BY` usa `run_id`, `job_id` y `trigger_type` porque
+`result_state` y `termination_code` son **NULL** en las filas intermedias de runs
+de más de 1 h; agrupar por ellas partiría un run en varias filas, así que se
+agregan con `max_by(…, period_end_time)`. Las columnas
 `setup/queue/execution/run/cleanup_duration_seconds` **solo se rellenan en jobs de
-una tarea creados con las APIs legacy**; este job es `MULTI_TASK` (9 tareas), así
-que devuelven `0` y la duración se suma por periodos. La tabla puede tardar **hasta
-~1 h** en reflejar un run y, para un run en curso, la fuente es
-`databricks jobs get-run` (gratis).
+una tarea creados con las APIs legacy**; este job es `MULTI_TASK` (9 tareas). Que
+a nivel de run valgan `0` es la comprobación de **T-06** (`evidence.md`,
+2026-11-03); lo que sostiene la sesión de **T-07** es la otra mitad: en un run de
+**8 tareas**, las duraciones **por tarea** son distintas de 0 (consulta 2). Por eso
+la duración se suma por periodos. La tabla puede tardar **hasta ~1 h** en reflejar
+un run — `[NO VERIFICADO]`: esa latencia exige un run fresco, así que se mide en
+T-08/T-13 — y, para un run en curso, la fuente es `databricks jobs get-run`
+(gratis).
 
 **2. Tareas de un run** (`system.lakeflow.job_task_run_timeline`). Aquí `run_id` es
 el run de la **tarea**; el run del job es `job_run_id`:
@@ -375,16 +390,20 @@ SELECT task_key,
        period_start_time,
        period_end_time
 FROM system.lakeflow.job_task_run_timeline
-WHERE workspace_id = current_workspace_id()
+WHERE workspace_id = 7405619889654446
   AND job_run_id = :job_run_id
 ORDER BY period_start_time
 ```
 
 `:job_run_id` es el run del **job**; en esta tabla `run_id` es el run de la
 **tarea**, así que filtrar por `run_id` mezclaría tareas de otros workspaces.
+Comprobado con el run `317888374535056` (2026-11-03, T-07): **8 filas**, una por
+tarea, todas `SUCCEEDED`, con `execution_duration_seconds` distinto de `0` —lo que
+resuelve T-07 son las duraciones **por tarea**; que las `*_duration_seconds` a
+nivel de run de la consulta 1 valgan `0` es la comprobación de **T-06**.
 
 **3. Uso (DBUs) por run y SKU** (`system.billing.usage`, ventana de 30 días). El
-campo `usage_metadata.job_run_id` se valida en T-07:
+campo `usage_metadata.job_run_id` está **validado** (2026-11-03, T-07):
 
 ```sql
 SELECT usage_metadata.job_id     AS job_id,
@@ -392,16 +411,20 @@ SELECT usage_metadata.job_id     AS job_id,
        sku_name,
        sum(usage_quantity)       AS dbus
 FROM system.billing.usage
-WHERE workspace_id = current_workspace_id()
+WHERE workspace_id = 7405619889654446
   AND usage_date >= current_date() - INTERVAL 30 DAYS
   AND usage_metadata.job_id = :job_id
 GROUP BY usage_metadata.job_id, usage_metadata.job_run_id, sku_name
 ORDER BY dbus DESC
 ```
 
-El mismo filtro `workspace_id`, por el mismo motivo: `job_id` se repite entre
-workspaces. Son **DBUs, no euros**: para dinero, multiplicar por el precio del SKU
-en `system.billing.list_prices`; ese cruce también se valida en T-07.
+El mismo filtro `workspace_id` (literal, por el mismo motivo: `job_id` se repite
+entre workspaces). Son **DBUs, no euros**: para dinero, multiplicar por el precio
+del SKU en `system.billing.list_prices`. Los dos hechos están **validados**
+(2026-11-03): `usage_metadata.job_run_id` viene poblado, así que es la clave del
+join, y el cruce monetario resuelve con `pricing.default` (precio de lista; la
+tabla también trae `pricing.effective_list` si importan los descuentos). El
+importe resultante cubre **solo DBUs**: ni VMs, ni discos, ni storage, ni egress.
 
 #### 9.6.3 Diagnóstico sin warehouse, en tres pasos
 

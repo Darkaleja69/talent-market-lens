@@ -289,7 +289,7 @@
     comprobar sin un run > 1500 s; se observaría en un incidente real, la
     configuración sí está validada) y lectura real de `system.*` (→ T-07).
 
-- [ ] **T-07 — Sesión SQL única: `system.*` y Query Profile** (~30 min)
+- [x] **T-07 — Sesión SQL única: `system.*` y Query Profile** (~30 min)
   - **Objetivo:** validar los permisos de las tablas de sistema, dejar las consultas
     de monitorización y coste probadas y practicar Query Profile, **una sola vez**.
   - **Ejecución (la persona):** abrir el warehouse (2X-Small), ejecutar las
@@ -301,6 +301,66 @@
     está capturado y el warehouse queda `STOPPED` (antes y después).
   - **Evidencia:** resultados saneados, captura del Query Profile, coste en
     `docs/costs.md` y fila en `evidence.md`. **~0,43 €** (1 sesión, < 10 min).
+  - **Estado (2026-11-03):** **hecha** con **1 sesión SQL** (**~0,43 €**
+    presupuestados por la ventana facturable de 10 min; el importe exacto llega
+    del Account Console, `[NO VERIFICADO]`) y **0 € de runs y clústeres**. Sesión
+    de **6 min 44 s** (consultas **07:46:39 → 07:53:23**, hora local) en el
+    warehouse `Serverless Starter Warehouse` (`53d8e3e91af6749c`, 2X-Small,
+    `auto_stop_mins: 10`), workspace `7405619889654446`, perfil `vs_code`:
+    **8 ejecuciones** (1 fallida + 7 correctas); `STOPPED` antes y **`STOPPED`
+    confirmado por CLI después** (el histórico no tenía consultas desde el
+    2026-10-23). Los **tiempos por consulta** y el **`STOPPED`** vienen de la
+    **CLI/API** (`evidence/t07-session-checks.txt`), **no de las capturas**, que
+    solo cubren los resultados y el Query Profile. **Consulta 1**
+    (`job_run_timeline`, **6,4 s**): **29 filas**, **una por run**, de los dos
+    jobs (dev `320947022571947`, prod `916863262593632`). **Cotejo con
+    `docs/costs.md`:** los runs de **dev** de la 010 coinciden con lo registrado
+    —`549237053478569` 985 s ✓, `221895134926434` 816 s ✓, `269508392317481`
+    974 s ✓, `485578578869927` 808 s ✓, `16957686724897` 108 s ✓—;
+    `879269828668729` da **928 s** frente a los 927 s anotados (**+1 s**). Los
+    dos runs **de producción del 31-oct** dan **menos** que el `run_duration` de
+    la API que figura en `docs/costs.md`: `317888374535056` **744 s** frente a
+    747 s (**-3 s**; 2026-10-31 17:15:53 → 17:28:17 UTC = 18:15:53 → 18:28:17
+    local, `ONE_TIME`, `SUCCEEDED`, el run de referencia de T-07) y
+    `321262594455396` **908 s** frente a 915 s (**-7 s**). **Por qué difieren:**
+    la consulta **suma las rebanadas** de `period_start_time`/`period_end_time`,
+    mientras que el `run_duration` de la API incluye esperas (cola/setup) que no
+    siempre caen dentro de las rebanadas; por eso el orden de magnitud coincide y
+    la cifra exacta puede diferir en segundos. Los `TIMED_OUT` **1830-1837 s**
+    del `timeout_seconds: 1800` anterior. **Consulta 1b** (**2,9 s**): **106
+    filas**, **84 runs**, **6 jobs**, `oldest_period` 2026-08-25T18:51:19.492Z y
+    `newest_period` 2026-10-31T17:28:17.090Z → **los datos de la tabla abarcan
+    `2026-08-25` → `2026-10-31` (≈67 días)**; hasta la fecha de la sesión son
+    ≈70 días. **No es una garantía de retención:** es el alcance observado hoy
+    (`rows_all = 106`, `jobs = 6`, `runs = 84`, **~1,26 filas por run**).
+    **Consulta 2**
+    (`job_task_run_timeline`, **2,1 s**): las **8 tareas** del run
+    `317888374535056` en `SUCCEEDED`, con duraciones por tarea **distintas de 0**
+    (bronce 161/73/0 s; silvers 1/353-389/0 s; oro 1/57/0 s; exports 1/57/0 s y
+    1/53/0 s) → **valida la corrección de T-06** (las `*_duration_seconds` a nivel
+    de run **sí** son 0). **Coste por run:** `billing.usage` da
+    **0,15318770833333333 DBU** de `PREMIUM_JOBS_COMPUTE` para el run de **744 s**
+    y el cruce con `list_prices` (`pricing.default`, **0,30** USD/DBU,
+    `price_end_time IS NULL`) da **0,045956 USD**: **solo DBU a precio de lista**
+    (sin VMs/discos, storage ni egress), **≈4× menor** (**3,7-5×** según se
+    compare con el extremo bajo o alto de la banda) que la estimación de
+    **0,17-0,23 €/run** de `docs/costs.md`; **no son magnitudes idénticas**:
+    `0,045956` son **USD de DBU de `PREMIUM_JOBS_COMPUTE` a precio de lista**
+    para un run de **744 s**, y la banda 0,17-0,23 € era una **estimación en EUR
+    por duración** para runs de 808-974 s; el método por duración queda como
+    **cota superior**. `list_prices` trae `pricing.default`, `pricing.promotional`
+    y `pricing.effective_list` (descuentos). **Corrección del RUNBOOK:**
+    `current_workspace_id()` **no resuelve** en este workspace
+    (`[UNRESOLVED_ROUTINE]`, **07:46:39**, **4,8 s**) y las tres consultas de
+    §9.8.2 (EN) / §9.6.2 (ES) pasan al literal `7405619889654446`, con la nota de
+    que el literal es **específico de este workspace**. **Query Profile** de la
+    consulta 1: `query_id 01f1d753-415c-17cf-b993-acd58ccbc14c`, wall-clock
+    **2,603 s**, **29 filas devueltas / 43 leídas**, **15,06 KB**, **0 % de
+    caché**, Photon **58 %**, `Scan Table system.lakeflow.job_run_timeline`
+    **17 ms**. **Evidencia:** 7 capturas `evidence/t07-*.png` (renombradas desde
+    las de la sesión) y 7 filas en `evidence.md`. **`[NO VERIFICADO]`:** la
+    **latencia** de `system.lakeflow` (exige un run fresco → **T-08/T-13**) y la
+    lectura de `system.*` **desde el clúster del job** (→ **T-08**).
 
 ## 4. Evaluación del mecanismo de ingesta
 

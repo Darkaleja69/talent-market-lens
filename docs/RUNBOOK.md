@@ -360,12 +360,22 @@ one means, which query answers it and what to do.
 #### 9.8.2 Versioned queries
 
 `:job_id` and `:run_id` are query parameters: bind them in a SQL editor, or
-replace them with literal values in a task. They are **validated in T-07** (a
-single SQL session) and until then they are `[NO VERIFICADO]`. Inside a run, as a
-task on the job cluster, the query **does not wake the SQL warehouse** (it
-consumes the run's own DBUs). In the SQL editor it also wakes the warehouse
-(~0.43 € per wake-up), so use it only when a run is not an option and group the
-queries in one 10-minute window.
+replace them with literal values in a task. The three queries are **validated
+against the project workspace** (one SQL session, 2026-11-03, T-07 of spec 011).
+Inside a run, as a task on the job cluster, the query **does not wake the SQL
+warehouse** (it consumes the run's own DBUs). In the SQL editor it also wakes the
+warehouse (~0.43 € per wake-up), so use it only when a run is not an option and
+group the queries in one 10-minute window.
+
+> **`current_workspace_id()` does not resolve in this workspace.** With it the
+> query fails with `[UNRESOLVED_ROUTINE] Cannot resolve routine
+> 'current_workspace_id' on search path [system.session, system.builtin,
+> system.ai, job_offers_dev.bronze]` (2026-11-03). The three queries therefore use
+> the literal workspace id `7405619889654446`. That literal is **specific to this
+> workspace**: in another workspace it must be replaced (the portable form would
+> be `current_workspace_id()` where the function exists). Here `workspace_id` is
+> numeric; if it were a string, compare with
+> `CAST(workspace_id AS STRING) = '<id>'`.
 
 **1. Last runs of the job, with their real duration** (`system.lakeflow.job_run_timeline`):
 
@@ -377,24 +387,30 @@ SELECT run_id, job_id, trigger_type,
        max(period_end_time)  AS run_end,
        sum(unix_timestamp(period_end_time) - unix_timestamp(period_start_time)) AS run_seconds
 FROM system.lakeflow.job_run_timeline
-WHERE workspace_id = current_workspace_id()
+WHERE workspace_id = 7405619889654446
   AND job_id = :job_id
   AND period_start_time >= current_timestamp() - INTERVAL 30 DAYS
 GROUP BY run_id, job_id, trigger_type
 ORDER BY run_start DESC
 ```
 
-`workspace_id = current_workspace_id()` is not decorative: `job_id` is only unique
-**within a workspace**, and the table serves every workspace of the account. The
+`workspace_id = 7405619889654446` is not decorative: `job_id` is only unique
+**within a workspace**, and the table serves every workspace of the account. That
+literal is **this workspace's** id (see the note above); in another workspace it
+has to be replaced. The
 `GROUP BY` uses `run_id`, `job_id` and `trigger_type` because `result_state` and
 `termination_code` are **NULL** in the intermediate rows of runs longer than 1 h;
 grouping by them would split one run into several rows, so they are aggregated
 with `max_by(…, period_end_time)`. The
 `setup/queue/execution/run/cleanup_duration_seconds` columns are only filled for
 **single-task jobs created with the legacy APIs**; this job is `MULTI_TASK`
-(9 tasks), so they read `0` and the duration is summed over the run's periods.
-The table can take **up to ~1 h** to reflect a run, and for a run in progress the
-source is `databricks jobs get-run` (free).
+(9 tasks). That the run-level `*_duration_seconds` read `0` is the **T-06** check
+(`evidence.md`, 2026-11-03); what the T-07 session supports is the other half: in a
+run of **8 tasks** the **per-task durations are non-zero** (query 2). Duration is
+therefore summed over the run's periods. The table can take **up to ~1 h** to
+reflect a run — `[NO VERIFICADO]`: that latency needs a fresh run, so it is
+measured in T-08/T-13 — and for a run in progress the source is
+`databricks jobs get-run` (free).
 
 **2. Tasks of one run** (`system.lakeflow.job_task_run_timeline`). Here `run_id` is
 the **task** run; the job run is `job_run_id`:
@@ -408,16 +424,20 @@ SELECT task_key,
        period_start_time,
        period_end_time
 FROM system.lakeflow.job_task_run_timeline
-WHERE workspace_id = current_workspace_id()
+WHERE workspace_id = 7405619889654446
   AND job_run_id = :job_run_id
 ORDER BY period_start_time
 ```
 
 `:job_run_id` is the **job** run id; in this table `run_id` is the **task** run id,
-so filtering by `run_id` would mix tasks from other workspaces.
+so filtering by `run_id` would mix tasks from other workspaces. Checked on run
+`317888374535056` (2026-11-03, T-07): **8 rows**, one per task, all `SUCCEEDED`,
+with `execution_duration_seconds` other than `0` —the **per-task** durations are
+what T-07 settles; that the run-level `*_duration_seconds` of query 1 read `0` is
+the **T-06** check.
 
 **3. Usage (DBUs) per run and SKU** (`system.billing.usage`, 30-day window). The
-`usage_metadata.job_run_id` field is validated in T-07:
+`usage_metadata.job_run_id` field is **validated** (2026-11-03, T-07):
 
 ```sql
 SELECT usage_metadata.job_id     AS job_id,
@@ -425,16 +445,20 @@ SELECT usage_metadata.job_id     AS job_id,
        sku_name,
        sum(usage_quantity)       AS dbus
 FROM system.billing.usage
-WHERE workspace_id = current_workspace_id()
+WHERE workspace_id = 7405619889654446
   AND usage_date >= current_date() - INTERVAL 30 DAYS
   AND usage_metadata.job_id = :job_id
 GROUP BY usage_metadata.job_id, usage_metadata.job_run_id, sku_name
 ORDER BY dbus DESC
 ```
 
-Same `workspace_id` filter, for the same reason: `job_id` repeats across
-workspaces. These are **DBUs, not euros**: for money, multiply by the SKU price in
-`system.billing.list_prices`; that join is also validated in T-07.
+Same `workspace_id` filter (literal, for the same reason: `job_id` repeats
+across workspaces). These are **DBUs, not euros**: for money, multiply by the SKU
+price in `system.billing.list_prices`. Both facts are **validated** (2026-11-03):
+`usage_metadata.job_run_id` is populated, so it is the join key, and the money
+join resolves with `pricing.default` (the list price; the table also carries
+`pricing.effective_list` if the discount matters). The resulting amount covers
+**DBUs only**: no VMs, disks, storage or egress.
 
 #### 9.8.3 Diagnosis without the warehouse, in three steps
 

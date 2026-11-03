@@ -1,0 +1,30 @@
+T-07 (spec 011) — comprobaciones de la sesión SQL, 2026-11-03
+Workspace: 7405619889654446 · Warehouse: 53d8e3e91af6749c (2X-Small, auto_stop_mins 10)
+Perfil de CLI: vs_code
+
+1) Estado del warehouse DESPUÉS de la sesión
+   `databricks warehouses list --profile vs_code`
+   id=53d8e3e91af6749c  name=Serverless Starter Warehouse  state=STOPPED  num_clusters=0
+   size=2X-Small  auto_stop_mins=10  warehouse_type=PRO  enable_serverless_compute=true
+   `state: STOPPED` confirmado en la sesión del 2026-11-03 tras la última consulta.
+
+2) Estado ANTES
+   Documentado en design-observability.md §1.7 (2026-11-02: STOPPED, 0 clústeres) y sin
+   consultas en el historial del warehouse entre 2026-10-23 y el 2026-11-03 (auto-stop 10 min).
+
+3) Consulta fallida (primera ejecución, con current_workspace_id())
+   2026-11-03 07:46:39 · 4,856 s · FAILED
+   [UNRESOLVED_ROUTINE] Cannot resolve routine `current_workspace_id` on search path
+   [`system`.`session`, `system`.`builtin`, `system`.`ai`, `job_offers_dev`.`bronze`].
+
+4) Historial de la sesión (`/api/2.0/sql/history/queries`, filtrado por warehouse)
+   07:46:39.156 · 4,856 s · FAILED     (consulta 1 con current_workspace_id())
+   07:48:24.568 · 6,420 s · FINISHED   (consulta 1)
+   07:49:08.161 · 2,856 s · FINISHED   (consulta 1b)
+   07:49:44.508 · 2,088 s · FINISHED   (consulta 2)
+   07:50:23.154 · 3,216 s · FINISHED   (consulta 3)
+   07:51:14.363 · 0,818 s · FINISHED   (consulta 4, DESCRIBE)
+   07:51:50.383 · 3,353 s · FINISHED   (consulta 5)
+   07:53:20.409 · 2,603 s · FINISHED   (consulta 1, reejecutada para el Query Profile)
+   Ventana: 07:46:39 → 07:53:23 (6 min 44 s) · 8 ejecuciones (1 fallida, 7 correctas)
+   Query Profile: query_id 01f1d753-415c-17cf-b993-acd58ccbc14c · 29 filas

@@ -243,6 +243,37 @@ al menos un despertar.
   dev y dentro del presupuesto de producción de la 009; el run programado de
   esa semana se pausó (1 run menos).
 
+## Sesión SQL de la spec 011 (T-07, 2026-11-03)
+
+- **Qué se gastó:** **una** sesión en el `Serverless Starter Warehouse`
+  (`53d8e3e91af6749c`, 2X-Small, `auto_stop_mins: 10`), **8 consultas** entre las
+  **07:46:39 y las 07:53:23** (hora local) = **6 min 44 s**, dentro de **una sola
+  ventana facturable de 10 min** → **~0,43 € presupuestados**. El **importe
+  exacto** llega del **Account Console** (DBU por SKU y día), `[NO VERIFICADO]`;
+  aquí no se estima más allá de la ventana. **0 € de runs y de clústeres** (no se
+  lanzó ningún run ni se creó compute). El warehouse quedó **`STOPPED`** antes y
+  después. Los tiempos por consulta y el `STOPPED` constan en
+  `specs/011-Streaming-And-Observability/evidence/t07-session-checks.txt`
+  (CLI/API, no capturas).
+- **Coste medido por run:** `system.billing.usage` da
+  **0,15318770833333333 DBU** de `PREMIUM_JOBS_COMPUTE` para el run de producción
+  `317888374535056` (**744 s**) y el cruce con `system.billing.list_prices`
+  (`pricing.default`, `0,30` USD por DBU, `price_end_time IS NULL`) da
+  **0,045956 USD**.
+- **Caveats del importe:** es **solo DBU a precio de lista**. **No** incluye las
+  VMs ni los discos del resource group gestionado (`databricks-rg-…`, que es la
+  parte de la factura de Azure), ni storage, ni egress, ni NAT. `pricing.default`
+  puede **no** reflejar descuentos: `list_prices` también trae
+  `pricing.effective_list`. Y el importe está en **USD**, no en EUR.
+- **Comparación:** frente a la estimación vigente por duración de este documento
+  (**0,17–0,23 €/run** para 808–974 s), el importe de DBU es **≈4× menor**
+  (**3,7-5×** según se compare con el extremo bajo o alto de la banda), pero **no
+  son magnitudes idénticas**: `0,045956` son **USD de DBU de `PREMIUM_JOBS_COMPUTE`
+  a precio de lista** para un run de **744 s**, y la banda 0,17–0,23 € era una
+  **estimación en EUR por duración** para runs de 808–974 s. Hasta cerrar la parte
+  de VM y disco, el **método por duración queda como cota superior**, no como
+  importe. Las **cifras históricas de este documento no se reescriben**.
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento

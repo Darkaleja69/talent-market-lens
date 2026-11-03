@@ -6,16 +6,27 @@
 > exige leer una tabla de sistema se aplaza a **T-07** (una única sesión SQL) y va
 > marcado `[NO VERIFICADO]`.
 >
+> **Estado (2026-11-03, T-07):** la sesión SQL única se ejecutó (**6 min 44 s**,
+> **8 ejecuciones**, `STOPPED` antes y después; **~0,43 €** presupuestados, importe
+> exacto del Account Console `[NO VERIFICADO]`). Cierra
+> la **lectura real** de `system.lakeflow`/`system.billing` (§1.1), el **alcance
+> observado** de `job_run_timeline` —**2026-08-25 → 2026-10-31**, **≈67 días**; no
+> es una garantía de retención, §1.2— y el **coste por run** (**0,045956 USD** de DBU
+> para el run de 744 s, `docs/costs.md`). Siguen `[NO VERIFICADO]` la **latencia**
+> de `system.lakeflow` (→ T-08/T-13) y la lectura de `system.*` **desde el clúster
+> del job** (→ T-08). `current_workspace_id()` no resuelve en este workspace: los
+> RUNBOOK usan el literal `7405619889654446`.
+>
 > Rama `spec/011-streaming-observability`, worktree `talent-market-lens-011`.
 > Cada afirmación lleva su fuente (comando o fichero).
 
 ## 1. Inventario de fuentes de observabilidad disponibles
 
-| Fuente | Qué aporta | Coste | Estado hoy (2026-11-02) | Uso en la 011 |
+| Fuente | Qué aporta | Coste | Estado (2026-11-03) | Uso en la 011 |
 |---|---|---|---|---|
-| `system.lakeflow.job_run_timeline` | una fila por rebanada de run: estado, trigger, duraciones de setup/cola/ejecución/limpieza | 0 € desde el clúster del job | existe; `SELECT` efectivo por metadatos; **sin consultar** | diagnóstico del run (T-07, RUNBOOK) |
-| `system.lakeflow.job_task_run_timeline` | una fila por rebanada de **tarea**: `task_key`, estado, duraciones | 0 € desde el clúster del job | existe; `SELECT` efectivo por metadatos; **sin consultar** | duraciones y estados por tarea (no se duplican en `ops`) |
-| `system.billing.usage` | consumo por SKU y ventana (`usage_quantity`, `usage_metadata`) | 0 € | existe; `SELECT` efectivo; **sin consultar** | coste por run (T-07) |
+| `system.lakeflow.job_run_timeline` | una fila por rebanada de run: estado, trigger, duraciones de setup/cola/ejecución/limpieza | 0 € desde el clúster del job | existe; `SELECT` efectivo; **leída el 2026-11-03 (T-07): 29 filas, una por run** | diagnóstico del run (T-07, RUNBOOK) |
+| `system.lakeflow.job_task_run_timeline` | una fila por rebanada de **tarea**: `task_key`, estado, duraciones | 0 € desde el clúster del job | existe; `SELECT` efectivo; **leída el 2026-11-03 (T-07): 8 tareas** | duraciones y estados por tarea (no se duplican en `ops`) |
+| `system.billing.usage` | consumo por SKU y ventana (`usage_quantity`, `usage_metadata`) | 0 € | existe; `SELECT` efectivo; **leída el 2026-11-03 (T-07): 28 filas, `usage_metadata.job_run_id` poblado** | coste por run (T-07) |
 | `system.compute.*` | clústeres, nodos y warehouses (`clusters`, `node_timeline`, `warehouses`, …) | 0 € | existe; `SELECT` efectivo; **sin consultar** | atribución de coste y de arranque (T-07) |
 | Email de fallo del job | aviso inmediato de run fallido | 0 € | activo (`on_failure`) | alerta base (ya existe) |
 | API de Jobs (`jobs list-runs`, `jobs get-run`) | historial y JSON del run con tiempos por tarea | 0 € | en uso (010) | diagnóstico puntual |
@@ -73,11 +84,28 @@ Resultado:
 | `compute` | `warehouses` | `SELECT` + `USE_SCHEMA` | esquema | **legible** |
 
 Ninguna tabla queda en **no legible** ni en **no comprobable sin SQL**: Unity
-Catalog devuelve el grant efectivo. Lo que **no** está verificado es la **lectura
-real** (que una consulta devuelva filas): eso es T-07, con una única sesión SQL.
-Por eso todas las filas van con la advertencia de §2.
+Catalog devuelve el grant efectivo.
 
-### 1.2 Existencia y esquema de las tablas de `lakeflow` (metadatos, sin consultarlas)
+**Lectura real verificada (2026-11-03, T-07).** Una única sesión SQL confirmó que
+las consultas del RUNBOOK devuelven filas del proyecto:
+`system.lakeflow.job_run_timeline` (**29 filas**, 6,4 s),
+`system.lakeflow.job_task_run_timeline` (**8 tareas**, 2,1 s),
+`system.billing.usage` (**28 filas**, 3,2 s),
+`DESCRIBE system.billing.list_prices` (0,8 s) y el coste por run (3,4 s). Ninguna
+tabla dio error de permisos: el `SELECT` efectivo de la tabla de arriba se traduce
+en lectura.
+
+**Hallazgo de la sesión:** `current_workspace_id()` **no resuelve** en este
+workspace —`[UNRESOLVED_ROUTINE] Cannot resolve routine 'current_workspace_id' on
+search path [system.session, system.builtin, system.ai, job_offers_dev.bronze]`,
+2026-11-03 07:46:39, 4,8 s—. Las tres consultas del RUNBOOK se corrigieron al
+literal `7405619889654446` en los dos idiomas (§9.8.2 EN / §9.6.2 ES); el literal
+es **específico de este workspace** (la forma portable sería la función donde
+exista).
+
+Por eso las filas de la tabla de arriba ya no llevan la advertencia de §2.
+
+### 1.2 Existencia y esquema de las tablas de `lakeflow` (metadatos de T-01 y lectura real de T-07)
 
 `databricks api get /api/2.1/unity-catalog/tables/system.lakeflow.<tabla>`:
 
@@ -98,10 +126,20 @@ Por eso todas las filas van con la advertencia de §2.
   describe «rebanadas» de runs en curso (`period_start_time`/`period_end_time`):
   una misma ejecución puede aparecer en varias filas mientras avanza.
 
-`[NO VERIFICADO]`: si ya contienen los runs de dev `320947022571947` y del job de
-producción `916863262593632`, con qué **latencia** aparecen y qué **retención**
-tienen. Requiere consulta → T-07. El plan asume latencia de «unos minutos»
-(`plan.md` §7.2) y por eso el cierre **no** depende de `system.lakeflow`.
+**Medido (2026-11-03, T-07):** las tablas **sí** contienen los runs de los dos
+jobs (dev `320947022571947`, prod `916863262593632`): **29 filas** en la ventana
+de 30 días y **una fila por run** (el `GROUP BY run_id, job_id, trigger_type`
+agrupa las rebanadas). **Alcance de la tabla:** **106 filas**, **84 runs**, **6
+jobs**, `oldest_period = 2026-08-25T18:51:19.492Z` y `newest_period =
+2026-10-31T17:28:17.090Z` → **los datos de la tabla abarcan `2026-08-25` →
+`2026-10-31` (≈67 días)**; hasta la fecha de la sesión son ≈70 días. **No es una
+garantía de retención:** es el alcance observado hoy (`rows_all = 106`, `jobs = 6`,
+`runs = 84`, **~1,26 filas por run**; las rebanadas son pocas, no una por
+minuto). Las duraciones **por tarea no son 0** y las `*_duration_seconds` a nivel
+de run **sí** lo son en este job multi-tarea. `[NO VERIFICADO]`: la **latencia**
+(con qué retraso aparece un run), que exige un run fresco → **T-08/T-13**. El plan
+asume latencia de «unos minutos» (`plan.md` §7.2) y por eso el cierre **no**
+depende de `system.lakeflow`.
 
 ### 1.3 API de Jobs (gratis y ya usada)
 
@@ -165,18 +203,34 @@ lunes a las 01:00 UTC y **aborta sin desplegar** si `meta.json.data_date` supera
 2X-Small. La consulta es de metadatos: **no lo despierta** y no genera coste.
 Queda `STOPPED` antes y después del reconocimiento (RF-6).
 
+**Sesión de T-07 (2026-11-03):** una única ventana de **6 min 44 s** (consultas
+**07:46:39 → 07:53:23**, hora local; **8 ejecuciones**, 1 fallida + 7 correctas)
+en este warehouse, con `auto_stop_mins: 10`; `STOPPED` **antes y después**
+(confirmado por CLI al terminar, y el histórico no tenía consultas desde el
+2026-10-23). Coste: **~0,43 € presupuestados** por la ventana facturable de
+10 min —el importe exacto llega del Account Console, `[NO VERIFICADO]`— y **0 € de
+runs y de clústeres**. El **coste por run** medido en la misma sesión (`billing.usage` +
+`list_prices`) es **0,045956 USD** de DBU para el run de 744 s, **solo DBU a
+precio de lista**, con los caveats y la comparación en `docs/costs.md`.
+
 ## 2. Lo que no se puede hacer sin SQL o sin runs
+
+**Cerrado en la sesión SQL de T-07 (2026-11-03, ~0,43 €; importe exacto
+`[NO VERIFICADO]` hasta el Account Console):** la **lectura real** de
+`system.lakeflow` y `system.billing` (§1.1), el **alcance observado** de
+`job_run_timeline` (**2026-08-25 → 2026-10-31**, **≈67 días**; no es una garantía
+de retención, §1.2), el **coste por run** (`billing.usage` +
+`list_prices`, `docs/costs.md`) y el **Query Profile**
+(`evidence/t07-query-profile.png`: 2,603 s, 29 filas devueltas / 43 leídas, 15,06
+KB, 0 % de caché, `Scan Table` 17 ms).
 
 | Queda `[NO VERIFICADO]` | Por qué | Se cierra en |
 |---|---|---|
-| Lectura real de `system.lakeflow`/`billing`/`compute` | exige una consulta SQL | T-07 (1 sesión) |
-| Latencia de `system.lakeflow` y retención de las tablas | idem | T-07 |
-| Coste por run (`billing.usage`) | idem | T-07 |
+| Latencia de `system.lakeflow` (con qué retraso aparece un run) | exige un run fresco que medir | T-08/T-13 |
 | Que `system.*` sea legible **desde el clúster del job** | requiere un run | T-08 |
 | `numInputRows`, `batchId`, duración del microbatch, backlog | `query.lastProgress` solo existe dentro de un run | T-03/T-08 |
 | Salud del checkpoint (offsets, esquema, commits) | hoy solo se ha listado `commits/`; leerlo exige run o acceso a ficheros | T-03/T-08 |
 | Contenido y tamaño del event log | configurado en T-06; medirlo exige un run | T-08 |
-| Query Profile | requiere la sesión SQL | T-07 |
 
 ## 3. Diseño de `ops.run_metrics`
 
