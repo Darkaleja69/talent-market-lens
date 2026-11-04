@@ -18,6 +18,15 @@
 > egress). La migración a producción, si la hay, va al presupuesto de producción y
 > **exige aprobación explícita**. No hay run de reserva. Cada gasto se anota en
 > `docs/costs.md`.
+>
+> **Consumido al 2026-11-04:** **3 runs de dev agotados** (`873077346042958`, el
+> intento que no arrancó, `1048410431217707` y `1015457552352783`), **2 sesiones
+> SQL** (T-07 y la de T-08) y **1 run de producción manual** (presupuesto de
+> producción de la 009). La **segunda sesión SQL** (T-08: una ventana de ~10 min,
+> **≈0,43 € nominales**) fue **aprobada por la persona antes de ejecutarla** (junto
+> con el deploy y los runs), aunque el **RF-9** de `spec.md` hablaba de «una sesión»;
+> el total sigue por debajo del techo de **2,0 €**. Cualquier run adicional necesita
+> **autorización explícita**; el detalle y las cifras están en `docs/costs.md`.
 
 ## Convención de commits
 
@@ -241,7 +250,10 @@
     **`[NO VERIFICADO]`:** `taskValues.get`, `dbutils.fs.head/ls` y `fs.listFiles` sobre
     ABFS, el formato real de `{{job.start_time.iso_datetime}}`, la escritura en
     `ops.run_metrics` en DBR 17.3 y que la fila quede con otra tarea fallida (`ALL_DONE`
-    real); se cierra en T-08.
+    real). **Cerrado en T-08 (2026-11-04)** salvo la combinación: el lanzamiento de
+    `ALL_DONE` con dependencias fallidas y la fila escrita **antes** del `raise` están
+    probados por separado; «fila escrita cuando falla otra tarea» sigue
+    `[NO VERIFICADO]` (ver el Estado de T-08).
 
 - [x] **T-06 — Health rules, event log y RUNBOOK** (~60 min)
   - **Objetivo:** que un fallo o una duración anómala avisen solos y que la
@@ -288,6 +300,15 @@
     prod comparten `_eventlogs/`), entrega real del correo de duración (no se puede
     comprobar sin un run > 1500 s; se observaría en un incidente real, la
     configuración sí está validada) y lectura real de `system.*` (→ T-07).
+    **Nota de cierre (2026-11-04):** el event log quedó **retirado** en `639d252`
+    —el clúster **no arranca** con `spark.eventLog.dir` en `abfss://`
+    (`SparkMisconfiguration: Invalid configuration value detected for
+    fs.azure.account.key`, comprobado en vivo con el run `873077346042958`)—, así que
+    no hay bytes que medir ni log que conservar: `landing/_eventlogs/` sigue con
+    **0 ficheros y 0 B** (AzCopy). La **decisión medida es no mantenerlo**; **compute
+    log delivery** queda como alternativa **documentada, no implementada**. La regla
+    de duración sí se conserva en el bundle y quedó **desplegada** en dev y en prod
+    (T-13).
 
 - [x] **T-07 — Sesión SQL única: `system.*` y Query Profile** (~30 min)
   - **Objetivo:** validar los permisos de las tablas de sistema, dejar las consultas
@@ -373,7 +394,7 @@
 > a ser la primera medición del resumen del bronce en dev, después de T-03–T-06**, y
 > sigue consumiendo **1 de los 3 runs** (el presupuesto no cambia).
 
-- [ ] **T-08 — Run 1: mecanismo actual medido (A)** (~20 min de persona)
+- [x] **T-08 — Run 1: mecanismo actual medido (A)** (~20 min de persona)
   - **Objetivo:** tener la línea base real del bronce con el resumen nuevo y las
     métricas del run.
   - **Ejecución (run 1 de 3):** `bundle deploy -t dev` + `bundle run elt -t dev`
@@ -386,6 +407,61 @@
     coste anotado.
   - **Evidencia:** id del run, resumen de bronce, `ops.run_metrics`, tiempos, coste
     en `docs/costs.md` y fila en `evidence.md`. **~0,20 €.**
+  - **Estado (2026-11-04):** **hecha con desviación** — el run instrumentado existe,
+    la fila está en `ops.run_metrics`, el `DESCRIBE` está hecho y el criterio de
+    duración del run se cumple; **el objetivo de tiempo del bronce no se cumple en
+    los runs con ingesta** (ver «Desviación medida» abajo). La tarea se cierra como
+    **hecha con desviación**, no como «todos los umbrales en verde».
+    **Run de dev, `1015457552352783`:** `SUCCESS`, 07:49:48 → 08:04:10 = **862 s**
+    (≤ **1350 s** ✓), **9/9 tareas** (8 de negocio + cierre), `ONE_TIME`. Tareas:
+    bronce **383 s de setup / 93 s de ejecución**; silvers **225/221/234/221 s**;
+    oro **61 s**; exports **49/43 s**; cierre **33 s**. **Ese run ingirió 0 filas**
+    (el export anterior se generó a las `2026-11-03T08:35:35Z` y el run del
+    2026-11-04 no ingirió filas), así que su bronce de 93 s mide **idempotencia, no
+    ingesta**. `checks` del cierre
+    (literales): `bronze_sources` 4/4 ✓, `bronze_summary` con las 4 fuentes ✓,
+    `freshness` `data_date 2026-11-02`, `data_age_days 2`, `max_age_days 8` ✓ y
+    `pending_files` con `total 0`, `listing_ok true`, `listing_error null` y
+    `bronze_rows 0` ✓; `record: {"error": null, "status": "ok"}`. **Fila verificada**
+    en `job_offers_dev.ops.run_metrics`: `duration_s 849.213635`, `bronze_rows 0`,
+    `quarantine_rows 0`, `data_date 2026-11-02`, `data_age_days 2`, `status success`,
+    `recorded_at 2026-11-04T07:03:57.620Z`. **Esquema:** la tabla nace con el primer
+    `record`; `system.information_schema.columns` de `job_offers.ops.run_metrics`
+    devuelve **13 columnas** con los tipos del contrato de T-04 (`run_id`/`job_id`
+    STRING, `started_at`/`finished_at` TIMESTAMP, `duration_s` DOUBLE,
+    `bronze_rows`/`quarantine_rows` LONG, `data_date` DATE, `data_age_days` INT,
+    `status`/`checks`/`metrics` STRING, `recorded_at` TIMESTAMP) → cierra el
+    `DESCRIBE` que T-04 dejó pendiente. **Coste** anotado en `docs/costs.md` (run de
+    dev y segunda sesión SQL).
+    **El intento `873077346042958` (2026-11-03) no cuenta como medición:** el clúster
+    no arrancó con `spark.eventLog.dir` en `abfss://` (`SparkMisconfiguration:
+    Invalid configuration value detected for fs.azure.account.key`), el bronce gastó
+    **472 s de setup** y las **7** dependientes quedaron `UPSTREAM_FAILED`;
+    `Publish_Run_Summary` **sí se lanzó** (nuevo intento del clúster del job,
+    `1103-080127-yh3s5qcy`, a las **09:01:27** local),
+    falló por la misma causa y **no escribió fila** → `run_if: ALL_DONE` está probado
+    **en el lanzamiento**. La combinación «**fila escrita cuando falla otra tarea**»
+    queda **`[NO VERIFICADO]`**: no se ha observado (en el run `1048410431217707` la
+    fila en rojo se escribió con las 8 tareas de negocio en verde y el fallo del
+    propio cierre). Las tres claves `spark.eventLog.*` se retiraron en `639d252`
+    (ver el cierre de T-06).
+    **`[NO VERIFICADO]`:** el correo de duración (ningún run superó 1500 s) y la
+    lectura de `system.*` **desde el clúster del job** (el cierre no la usa; la
+    latencia de `system.lakeflow`, que sí se midió, está en
+    `design-observability.md` §1.8 y en T-13).
+  - **Desviación medida — tiempo del bronce (2026-11-04):** el objetivo de
+    **≤ 134 s** viene de la 010 (T-03b: bronce **383 s de arranque + 134 s de
+    ejecución**, `docs/costs.md`). Los dos runs **con ingesta** de esta spec dan
+    bronce de ejecución de **146 s** (dev `1048410431217707`) y **144 s** (prod
+    `1050766241907151`), **≈7–9 % por encima** del objetivo; el run **sin ingesta**
+    da **93 s** (dev `1015457552352783`). T-03 añadió **una** acción por microbatch
+    (`persist()` + `count()` sobre el frame pequeño de cuarentena) y la lectura del
+    resumen, pero **no hay medición que aísle la causa** de la subida: no se hizo un
+    A/B con la tarea anterior ni un perfil del bronce, así que **no se atribuye** ni
+    a ese cambio ni a ninguna otra causa. Se documenta como **desviación medida**,
+    **no se ajusta el umbral** y **queda pendiente decidir si se abre una spec de
+    corrección**. Los **93 s no son comparables** con los 144-146 s: ese run no
+    ingirió nada.
 
 - [x] **T-09 — Kit de la demo para Free Edition (CSV + dos mecanismos)** (~90 min)
   - **Objetivo:** dejar un kit reproducible y sin secretos que permita ejecutar en
@@ -561,6 +637,31 @@
     `ops.run_metrics`; la tarea final no falla; run ≤ 1350 s; coste anotado.
   - **Evidencia:** ids de los dos runs, resúmenes, `ops.run_metrics` (dos filas
     distintas), tiempos, coste y fila en `evidence.md`. **~0,40 €.**
+  - **Estado (2026-11-04):** **parcial** — la ingesta y la idempotencia están
+    demostradas **por separado**, pero **falta el par completo en el mismo
+    catálogo**; la tarea **no se marca como hecha**. **Ingesta:** **2283 filas** en
+    dev (run `1048410431217707`, `bronze_rows = 2283`) y **2283** en prod (run
+    `1050766241907151`, misma cifra en la fila y en `checks`). **Idempotencia:** el
+    run posterior de dev (`1015457552352783`) dejó `bronze_rows 0`,
+    `pending_files.total 0` con `listing_ok true` y el cierre en verde; los conteos
+    de export **no** se midieron antes/después de ese run, y la idempotencia de
+    silver ya está probada en la 010. `ops.run_metrics` tiene **una fila por run**:
+    **2** en `job_offers_dev.ops.run_metrics` (`1015457552352783` y
+    `1048410431217707`) y **1** en `job_offers.ops.run_metrics`. **Lo que falta
+    exactamente:** en **dev**, el run con ingesta terminó en **rojo** por el defecto
+    del listado (`listing_ok: false`, corregido en `808a3d7`), así que no hay
+    «ingesta + cierre en verde»; en **prod**, el siguiente run es el **2026-11-08**
+    y **si** no llegan ficheros nuevos dará el caso de 0 filas, que completaría el
+    par en prod; T-11 se cierra con el par en **dev**. No existe todavía, en el
+    **mismo** catálogo, la secuencia «run con `numInputRows > 0` y cierre en verde»
+    seguida de «run inmediato con `numInputRows = 0` y cierre en verde», con **dos
+    filas distintas** en `ops.run_metrics`. Se cierra cuando un run de dev con
+    ficheros nuevos cierre en verde **y** su repetición inmediata sin ficheros
+    también. **`[NO VERIFICADO]` en esta ventana:** los conteos de silver y oro no
+    se volvieron a medir (la idempotencia de silver ya está probada en la 010).
+    **Coste:** el presupuesto de **3 runs de dev queda agotado** (el intento fallido
+    `873077346042958` consume uno), así que el run que falta **necesita autorización
+    explícita** (`docs/costs.md`).
 
 - [x] **T-12 — (Condicional) Migración del mecanismo ganador en producción** (~60 min + ventana)
   - **Objetivo:** si T-10 decide adoptar, llevar el mecanismo a producción con
@@ -594,6 +695,34 @@
   - **Evidencia:** id del run, fila de `ops.run_metrics`, id del workflow del
     dashboard, estado del warehouse, coste en `docs/costs.md` y fila en
     `evidence.md`. **0 € de dev** (coste de producción, dentro de la cadencia).
+  - **Estado (2026-11-04):** **parcial** — el despliegue está hecho y hay un run en
+    verde con las 9 tareas, pero **el criterio pide el primer run programado** tras
+    el deploy, y ese run es el del **domingo 2026-11-08 a las 23:00**
+    (`Europe/Madrid`). La tarea **no se marca como hecha**.
+    **Deploy de producción:** `bundle validate -t prod` → `Validation OK!`;
+    `bundle deploy -t prod` → **10 ficheros**, **1 recurso cambiado**. El job
+    `916863262593632` queda con **9 tareas**, `health.rules[]`
+    `RUN_DURATION_SECONDS > 1500`, `spark_conf` con **solo**
+    `spark.sql.shuffle.partitions` (sin `spark.eventLog.*`, retirado en `639d252`),
+    cron `50 0 23 ? * SUN`, `Europe/Madrid` y **`UNPAUSED`**.
+    **Run manual de producción `1050766241907151`:** `SUCCESS`,
+    08:05:15 → 08:15:58 = **643 s**, **9/9 tareas**, `ONE_TIME`; bronce **142 s de
+    setup / 144 s de ejecución**, silvers **191/188/198/189 s**, oro **56 s**,
+    exports **52/44 s**, cierre **38 s**. `checks`: `pending_files.bronze_rows 2283`,
+    `pending_files.total 0` con `listing_ok true` y `listing_error null`,
+    `freshness data_date 2026-11-02` con `data_age_days 2`, todo `ok: true`;
+    `record: ok`. Fila: `duration_s 630.398056`, `bronze_rows 2283`,
+    `quarantine_rows 0`, `data_date 2026-11-02`, `data_age_days 2`, `status success`,
+    `recorded_at 2026-11-04T07:15:46.052Z`. **Ese run manual valida el despliegue,
+    no el criterio** (no es `PERIODIC`).
+    **Falta para cerrar:** el run programado del **2026-11-08** con **9/9** tareas y
+    sin intervención, su fila con `data_date` correcta y `checks` en verde, el
+    workflow del dashboard publicado con esa fecha, el **warehouse `STOPPED` antes y
+    después** y las health rules activas en el job desplegado.
+    **`[NO VERIFICADO]`:** la entrega del **correo de duración** (ningún run superó
+    los 1500 s; se observaría en un incidente real) y la **cifra exacta** de latencia
+    de `system.lakeflow`, hoy solo acotada (**> 7 min 37 s**, ver
+    `design-observability.md` §1.8); el run del domingo la acota.
 
 ## 6. Cierre
 

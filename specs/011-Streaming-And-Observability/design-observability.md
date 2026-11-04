@@ -17,12 +17,19 @@
 > del job** (→ T-08). `current_workspace_id()` no resuelve en este workspace: los
 > RUNBOOK usan el literal `7405619889654446`.
 >
+> **Estado (2026-11-04, T-08/T-11/T-13):** primera ejecución real instrumentada.
+> El deploy lleva la novena tarea a **dev y prod**; `ops.run_metrics` existe con
+> **13 columnas** y filas reales; el **event log quedó retirado** (§1.6) y la
+> **latencia de `system.lakeflow`** está medida como **> 7 min 37 s** (§1.8).
+> T-11 y T-13 siguen **parciales** (falta el par «ingesta + 0 filas» en el mismo
+> catálogo y el primer run programado), ver `tasks.md`.
+>
 > Rama `spec/011-streaming-observability`, worktree `talent-market-lens-011`.
 > Cada afirmación lleva su fuente (comando o fichero).
 
 ## 1. Inventario de fuentes de observabilidad disponibles
 
-| Fuente | Qué aporta | Coste | Estado (2026-11-03) | Uso en la 011 |
+| Fuente | Qué aporta | Coste | Estado (a fecha de 2026-11-04) | Uso en la 011 |
 |---|---|---|---|---|
 | `system.lakeflow.job_run_timeline` | una fila por rebanada de run: estado, trigger, duraciones de setup/cola/ejecución/limpieza | 0 € desde el clúster del job | existe; `SELECT` efectivo; **leída el 2026-11-03 (T-07): 29 filas, una por run** | diagnóstico del run (T-07, RUNBOOK) |
 | `system.lakeflow.job_task_run_timeline` | una fila por rebanada de **tarea**: `task_key`, estado, duraciones | 0 € desde el clúster del job | existe; `SELECT` efectivo; **leída el 2026-11-03 (T-07): 8 tareas** | duraciones y estados por tarea (no se duplican en `ops`) |
@@ -31,8 +38,8 @@
 | Email de fallo del job | aviso inmediato de run fallido | 0 € | activo (`on_failure`) | alerta base (ya existe) |
 | API de Jobs (`jobs list-runs`, `jobs get-run`) | historial y JSON del run con tiempos por tarea | 0 € | en uso (010) | diagnóstico puntual |
 | Workflow del dashboard (GitHub) | frescura publicada: falla si `data_date` > 8 días | 0 € | activo | frescura en CI |
-| Event log de Spark | trazas, tareas, streaming progress | 0 € (bytes en ADLS) | **configurado en el bundle (T-06)**; escritura real → T-08 | T-06 (decisión medida) |
-| `ops.run_metrics` (Delta) | una fila por run con negocio, frescura y `checks` | 0 € | **no existe** | T-04/T-05 |
+| Event log de Spark | trazas, tareas, streaming progress | 0 € (bytes en ADLS) | **retirado** (2026-11-03/04): el clúster no arranca con `spark.eventLog.dir` en `abfss://`; `landing/_eventlogs/` con **0 B** (§1.6) | T-06 (decisión medida) |
+| `ops.run_metrics` (Delta) | una fila por run con negocio, frescura y `checks` | 0 € | **existe en dev y en prod**; **13 columnas**; filas reales desde el 2026-11-03 | T-04/T-05 |
 
 ### 1.1 Permisos de `system.*` (API de Unity Catalog, 0 €)
 
@@ -169,32 +176,34 @@ run. En la 010 esta API fue la fuente de los tiempos por tarea
 lunes a las 01:00 UTC y **aborta sin desplegar** si `meta.json.data_date` supera
 8 días (L159–163). Cubre la frescura publicada, no la del job.
 
-### 1.6 Event log: estado y qué falta por medir
+### 1.6 Event log: retirado (decisión medida)
 
-- **Estado: configurado en T-06.** El `spark_conf` del job cluster lleva
-  `spark.eventLog.enabled: "true"`, `spark.eventLog.dir:
-  abfss://${var.container}@${var.storage_account}.dfs.core.windows.net/_eventlogs/`
-  (resuelto por el bundle a `abfss://landing@joboffershns.dfs.core.windows.net/_eventlogs/`)
-  y `spark.eventLog.rolling.enabled: "true"`, junto al
-  `spark.sql.shuffle.partitions: "8"` que ya existía (`resources/elt.job.yml`).
-  `bundle validate -t dev` → `Validation OK!` y `bundle summary -t dev -o json`
-  muestra las cuatro claves con la ruta expandida; el job conserva sus **9 tareas**.
-- La ruta es alcanzable: el clúster ya escribe en `abfss://landing@…` desde los
-  notebooks de export. `landing/_eventlogs/` estaba **vacío** (0 ficheros, listado
-  con AzCopy, 0 €) antes de T-06 y lo llena el primer run. **dev y prod comparten
-  esa ruta** (no hay prefijo por target), así que T-08 tendrá que separar los
-  bytes por run al medir.
-- Las claves se declaran en YAML **con los valores como cadenas** (`"true"`), como
-  el resto de `spark_conf`.
-- **No se puede saber sin un run:** tamaño en bytes por ejecución, si el log
-  recoge el progreso de streaming con el detalle que hace falta, retención real en
-  ADLS y el valor de retenerlo más allá de la ventana de la Spark UI (~60 días tras
-  el run). **Tamaño y utilidad se miden en T-08** (coste en bytes de
-  `landing/_eventlogs/`), antes de decidir si el event log se queda; hasta entonces
-  el contenido real del directorio sigue `[NO VERIFICADO]`.
-- Si tras el primer run `landing/_eventlogs/` queda vacío o solo con ficheros
-  `.inprogress` (el driver puede destruirse al terminar), la alternativa soportada
-  es **compute log delivery**; se decide en T-08 con los bytes medidos.
+**Estado: no está activo.** T-06 configuró `spark.eventLog.{enabled,dir,rolling}`
+en el job cluster apuntando a
+`abfss://landing@joboffershns.dfs.core.windows.net/_eventlogs/` y el primer run
+instrumentado (`873077346042958`, **2026-11-03**) demostró que **el clúster no
+arranca** con esa configuración: `SparkMisconfiguration: Invalid configuration
+value detected for fs.azure.account.key`. El clúster no llegó a ejecutar el
+pipeline —`Bronze_Ingestion` gastó **472 s de setup** y las **7** tareas
+dependientes quedaron `UPSTREAM_FAILED`—, y las tres claves se **retiraron** en
+`639d252` (2026-11-03). El motivo queda también junto a la configuración, en la
+nota del `spark_conf` de `resources/elt.job.yml`.
+
+**Medición (2026-11-04):** `landing/_eventlogs/` tiene **0 ficheros y 0 B**
+(AzCopy). No hay coste en bytes que valorar: el log no llega a escribirse.
+
+**Decisión medida: no mantenerlo.** El event log aportaba lo que la Spark UI no
+da —retención más allá de ~60 días y un fichero que se puede compartir—, pero no
+compensa un clúster que no arranca. La **Spark UI** sigue siendo la superficie de
+trazas del run. **Compute log delivery** queda como alternativa **documentada y no
+implementada**: enviaría los logs del driver y de los executors a un destino de la
+cuenta sin `spark.eventLog.dir`, y solo se valoraría si hiciera falta retención
+propia. Dev y prod comparten bundle, así que la retirada vale para los dos: el
+`bundle deploy -t prod` del 2026-11-04 dejó `spark_conf` con **solo**
+`spark.sql.shuffle.partitions`.
+
+**`[NO VERIFICADO]`:** nada del event log —no se usa—. Lo que sigue abierto es la
+**cifra exacta** de latencia de `system.lakeflow` (§1.8).
 
 ### 1.7 SQL warehouse (metadatos, sin despertarlo)
 
@@ -213,6 +222,36 @@ runs y de clústeres**. El **coste por run** medido en la misma sesión (`billin
 `list_prices`) es **0,045956 USD** de DBU para el run de 744 s, **solo DBU a
 precio de lista**, con los caveats y la comparación en `docs/costs.md`.
 
+**Segunda sesión (2026-11-04, T-08):** otra ventana de **~10 min**
+(**07:13 → 07:23 UTC**), misma factura (~0,43 € nominales; importe exacto
+`[NO VERIFICADO]`), con el literal `workspace_id = 7405619889654446` y el
+warehouse **`STOPPED` antes y después** (`num_clusters: 0`). Sirvió para leer las
+filas de `ops.run_metrics` (**1** en prod, **2** en dev), el **esquema de 13
+columnas** y la **latencia** de `system.lakeflow` (§1.8). No se lanzó ningún run
+desde la sesión.
+
+### 1.8 Latencia medida de `system.lakeflow` (2026-11-04)
+
+El run de producción `1050766241907151` terminó a las **07:15:58Z**. A las
+**07:23:35Z**, en la misma ventana SQL, `system.lakeflow.job_run_timeline`
+**seguía sin devolverlo**: `count(*) = 0` para su `run_id`, y el run más reciente
+visible del job seguía siendo el `2026-10-31T17:28:17Z`. Por tanto la latencia es
+**> 7 min 37 s**, no los «unos minutos» que suponía `plan.md` §7.2.
+
+Consecuencias:
+
+1. **Refuerza la decisión de T-05:** el cierre **no** depende de esa tabla, así
+   que su latencia no puede bloquear ni tumbar un run.
+2. Para un run recién terminado la fuente es `databricks jobs get-run` (gratis);
+   esperar a `system.lakeflow` es una espera a ciegas.
+3. La `job_task_run_timeline` hereda la misma incertidumbre: las duraciones por
+   tarea de un run del día pueden no estar todavía.
+
+**La cifra exacta queda `[NO VERIFICADO]`:** solo hay una **cota inferior**
+(> 7 min 37 s). El run programado del **2026-11-08** permite acotarla con más
+margen; hasta entonces, los RUNBOOK dicen explícitamente que un run recién
+terminado **no** está en la tabla.
+
 ## 2. Lo que no se puede hacer sin SQL o sin runs
 
 **Cerrado en la sesión SQL de T-07 (2026-11-03, ~0,43 €; importe exacto
@@ -226,11 +265,19 @@ KB, 0 % de caché, `Scan Table` 17 ms).
 
 | Queda `[NO VERIFICADO]` | Por qué | Se cierra en |
 |---|---|---|
-| Latencia de `system.lakeflow` (con qué retraso aparece un run) | exige un run fresco que medir | T-08/T-13 |
-| Que `system.*` sea legible **desde el clúster del job** | requiere un run | T-08 |
-| `numInputRows`, `batchId`, duración del microbatch, backlog | `query.lastProgress` solo existe dentro de un run | T-03/T-08 |
-| Salud del checkpoint (offsets, esquema, commits) | hoy solo se ha listado `commits/`; leerlo exige run o acceso a ficheros | T-03/T-08 |
-| Contenido y tamaño del event log | configurado en T-06; medirlo exige un run | T-08 |
+| La **cifra exacta** de latencia de `system.lakeflow` | solo hay cota inferior: **> 7 min 37 s** (§1.8) | T-13 (run del 2026-11-08) |
+| Que `system.*` sea legible **desde el clúster del job** | ningún notebook del job la consulta y el cierre no la necesita | sin plan (no bloquea) |
+| Entrega real del **correo de duración** | exige un run de más de 1500 s | incidente real |
+| Salud del checkpoint (offsets y esquema) | solo se ha listado `commits/`; los offsets no se leen | sin plan |
+
+**Cerrado en vivo por los runs instrumentados (2026-11-03/04):**
+`numInputRows` por fuente (el resumen llega con las 4 fuentes y `bronze_rows 2283`
+en los runs con ingesta), la **escritura en `ops.run_metrics`** en DBR 17.3 (13
+columnas; fila en verde y fila con `status: failed`), `dbutils.fs.head`/`ls` sobre
+ABFS, `taskValues.get` y el `run_if: ALL_DONE` **en el lanzamiento** (el cierre
+arrancó con dependencias fallidas); que la fila se escriba con **otra tarea en
+rojo** sigue `[NO VERIFICADO]` (§4.1). El **event log ya no se mide**: está
+retirado (§1.6).
 
 ## 3. Diseño de `ops.run_metrics`
 
@@ -289,16 +336,22 @@ Reglas de diseño:
 
 El **esquema `ops`** se creó por CLI el **2026-11-03** (gratis) en `job_offers_dev`
 (`36f4fdc8-2fbb-4d23-bda7-4b05c3b1b73b`) y `job_offers`
-(`f4c405a5-f330-4582-b627-943a5c3d03df`). La **tabla** la crea el primer `record`
-real: hoy ambos esquemas están vacíos (`databricks tables list`, 0 €), así que el
-`DESCRIBE` de la tabla queda para **T-08**, con el primer run instrumentado.
+(`f4c405a5-f330-4582-b627-943a5c3d03df`). La **tabla** la creó el primer `record`
+real (2026-11-03): el **2026-11-04**, `system.information_schema.columns` de
+`job_offers.ops.run_metrics` devuelve **13 columnas** con los tipos de la tabla de
+arriba, y hay filas en los dos catálogos (**1** en `job_offers`, **2** en
+`job_offers_dev`) — se cierra el `DESCRIBE` que T-04 dejó pendiente.
 
 Tests: **30 passed** (26 puros, incluidos 4 parametrizados de clave nula, + 4 de
 integración) en ~7 min; los 4 de integración se ejecutan en aislamiento con Delta
 local y demuestran que dos escrituras del mismo `run_id` dejan **una** fila y gana la
 segunda.
-`[NO VERIFICADO]`: `tableExists` de tres partes, DDL `USING DELTA` en Unity Catalog y
-`MERGE … UPDATE SET *` en **DBR 17.3**; se cierran en T-08.
+**Cerrado en vivo (2026-11-03/04):** la escritura real demuestra `tableExists` de
+tres partes, el DDL `USING DELTA` en Unity Catalog y el `MERGE … UPDATE SET *` en
+**DBR 17.3** (tres filas escritas: dos en dev y una en prod —una de ellas con
+`status: failed`). La **idempotencia del mismo `run_id` en DBR 17.3** sigue probada
+solo en local (Delta 4.4.1): en la nube no se ha repetido todavía un `run_id`.
+**`[NO VERIFICADO]`:** esa repetición en DBR 17.3.
 
 ## 4. Tarea final `Publish_Run_Summary`
 
@@ -315,8 +368,9 @@ tareas** de negocio (bronce + 4 silver + oro + 2 exports).
 5. **falla** si falta el resumen de bronce, si `data_date` > 8 días o si hay
    ficheros pendientes sin ingerir con lote vacío.
 
-`system.lakeflow` puede tardar unos minutos en reflejar el run en curso: el cierre
-**no** depende de ella, así que su latencia no puede bloquear ni tumbar el run.
+`system.lakeflow` puede tardar en reflejar el run en curso —medido el 2026-11-04:
+**> 7 min 37 s**, §1.8—: el cierre **no** depende de ella, así que su latencia no
+puede bloquear ni tumbar el run.
 La línea base de pendientes medida hoy (28 ficheros, `design-streaming.md` §1.6)
 es la referencia de lo que el primer run tras la reanudación debería consumir.
 
@@ -367,8 +421,43 @@ falló: sin él, `listing_ok=false` solo dice que el run está en rojo. Es aditi
 ningún error y, si lo hubo, una línea recortada a ~300 caracteres con el error del
 landing (que además deja `listing_ok=false`) y/o el de `commits/`.
 
-Reglas: `freshness` exige fecha, no futura y ≤ 8 días; `pending_files` solo falla si
-hay pendientes **y** `bronze_rows == 0`; `bronze_sources` exige las 4 fuentes.
+**Contrato real, medido (2026-11-04).** El JSON que publica el cierre es el de
+arriba, con las claves ordenadas y **`listing_error` siempre presente** (`null` sin
+error); en el run en verde `1015457552352783` llegó literalmente así:
+
+```json
+{"bronze_sources": {"expected": 4, "ok": true, "present": 4}, "bronze_summary": {"ok": true, "sources": ["indeed", "infojobs", "linkedin", "multi_site"]}, "freshness": {"data_age_days": 2, "data_date": "2026-11-02", "max_age_days": 8, "ok": true}, "pending_files": {"bronze_rows": 0, "by_source": {}, "listing_error": null, "listing_ok": true, "ok": true, "total": 0}}
+```
+
+y la fila correspondiente quedó en `job_offers_dev.ops.run_metrics` con
+`duration_s 849.213635`, `bronze_rows 0`, `quarantine_rows 0`,
+`data_date 2026-11-02`, `data_age_days 2`, `status success` y
+`recorded_at 2026-11-04T07:03:57.620Z`.
+
+**La fila se escribe antes del `raise` (2026-11-03).** En el run
+`1048410431217707` las **8 tareas de negocio** terminaron en `SUCCESS` y el cierre
+falló por su propio defecto del listado (**`listing_ok: false`**, corregido en
+`808a3d7`); aun así, la fila quedó: `duration_s 907.360947`, `bronze_rows 2283`,
+`quarantine_rows 0`, `data_date 2026-11-02`, `data_age_days 1`,
+**`status failed`**, `recorded_at 2026-11-03T08:36:25.136Z`. Eso prueba que la
+fila se escribe **antes** del `raise`, no la combinación con otra tarea en rojo.
+
+**`run_if: ALL_DONE` está probado en el lanzamiento (2026-11-03).** En el intento
+`873077346042958`, con **7 dependientes `UPSTREAM_FAILED`**, `Publish_Run_Summary`
+**sí se lanzó** (nuevo intento del clúster del job, `1103-080127-yh3s5qcy`, a las
+**09:01:27** local) y falló por la misma
+`SparkMisconfiguration`; **no escribió fila** porque el clúster nunca llegó a
+arrancar (event log, §1.6).
+
+**`[NO VERIFICADO]`: la combinación «fila escrita cuando falla otra tarea».**
+No se ha observado: en el único run con dependencias fallidas el clúster no
+arrancó, y en el run que sí dejó fila en rojo el fallo era del propio cierre, con
+las 8 tareas de negocio en verde. Se probará con un run que tenga una tarea de
+negocio en rojo y un clúster sano.
+
+Reglas: `freshness` exige fecha, no futura y ≤ 8 días; `pending_files` falla si
+`listing_ok` no es `True`, o si hay pendientes **y** `bronze_rows == 0`;
+`bronze_sources` exige las 4 fuentes.
 `status` es el **estado del cierre** (los cuatro checks), no el agregado de las
 tareas: los estados por tarea viven en `system.lakeflow` y no se duplican (§3). El
 último commit del checkpoint se lee **al cerrar**; en un run de 0 filas no hay commit
@@ -381,25 +470,35 @@ Job: novena tarea `Publish_Run_Summary` con `run_if: ALL_DONE`, `depends_on` de 
 `{{job.start_time.iso_datetime}}`). `bundle validate -t dev` → `Validation OK!` y el
 grafo resuelto muestra las 9 tareas.
 
-`[NO VERIFICADO]` hasta T-08: `taskValues.get` real, el formato exacto de
-`{{job.start_time.iso_datetime}}`, la escritura en `ops.run_metrics` en DBR 17.3 y que
-la fila quede cuando falla otra tarea (`ALL_DONE` real). En la primera prueba en vivo
-(run `1048410431217707`, 2026-11-03) sí funcionaron `dbutils.fs.head`/`ls` sobre ABFS
-y la API DataFrame; la que **no** tiene credenciales en el notebook es la API Java de
-Hadoop (`fs.listFiles`), sustituida en T-05 por `format("binaryFile")`.
+**Cerrado en vivo (2026-11-03/04),** de la lista que quedaba abierta en T-05:
+`taskValues.get("Bronze_Ingestion", …)` funciona; el formato de
+`{{job.start_time.iso_datetime}}` se interpreta bien (`recorded_at`
+**07:03:57.620Z** = 08:03:57 local menos el inicio del run 07:49:48 ≈ los
+**849 s** de `duration_s`); la escritura en `ops.run_metrics` funciona en DBR 17.3
+(13 columnas, ver T-04/T-08); `dbutils.fs.head`/`ls` sobre ABFS y la API DataFrame
+funcionan; y `run_if: ALL_DONE` está probado **en el lanzamiento** (el cierre arrancó
+con las 7 dependientes `UPSTREAM_FAILED`, arriba), no la combinación con fila escrita
+(`[NO VERIFICADO]`). La API Java de Hadoop (`fs.listFiles`) sigue **sin credenciales**
+en el notebook: por eso T-05 la sustituyó por `format("binaryFile")`, y esa es la que
+corre.
+
+**`[NO VERIFICADO]`:** la lectura de `system.*` **desde el clúster del job** (no hay
+ningún notebook del job que la consulte y el cierre no la necesita) y la entrega
+real del correo de duración.
 
 ## 5. Umbrales de alerta
 
-| Alerta | Umbral | Superficie | Estado |
+| Alerta | Umbral | Superficie | Estado (2026-11-04) |
 |---|---|---|---|
-| Fallo del run | cualquier tarea fallida | email `on_failure` | ya existe |
-| Duración anómala | `RUN_DURATION_SECONDS` **> 1500 s** (por debajo del `timeout_seconds: 1800`) | health rule del job + email `on_duration_warning_threshold_exceeded` | **configurada en el bundle y validada con `bundle validate`**; el deploy llega en T-08/T-13 |
-| Frescura publicada | `data_date` > **8 días** | workflow del dashboard (falla sin desplegar) | ya existe |
-| Frescura del run | `data_date` > **8 días** | tarea final → `checks` `failed` | implementada en el bundle (T-05); efectiva tras el deploy (T-08/T-13) |
-| Ficheros pendientes | pendientes anteriores al inicio del run con lote vacío | tarea final → `checks` `failed` | implementada en el bundle (T-05); efectiva tras el deploy (T-08/T-13) |
-| Event log | sin umbral: se escribe en **cada** run (`spark.eventLog.*` del job cluster, con rolling) | `landing/_eventlogs/` en ADLS; **dev y prod comparten la ruta** (sin prefijo por target) | **configurado en el bundle en T-06**; su coste en bytes se mide en T-08 antes de decidir si se queda |
+| Fallo del run | cualquier tarea fallida | email `on_failure` | **activo**, y ahora con cierre: `Publish_Run_Summary` corre igual (`run_if: ALL_DONE`; lanzamiento probado el 2026-11-03) y escribe su fila antes del `raise` (probado el 2026-11-03 con el fallo del propio cierre); la combinación con **otra** tarea en rojo sigue `[NO VERIFICADO]` (§4.1) |
+| Duración anómala | `RUN_DURATION_SECONDS` **> 1500 s** (por debajo del `timeout_seconds: 1800`) | health rule del job + email `on_duration_warning_threshold_exceeded` | **desplegada en dev (2026-11-03) y en prod (2026-11-04)** (`bundle deploy`); el **correo** sigue `[NO VERIFICADO]` porque ningún run superó 1500 s (se observaría en un incidente real) |
+| Frescura publicada | `data_date` > **8 días** | workflow del dashboard (falla sin desplegar) | ya existía |
+| Frescura del run | `data_date` > **8 días** | tarea final → `checks` `failed` | **desplegada y en verde**: `data_date 2026-11-02`, `data_age_days 2`, `max_age_days 8` en dev y prod (2026-11-04) |
+| Ficheros pendientes | pendientes anteriores al inicio del run con lote vacío, **o** `listing_ok` falso | tarea final → `checks` `failed` | **desplegada**; el rojo por `listing_ok: false` está medido (2026-11-03) y el verde con `total 0` también (2026-11-04) |
+| Event log | sin umbral | `landing/_eventlogs/` en ADLS | **retirado** (commit `639d252`): el clúster no arranca con `abfss://` y el directorio tiene **0 ficheros, 0 B**; `compute log delivery` queda como alternativa documentada, no implementada (§1.6) |
 | Backlog de streaming | `STREAMING_BACKLOG_*` **no se usan**: los streams son por lotes (`availableNow`), sin backlog continuo que vigilar; además la métrica está en **Public Preview** y el cierre ya detecta pendientes | — | descartado, documentado |
 | Alertas SQL programadas | — | cada despertar ~0,43 € y es recurrente | **rechazado** por coste |
+| Latencia de `system.lakeflow` | no es una alerta: es una **cota** para no esperar en balde | diagnóstico manual | **medida: > 7 min 37 s** (§1.8); la cifra exacta, del run programado del 2026-11-08 |
 
 Matiz verificado en el esquema del bundle (CLI 1.21.0, `databricks bundle
 schema`): la clave YAML es **`health.rules[]`** con `metric` / `op` / `value`; no

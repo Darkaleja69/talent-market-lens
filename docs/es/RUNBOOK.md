@@ -191,8 +191,9 @@ conecta el modelo a las tablas `job_offers.gold.*`. El modelo usa
 
 ## 9. La ELT como código: Databricks Asset Bundle, CI/CD y cutover
 
-El job ELT de producción —**un job con 7 tareas**: Bronze → 4 Silver (en
-paralelo) → Oro → export web— está **versionado como código** en el repositorio y
+El job ELT de producción —**un job con 9 tareas**: Bronze → 4 Silver (en
+paralelo) → Oro → export web + export del informe, más la tarea de cierre— está
+**versionado como código** en el repositorio y
 se despliega con la CLI de Databricks. `databricks.yml` contiene el bundle, sus
 targets y la programación (la sobreescribe el target `prod`);
 `resources/elt.job.yml`, la definición del job (tareas, `depends_on`, compute,
@@ -304,25 +305,36 @@ programación.
 
 ### 9.6 Alertas, consultas versionadas y diagnóstico sin warehouse (spec 011)
 
-Hoy hay **dos superficies activas**: el correo de fallo (`on_failure` en
-`resources/elt.job.yml`) y la comprobación de frescura publicada del workflow del
-dashboard. El resto llega **con el deploy** (T-08/T-13): la regla de duración, el
-event log y la novena tarea `Publish_Run_Summary`, que deja sus `checks` en
-`ops.run_metrics`. Ese deploy está pendiente — los jobs que corren hoy (dev
-`320947022571947`, prod `916863262593632`) siguen con **8 tareas**, y
-`ops.run_metrics` la crea el primer `record`. Ninguna de estas superficies
+**Desplegado en dev el 2026-11-03 y en prod el 2026-11-04**: la regla de duración
+(`RUN_DURATION_SECONDS > 1500`), la novena tarea `Publish_Run_Summary` —que deja sus
+`checks` en `ops.run_metrics`— y los **cuatro** checks de cierre (`bronze_summary`,
+`bronze_sources`, `freshness` y `pending_files`). Los dos jobs tienen ahora **9
+tareas** (dev `320947022571947`, prod `916863262593632`), y `ops.run_metrics` existe
+en `job_offers_dev` y `job_offers` con las **13 columnas** del contrato. Antes ya
+había **dos superficies activas**: el
+correo de fallo (`on_failure` en `resources/elt.job.yml`) y la comprobación de
+frescura publicada del workflow del dashboard. **El event log de Spark NO está
+activo**: se retiró en `639d252` porque este clúster del job no arranca con
+`spark.eventLog.dir` apuntando a `abfss://` (§9.6.3). Ninguna de estas superficies
 necesita el SQL warehouse. Los umbrales viven en el código; esta sección dice qué
 significa cada uno, con qué consulta se responde y qué hacer.
+
+> **`system.lakeflow` va con retraso.** Medido el 2026-11-04: un run que había
+> terminado **7 min 37 s** antes seguía **sin aparecer** en `job_run_timeline`
+> (`count(*) = 0` para su `run_id`). No esperes ahí un run recién terminado: usa
+> `databricks jobs get-run` (gratis) para el run que acabas de ver terminar. La
+> cifra exacta queda `[NO VERIFICADO]` hasta que la acote el run programado del
+> 2026-11-08.
 
 #### 9.6.1 Qué vigila cada alerta y qué hacer
 
 | Alerta | Qué vigila | Síntoma | Primera comprobación | Acción |
 |---|---|---|---|---|
-| Fallo (correo `on_failure`) | cualquier tarea que acaba en `FAILED`. Una vez desplegada, `Publish_Run_Summary` corre igual (`run_if: ALL_DONE`), así que el run escribe su fila antes de fallar | llega el correo y el run está en rojo | `databricks jobs get-run <run_id>` y `databricks jobs get-run-output <task_run_id>` (§9.6.3) para el `task_key` que falla | leer la salida de esa tarea (traza o `state_message`), corregir la causa y relanzar el job; aquí no hace falta SQL |
-| Duración anómala (regla `health.rules[]` + correo `on_duration_warning_threshold_exceeded`; **actúa al desplegarse**, T-08/T-13) | `RUN_DURATION_SECONDS` **> 1500 s** (25 min); el job se cancela a los `timeout_seconds: 1800` (30 min) | el correo de duración llega **con el run aún vivo** | `databricks jobs get-run <run_id>` (gratis, segundos después de arrancar) y la consulta 2 (§9.6.2) para las duraciones por tarea. Las columnas `*_duration_seconds` de `job_run_timeline` quedan a `0` en jobs multi-tarea: no usarlas | es un aviso, no un fallo: anotar la tarea y abrir reparación si se repite. A los 1800 s el run se cancela y se trata como un fallo |
-| Frescura publicada (workflow del dashboard) | `.github/workflows/dashboard.yml` (lunes 01:00 UTC) aborta **sin desplegar** si `meta.json.data_date` tiene más de 8 días | el workflow está en rojo y la web no se actualiza | `databricks jobs list-runs --job-id <id del job prod> --limit 5`: ¿hubo run del domingo y salió bien? Después, `jobs get-run`, consulta 1 y, una vez desplegada, `checks.freshness` | si el job no corrió (pausado o rollback en curso), reanudarlo; si corrió en verde, los scrapers no trajeron nada nuevo: relanzarlos y después el job |
-| Frescura del run (tarea final; **activa al desplegarse**, T-08/T-13) | `Publish_Run_Summary` falla cuando `checks.freshness.ok` es falso: sin `data_date`, fecha futura o **> 8 días** | la novena tarea está en rojo con las ocho de negocio en verde | `databricks jobs get-run-output <task_run_id>`: con la tarea **en verde** devuelve el JSON de cierre con `checks`; si la tarea **falla**, devuelve la **traza de error** (los `checks` van en el mensaje del `RuntimeError`), no el JSON. `jobs get-run` muestra el `state_message`; `ops.run_metrics` guarda la fila en Delta cuando exista | si `data_age_days > 8`, la entrada está vieja: relanzar los scrapers y luego el job. Una fecha `null` significa `meta.json` corrupto: revisar la salida de `Build_for_Web-Dashboard` |
-| Ficheros pendientes (tarea final; **activa al desplegarse**, T-08/T-13) | `Publish_Run_Summary` falla cuando `checks.pending_files.ok` es falso: ficheros anteriores al inicio del run que ningún lote consumió **y** cero filas de bronce, **o** `listing_ok` falso (no se pudo listar la landing o el checkpoint, así que no hay prueba de backlog vacío) | la novena tarea está en rojo y `checks.pending_files` muestra pendientes en `by_source`, o `listing_ok: false` | `databricks jobs get-run-output <task_run_id>`: verde ⇒ JSON de cierre con `checks`; fallo ⇒ **traza de error**, con los `checks` en el mensaje del `RuntimeError`. Después, el listado barato de metadatos de `landing/<fuente>/` y del `commits/` del checkpoint | pendientes: el Auto Loader no vio los ficheros — revisar la ruta y el checkpoint (`checkpoints_root`), corregir y relanzar; una vez consistente el bronce, el silver necesita `force_full=true` (§9.5). `listing_ok: false`: arreglar el listado (ruta, credenciales) y relanzar — el run está en rojo a propósito, no hay verde falso |
+| Fallo (correo `on_failure`) | cualquier tarea que acaba en `FAILED`. `Publish_Run_Summary` es `run_if: ALL_DONE`: se le ha visto arrancar con siete dependientes fallidas (2026-11-03) y escribe su fila antes del `raise` (probado el 2026-11-03 con su propio fallo). La combinación —fila escrita con otra tarea en rojo— está `[NO VERIFICADO]` | llega el correo y el run está en rojo | `databricks jobs get-run <run_id>` y `databricks jobs get-run-output <task_run_id>` (§9.6.3) para el `task_key` que falla | leer la salida de esa tarea (traza o `state_message`), corregir la causa y relanzar el job; aquí no hace falta SQL |
+| Duración anómala (regla `health.rules[]` + correo `on_duration_warning_threshold_exceeded`; **desplegada en dev el 2026-11-03 y en prod el 2026-11-04**; el correo en sí está `[NO VERIFICADO]` porque ningún run ha pasado de 1500 s) | `RUN_DURATION_SECONDS` **> 1500 s** (25 min); el job se cancela a los `timeout_seconds: 1800` (30 min) | el correo de duración llega **con el run aún vivo** | `databricks jobs get-run <run_id>` (gratis, segundos después de arrancar) y la consulta 2 (§9.6.2) para las duraciones por tarea. Las columnas `*_duration_seconds` de `job_run_timeline` quedan a `0` en jobs multi-tarea: no usarlas | es un aviso, no un fallo: anotar la tarea y abrir reparación si se repite. A los 1800 s el run se cancela y se trata como un fallo |
+| Frescura publicada (workflow del dashboard) | `.github/workflows/dashboard.yml` (lunes 01:00 UTC) aborta **sin desplegar** si `meta.json.data_date` tiene más de 8 días | el workflow está en rojo y la web no se actualiza | `databricks jobs list-runs --job-id <id del job prod> --limit 5`: ¿hubo run del domingo y salió bien? Después, `jobs get-run`, consulta 1 y `checks.freshness` | si el job no corrió (pausado o rollback en curso), reanudarlo; si corrió en verde, los scrapers no trajeron nada nuevo: relanzarlos y después el job |
+| Frescura del run (tarea final; **desplegada en dev el 2026-11-03 y en prod el 2026-11-04**) | `Publish_Run_Summary` falla cuando `checks.freshness.ok` es falso: sin `data_date`, fecha futura o **> 8 días** | la novena tarea está en rojo con las ocho de negocio en verde | `databricks jobs get-run-output <task_run_id>`: con la tarea **en verde** devuelve el JSON de cierre con `checks`; si la tarea **falla**, devuelve la **traza de error** (los `checks` van en el mensaje del `RuntimeError`), no el JSON. `jobs get-run` muestra el `state_message`; `ops.run_metrics` guarda la fila en Delta —escrita **antes** del `raise`, así que un run en rojo también deja su fila (medido el 2026-11-03)— | si `data_age_days > 8`, la entrada está vieja: relanzar los scrapers y luego el job. Una fecha `null` significa `meta.json` corrupto: revisar la salida de `Build_for_Web-Dashboard` |
+| Ficheros pendientes (tarea final; **desplegada en dev el 2026-11-03 y en prod el 2026-11-04**) | `Publish_Run_Summary` falla cuando `checks.pending_files.ok` es falso: ficheros anteriores al inicio del run que ningún lote consumió **y** cero filas de bronce, **o** `listing_ok` falso (no se pudo listar la landing, así que no hay prueba de backlog vacío; un fallo al listar `commits/` viaja en `listing_error` y **no** cambia `listing_ok`) | la novena tarea está en rojo y `checks.pending_files` muestra pendientes en `by_source`, o `listing_ok: false` | `databricks jobs get-run-output <task_run_id>`: verde ⇒ JSON de cierre con `checks`; fallo ⇒ **traza de error**, con los `checks` en el mensaje del `RuntimeError`. Después, el listado barato de metadatos de `landing/<fuente>/` y del `commits/` del checkpoint | pendientes: el Auto Loader no vio los ficheros — revisar la ruta y el checkpoint (`checkpoints_root`), corregir y relanzar; una vez consistente el bronce, el silver necesita `force_full=true` (§9.5). `listing_ok: false`: arreglar el listado (ruta, credenciales) y relanzar — el run está en rojo a propósito, no hay verde falso |
 
 #### 9.6.2 Consultas versionadas
 
@@ -373,10 +385,11 @@ una tarea creados con las APIs legacy**; este job es `MULTI_TASK` (9 tareas). Qu
 a nivel de run valgan `0` es la comprobación de **T-06** (`evidence.md`,
 2026-11-03); lo que sostiene la sesión de **T-07** es la otra mitad: en un run de
 **8 tareas**, las duraciones **por tarea** son distintas de 0 (consulta 2). Por eso
-la duración se suma por periodos. La tabla puede tardar **hasta ~1 h** en reflejar
-un run — `[NO VERIFICADO]`: esa latencia exige un run fresco, así que se mide en
-T-08/T-13 — y, para un run en curso, la fuente es `databricks jobs get-run`
-(gratis).
+la duración se suma por periodos. La tabla **va con retraso**: el 2026-11-04 un run
+que había terminado **7 min 37 s** antes seguía sin aparecer (`count(*) = 0`), así
+que la latencia observada es **> 7 min 37 s** —la cifra exacta la dará el run
+programado del 2026-11-08, `[NO VERIFICADO]`—. Para un run recién terminado (o en
+curso) la fuente es `databricks jobs get-run` (gratis).
 
 **2. Tareas de un run** (`system.lakeflow.job_task_run_timeline`). Aquí `run_id` es
 el run de la **tarea**; el run del job es `job_run_id`:
@@ -438,24 +451,24 @@ importe resultante cubre **solo DBUs**: ni VMs, ni discos, ni storage, ni egress
    `Publish_Run_Summary`, los `checks` de cierre; si la tarea **falló**, la
    **traza de error** (los `checks` van en el mensaje del `RuntimeError`). El
    comportamiento en fallo está documentado por la API, pero aún no se ha
-   ejercitado en este repositorio (`[NO VERIFICADO]` hasta el primer run
-   instrumentado). Ambos
-   comandos son gratis y son la vía más rápida a «qué tarea y por qué»; una vez
-   desplegado, `ops.run_metrics` guarda la misma fila en Delta para el histórico.
-3. **Event log**: una vez desplegado, el clúster del job lo escribe en
-   `abfss://<container>@<storage_account>.dfs.core.windows.net/_eventlogs/`
-   (`spark.eventLog.enabled`, `spark.eventLog.dir` y rolling en
-   `resources/elt.job.yml`), que resuelve a `landing/_eventlogs/`. **dev y prod
-   comparten esa ruta** (no hay prefijo por target), así que T-08 tendrá que
-   separar los bytes por run al medir. No sustituye a la Spark UI, que sigue
-   disponible ~60 días tras el run: aporta retención más allá de esa ventana, un
-   fichero que se puede compartir y análisis offline. Para reproducir un run, el
-   notebook *Event Log Replay* en un clúster single-node — la pestaña **Event
-   log** del cómputo es el log de ciclo de vida del clúster, no este fichero.
-   **T-08** mide su tamaño en bytes, y si compensa, antes de decidir que se queda.
-   Si tras el primer run `landing/_eventlogs/` queda vacío o solo con ficheros
-   `.inprogress` (el driver puede destruirse al terminar), la alternativa
-   soportada es **compute log delivery**, y T-08 decide con los bytes medidos.
+   ejercitado en este repositorio (`[NO VERIFICADO]`). Ambos
+   comandos son gratis y son la vía más rápida a «qué tarea y por qué»;
+   `ops.run_metrics` (desplegada en dev el 2026-11-03 y en prod el 2026-11-04) guarda la misma fila en Delta
+   para el histórico.
+3. **Event log: no está activo, a propósito.** El clúster del job **no** escribe
+   event log de Spark. T-06 configuró `spark.eventLog.{enabled,dir,rolling}` a
+   `abfss://<container>@<storage_account>.dfs.core.windows.net/_eventlogs/` y el
+   clúster **no arrancó**: `SparkMisconfiguration: Invalid configuration value
+   detected for fs.azure.account.key`, con el bronce **472 s** en setup y las siete
+   tareas dependientes `UPSTREAM_FAILED` (run `873077346042958`, 2026-11-03). Las
+   tres claves se retiraron en `639d252`; `landing/_eventlogs/` tiene **0 ficheros,
+   0 B** (medido el 2026-11-04). No volver a activarlas sin otro mecanismo. La
+   **Spark UI** sigue disponible ~60 días tras el run y es donde se leen etapas,
+   tareas y progreso del streaming; la pestaña **Event log** del cómputo es el log
+   de ciclo de vida del clúster, no este fichero. Si algún día hace falta retención
+   más allá de esa ventana, la alternativa soportada es **compute log delivery**
+   (logs de driver y executors a un destino de la cuenta, sin `spark.eventLog.dir`):
+   **documentada, no implementada**.
 
 #### 9.6.4 Descartado y por qué
 
@@ -464,5 +477,6 @@ importe resultante cubre **solo DBUs**: ni VMs, ni discos, ni storage, ni egress
   backlog continuo que vigilar; además la métrica está en **Public Preview** y la
   tarea final ya falla si hay ficheros pendientes.
 - **Alertas SQL programadas**: cada evaluación **despierta el warehouse** (~0,43 €)
-  y es recurrente. Las alertas del propio job (`on_failure` hoy; la regla de
-  duración y los `checks` de la tarea final al desplegarse) cubren lo mismo gratis.
+  y es recurrente. Las alertas del propio job (`on_failure`; la regla de duración y
+  los `checks` de la tarea final, desplegadas en dev el 2026-11-03 y en prod el 2026-11-04) cubren lo mismo
+  gratis.

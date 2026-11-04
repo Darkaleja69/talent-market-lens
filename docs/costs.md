@@ -274,6 +274,45 @@ al menos un despertar.
   de VM y disco, el **método por duración queda como cota superior**, no como
   importe. Las **cifras históricas de este documento no se reescriben**.
 
+## Runs y sesiones SQL de la spec 011 (T-08, T-11 parcial, T-13 parcial — 2026-11-03/04)
+
+- **Sesión SQL de T-07 (2026-11-03):** **~0,43 € nominales** por la ventana
+  facturable de 10 min (una sola ventana, **8 consultas** en 6 min 44 s; detalle en
+  la sección anterior). Importe exacto del Account Console, `[NO VERIFICADO]`.
+- **Segunda sesión SQL (T-08, 2026-11-04):** **una ventana de ~10 min** (**07:13 →
+  07:23 UTC**) → **~0,43 € nominales**; importe exacto `[NO VERIFICADO]` hasta el
+  Account Console. Warehouse `STOPPED` **antes y después** (`warehouses list`,
+  `num_clusters: 0`). Lecturas: filas de `ops.run_metrics` en los dos catálogos, el
+  esquema de **13 columnas** y la latencia de `system.lakeflow`. **No se lanzó
+  ningún run desde la sesión.** La sesión fue **aprobada por la persona antes de
+  ejecutarla** (junto con el deploy y los runs), aunque el **RF-9** de `spec.md`
+  hablaba de «una sesión»; con las dos ventanas, el total de SQL sigue por debajo
+  del techo de **2,0 €**.
+- **Runs de dev (presupuesto de la spec: 3):**
+  - `873077346042958` (2026-11-03): **fallido al arrancar** por el event log en
+    `abfss://` (`SparkMisconfiguration`); bronce **472 s de setup**, las 7
+    dependientes `UPSTREAM_FAILED`, el cierre se lanzó y **no escribió fila**.
+    **Consume 1 de los 3 runs** aunque el pipeline no llegara a ejecutarse.
+  - `1048410431217707` (2026-11-03): **8/8 tareas de negocio en verde**, **922 s**;
+    el cierre quedó en rojo por `listing_ok: false` (defecto corregido en
+    `808a3d7`); bronce 472 s de setup + **146 s** de ejecución. **Consume el run 2.**
+  - `1015457552352783` (2026-11-04): **9/9**, **862 s**; bronce 383 s de setup +
+    **93 s** de ejecución; **0 filas ingeridas** (mide idempotencia). **Consume el
+    run 3.**
+  - **El presupuesto de 3 runs de dev queda agotado** (el fallido consume uno). El
+    run que falta para cerrar T-11 —ingesta con cierre en verde **y** su repetición
+    sin ficheros— y cualquier otro **necesitan autorización explícita**.
+- **Run de producción manual (T-13 parcial, 2026-11-04):** `1050766241907151`,
+  **9/9**, **643 s**; bronce 142 s de setup + **144 s** de ejecución. Va al
+  **presupuesto de producción de la 009**, no al techo de dev; la cadencia normal
+  es el run programado del domingo.
+- **Referencia de coste por run (medida en T-07):** **0,045956 USD** de DBU para un
+  run de **744 s** (`PREMIUM_JOBS_COMPUTE`), **solo DBU a precio de lista**: sin
+  VMs, discos, storage ni egress, y en **USD**. No es un importe en EUR ni la
+  factura completa; sirve como orden de magnitud por run. Las cifras de esta
+  sección (922 s, 862 s, 643 s) son **duraciones**, no euros: **no se convierten
+  aquí** para no mezclar magnitudes.
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento

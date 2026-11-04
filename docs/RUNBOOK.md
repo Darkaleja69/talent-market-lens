@@ -189,9 +189,10 @@ and connect the model to the `job_offers.gold.*` tables. The model uses
 
 ## 9. ELT as code: Databricks Asset Bundle, CI/CD and cutover
 
-The production ELT job —**one job with 8 tasks**: Bronze → 4 Silver (parallel) →
-Gold → web export + report export— is **versioned as code** in the repository and deployed with
-the Databricks CLI. `databricks.yml` holds the bundle, its targets and the
+The production ELT job —**one job with 9 tasks**: Bronze → 4 Silver (parallel) →
+Gold → web export + report export, plus the closing task — is **versioned as code**
+in the repository and deployed with the Databricks CLI. `databricks.yml` holds the
+bundle, its targets and the
 schedule (the `prod` target overrides it); `resources/elt.job.yml` holds the job
 definition (tasks, `depends_on`, compute, timeout and notifications). Notebooks
 are referenced from the bundle's own synced files, not from a Git folder.
@@ -337,25 +338,35 @@ window before a Sunday, never a manual full run outside the schedule.
 
 ### 9.8 Alerts, versioned queries and diagnosis without the warehouse (spec 011)
 
-Two surfaces are **active today**: the failure email (`on_failure` in
-`resources/elt.job.yml`) and the published-freshness check of the dashboard
-workflow. The rest arrives **with the deploy** (T-08/T-13): the duration health
-rule, the event log and the ninth task `Publish_Run_Summary`, which records its
-`checks` in `ops.run_metrics`. That deploy is pending — the jobs running today
-(dev `320947022571947`, prod `916863262593632`) still have **8 tasks**, and
-`ops.run_metrics` is created by the first `record`. None of these surfaces needs
-the SQL warehouse. The thresholds live in the code; this section says what each
-one means, which query answers it and what to do.
+**Deployed in dev on 2026-11-03 and in prod on 2026-11-04**: the duration health rule
+(`RUN_DURATION_SECONDS > 1500`), the ninth task `Publish_Run_Summary` —which
+records its `checks` in `ops.run_metrics`— and the **four** closing checks
+(`bronze_summary`, `bronze_sources`, `freshness` and `pending_files`). Both jobs
+now have **9 tasks** (dev `320947022571947`, prod `916863262593632`), and
+`ops.run_metrics` exists in `job_offers_dev` and `job_offers` with the **13
+columns** of the contract. Two surfaces were already
+active before: the failure email (`on_failure` in `resources/elt.job.yml`) and the
+published-freshness check of the dashboard workflow. **The Spark event log is NOT
+active**: it was retired in `639d252` because this job cluster does not start with
+`spark.eventLog.dir` pointing at `abfss://` (§9.8.3). None of these surfaces needs
+the SQL warehouse. The thresholds live in the code; this section says what each one
+means, which query answers it and what to do.
+
+> **`system.lakeflow` is slow.** Measured on 2026-11-04: a run that had finished
+> **7 min 37 s** earlier was still **not** in `job_run_timeline` (`count(*) = 0`
+> for its `run_id`). Do not wait for a just-finished run there: use
+> `databricks jobs get-run` (free) for the run you have just seen end. The exact
+> latency is `[NO VERIFICADO]` until the scheduled run of 2026-11-08 brackets it.
 
 #### 9.8.1 What each alert watches and what to do
 
 | Alert | Watches | Symptom | First check | Action |
 |---|---|---|---|---|
-| Failure (`on_failure` email) | any task ending `FAILED`. Once deployed, `Publish_Run_Summary` still runs (`run_if: ALL_DONE`), so the run writes its row before failing | the email arrives and the run is red | `databricks jobs get-run <run_id>` and `databricks jobs get-run-output <task_run_id>` (§9.8.3) for the failing `task_key` | read that task's output (traceback or `state_message`), fix the cause and re-run the job; nothing here needs SQL |
-| Anomalous duration (health rule + `on_duration_warning_threshold_exceeded` email; **in effect once deployed**, T-08/T-13) | `RUN_DURATION_SECONDS` **> 1500 s** (25 min); the job itself is cancelled at `timeout_seconds: 1800` (30 min) | the duration email arrives while the run is **still alive** | `databricks jobs get-run <run_id>` (free, seconds after the run starts) and query 2 (§9.8.2) for the per-task durations. The `*_duration_seconds` columns of `job_run_timeline` stay `0` for multi-task jobs: do not use them | it is a warning, not a failure: note the task and open a repair if it repeats. At 1800 s the run is cancelled and it is triaged as a failure |
-| Published freshness (dashboard workflow) | `.github/workflows/dashboard.yml` (Mondays 01:00 UTC) aborts **without deploying** when `meta.json.data_date` is older than 8 days | the workflow is red and the site is not updated | `databricks jobs list-runs --job-id <prod job id> --limit 5`: did the Sunday run happen and succeed? Then `jobs get-run`, query 1 and, once deployed, `checks.freshness` | if the job did not run (paused, or a rollback in progress) resume it; if it ran green, the scrapers delivered nothing new: re-run them and then the job |
-| Run freshness (closing task; **active once deployed**, T-08/T-13) | `Publish_Run_Summary` fails when `checks.freshness.ok` is false: no `data_date`, a future date or **> 8 days** | the ninth task is red while the eight business tasks are green | `databricks jobs get-run-output <task_run_id>`: on a **green** task it returns the closing JSON with `checks`; on a **failed** one it returns the **error traceback** (the `checks` go in the `RuntimeError` message), not the JSON. `jobs get-run` shows the `state_message`; `ops.run_metrics` keeps the row in Delta once it exists | if `data_age_days > 8` the input is stale: re-run the scrapers and then the job. A `null` date means `meta.json` is corrupt: check the `Build_for_Web-Dashboard` output |
-| Pending files (closing task; **active once deployed**, T-08/T-13) | `Publish_Run_Summary` fails when `checks.pending_files.ok` is false: files older than the run start that no batch consumed **and** zero bronze rows in the run, **or** `listing_ok` false (the landing or the checkpoint could not be listed, so an empty backlog is not proven) | the ninth task is red and `checks.pending_files` shows pending files in `by_source`, or `listing_ok: false` | `databricks jobs get-run-output <task_run_id>`: green ⇒ closing JSON with `checks`; failed ⇒ the **error traceback**, with the `checks` in the `RuntimeError` message. Then the cheap metadata listing of `landing/<source>/` and of the checkpoint's `commits/` | pending files: the Auto Loader did not see them — check the path and the checkpoint (`checkpoints_root`), fix and re-run; once bronze is consistent, silver needs `force_full=true` (§9.7). `listing_ok: false`: fix the listing (path, credentials) and re-run — the run is red on purpose, there is no false green |
+| Failure (`on_failure` email) | any task ending `FAILED`. `Publish_Run_Summary` is `run_if: ALL_DONE`: it has been seen starting with seven dependencies failed (2026-11-03), and it writes its row before the `raise` (proven 2026-11-03 by its own failure). The combination —row written with another task red— is `[NO VERIFICADO]` | the email arrives and the run is red | `databricks jobs get-run <run_id>` and `databricks jobs get-run-output <task_run_id>` (§9.8.3) for the failing `task_key` | read that task's output (traceback or `state_message`), fix the cause and re-run the job; nothing here needs SQL |
+| Anomalous duration (health rule + `on_duration_warning_threshold_exceeded` email; **deployed in dev on 2026-11-03 and in prod on 2026-11-04**; the email itself is `[NO VERIFICADO]` because no run has passed 1500 s yet) | `RUN_DURATION_SECONDS` **> 1500 s** (25 min); the job itself is cancelled at `timeout_seconds: 1800` (30 min) | the duration email arrives while the run is **still alive** | `databricks jobs get-run <run_id>` (free, seconds after the run starts) and query 2 (§9.8.2) for the per-task durations. The `*_duration_seconds` columns of `job_run_timeline` stay `0` for multi-task jobs: do not use them | it is a warning, not a failure: note the task and open a repair if it repeats. At 1800 s the run is cancelled and it is triaged as a failure |
+| Published freshness (dashboard workflow) | `.github/workflows/dashboard.yml` (Mondays 01:00 UTC) aborts **without deploying** when `meta.json.data_date` is older than 8 days | the workflow is red and the site is not updated | `databricks jobs list-runs --job-id <prod job id> --limit 5`: did the Sunday run happen and succeed? Then `jobs get-run`, query 1 and `checks.freshness` | if the job did not run (paused, or a rollback in progress) resume it; if it ran green, the scrapers delivered nothing new: re-run them and then the job |
+| Run freshness (closing task; **deployed in dev 2026-11-03 and in prod 2026-11-04**) | `Publish_Run_Summary` fails when `checks.freshness.ok` is false: no `data_date`, a future date or **> 8 days** | the ninth task is red while the eight business tasks are green | `databricks jobs get-run-output <task_run_id>`: on a **green** task it returns the closing JSON with `checks`; on a **failed** one it returns the **error traceback** (the `checks` go in the `RuntimeError` message), not the JSON. `jobs get-run` shows the `state_message`; `ops.run_metrics` keeps the row in Delta —written **before** the task raises, so a red run still leaves its row (measured 2026-11-03) | if `data_age_days > 8` the input is stale: re-run the scrapers and then the job. A `null` date means `meta.json` is corrupt: check the `Build_for_Web-Dashboard` output |
+| Pending files (closing task; **deployed in dev 2026-11-03 and in prod 2026-11-04**) | `Publish_Run_Summary` fails when `checks.pending_files.ok` is false: files older than the run start that no batch consumed **and** zero bronze rows in the run, **or** `listing_ok` false (the landing could not be listed, so an empty backlog is not proven; a failure listing `commits/` travels in `listing_error` and does **not** change `listing_ok`) | the ninth task is red and `checks.pending_files` shows pending files in `by_source`, or `listing_ok: false` | `databricks jobs get-run-output <task_run_id>`: green ⇒ closing JSON with `checks`; failed ⇒ the **error traceback**, with the `checks` in the `RuntimeError` message. Then the cheap metadata listing of `landing/<source>/` and of the checkpoint's `commits/` | pending files: the Auto Loader did not see them — check the path and the checkpoint (`checkpoints_root`), fix and re-run; once bronze is consistent, silver needs `force_full=true` (§9.7). `listing_ok: false`: fix the listing (path, credentials) and re-run — the run is red on purpose, there is no false green |
 
 #### 9.8.2 Versioned queries
 
@@ -407,10 +418,11 @@ with `max_by(…, period_end_time)`. The
 (9 tasks). That the run-level `*_duration_seconds` read `0` is the **T-06** check
 (`evidence.md`, 2026-11-03); what the T-07 session supports is the other half: in a
 run of **8 tasks** the **per-task durations are non-zero** (query 2). Duration is
-therefore summed over the run's periods. The table can take **up to ~1 h** to
-reflect a run — `[NO VERIFICADO]`: that latency needs a fresh run, so it is
-measured in T-08/T-13 — and for a run in progress the source is
-`databricks jobs get-run` (free).
+therefore summed over the run's periods. The table **lags behind reality**: on
+2026-11-04 a run that had finished **7 min 37 s** earlier was still missing
+(`count(*) = 0`), so the observed latency is **> 7 min 37 s** —the exact figure
+comes from the scheduled run of 2026-11-08, `[NO VERIFICADO]`—. For a run that has
+just finished (or is in progress) the source is `databricks jobs get-run` (free).
 
 **2. Tasks of one run** (`system.lakeflow.job_task_run_timeline`). Here `run_id` is
 the **task** run; the job run is `job_run_id`:
@@ -472,24 +484,24 @@ join resolves with `pricing.default` (the list price; the table also carries
    `Publish_Run_Summary`, the closing `checks`; on a **failed** task, the **error
    traceback** instead (the `checks` travel in the `RuntimeError` message). The
    failed-task behaviour is API-documented but not yet exercised in this repo
-   (`[NO VERIFICADO]` until the first instrumented run). Both
-   commands are free and are the fastest path to "which task and why"; once
-   deployed, `ops.run_metrics` keeps the same row in Delta for the run history.
-3. **Event log**: once deployed, the job cluster writes it to
-   `abfss://<container>@<storage_account>.dfs.core.windows.net/_eventlogs/`
-   (`spark.eventLog.enabled`, `spark.eventLog.dir` and rolling in
-   `resources/elt.job.yml`), which resolves to `landing/_eventlogs/`. **dev and
-   prod share that path** (there is no per-target prefix), so T-08 has to split
-   the bytes per run when it measures. It does not replace the Spark UI, which
-   stays available for ~60 days after the run: it adds retention beyond that
-   window, a file that can be shared, and offline analysis. To replay one run,
-   the *Event Log Replay* notebook on a single-node cluster — the cluster's
-   **Event log** tab is the compute lifecycle log, not this file. **T-08**
-   measures its size in bytes, and whether it earns its keep, before it is kept.
-   If after the first run `landing/_eventlogs/` is empty or holds only
-   `.inprogress` files (the driver can be destroyed when the run ends), the
-   supported fallback is **compute log delivery**, and T-08 decides with the
-   measured bytes.
+   (`[NO VERIFICADO]`). Both
+   commands are free and are the fastest path to "which task and why";
+   `ops.run_metrics` (deployed in dev on 2026-11-03 and in prod on 2026-11-04) keeps the same row in Delta for
+   the run history.
+3. **Event log: not active, on purpose.** The job cluster does **not** write a
+   Spark event log. T-06 configured `spark.eventLog.{enabled,dir,rolling}` to
+   `abfss://<container>@<storage_account>.dfs.core.windows.net/_eventlogs/` and the
+   job cluster **did not start**: `SparkMisconfiguration: Invalid configuration
+   value detected for fs.azure.account.key`, with the bronze task stuck 472 s in
+   setup and the seven dependent tasks `UPSTREAM_FAILED` (run `873077346042958`,
+   2026-11-03). The three keys were removed in `639d252`; `landing/_eventlogs/`
+   holds **0 files, 0 B** (measured 2026-11-04). Do not re-enable them without a
+   different mechanism. The **Spark UI** stays available for ~60 days after the
+   run and is the place to read stages, tasks and streaming progress; the compute's
+   **Event log** tab is the cluster lifecycle log, not this file. If retention
+   beyond that window is ever needed, the supported alternative is **compute log
+   delivery** (driver/executor logs to an account destination, without
+   `spark.eventLog.dir`): **documented, not implemented**.
 
 #### 9.8.4 Discarded, and why
 
@@ -498,5 +510,6 @@ join resolves with `pricing.default` (the list price; the table also carries
   continuous backlog to watch; on top of that the metric is in **Public
   Preview** and the closing task already fails on pending files.
 - **Scheduled SQL alerts**: each evaluation **wakes the warehouse** (~0.43 €) and
-  is recurrent. The job's own alerts (`on_failure` today; the duration rule and
-  the closing task's `checks` once deployed) cover the same ground for free.
+  is recurrent. The job's own alerts (`on_failure`; the duration rule and the
+  closing task's `checks`, deployed in dev on 2026-11-03 and in prod on 2026-11-04) cover the same ground for
+  free.
