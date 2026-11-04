@@ -30,7 +30,11 @@ sys.path.insert(0, TESTS_DIR)
 sys.path.insert(0, os.path.dirname(TESTS_DIR))
 
 import streaming_lab as lab  # noqa: E402
-from _local_spark import require_writable_local_fs  # noqa: E402
+from _local_spark import (  # noqa: E402
+    require_writable_local_fs,
+    restore_shared_session,
+    snapshot_shared_session,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +47,9 @@ from _local_spark import require_writable_local_fs  # noqa: E402
 def spark():
     """Create (or reuse) the lab session and restore its time zone.
 
+    The fixture pins UTC and stops the session in its teardown, so the zone
+    it sets does not reach the next module (the inheritance documented in
+    ``SHARED_SESSION_KEYS`` comes from a module that leaves it running).
     HADOOP_HOME is configured by ``conftest.py`` at import time, before any
     SparkSession exists, so this fixture does not touch the environment.
     """
@@ -50,6 +57,10 @@ def spark():
     os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
     warehouse = tempfile.mkdtemp(prefix="spark-warehouse-")
     ipv4 = "-Djava.net.preferIPv4Stack=true"
+    # getOrCreate copies the runtime SQL options of this builder (the two
+    # shuffle partitions) into the session of an earlier module; record what
+    # that session had before the copy.
+    previous_config = snapshot_shared_session(SparkSession.getActiveSession())
     session = (
         SparkSession.builder
         .master("local[2]")
@@ -88,6 +99,12 @@ def spark():
             session.conf.set(
                 "spark.sql.session.timeZone", previous_time_zone
             )
+        # Put the settings captured in ``previous_config`` back where they
+        # were found, and before the ``stop()`` below on purpose. The fixture
+        # stops the session right away, so the next module creates a new one
+        # anyway: this is belt and braces, it preserves the invariant should
+        # someone remove the ``stop()`` or reorder the teardown.
+        restore_shared_session(session, previous_config)
         session.stop()
 
 

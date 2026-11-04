@@ -37,7 +37,11 @@ sys.path.insert(0, DATABRICKS_DIR)
 sys.path.insert(0, TESTS_DIR)
 
 import Run_Metrics as metrics  # noqa: E402
-from _local_spark import require_writable_local_fs  # noqa: E402
+from _local_spark import (  # noqa: E402
+    require_writable_local_fs,
+    restore_shared_session,
+    snapshot_shared_session,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1212,7 +1216,11 @@ def spark():
     extension nor the catalog key (measured on this host), so both are passed
     to the builder. ``getOrCreate`` may return a session created by another
     test module, where the builder configs no longer apply: if such session
-    has no Delta extension the integration tests skip instead of failing.
+    has no Delta extension the integration tests skip instead of failing, and
+    the two keys of ``SHARED_SESSION_KEYS`` that this builder copied into it
+    are restored so the next module does not inherit them.
+    ``spark.sql.session.timeZone`` is inherited on purpose (see
+    ``SHARED_SESSION_KEYS``) and no module depends on it.
     """
     pytest.importorskip(
         "delta",
@@ -1227,6 +1235,9 @@ def spark():
     os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
     warehouse = tempfile.mkdtemp(prefix="run-metrics-warehouse-")
     active = SparkSession.getActiveSession()
+    # getOrCreate copies the runtime SQL options of this builder into the
+    # session of an earlier module; record what that session had before.
+    previous_config = snapshot_shared_session(active)
     builder = (
         SparkSession.builder.master("local[2]")
         .appName("run-metrics-tests")
@@ -1263,6 +1274,14 @@ def spark():
                 f"Detalle: {detail[-400:]}"
             )
         raise
+    # A reused session cannot use Delta: the extension is a static key that
+    # Spark ignores on an existing session and the Delta jars are not on that
+    # context's classloader. Leave the shared session as it was found: the
+    # catalog this builder just copied into it breaks every table lookup of the
+    # modules that come after (the session would inherit a ``spark_catalog``
+    # whose class it cannot load). A session created here keeps its Delta
+    # configuration and the integration tests run.
+    restore_shared_session(session, previous_config)
     extensions = session.conf.get("spark.sql.extensions", "")
     catalog = session.conf.get("spark.sql.catalog.spark_catalog", "")
     if DELTA_EXTENSION not in extensions or DELTA_CATALOG not in catalog:
