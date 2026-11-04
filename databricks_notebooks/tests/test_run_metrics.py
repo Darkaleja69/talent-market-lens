@@ -739,6 +739,7 @@ def test_build_checks_is_green_with_fresh_data_and_no_backlog():
             "by_source": {},
             "bronze_rows": 135,
             "listing_ok": True,
+            "listing_error": None,
         },
     }
 
@@ -856,6 +857,7 @@ def test_pending_files_fail_only_when_the_batch_was_empty():
         "by_source": pending,
         "bronze_rows": 0,
         "listing_ok": True,
+        "listing_error": None,
     }
 
     moved = metrics.build_checks(
@@ -881,6 +883,7 @@ def test_pending_files_fail_when_the_landing_could_not_be_listed():
         "by_source": {},
         "bronze_rows": 135,
         "listing_ok": False,
+        "listing_error": None,
     }
 
     # Only an explicit True keeps the check green (None or a truthy value do
@@ -891,6 +894,121 @@ def test_pending_files_fail_when_the_landing_could_not_be_listed():
         )
         assert unchecked["pending_files"]["ok"] is False
         assert unchecked["pending_files"]["listing_ok"] is False
+
+
+def test_listing_error_is_published_normalized_for_diagnosis():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        data_date="2026-10-31",
+        pending={},
+        listing_ok=False,
+        listing_error=(
+            "indeed: java.io.IOException:\n"
+            "  Operation failed: \"leases\"\n\tcannot be listed"
+        ),
+        now=CHECKS_NOW,
+    )
+
+    entry = checks["pending_files"]
+    assert entry["listing_ok"] is False
+    assert entry["ok"] is False
+    assert entry["listing_error"] == (
+        'indeed: java.io.IOException: Operation failed: "leases" cannot be '
+        "listed"
+    )
+    # One line, no tabs: the value goes into a JSON column of the row.
+    assert "\n" not in entry["listing_error"]
+    assert "\t" not in entry["listing_error"]
+
+
+def test_listing_error_is_none_when_the_listing_worked():
+    green = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY, data_date="2026-10-31", now=CHECKS_NOW
+    )
+    assert green["pending_files"]["listing_ok"] is True
+    assert green["pending_files"]["listing_error"] is None
+
+    # A missing, empty or whitespace-only error is "no error", and a value
+    # that is not text is never published as a string.
+    for value in (None, "", "   ", 0, [], {}):
+        checks = metrics.build_checks(
+            bronze_summary=BRONZE_SUMMARY, listing_error=value, now=CHECKS_NOW
+        )
+        assert checks["pending_files"]["listing_error"] is None
+
+
+def test_listing_error_does_not_change_the_decision_of_the_check():
+    with_pending = {
+        "indeed": {
+            "count": 2,
+            "oldest": f"{LANDING_ROOT}/indeed/a.parquet",
+            "examples": [f"{LANDING_ROOT}/indeed/a.parquet"],
+        }
+    }
+
+    def check(**overrides):
+        return metrics.build_checks(
+            bronze_summary=ZERO_ROWS_SUMMARY,
+            pending=with_pending,
+            now=CHECKS_NOW,
+            **overrides,
+        )["pending_files"]
+
+    # listing_ok is what decides: the error text only travels with it.
+    assert check()["ok"] is False
+    assert check(listing_error="indeed: boom")["ok"] is False
+    assert check(listing_ok=True, listing_error="indeed: boom")["ok"] is False
+    assert check(listing_ok=False, listing_error="indeed: boom")["ok"] is False
+    assert check(listing_ok=False)["ok"] is False
+    # And it never wakes a check that was green.
+    empty = metrics.build_checks(
+        bronze_summary=ZERO_ROWS_SUMMARY,
+        pending={},
+        listing_error="commits indeed: not found",
+        now=CHECKS_NOW,
+    )["pending_files"]
+    assert empty["ok"] is True
+    assert empty["listing_ok"] is True
+    assert empty["listing_error"] == "commits indeed: not found"
+
+
+def test_listing_error_is_truncated_to_keep_the_row_readable():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        listing_ok=False,
+        listing_error="x" * 5000,
+        now=CHECKS_NOW,
+    )
+
+    published = checks["pending_files"]["listing_error"]
+    assert len(published) == 300
+    assert published == "x" * 300
+
+    # The cut is applied after collapsing, so a long multi-line error fits in
+    # one readable line.
+    lines = metrics.build_checks(
+        listing_ok=False,
+        listing_error=("line\n" * 400) + "tail",
+        now=CHECKS_NOW,
+    )["pending_files"]["listing_error"]
+    assert len(lines) == 300
+    assert "\n" not in lines
+
+
+def test_listing_error_is_serializable_with_the_rest_of_the_checks():
+    checks = metrics.build_checks(
+        bronze_summary=BRONZE_SUMMARY,
+        data_date="2026-10-31",
+        listing_ok=False,
+        listing_error='indeed: java.io.IOException: "leases" falló\n\t(ABFS)',
+        now=CHECKS_NOW,
+    )
+
+    encoded = metrics.checks_json(checks)
+    assert '"listing_error"' in encoded
+    assert json.loads(encoded)["pending_files"]["listing_error"] == (
+        'indeed: java.io.IOException: "leases" falló (ABFS)'
+    )
 
 
 def test_checks_are_serializable_without_a_json_default():
@@ -997,21 +1115,55 @@ def test_run_summary_reads_the_bronze_task_value_and_meta_json():
     assert "_as_date" not in code
 
 
-def test_run_summary_lists_files_and_commits_without_reading_data():
+def test_run_summary_lists_the_landing_with_the_dataframe_api_only():
     code = _notebook_code()
 
-    assert "listFiles(root, True)" in code
-    assert "getModificationTime()" in code
+    # The Java Hadoop filesystem of the notebook has no ABFS credentials (the
+    # live run failed on it), so the landing is listed with the DataFrame API
+    # of the job, which shares the credentials of the rest of the run.
+    assert "_jsc" not in code
+    assert "_jvm" not in code
+    assert "listFiles(" not in code
+    assert "hadoopConfiguration" not in code
+    assert 'spark.read.format("binaryFile")' in code
+    assert '.option("recursiveFileLookup", "true")' in code
+    # Only the file metadata is selected: `content` is never requested, which
+    # is what guarantees that no payload is read.
+    assert '.select("path", "modificationTime")' in code
+    assert '"content"' not in code
+
+    # The last commit of each checkpoint keeps its cheap dbutils listing.
     assert "dbutils.fs.ls(path)" in code
     assert "/ckpt/commits" in code
-    # A failed listing is never "nothing pending".
-    assert "source_files, source_ok = _landing_files(source)" in code
-    assert "listing_ok = listing_ok and source_ok" in code
-    assert "return found, False" in code
-    assert "return found, True" in code
-    # Metadata listing only: no table read and no Parquet read.
-    assert "spark.read" not in code
+    # Metadata only: no table read.
     assert "spark.table(" not in code
+
+
+def test_run_summary_keeps_a_listing_error_for_the_checks():
+    code = _notebook_code()
+
+    # A failed listing is never "nothing pending", and its cause travels to
+    # the checks instead of being swallowed.
+    assert "def _landing_files(source):" in code
+    assert "source_files, source_error = _landing_files(source)" in code
+    assert "listing_ok = listing_ok and not source_error" in code
+    assert 'return [], f"{source}: ' in code
+    assert "return found, None" in code
+    # The checkpoint listing failure is collected in the same text.
+    assert "commit_ms, commit_error = _last_commit(source)" in code
+    assert 'listing_error = "; ".join(listing_errors)' in code
+
+
+def test_run_summary_converts_the_mtime_pinned_to_utc():
+    code = _notebook_code()
+
+    # A session-zone dependent conversion would move the pending cutoff, so
+    # the datetime is pinned to UTC explicitly before taking its timestamp.
+    assert "def _epoch_ms(moment):" in code
+    assert "moment.replace(tzinfo=dt.timezone.utc)" in code
+    assert "int(moment.timestamp() * 1000)" in code
+    assert "unix_timestamp(" not in code
+    assert ".cast(" not in code
 
 
 def test_run_summary_delegates_the_rules_to_the_module():
@@ -1020,6 +1172,7 @@ def test_run_summary_delegates_the_rules_to_the_module():
     assert "Run_Metrics.pending_files(files, commits, run_start_ms)" in code
     assert "Run_Metrics.build_checks(" in code
     assert "listing_ok=listing_ok" in code
+    assert "listing_error=listing_error" in code
     assert "Run_Metrics.failed_checks(checks)" in code
     assert "Run_Metrics.build_run_row(" in code
     assert "Run_Metrics.record(" in code

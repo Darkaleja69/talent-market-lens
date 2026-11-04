@@ -324,7 +324,7 @@ es la referencia de lo que el primer run tras la reanudación debería consumir.
 
 `databricks_notebooks/run_summary.ipynb` (8 celdas) solo coordina; la lógica vive en
 `Run_Metrics.py` (`pending_files`, `build_checks`, `failed_checks`, `parse_data_date`)
-y los tests puros son **58 passed** en 0,5 s:
+y los tests puros son **65 passed** en 0,9 s:
 
 1. valida `run_id`, `job_id`, `started_at` y `storage_account` (sin `run_id` no hay
    fila; falla con mensaje en español);
@@ -333,12 +333,20 @@ y los tests puros son **58 passed** en 0,5 s:
 3. lee `meta.json` con `dbutils.fs.head` y normaliza la fecha con
    `parse_data_date`, que **nunca lanza**: un valor vacío o corrupto se publica como
    `null` y lo caza el check de frescura (así la fila siempre se escribe);
-4. lista `landing/<fuente>/` y `commits/` del checkpoint **solo con metadatos**
-   (`fs.listFiles` y `dbutils.fs.ls`), nunca lee Parquet;
+4. lista `landing/<fuente>/` con la **API DataFrame** (`format("binaryFile")` con
+   `recursiveFileLookup`, seleccionando **solo** `path` y `modificationTime`, sin pedir
+   `content`: no se lee ningún fichero) y `commits/` del checkpoint con `dbutils.fs.ls`;
+   la API Java de Hadoop del notebook no tiene credenciales en ABFS (falló en vivo el
+   2026-11-03) y la de DataFrame sí las comparte con el resto del job;
 5. calcula `pending = pending_files(files, commits, run_start_ms)` con
    `commit < modification_ms < run_start_ms`: lo que llega **durante** el run no
-   cuenta. Si el listado falla, `listing_ok=False` y el check falla (no hay verde
-   falso);
+   cuenta. El `modificationTime` se convierte a epoch en ms fijando UTC
+   (`replace(tzinfo=timezone.utc)`), sin `unix_timestamp`/`cast`, para que no dependa
+   de `spark.sql.session.timeZone`. Si el listado de una fuente falla,
+   `listing_ok=False` y el check falla (no hay verde falso), y el texto del error
+   (una línea, recortado) viaja en `listing_error`; un fallo al listar `commits/`
+   viaja en ese mismo texto pero **no** cambia `listing_ok`, porque un checkpoint
+   que aún no existe es el primer run de la fuente;
 6. construye `checks` (JSON nativo) y la fila, y llama a `record` **con logger**;
 7. `raise RuntimeError` si algún check no es `True` o `record` devolvió `failed`,
    **después** de escribir; `dbutils.notebook.exit` va al final (un `exit` antes del
@@ -350,8 +358,14 @@ Contrato de `checks`:
 {"bronze_summary": {"ok": true, "sources": ["indeed", "infojobs", "linkedin", "multi_site"]},
  "bronze_sources": {"ok": true, "expected": 4, "present": 4},
  "freshness": {"ok": true, "data_date": "2026-10-31", "data_age_days": 2, "max_age_days": 8},
- "pending_files": {"ok": true, "listing_ok": true, "total": 0, "by_source": {}, "bronze_rows": 135}}
+ "pending_files": {"ok": true, "listing_ok": true, "listing_error": null, "total": 0, "by_source": {}, "bronze_rows": 135}}
 ```
+
+`listing_error` existe para diagnosticar desde la propia fila por qué el listado
+falló: sin él, `listing_ok=false` solo dice que el run está en rojo. Es aditivo y
+**no decide** nada (sigue mandando `listing_ok`); se publica `null` cuando no hubo
+ningún error y, si lo hubo, una línea recortada a ~300 caracteres con el error del
+landing (que además deja `listing_ok=false`) y/o el de `commits/`.
 
 Reglas: `freshness` exige fecha, no futura y ≤ 8 días; `pending_files` solo falla si
 hay pendientes **y** `bronze_rows == 0`; `bronze_sources` exige las 4 fuentes.
@@ -367,10 +381,12 @@ Job: novena tarea `Publish_Run_Summary` con `run_if: ALL_DONE`, `depends_on` de 
 `{{job.start_time.iso_datetime}}`). `bundle validate -t dev` → `Validation OK!` y el
 grafo resuelto muestra las 9 tareas.
 
-`[NO VERIFICADO]` hasta T-08: `taskValues.get` real, `dbutils.fs.head`/`ls` y
-`fs.listFiles` sobre ABFS, el formato exacto de `{{job.start_time.iso_datetime}}`, la
-escritura en `ops.run_metrics` en DBR 17.3 y que la fila quede cuando falla otra tarea
-(`ALL_DONE` real).
+`[NO VERIFICADO]` hasta T-08: `taskValues.get` real, el formato exacto de
+`{{job.start_time.iso_datetime}}`, la escritura en `ops.run_metrics` en DBR 17.3 y que
+la fila quede cuando falla otra tarea (`ALL_DONE` real). En la primera prueba en vivo
+(run `1048410431217707`, 2026-11-03) sí funcionaron `dbutils.fs.head`/`ls` sobre ABFS
+y la API DataFrame; la que **no** tiene credenciales en el notebook es la API Java de
+Hadoop (`fs.listFiles`), sustituida en T-05 por `format("binaryFile")`.
 
 ## 5. Umbrales de alerta
 

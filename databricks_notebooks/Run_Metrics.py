@@ -95,6 +95,9 @@ METRICS_VIEW = "__run_metrics"
 #: Maximum length of the error returned by :func:`record` (log hygiene).
 _MAX_ERROR_CHARS = 500
 
+#: Maximum length of ``listing_error`` published in the pending-files check.
+_MAX_LISTING_ERROR_CHARS = 300
+
 #: Maximum age of the published data before the run fails (days). The same
 #: threshold as the dashboard workflow, which refuses to publish older data.
 MAX_DATA_AGE_DAYS = 8
@@ -117,6 +120,20 @@ def table_name(catalog, schema=OPS_SCHEMA) -> str:
 def _as_dict(value):
     """Return ``value`` when it is a mapping, or an empty dict."""
     return value if isinstance(value, dict) else {}
+
+
+def _none_if_blank(value):
+    """Collapse ``value`` to one line, or ``None`` when blank or not a string.
+
+    The listing error of the closing task is published in the checks: a
+    missing value or a whitespace-only one means "there was no error" and is
+    published as ``None``, and a long one is truncated to
+    :data:`_MAX_LISTING_ERROR_CHARS` so the row stays readable.
+    """
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split())
+    return text[:_MAX_LISTING_ERROR_CHARS] or None
 
 
 def _int_or_none(value):
@@ -426,6 +443,7 @@ def build_checks(
     data_date=None,
     pending=None,
     listing_ok=True,
+    listing_error=None,
     now=None,
     max_age_days=MAX_DATA_AGE_DAYS,
 ) -> dict:
@@ -434,8 +452,10 @@ def build_checks(
     ``bronze_summary`` is the payload published by the bronze task,
     ``data_date`` the one of ``meta.json`` (a date, a datetime or a
     ``YYYY-MM-DD`` string, parsed with :func:`parse_data_date`),
-    ``pending`` the result of :func:`pending_files` and ``listing_ok``
-    whether the landing could be listed: only an explicit ``True`` keeps the
+    ``pending`` the result of :func:`pending_files`, ``listing_ok``
+    whether the landing could be listed and ``listing_error`` the short
+    text of the failure when it could not (published for diagnosis, never
+    as a decision): only an explicit ``True`` of ``listing_ok`` keeps the
     pending check green, so a broken listing is never published as "nothing
     pending". ``now`` is injectable and defaults to the current UTC time, so
     the age of the data is reproducible in tests.
@@ -451,6 +471,13 @@ def build_checks(
       files were waiting before the run started **and** the bronze ingested no
       row (a pending file with rows is the backlog of the next run, not a
       failure).
+
+    ``listing_error`` is additive to the contract: it is normalized with
+    :func:`_none_if_blank` (one line, truncated) and ``None`` when neither the
+    landing nor the checkpoint directories reported an error. It changes **no**
+    decision of the check: a checkpoint error is published here while
+    ``listing_ok`` can stay ``True`` (a missing ``commits/`` is the first run
+    of the source, not a broken landing).
 
     Every value is a bool, an int, a string, ``None``, a list or a dict:
     the payload is serialized by :func:`checks_json` without a ``default``.
@@ -497,6 +524,7 @@ def build_checks(
             "by_source": pending_entries,
             "bronze_rows": bronze_rows,
             "listing_ok": listed,
+            "listing_error": _none_if_blank(listing_error),
         },
     }
 
