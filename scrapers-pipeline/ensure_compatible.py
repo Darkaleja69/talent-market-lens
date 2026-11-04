@@ -12,8 +12,11 @@ falta, los reescribe para que Spark/Databricks pueda leerlos:
   - Comprueba un minimo de filas (--min-rows, default 1).
   - (--coherence <site>) comprueba la coherencia de cada fila (job_id no
     vacio, company_name sin ratings/URLs, URLs rotas, fechas no validas)
-    usando las reglas de coherence.py. Los ficheros con filas incoherentes
-    se marcan como invalidos y se mueven a cuarentena: NUNCA se suben.
+    usando las reglas de coherence.py. Las filas incoherentes NO se suben:
+    se escriben a <quarantine-dir>/bad_rows_<stem>_<ts>.csv y el fichero se
+    sube solo con las validas. Un fichero estructuralmente invalido (ilegible,
+    sin columnas obligatorias, vacio) o con TODAS las filas incoherentes se
+    rechaza entero (no se sube ningun parquet).
 
 Opciones:
   --required-cols a,b,c   columnas obligatorias (separadas por coma)
@@ -26,9 +29,11 @@ Opciones:
                           linkedin|infojobs|multi_site). Sin este flag el
                           manifest no cambia.
   --quarantine-dir dir    mueve los ficheros INVALIDOS a esta carpeta (asi
-                          no se suben a ADLS)
+                          no se suben a ADLS) y recibe las filas incoherentes
+                          separadas
 
-Exit code: 0 si todos los ficheros son validos, 1 si alguno es invalido.
+Exit code: 0 si todos los ficheros quedan subibles (aunque se hayan separado
+filas incoherentes), 1 si alguno se rechaza entero.
 """
 import argparse
 import glob
@@ -36,11 +41,13 @@ import hashlib
 import json
 import os
 import sys
+from pathlib import Path
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from coherence import coherence_issues
+from coherence import quarantine_bad_rows
 from verification import fingerprint
 from verification import sources
 
@@ -83,6 +90,38 @@ def sha256_file(path):
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def separate_incoherent_rows(table, site, quarantine_dir, label=""):
+    """Separa las filas incoherentes de `table` y devuelve (tabla_limpia, n).
+
+    `quarantine_dir` (Path o None) recibe `bad_rows_<label>_<ts>.csv`; `label`
+    identifica el fichero de origen, para que dos parquet del mismo staging no
+    compartan CSV cuando caen en el mismo segundo. Si `quarantine_dir` es None
+    solo separa y el llamante decide (se usa para rechazar el fichero entero
+    cuando no hay destino donde conservar las malas). Las filas se eligen por
+    posicion, asi que la tabla limpia conserva el esquema y el orden de
+    columnas del Parquet original: nada de convertir tipos por el camino.
+    """
+    # to_pylist (y no to_pandas) conserva los null de Arrow como None; con
+    # to_pandas los null numericos pasan a NaN y las reglas de fila los leen
+    # como el texto "nan", marcando como incoherente un salario vacio legal.
+    frame = pd.DataFrame(
+        table.to_pylist(), columns=table.schema.names, dtype=object
+    )
+    clean = quarantine_bad_rows(frame, site, quarantine_dir, label=label)
+    dropped = table.num_rows - len(clean)
+    if dropped <= 0:
+        return table, 0
+    # quarantine_bad_rows filtra sin resetear el indice: las etiquetas que
+    # sobreviven son las posiciones de las filas validas en la tabla Arrow.
+    keep = clean.index.to_list()
+    if not keep:
+        # take() con una lista vacia no tiene kernel: se devuelve una tabla
+        # vacia con el mismo esquema para que el llamante pueda rechazar el
+        # fichero sin subir nada.
+        return table.slice(0, 0), dropped
+    return table.take(keep), dropped
 
 
 def main():
@@ -136,8 +175,10 @@ def main():
             "bytes": 0,
             "sha256": "",
             "converted": False,
+            "dropped_rows": 0,
             "error": None,
         }
+        dropped = 0
         try:
             t, converted = read_and_coerce_micros(f)
             missing = [c for c in required if c not in t.schema.names]
@@ -150,17 +191,35 @@ def main():
                     "filas %d < minimo %d" % (t.num_rows, args.min_rows)
                 )
             if coherence_site:
-                bad_rows = 0
-                for row in zip(*(t.column(c).to_pylist()
-                                 for c in t.schema.names)):
-                    rec = dict(zip(t.schema.names, row))
-                    if coherence_issues(rec, coherence_site):
-                        bad_rows += 1
-                if bad_rows:
+                # Las filas incoherentes se separan (CSV en cuarentena) y solo
+                # se sube el parquet limpio. Sin destino donde conservarlas, o
+                # si no queda ninguna valida, el fichero se rechaza entero:
+                # nunca se pierden filas en silencio ni se sube un parquet
+                # vacio.
+                quarantine_dir = (
+                    Path(args.quarantine_dir) if args.quarantine_dir else None
+                )
+                t, dropped = separate_incoherent_rows(
+                    t, coherence_site, quarantine_dir, label=Path(f).stem
+                )
+                if dropped and quarantine_dir is None:
                     raise ValueError(
-                        "%d fila(s) incoherente(s) (coherence=%s)"
-                        % (bad_rows, coherence_site)
+                        "%d fila(s) incoherente(s) (coherence=%s) y sin "
+                        "--quarantine-dir donde separarlas"
+                        % (dropped, coherence_site)
                     )
+                if dropped and t.num_rows == 0:
+                    raise ValueError(
+                        "todas las filas (%d) son incoherentes (coherence=%s); "
+                        "no se sube un parquet vacio" % (dropped, coherence_site)
+                    )
+                if dropped:
+                    # El fichero es subible pero ya no es el original: el
+                    # limpio se escribe en la copia de staging que se valida
+                    # (el OutDir del scraper no se toca).
+                    pq.write_table(t, f, compression="snappy")
+                    entry["status"] = "partial"
+                    entry["dropped_rows"] = dropped
             # Huella de comparabilidad (T-32, RF-7): se lee de los ficheros
             # VALIDOS, usando las columnas de traza del propio Parquet. No
             # altera la validacion, la cuarentena ni la subida.
@@ -180,7 +239,25 @@ def main():
             entry["bytes"] = os.path.getsize(f)
             entry["sha256"] = sha256_file(f)
             note = " [ns->us convertido]" if converted else ""
-            print("%s: OK (%d filas)%s" % (os.path.basename(f), t.num_rows, note))
+            if dropped:
+                # Se informa de cuantas filas se separaron: el manifest lo
+                # deja por escrito y el runner lo registra en su log.
+                print(
+                    "%s: PARCIAL (%d filas validas de %d; %d separada(s) a "
+                    "cuarentena)%s"
+                    % (
+                        os.path.basename(f),
+                        t.num_rows,
+                        t.num_rows + dropped,
+                        dropped,
+                        note,
+                    )
+                )
+            else:
+                print(
+                    "%s: OK (%d filas)%s"
+                    % (os.path.basename(f), t.num_rows, note)
+                )
         except Exception as e:
             errors += 1
             entry["status"] = "bad"

@@ -118,11 +118,13 @@ class ManifestFile:
     """One file entry of a landing manifest (RF-6, RF-8).
 
     The manifest written by ``ensure_compatible.py`` uses the keys ``file``,
-    ``status``, ``rows``, ``bytes``, ``sha256``, ``converted`` and ``error``;
-    the upload wrapper adds ``remote`` (the container-relative key under the
-    scraper, e.g. ``dia=2026-09-26/jobs.parquet``). Older manifests may lack
-    ``remote`` or carry empty rows/sha256, so every optional field is read
-    tolerantly.
+    ``status``, ``rows``, ``bytes``, ``sha256``, ``converted``,
+    ``dropped_rows`` and ``error``; the upload wrapper adds ``remote`` (the
+    container-relative key under the scraper, e.g.
+    ``dia=2026-09-26/jobs.parquet``). ``rows`` counts the rows of the file
+    actually published (a ``partial`` file already excludes ``dropped_rows``).
+    Older manifests may lack ``remote`` or carry empty rows/sha256, so every
+    optional field is read tolerantly.
     """
 
     file: str
