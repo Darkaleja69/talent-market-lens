@@ -513,3 +513,58 @@ join resolves with `pricing.default` (the list price; the table also carries
   is recurrent. The job's own alerts (`on_failure`; the duration rule and the
   closing task's `checks`, deployed in dev on 2026-11-03 and in prod on 2026-11-04) cover the same ground for
   free.
+
+## 10. Local scrapers pipeline: quarantine and the config clone
+
+### 10.1 Quarantine: rejected file vs separated rows
+
+`ensure_compatible.py` runs before every upload and leaves two different things
+in `scrapers-pipeline/quarantine/<source>/`:
+
+- **Rejected file** — the whole `.parquet` is moved there. It happens when the
+  file is **structurally invalid** (unreadable, missing required columns, empty
+  or below `--min-rows`) or when **every row is incoherent** (a clean parquet
+  would be empty). Nothing from that file reaches the landing; the manifest entry
+  is `status: bad` with its `error`, and the run marks the source as failed when no
+  valid file remains for it.
+- **Separated rows** — `bad_rows_<stem>_<ts>.csv`, written in the source's
+  quarantine folder (`<quarantine-dir>/<source>/`; the runner passes
+  `scrapers-pipeline/quarantine/<source>`). When only some rows break the
+  coherence rules (`--coherence <site>`), those rows go to the CSV, the staging
+  parquet is rewritten with the valid ones (same schema, nulls preserved) and
+  uploaded; the manifest entry is `status: partial` with `dropped_rows`, and the
+  validator exits 0, so the runner uploads it and does not count the source as
+  failed.
+
+Review both, never delete them silently. To re-publish a whole rejected file,
+copy it back into the scraper's `OutDir` and run the pipeline again (or
+`recover_and_upload.ps1 -Date <date>`).
+
+**Known limitation:** in sources with `OnlyNewOffers` (linkedin, multi_site) the
+`uploaded_keys` state is updated from the keys computed **before** validation, so
+the keys of the separated rows are marked as uploaded even though those rows
+never reached the landing. A rerun will not bring them back by itself: the CSV is
+the recovery path (fix the rule, then re-ingest the CSV by hand). The runner's
+`status: partial` only counts whole rejected files, so a run with separated rows
+reports `rejected 0`.
+
+### 10.2 Run it from the clone that has the config
+
+The pipeline resolves the storage account from
+`scrapers-pipeline/config.local.ps1` (git-ignored) or from the
+`LANDING_STORAGE_ACCOUNT` environment variable. The 23:00 scheduled task runs
+from `C:\Users\aleja\Documents\projects`, which has that file. **Launching the
+pipeline from another clone** (for example a spec worktree) without it builds the
+destination as `https://.blob.core.windows.net/landing/...` — an empty account
+name: DNS does not resolve (`dial tcp: lookup .blob.core.windows.net: no such
+host`, visible in AzCopy's own log under `%USERPROFILE%\.azcopy\`) and each
+upload spends ~16 min retrying before it fails. **No data is lost:** the
+originals stay in each scraper's `OutDir`, and `recover_and_upload.ps1 -Date
+<date>` — run from the clone with the config — publishes them without re-running
+the scrapers. On 2026-11-04 a local cycle launched from a worktree elapsed
+**24968 s** and uploaded **0 files**: `infojobs` and `linkedin` failed for this
+reason (the empty account name), while `multi_site` failed for a different one
+—the coherence validator rejected its whole file (16 incoherent rows)— and
+`indeed` had no data. The worktree did not have `config.local.ps1` during that
+cycle; the file was created there at **19:10**, after the two failed uploads, and
+both the 22:00 and 23:08 recoveries ran from the worktree.

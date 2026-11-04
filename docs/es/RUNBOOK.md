@@ -480,3 +480,59 @@ importe resultante cubre **solo DBUs**: ni VMs, ni discos, ni storage, ni egress
   y es recurrente. Las alertas del propio job (`on_failure`; la regla de duración y
   los `checks` de la tarea final, desplegadas en dev el 2026-11-03 y en prod el 2026-11-04) cubren lo mismo
   gratis.
+
+## 10. Pipeline local de scrapers: cuarentena y el clon con configuración
+
+### 10.1 Cuarentena: fichero rechazado frente a filas separadas
+
+`ensure_compatible.py` se ejecuta antes de cada subida y deja dos cosas distintas
+en `scrapers-pipeline/quarantine/<fuente>/`:
+
+- **Fichero rechazado** — el `.parquet` entero se mueve allí. Ocurre cuando el
+  fichero es **estructuralmente inválido** (ilegible, sin columnas obligatorias,
+  vacío o por debajo de `--min-rows`) o cuando **todas las filas son
+  incoherentes** (el parquet limpio sería vacío). Nada de ese fichero llega al
+  landing; la entrada del manifest queda `status: bad` con su `error` y el run
+  marca la fuente como fallida cuando no le queda ningún fichero válido.
+- **Filas separadas** — `bad_rows_<stem>_<ts>.csv`, escrito en la carpeta de
+  cuarentena de la fuente (`<quarantine-dir>/<fuente>/`; el runner pasa
+  `scrapers-pipeline/quarantine/<fuente>`). Si solo algunas filas incumplen las
+  reglas de coherencia (`--coherence <fuente>`), esas filas van al CSV, el
+  parquet de staging se reescribe con las válidas (mismo esquema, nulos intactos)
+  y se sube; la entrada del manifest queda `status: partial` con `dropped_rows` y
+  el validador sale con 0, así que el runner lo sube y no cuenta la fuente como
+  fallida.
+
+Las dos cosas se revisan; no se borran en silencio. Para volver a publicar un
+fichero rechazado entero, se copia de vuelta al `OutDir` del scraper y se repite
+el pipeline (o `recover_and_upload.ps1 -Date <fecha>`).
+
+**Limitación conocida:** en las fuentes con `OnlyNewOffers` (linkedin, multi_site)
+el estado `uploaded_keys` se actualiza con las claves calculadas **antes** de la
+validación, así que las claves de las filas separadas quedan marcadas como
+subidas aunque esas filas nunca llegaron al landing. Una repetición no las
+recupera por sí sola: el CSV es la vía de recuperación (se corrige la regla y se
+reingiere el CSV a mano). El `status: partial` del runner solo cuenta ficheros
+rechazados enteros, así que un run con filas separadas informa `rejected 0`.
+
+### 10.2 Lanzarlo desde el clon que tiene la configuración
+
+El pipeline resuelve la storage account desde
+`scrapers-pipeline/config.local.ps1` (ignorado por git) o desde la variable de
+entorno `LANDING_STORAGE_ACCOUNT`. La tarea programada de las 23:00 se ejecuta
+desde `C:\Users\aleja\Documents\projects`, que tiene ese fichero. **Lanzar el
+pipeline desde otro clon** (por ejemplo un worktree de spec) sin él construye el
+destino como `https://.blob.core.windows.net/landing/...` — nombre de cuenta
+vacío: el DNS no resuelve (`dial tcp: lookup .blob.core.windows.net: no such
+host`, visible en el log propio de AzCopy en `%USERPROFILE%\.azcopy\`) y cada
+subida se pasa ~16 min reintentando antes de fallar. **No se pierden datos:** los
+originales siguen en el `OutDir` de cada scraper y `recover_and_upload.ps1 -Date
+<fecha>` — ejecutado desde el clon con la config — los publica sin relanzar los
+scrapers. El 2026-11-04, un ciclo local lanzado desde un worktree tardó
+**24968 s** y subió **0 ficheros**: `infojobs` y `linkedin` fallaron por esta
+causa (el nombre de cuenta vacío), mientras que `multi_site` falló por otra
+—el validador de coherencia rechazó su fichero entero (16 filas incoherentes)—
+e `indeed` no tenía datos. El worktree no tenía `config.local.ps1` durante ese
+ciclo; el fichero se creó allí a las **19:10**, después de las dos subidas
+fallidas, y las recuperaciones de las 22:00 y las 23:08 se ejecutaron desde el
+worktree.

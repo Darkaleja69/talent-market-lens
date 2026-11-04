@@ -19,10 +19,15 @@
 > **exige aprobación explícita**. No hay run de reserva. Cada gasto se anota en
 > `docs/costs.md`.
 >
-> **Consumido al 2026-11-04:** **3 runs de dev agotados** (`873077346042958`, el
-> intento que no arrancó, `1048410431217707` y `1015457552352783`), **2 sesiones
-> SQL** (T-07 y la de T-08) y **1 run de producción manual** (presupuesto de
-> producción de la 009). La **segunda sesión SQL** (T-08: una ventana de ~10 min,
+> **Consumido al 2026-11-04:** **5 runs de dev** (`873077346042958`, el intento
+> que no arrancó, y los cuatro que sí corrieron: `1048410431217707`,
+> `1015457552352783` y el par A/B `826958114241409`/`410084266136659`), **2
+> sesiones SQL** (T-07 y la de T-08) y **1 run de producción manual** (presupuesto
+> de producción de la 009). **El número de runs supera los 3 del plan**, pero el
+> **coste medido** no: la referencia de **0,045956 USD de DBU por run** (T-07) da
+> **≈0,23 USD** de DBU a precio de lista para los cinco, muy por debajo del techo
+> de **2,0 €**; los **2 últimos** (el par de T-11) los **autorizó la persona**
+> (2026-11-04). La **segunda sesión SQL** (T-08: una ventana de ~10 min,
 > **≈0,43 € nominales**) fue **aprobada por la persona antes de ejecutarla** (junto
 > con el deploy y los runs), aunque el **RF-9** de `spec.md` hablaba de «una sesión»;
 > el total sigue por debajo del techo de **2,0 €**. Cualquier run adicional necesita
@@ -462,6 +467,13 @@
     **no se ajusta el umbral** y **queda pendiente decidir si se abre una spec de
     corrección**. Los **93 s no son comparables** con los 144-146 s: ese run no
     ingirió nada.
+  - **Cierre de la decisión (2026-11-04):** en el run A de T-11, **con ingesta**,
+    el bronce ejecutó **121 s ≤ 134 s** (412 s de setup), así que el **objetivo se
+    cumple**. Los **144 s** (prod) y **146 s** (dev) anteriores quedan como
+    **desviación aceptada por la persona** el 2026-11-04: la diferencia se
+    considera **despreciable**, **no se abre spec de corrección** y **no se toca
+    el umbral**. La causa de esa subida sigue sin aislarse; lo que cambia es la
+    decisión, no la medición.
 
 - [x] **T-09 — Kit de la demo para Free Edition (CSV + dos mecanismos)** (~90 min)
   - **Objetivo:** dejar un kit reproducible y sin secretos que permita ejecutar en
@@ -627,7 +639,7 @@
 
 ## 5. Validación y producción
 
-- [ ] **T-11 — Runs 2 y 3 en dev: repetición e idempotencia** (~30 min de persona)
+- [x] **T-11 — Runs 2 y 3 en dev: repetición e idempotencia** (~30 min de persona)
   - **Objetivo:** demostrar exactly-once y que las métricas no se duplican ni
     mienten: un run con lote nuevo y otro inmediato sin ficheros.
   - **Hecho cuando:** el run 2 ingiere lo pendiente con `numInputRows > 0` en al
@@ -637,31 +649,35 @@
     `ops.run_metrics`; la tarea final no falla; run ≤ 1350 s; coste anotado.
   - **Evidencia:** ids de los dos runs, resúmenes, `ops.run_metrics` (dos filas
     distintas), tiempos, coste y fila en `evidence.md`. **~0,40 €.**
-  - **Estado (2026-11-04):** **parcial** — la ingesta y la idempotencia están
-    demostradas **por separado**, pero **falta el par completo en el mismo
-    catálogo**; la tarea **no se marca como hecha**. **Ingesta:** **2283 filas** en
-    dev (run `1048410431217707`, `bronze_rows = 2283`) y **2283** en prod (run
-    `1050766241907151`, misma cifra en la fila y en `checks`). **Idempotencia:** el
-    run posterior de dev (`1015457552352783`) dejó `bronze_rows 0`,
-    `pending_files.total 0` con `listing_ok true` y el cierre en verde; los conteos
-    de export **no** se midieron antes/después de ese run, y la idempotencia de
-    silver ya está probada en la 010. `ops.run_metrics` tiene **una fila por run**:
-    **2** en `job_offers_dev.ops.run_metrics` (`1015457552352783` y
-    `1048410431217707`) y **1** en `job_offers.ops.run_metrics`. **Lo que falta
-    exactamente:** en **dev**, el run con ingesta terminó en **rojo** por el defecto
-    del listado (`listing_ok: false`, corregido en `808a3d7`), así que no hay
-    «ingesta + cierre en verde»; en **prod**, el siguiente run es el **2026-11-08**
-    y **si** no llegan ficheros nuevos dará el caso de 0 filas, que completaría el
-    par en prod; T-11 se cierra con el par en **dev**. No existe todavía, en el
-    **mismo** catálogo, la secuencia «run con `numInputRows > 0` y cierre en verde»
-    seguida de «run inmediato con `numInputRows = 0` y cierre en verde», con **dos
-    filas distintas** en `ops.run_metrics`. Se cierra cuando un run de dev con
-    ficheros nuevos cierre en verde **y** su repetición inmediata sin ficheros
-    también. **`[NO VERIFICADO]` en esta ventana:** los conteos de silver y oro no
-    se volvieron a medir (la idempotencia de silver ya está probada en la 010).
-    **Coste:** el presupuesto de **3 runs de dev queda agotado** (el intento fallido
-    `873077346042958` consume uno), así que el run que falta **necesita autorización
-    explícita** (`docs/costs.md`).
+  - **Estado (2026-11-04):** **hecha.** El par está en **el mismo catálogo**
+    (`job_offers_dev`) y **ambos runs en verde** (9/9 tareas y `record: ok`).
+    **Run A `826958114241409`** (`ONE_TIME`, 22:00:46 → 22:15:30): **SUCCESS**,
+    **884 s** (≤ 1350 s ✓); bronce **412 s de setup / 121 s de ejecución**;
+    silvers **192/189/209/194 s**; oro **55 s**; exports **49/41 s**; cierre **30 s**.
+    Ingiere lo pendiente del 2026-11-04: **infojobs 366 filas**
+    (`trigger_execution` **54,0 s**), **linkedin 4076** (56,7 s), **indeed 0**,
+    **multi_site 0**; `quarantined_rows 0` en las cuatro y `batch_id`
+    **12/12/18/15**. `checks`: `bronze_rows 4442`, `pending_files.total 0`,
+    `listing_ok true`, `listing_error null`, `freshness data_date 2026-11-04` con
+    `data_age_days 0`, todo `ok: true`; `record: {"status": "ok", "error": null}`.
+    **Run B `410084266136659`** (22:15:45 → 22:25:21): **SUCCESS**, **576 s**
+    (≤ 1350 s ✓); bronce **141 s de setup / 67 s de ejecución**; silvers
+    **223/220/230/220 s**; oro **52 s**; exports **44/38 s**; cierre **30 s**.
+    Es la **repetición inmediata sin ficheros nuevos:** `num_input_rows 0` en las
+    **cuatro** fuentes, `quarantined_rows 0` y `batch_id` **12/13/19/15** (avanzan
+    infojobs 12→13 y linkedin 18→19; indeed y multi_site repiten). `checks`:
+    `bronze_rows 0`, `pending_files.total 0`, `listing_ok true`, `freshness`
+    `data_date 2026-11-04` con edad 0, todo `ok: true`; `record: ok`.
+    **La fila de `ops.run_metrics` de cada run se acredita por el `record: ok` del
+    propio cierre** (la fila se escribe antes del `raise`); la **lectura por SQL de
+    esas dos filas** queda **planificada para el cierre** de la spec, así que su
+    presencia en la tabla es **`[NO VERIFICADO]` por consulta, no por escritura**.
+    **`[NO VERIFICADO]` además:** los conteos de silver, oro y exports
+    antes/después del run B (la idempotencia de silver ya está probada en la 010);
+    lo que sí está medido es `bronze_rows 0` y `pending_files.total 0` con
+    `listing_ok true` en el cierre. **Coste:** dos runs más de dev, **autorizados
+    por la persona** el 2026-11-04; la spec acumula **5 runs de dev** (uno perdido)
+    y **≈0,23 USD** de DBU medidos, ver `docs/costs.md`.
 
 - [x] **T-12 — (Condicional) Migración del mecanismo ganador en producción** (~60 min + ventana)
   - **Objetivo:** si T-10 decide adoptar, llevar el mecanismo a producción con
@@ -723,6 +739,58 @@
     los 1500 s; se observaría en un incidente real) y la **cifra exacta** de latencia
     de `system.lakeflow`, hoy solo acotada (**> 7 min 37 s**, ver
     `design-observability.md` §1.8); el run del domingo la acota.
+
+- [x] **T-15 — Un fichero con filas incoherentes no pierde las válidas**
+  - Origen: la primera validación real de este ciclo. `multi_site` generó 1569
+    ofertas nuevas y `ensure_compatible.py` **rechazó el fichero entero** porque 16
+    filas no cuadraban (`coherence=multi_site`): 0 filas al landing y 1569 tiradas.
+    La separación por filas ya existe en `coherence.py` (`quarantine_bad_rows`
+    escribe `bad_rows_<ts>.csv`); la validación simplemente no la usa.
+  - **Cuando** un parquet del staging tenga filas incoherentes, **el sistema** debe
+    escribir las malas en `<QuarantineRoot>/<fuente>/bad_rows_<stem>_<ts>.csv`, subir el
+    parquet con las válidas restantes y dejar constancia en el log (y en el
+    manifest) de cuántas filas se separaron.
+  - **Si** el fichero es estructuralmente inválido (ilegible, sin columnas
+    obligatorias o vacío), **el sistema** debe seguir rechazándolo entero y moverlo
+    a cuarentena, sin subir nada.
+  - **Si** todas las filas son incoherentes, **el sistema** debe rechazar el fichero
+    entero (no subir un parquet vacío) y dejarlo dicho.
+  - **Hecho cuando:** la prueba real con el fichero de `multi_site` del 2026-11-04
+    sube el parquet limpio a `dia=2026-11-04`, deja el CSV de filas malas en
+    `quarantine/multi_site/` y los tests de `scrapers-pipeline/tests` siguen en
+    verde.
+  - **Estado (2026-11-04):** **hecha** (commit `cf9e4d0`, *fix(pipeline): T-15
+    filas incoherentes separadas en vez de fichero entero*).
+    `ensure_compatible.py` separa las filas incoherentes a
+    `quarantine/<fuente>/bad_rows_<stem>_<ts>.csv`, reescribe el parquet de staging
+    con las válidas (mismo esquema y nulos intactos) y publica `status=partial` con
+    `dropped_rows` en el manifest y **exit 0**; el **rechazo entero** se mantiene
+    para lo estructural (ilegible, sin columnas obligatorias, vacío) y para «todas
+    las filas malas». `coherence.quarantine_bad_rows` acepta `out_dir=None` y el
+    CSV lleva el stem del parquet para que dos ficheros del mismo staging no se
+    pisen; `verification/landing.py` documenta el contrato de `dropped_rows` y que
+    `rows` cuenta las filas publicadas. **Tests:** **1140 passed** en `scrapers-pipeline/tests`
+    (**8 nuevos**). **Prueba real (2026-11-04, 23:08-23:09):**
+    `recover_and_upload.ps1 -Date 2026-11-04` → `multi_site` **publicado** (**1
+    fichero**), con `indeed` **omitido** (no hay parquet de Indeed con la fecha
+    del run) y `linkedin`/`infojobs` **omitidos** por estar ya subidos; el parquet
+    limpio (`jobs_unified_new_20261104_230839.parquet`,
+    **1553 filas válidas de 1569**) queda en `multi_site/dia=2026-11-04`, el CSV
+    `bad_rows_jobs_unified_new_20261104_230839_20261104_230855.csv` (**75 KB, 16
+    filas**) en `scrapers-pipeline/quarantine/multi_site/` y el `run_state` de
+    `multi_site` queda `ok` con `uploaded 1` y `rejected 0`; el `_READY` ya
+    existía y **no se reescribió**. Antes de la recuperación, `multi_site` estaba a
+    **0**; el prefijo `multi_site/dia=2026-11-04` queda con **2 ficheros, 2,88
+    MiB**. **`[NO VERIFICADO]`:** la subida se hizo por la **CLI de recuperación**
+    (`recover_and_upload.ps1`), **no** por el wrapper completo del día
+    (`run_scrapers_and_upload.ps1`), así que la parte del validador está cubierta por
+    tests y el runner no se ha ejecutado en ese camino; la rama `partial` del runner es la del **rechazo entero con
+    válidos restantes**, no la de este caso; y la reconstrucción de las ofertas a
+    partir del CSV no se ha ensayado (limitación de `OnlyNewOffers` documentada en
+    el RUNBOOK §10.1). **Alcance:** T-15 no tiene RF propio en `spec.md`
+    (RF-1..RF-10) y su alcance es `scrapers-pipeline`; se incluye en la 011 por
+    decisión explícita de la persona, al no abrir spec nueva para un cambio de
+    este tamaño.
 
 ## 6. Cierre
 

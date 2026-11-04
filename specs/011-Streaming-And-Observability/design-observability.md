@@ -21,8 +21,9 @@
 > El deploy lleva la novena tarea a **dev y prod**; `ops.run_metrics` existe con
 > **13 columnas** y filas reales; el **event log quedó retirado** (§1.6) y la
 > **latencia de `system.lakeflow`** está medida como **> 7 min 37 s** (§1.8).
-> T-11 y T-13 siguen **parciales** (falta el par «ingesta + 0 filas» en el mismo
-> catálogo y el primer run programado), ver `tasks.md`.
+> **T-11 está cerrada** con el par A/B en `job_offers_dev` (ingesta y repetición
+> con 0 filas, ambos runs en verde); **T-13 sigue parcial** (falta el primer run
+> programado), ver `tasks.md`.
 >
 > Rama `spec/011-streaming-observability`, worktree `talent-market-lens-011`.
 > Cada afirmación lleva su fuente (comando o fichero).

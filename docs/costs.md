@@ -274,7 +274,7 @@ al menos un despertar.
   de VM y disco, el **método por duración queda como cota superior**, no como
   importe. Las **cifras históricas de este documento no se reescriben**.
 
-## Runs y sesiones SQL de la spec 011 (T-08, T-11 parcial, T-13 parcial — 2026-11-03/04)
+## Runs y sesiones SQL de la spec 011 (T-08, T-11, T-13 parcial — 2026-11-03/04)
 
 - **Sesión SQL de T-07 (2026-11-03):** **~0,43 € nominales** por la ventana
   facturable de 10 min (una sola ventana, **8 consultas** en 6 min 44 s; detalle en
@@ -299,9 +299,20 @@ al menos un despertar.
   - `1015457552352783` (2026-11-04): **9/9**, **862 s**; bronce 383 s de setup +
     **93 s** de ejecución; **0 filas ingeridas** (mide idempotencia). **Consume el
     run 3.**
-  - **El presupuesto de 3 runs de dev queda agotado** (el fallido consume uno). El
-    run que falta para cerrar T-11 —ingesta con cierre en verde **y** su repetición
-    sin ficheros— y cualquier otro **necesitan autorización explícita**.
+  - `826958114241409` (2026-11-04, T-11 A): **9/9**, **884 s**; bronce 412 s de
+    setup + **121 s** de ejecución; **4442 filas** (infojobs 366 + linkedin 4076),
+    `pending_files.total 0` y cierre en verde. **Run 4**, autorizado por la persona.
+  - `410084266136659` (2026-11-04, T-11 B): **9/9**, **576 s**; bronce 141 s de
+    setup + **67 s** de ejecución; `num_input_rows 0` en las cuatro fuentes y
+    cierre en verde (repetición inmediata sin ficheros). **Run 5**, autorizado por
+    la persona.
+  - **El número de runs supera el plan; el coste medido no.** La spec consume
+    **5 runs de dev** frente a los **3** presupuestados (el fallido cuenta), pero a
+    la referencia de **0,045956 USD de DBU por run** (T-07) los cinco suman
+    **≈0,23 USD** de DBU a precio de lista, muy por debajo del techo de **2,0 €**.
+    Los **2 últimos** (A/B de T-11) los **autorizó la persona** el 2026-11-04;
+    cualquier run adicional necesita autorización explícita. El detalle por run
+    sigue arriba y en `tasks.md` (T-11).
 - **Run de producción manual (T-13 parcial, 2026-11-04):** `1050766241907151`,
   **9/9**, **643 s**; bronce 142 s de setup + **144 s** de ejecución. Va al
   **presupuesto de producción de la 009**, no al techo de dev; la cadencia normal
@@ -310,8 +321,8 @@ al menos un despertar.
   run de **744 s** (`PREMIUM_JOBS_COMPUTE`), **solo DBU a precio de lista**: sin
   VMs, discos, storage ni egress, y en **USD**. No es un importe en EUR ni la
   factura completa; sirve como orden de magnitud por run. Las cifras de esta
-  sección (922 s, 862 s, 643 s) son **duraciones**, no euros: **no se convierten
-  aquí** para no mezclar magnitudes.
+  sección (922 s, 862 s, 884 s, 576 s, 643 s) son **duraciones**, no euros: **no
+  se convierten aquí** para no mezclar magnitudes.
 
 ## Cierre de la spec 009 (2026-10-24)
 
