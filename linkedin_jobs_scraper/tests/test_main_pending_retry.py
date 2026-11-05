@@ -15,6 +15,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 import src.main as main
 from src.login import BlockedException
 from src.main import (
@@ -28,6 +30,28 @@ from src.progress import RunProgressCounter
 from src.store import Store
 
 _NOW = datetime(2026, 10, 11, 12, 0, 0, tzinfo=timezone.utc)
+
+
+class _FrozenDatetime(datetime):
+    """Reloj congelado en `_NOW` para los tests del reintento de pendientes.
+
+    `_retry_pending_details` filtra candidatos con `datetime.now(...)` frente a
+    la ventana de 7/30 dias de la oferta. Las ofertas de estos tests se fechan
+    respecto a `_NOW`; sin congelar el reloj, al pasar los dias reales la
+    ventana se cierra, no hay candidatos y los tests dejan de medir el
+    reintento (caducaban a los ~7 dias). El resto de metodos (`strptime`,
+    `fromisoformat`, aritmetica) se heredan intactos.
+    """
+
+    @classmethod
+    def now(cls, tz=None):  # type: ignore[override]
+        return _NOW.replace(tzinfo=None) if tz is None else _NOW.astimezone(tz)
+
+
+@pytest.fixture
+def frozen_clock(monkeypatch):
+    """Sustituye el `datetime` de `src.main` por el reloj congelado."""
+    monkeypatch.setattr(main, "datetime", _FrozenDatetime)
 
 
 def _offer(job_id: str, *, city: str = "Madrid", description: str = "",
@@ -155,7 +179,8 @@ def _retry_config() -> dict[str, Any]:
                    delays={"guest_between_details": [0.01, 0.02]})
 
 
-def test_retry_pending_recovers_and_counts_failures(tmp_path, monkeypatch):
+def test_retry_pending_recovers_and_counts_failures(tmp_path, monkeypatch,
+                                                   frozen_clock):
     store = _store(tmp_path)
     store.add(_offer("recover"))
     store.add(_offer("still_empty"))
@@ -191,7 +216,8 @@ def test_retry_pending_recovers_and_counts_failures(tmp_path, monkeypatch):
     assert store.warning_count >= 1
 
 
-def test_retry_pending_increments_on_exception(tmp_path, monkeypatch):
+def test_retry_pending_increments_on_exception(tmp_path, monkeypatch,
+                                               frozen_clock):
     store = _store(tmp_path)
     store.add(_offer("boom"))
 
@@ -211,7 +237,8 @@ def test_retry_pending_increments_on_exception(tmp_path, monkeypatch):
     assert store.warning_count >= 1
 
 
-def test_retry_pending_aborts_when_page_is_dead(tmp_path, monkeypatch):
+def test_retry_pending_aborts_when_page_is_dead(tmp_path, monkeypatch,
+                                                frozen_clock):
     store = _store(tmp_path)
     store.add(_offer("pending"))
     called: list[str] = []
@@ -236,7 +263,8 @@ def test_retry_pending_aborts_when_page_is_dead(tmp_path, monkeypatch):
 
 
 def test_retry_pending_aborts_phase_on_blocked_without_increment(tmp_path,
-                                                                monkeypatch):
+                                                                monkeypatch,
+                                                                frozen_clock):
     """Un challenge corta la fase, no propaga y no penaliza a la oferta."""
     store = _store(tmp_path)
     store.add(_offer("blocked"))
@@ -268,7 +296,7 @@ def test_retry_pending_aborts_phase_on_blocked_without_increment(tmp_path,
 
 
 def test_retry_pending_cleans_entries_already_recovered_without_request(
-        tmp_path, monkeypatch):
+        tmp_path, monkeypatch, frozen_clock):
     """Un pendiente ya recuperado se limpia al inicio, sin gastar peticion."""
     store = _store(tmp_path)
     store.add(_offer("recovered", description="Ya recuperada por el SERP."))
@@ -293,7 +321,8 @@ def test_retry_pending_cleans_entries_already_recovered_without_request(
     assert recovered == 0  # el fake no rellena la descripcion pendiente
 
 
-def test_retry_pending_without_candidates_is_a_noop(tmp_path, monkeypatch):
+def test_retry_pending_without_candidates_is_a_noop(tmp_path, monkeypatch,
+                                                    frozen_clock):
     store = _store(tmp_path)
     store.add(_offer("done", description="Ya tiene descripcion."))
     called: list[str] = []
