@@ -8,10 +8,10 @@ examen: frases propias, comandos usados, errores cometidos y dudas abiertas.
 
 - [x] `01-spark-performance.md` (spec 010)
 - [x] `02-delta.md` (spec 008)
-- [ ] `03-streaming.md` (spec 011)
+- [x] `03-streaming.md` (spec 011)
 - [x] `04-incremental-architecture.md` (spec 008)
 - [x] `05-cicd.md` (spec 007)
-- [ ] `06-observability.md` (spec 011)
+- [x] `06-observability.md` (spec 011)
 - [ ] `07-security-governance.md` (spec 012)
 
 ## Plantilla
