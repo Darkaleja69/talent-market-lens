@@ -17,8 +17,8 @@ Talent Market Lens es un proyecto que busca generar una plataforma analítica de
 - Job de producción y web: el job se ejecuta **los domingos a las 23:00** (`Europe/Madrid`); el dashboard público se publica **los lunes a las 01:00 UTC** (`.github/workflows/dashboard.yml`) y falla sin desplegar si `meta.json.data_date` tiene más de 8 días.
 - Informe Power BI: lee `gold/pbi_export` (6 Parquet + `meta.json`) en modo Import con una **SAS de solo lectura** en las credenciales del dataset; el SQL warehouse debe estar `STOPPED`. El export lo escribe la tarea `Build_Report_Export` en la misma ejecución del job.
 - Coste: `docs/costs.md` es el registro. Medir con Azure Cost Analysis y la Account Console (gratis); un despertar del warehouse 2X-Small cuesta ~0,43 € (10 min facturables).
-- Tests: No hay tests generales. Cada scraper tiene su propio test, y los notebooks de Databricks tienen el suyo:
-    - Tests scrapers: `python -m pytest tests -q`
+- Tests: No hay tests generales. Cada scraper tiene su propio test, y los notebooks de Databricks tienen el suyo. Los `tests` de los scrapers **no se pueden lanzar en un solo comando**: cada uno es un paquete llamado `tests` y colisionan (`ModuleNotFoundError: No module named 'tests.test_browser'`). Uno por comando, desde la raíz:
+    - Tests scrapers: `python -m pytest indeed_jobs_scraper/tests -q`, `python -m pytest infojobs_jobs_scraper/tests -q`, `python -m pytest linkedin_jobs_scraper/tests -q` y `python -m pytest multi_site_job_scraper/tests -q` (497 tests en total)
     - Test databricks: `python -m pytest databricks_notebooks/tests -q`
     - Pipeline, diagnóstico y reparaciones (desde la raíz del repositorio): `python -m pytest scrapers-pipeline/tests -q`
 
