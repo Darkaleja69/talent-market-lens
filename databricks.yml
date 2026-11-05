@@ -60,7 +60,7 @@ targets:
       jobs:
         elt:
           schedule:
-            pause_status: PAUSED
+            pause_status: UNPAUSED
             quartz_cron_expression: 50 0 23 ? * SUN
             timezone_id: Europe/Madrid
 sync:

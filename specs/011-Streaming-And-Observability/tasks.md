@@ -1,0 +1,806 @@
+# Tareas: mecanismo de ingesta en streaming y observabilidad del run
+
+> Borrador del **2026-11-01**. Rama `spec/011-streaming-observability` (desde
+> `main`, `c9c4a19`), worktree `talent-market-lens-011`. Formato de trabajo según
+> `AGENTS.md`: **la persona decide** el alcance y revisa; el asistente prepara las
+> tareas, implementa, explica y commitea tras la verificación independiente.
+> Ninguna tarea se marca como hecha sin su comprobación.
+>
+> **Aprobación previa (AGENTS.md):** antes de tocar
+> `databricks_notebooks/**/*.ipynb`, un módulo `*.py` de `databricks_notebooks/`,
+> cualquier `.yml` del bundle o un recurso nuevo, se presenta fichero, celdas/claves
+> afectadas, diff propuesto y motivo, y se espera el OK. Los **tests quedan fuera**
+> de esta regla.
+>
+> **Presupuesto (009 §17):** **3 runs de dev** (~0,51–0,72 €) y **1 sesión SQL**
+> (~0,43 €) → **~0,95–1,15 €** dentro del techo de **2,0 €**. La demo de Lakeflow se
+> hace en una cuenta **Free Edition** aparte con un extracto CSV: **0 €** (solo
+> egress). La migración a producción, si la hay, va al presupuesto de producción y
+> **exige aprobación explícita**. No hay run de reserva. Cada gasto se anota en
+> `docs/costs.md`.
+>
+> **Consumido al 2026-11-04:** **5 runs de dev** (`873077346042958`, el intento
+> que no arrancó, y los cuatro que sí corrieron: `1048410431217707`,
+> `1015457552352783` y el par A/B `826958114241409`/`410084266136659`), **2
+> sesiones SQL** (T-07 y la de T-08) y **1 run de producción manual** (presupuesto
+> de producción de la 009). **El número de runs supera los 3 del plan**, pero el
+> **coste medido** no: la referencia de **0,045956 USD de DBU por run** (T-07) da
+> **≈0,23 USD** de DBU a precio de lista para los cinco, muy por debajo del techo
+> de **2,0 €**; los **2 últimos** (el par de T-11) los **autorizó la persona**
+> (2026-11-04). La **segunda sesión SQL** (T-08: una ventana de ~10 min,
+> **≈0,43 € nominales**) fue **aprobada por la persona antes de ejecutarla** (junto
+> con el deploy y los runs), aunque el **RF-9** de `spec.md` hablaba de «una sesión»;
+> el total sigue por debajo del techo de **2,0 €**. Cualquier run adicional necesita
+> **autorización explícita**; el detalle y las cifras están en `docs/costs.md`.
+
+## Convención de commits
+
+- Un commit atómico por tarea al pasar su comprobación
+  (p. ej. `feat(streaming): T-03 resumen medido del bronce`).
+- Suites: `python -m pytest databricks_notebooks/tests -q`,
+  `python -m pytest scrapers-pipeline/tests -q` y
+  `python -m pytest tests -q` desde la raíz. La suite completa es gate de la spec
+  (T-14), no de cada tarea.
+- Evidencia: una fila por comprobación en `evidence.md` (fecha, tarea,
+  comprobación, resultado).
+- Al cerrar el bloque de observabilidad (T-03–T-07) y el de evaluación
+  (T-08–T-10), **parar** y revisar `git log -p` del grupo antes de seguir.
+
+## 0. Decisiones tomadas (2026-11-01)
+
+- **Resultado = decisión medida.** «No cambiar» es un resultado válido; la carga de
+  la prueba la tiene el candidato declarativo.
+- **Lakeflow se evalúa en una cuenta Free Edition aparte, con un extracto CSV**
+  (decisión del 2026-11-02): no se crea ningún pipeline `serverless` de pago. Free
+  Edition es serverless, pero gratuito: se evita el DBU. La demo valida semántica y
+  contrato, **no** tiempo ni coste de producción.
+- **El kit de la demo vive en el repositorio** (`candidate/`): CSVs generados desde
+  un Parquet real del landing, manifiesto con conteos esperados, pipeline
+  declarativo, mecanismo actual adaptado al mismo CSV e instrucciones. Reproducible
+  y sin secretos.
+- **Riesgo asumido:** el extracto no cubre el 100 % del esquema ni el volumen real;
+  la paridad total se valida en el cutover (T-12) y el coste de producción queda
+  como estimación sujeta a aprobación.
+- **Observabilidad con un solo escritor:** `ops.run_metrics` (una fila por run,
+  `MERGE` por `run_id`); las duraciones por tarea salen de `system.lakeflow`.
+- **Alertas nativas y frescura en CI; alertas SQL descartadas** por coste
+  recurrente (~0,43 €/despertar).
+- **Deuda heredada de la 010:** `target prod` está `PAUSED` en `databricks.yml`
+  (T-09 de la 010). Se repone en T-01; sin eso no hay run que valide la 011.
+
+## 1. Reconocimiento y criterios
+
+- [x] **T-01 — Reconocimiento gratuito y criterios de decisión** (~75 min)
+  - **Objetivo:** dejar escritos los criterios de `plan.md` §3 con sus umbrales y
+    el estado real de las piezas que condicionan el diseño, **sin gastar un céntimo**.
+  - **Comprobaciones (todas gratis):**
+    - Grants efectivos sobre `system.lakeflow`, `system.billing` y `system.compute`
+      (API de Unity Catalog); tabla por tabla, si se puede leer o no.
+    - Que `system.lakeflow.job_run_timeline` y `job_task_run_timeline` contienen
+      runs de `320947022571947` (dev) y del job de producción, con su latencia.
+    - Soporte de `resources.pipelines` y de `health.rules[]` en el bundle (CLI
+      1.21.0; la clave es `health`, no `health_rules`) y estado del perfil `free`
+      en este equipo (la demo se ejecuta en otra cuenta; aquí solo se documenta
+      cómo se sube el kit).
+    - Configuración actual del event log del job cluster y retención.
+    - Línea base de ficheros del landing y de checkpoints: lo que se pueda listar
+      sin coste; lo que exija clúster se marca para T-08.
+    - **Reponer `pause_status: UNPAUSED`** en el `target prod` (aprobación de la
+      persona el 2026-11-02; deploy ejecutado por el asistente) y confirmar el
+      estado del job.
+  - **Preguntas guía:** ¿qué tablas de sistema son legibles y con qué latencia?
+    ¿el event log actual sobrevive al clúster? ¿cuántos ficheros hay pendientes por
+    fuente ahora mismo? ¿qué necesita el kit para correr en Free Edition sin tocar
+    el workspace pagado?
+  - **Hecho cuando:** `design-streaming.md` tiene el estado de partida y la tabla de
+    criterios con umbrales, `design-observability.md` tiene el inventario de fuentes
+    de observabilidad disponibles (con lo que **no** se puede), `prod` está
+    `UNPAUSED` y cada afirmación lleva su fuente o `[NO VERIFICADO]`.
+  - **Evidencia:** salidas de CLI/API, capturas y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL, 0
+    pipelines en el workspace pagado). Escritos `design-streaming.md` (§1 estado de partida con landing y
+    checkpoints medidos por listado, §2 números de la 010 citados, §3 criterios de
+    `plan.md` §3 con sus umbrales, §8 Free Edition + CSV) y
+    `design-observability.md` (inventario de fuentes, permisos tabla por tabla,
+    límites sin SQL/runs, `ops.run_metrics`, tarea final y umbrales).
+    **Producción repuesta:** `bundle validate -t prod` OK + `bundle deploy -t prod`
+    (24 ficheros, 1 recurso cambiado); job del bundle **`916863262593632`**
+    `UNPAUSED`, cron `50 0 23 ? * SUN`, `Europe/Madrid`, 8 tareas, 0 runs creados;
+    job manual `704156530681034` sigue `PAUSED`. El deploy de prod se hizo **desde
+    la rama de la spec** con contenido idéntico a `main` (solo cambia
+    `pause_status`); merge pendiente en T-14. **Pendientes de comprobación
+    gratuita:** ninguna. **`[NO VERIFICADO]`:** lectura real de `system.*`, si las
+    tablas contienen runs del proyecto y con qué latencia/retención (→ **T-07**);
+    tamaño y contenido del event log (→ T-06/T-08); `AUTO CDC` y límites de Free
+    Edition (→ T-09/T-09b). **Nota para T-06:** la clave del bundle es
+    `health.rules[]` (no existe `health_rules`; CLI 1.21.0,
+    `databricks bundle schema`).
+
+## 2. Práctica local de streaming (dominio 3)
+
+- [x] **T-02 — Banco local: checkpoint, microbatch, watermark y estado** (~90 min)
+  - **Objetivo:** demostrar con código y tests propios la semántica que explica el
+    run: qué garantiza el checkpoint, qué es un microbatch, qué hace el watermark
+    con un evento tardío, dónde vive el estado y cuándo hay exactly-once.
+  - **Entregable:** `databricks_notebooks/streaming_lab.py` (didáctico, **no** se
+    engancha al job) y `databricks_notebooks/tests/test_streaming_lab.py` con los
+    cinco escenarios de `plan.md` §5, en `local[2]`, sumideros en `tmp` y sin Delta.
+  - **Preguntas guía:** ¿qué pasa si muere el proceso entre el commit del offset y
+    la escritura? ¿por qué `availableNow` no es «una sola pasada»? ¿qué fila
+    descarta el watermark y por qué? ¿qué aporta `stateOperators` en `lastProgress`?
+  - **Hecho cuando:** los cinco escenarios pasan en local, la tabla de tiempos y la
+    comparación `availableNow` / `once` / `processingTime` están en
+    `design-streaming.md` §5, y el test no supera ~3 min.
+  - **Evidencia:** salida de pytest, tabla de tiempos y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Banco en
+    `databricks_notebooks/streaming_lab.py` (didáctico, sin enganche al job) con
+    `tests/test_streaming_lab.py`, `tests/_local_spark.py` y `tests/conftest.py`:
+    **6 passed** en **98,1 s**
+    (proceso 99,7 s; entre ejecuciones del host, **96,9–169,2 s** según la carga), con
+    los cinco escenarios ejecutados **una sola vez** por módulo.
+    Números y comparación de triggers en `design-streaming.md` §4–§5. Prerrequisito de
+    host: `winutils.exe`/`hadoop.dll` en `%LOCALAPPDATA%\hadoop\bin` (fuera del
+    repositorio; en Linux/CI no hace falta y los tests saltan con instrucciones). El
+    `conftest.py` global de `tests/` llama a `configure_hadoop_home()` al importar,
+    antes de la primera `SparkSession` (el JVM cachea `hadoop.home.dir`), para que el
+    orden de la suite no deje a T-02 sin winutils y para que los módulos que ramifican
+    por `HADOOP_HOME` usen el camino real; verificado con `test_web_export.py`,
+    `test_pbi_export.py` y `test_integration_spark.py`. El `MERGE` de Delta local
+    (necesario en T-04) queda comprobado con `delta-spark` 4.4.1 y
+    `spark.sql.extensions`/`spark.sql.catalog.spark_catalog` explícitos (ver
+    `evidence.md`).
+    **Desviaciones medidas y documentadas:** `once` ignora `maxFilesPerTrigger` en
+    Spark 4.2; el watermark usa `outputMode("update")` + `foreachBatch` a Parquet
+    porque `append` no emite ninguna ventana en la primera ejecución; exactly-once usa
+    `foreachBatch` para que el checkpoint (y no el `_spark_metadata` del file sink) sea
+    la única garantía. **`[NO VERIFICADO]`:** el comportamiento en DBR 17.3 (solo se
+    ejecutó PySpark 4.2.0 local) y la muerte del proceso entre el commit del offset y
+    la escritura (se explica en el docstring, no se simula).
+
+## 3. Observabilidad del streaming y del run (dominio 6)
+
+- [x] **T-03 — Resumen medido del bronce** (~75 min)
+  - **Objetivo:** cerrar el hueco de la 008: que la tarea de bronce publique por
+    fuente `numInputRows`, `batchId`, duración del microbatch y del trigger,
+    backlog (si el motor lo expone), filas nuevas en cuarentena y estado del
+    checkpoint, sin pasadas nuevas sobre la landing.
+  - **Entregable:** módulo `databricks_notebooks/Bronze_Summary.py` con funciones
+    puras (`build_stream_summary`, `merge_summaries`) y tests; `bronze_ingest.ipynb`
+    llama al módulo, publica `dbutils.notebook.exit` **y**
+    `dbutils.jobs.taskValues.set("bronze_summary", ...)` (lo consume T-05).
+  - **Restricciones:** el conteo de cuarentena se hace sobre el frame pequeño ya
+    cacheado; **prohibido** `count()` del lote, `DESCRIBE HISTORY` por fuente y
+    lecturas nuevas de la landing. Test de contrato: mismas acciones que hoy.
+  - **Hecho cuando:** el resumen sale con las cuatro fuentes y `null` explícito en
+    lo que el motor no exponga; los tests cubren un progreso sintético (batch con y
+    sin filas, con y sin cuarentena) y el notebook no lanza acciones nuevas.
+  - **Aprobación previa:** módulo nuevo + celda del notebook de bronce.
+  - **Evidencia:** salida de tests, JSON de ejemplo y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Módulo puro
+    `databricks_notebooks/Bronze_Summary.py` (`build_stream_summary`, `merge_summaries`,
+    `quarantine_total`, `to_json`) con `tests/test_bronze_summary.py`: **19 passed** en
+    0,26 s. Contrato de `plan.md` §6 completo y versionado, con `null` explícito,
+    `num_input_rows_total` y `state_operators` copiado de `lastProgress` (ver
+    `design-streaming.md` §6). **Notebook:** solo 2 celdas (de 11); `isEmpty()` →
+    `persist()`+`count()` sobre el frame pequeño de cuarentena (**1 acción por 1**, sin
+    lecturas nuevas), `taskValues` + `notebook.exit` con la cadena JSON, conteo
+    idempotente por `(source, batch_id)` y guarda `len(SOURCES) == len(QUERIES)`.
+    **`[NO VERIFICADO]`:** comportamiento real en DBR 17.3 de `lastProgress`/`status`,
+    límite de 48 KiB de `taskValues` y que el conteo no añada etapas (contraste estático,
+    token a token); se cierra en T-08. `walCommit` es la única clave de commit mapeada
+    (`commitOffsets` no se publica).
+
+- [x] **T-04 — Tabla `ops.run_metrics` y su módulo** (~60 min)
+  - **Objetivo:** que cada run deje una fila consultable en Delta con sus métricas
+    de negocio y frescura, idempotente y sin depender del warehouse.
+  - **Entregable:** `databricks_notebooks/Run_Metrics.py`
+    (`build_run_row`, `checks_json`, `merge_sql`, `record`) con tests; esquema
+    `<catalog>.ops` creado por CLI (gratis) en dev y en prod; contrato de columnas
+    de `plan.md` §7.1.
+  - **Diseño:** `MERGE` por `run_id`; `record` nunca propaga errores (los registra
+    en el log y devuelve el estado); `metrics` y `checks` son JSON serializados de
+    forma estable (claves ordenadas).
+  - **Hecho cuando:** los tests cubren la fila completa, la idempotencia del
+    `MERGE` (dos escrituras del mismo `run_id` ⇒ una fila), el JSON estable y el
+    caso de error no propagado; el esquema existe en dev y en prod.
+  - **Aprobación previa:** módulo nuevo.
+  - **Evidencia:** tests, `DESCRIBE` de la tabla y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-03):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Módulo
+    `Run_Metrics.py` con `tests/test_run_metrics.py`: **30 passed** en 7:18 (26 puros,
+    incluidos 4 parametrizados de clave nula, + 4 de integración con Delta local; estos
+    demuestran **una** fila tras dos escrituras del mismo `run_id` y que gana la segunda). Una sola definición genera
+    `COLUMNS`, `TABLE_SCHEMA` y el DDL; `build_run_row` puro con `bronze_rows` = suma de
+    `num_input_rows_total`; JSON estable y estricto; `record` nunca propaga y valida
+    `run_id`/`job_id`. **Esquema `ops` creado por CLI** en `job_offers_dev`
+    (`36f4fdc8-2fbb-4d23-bda7-4b05c3b1b73b`) y `job_offers`
+    (`f4c405a5-f330-4582-b627-943a5c3d03df`). **`DESCRIBE` pendiente:** la tabla nace en
+    el primer `record` real, así que se hace en T-08 (`databricks tables list` vacío hoy).
+    **`[NO VERIFICADO]`:** `tableExists` de tres partes, DDL `USING DELTA` en Unity
+    Catalog y `MERGE … UPDATE SET *` en DBR 17.3 (probado con Spark 4.2.0 + Delta 4.4.1
+    local). `checks` debe llevar tipos JSON nativos (T-05).
+
+- [x] **T-05 — Tarea final: consolidación y frescura** (~75 min)
+  - **Objetivo:** que el run termine con una comprobación explícita y fallo visible
+    si los datos no son frescos, y que la fila de `ops.run_metrics` quede escrita
+    incluso cuando otra tarea falle.
+  - **Entregable:** notebook `databricks_notebooks/run_summary.ipynb` + tarea
+    `Publish_Run_Summary` en `resources/elt.job.yml` con `run_if: ALL_DONE` y
+    `depends_on` de las ocho tareas; lógica en `Run_Metrics.py`.
+  - **Comprobaciones del cierre:** resumen de bronce presente (task value),
+    `data_date` del `meta.json` del export web ≤ 8 días, y ficheros pendientes
+    **anteriores al inicio del run** (listado de landing y de `checkpoint/commits`,
+    ignorando lo que llega durante el run): si hay pendientes y `numInputRows = 0`,
+    falla.
+  - **Hecho cuando:** el `bundle validate` está en verde, el grafo del job incluye
+    la tarea final, los tests cubren cada check (incluido el fallo por frescura con
+    dato inyectado) y el estado del run queda en `ops.run_metrics`.
+  - **Nota:** `system.lakeflow` puede tardar; el cierre **no** depende de ella.
+  - **Aprobación previa:** notebook nuevo + `.yml` del job.
+  - **Evidencia:** `bundle validate`, tests y fila en `evidence.md`. **0 €.**
+  - **Estado (2026-11-03):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL). Notebook
+    `run_summary.ipynb` (8 celdas, solo coordinación) + `Run_Metrics.py`
+    (`pending_files`, `build_checks`, `failed_checks`, `parse_data_date`) + tarea
+    `Publish_Run_Summary` en `resources/elt.job.yml` (`run_if: ALL_DONE`, `depends_on` de
+    las 8, 7 parámetros con `{{job.run_id}}`/`{{job.id}}`/`{{job.start_time.iso_datetime}}`).
+    **Tests:** 58 puros passed (0,5 s) + 19 de `Bronze_Summary`; **`bundle validate -t dev`
+    → `Validation OK!`** y grafo de **9 tareas**. La fila se escribe **antes** del `raise`
+    (el `exit` va al final para no tragarse el fallo); `parse_data_date` no lanza (fecha
+    vacía → `null` y falla solo `freshness`); `listing_ok=False` no da verde; `failed_checks`
+    exige `True`; el listado es solo de metadatos y el corte es
+    `commit < mtime < inicio del run` (lo que llega durante el run no cuenta).
+    **Desviaciones motivadas:** `taskValues.get` necesita la tarea productora
+    (`Bronze_Ingestion`); `checkpoints_root` se toma del resumen del bronce (dev
+    `_checkpoints_dev`, prod `_checkpoints`) con fallback; `EXPECTED_SOURCES` vive en
+    `Run_Metrics` (no en `Bronze_Summary`) para no acoplar el módulo puro a Spark.
+    **`[NO VERIFICADO]`:** `taskValues.get`, `dbutils.fs.head/ls` y `fs.listFiles` sobre
+    ABFS, el formato real de `{{job.start_time.iso_datetime}}`, la escritura en
+    `ops.run_metrics` en DBR 17.3 y que la fila quede con otra tarea fallida (`ALL_DONE`
+    real). **Cerrado en T-08 (2026-11-04)** salvo la combinación: el lanzamiento de
+    `ALL_DONE` con dependencias fallidas y la fila escrita **antes** del `raise` están
+    probados por separado; «fila escrita cuando falla otra tarea» sigue
+    `[NO VERIFICADO]` (ver el Estado de T-08).
+
+- [x] **T-06 — Health rules, event log y RUNBOOK** (~60 min)
+  - **Objetivo:** que un fallo o una duración anómala avisen solos y que la
+    monitorización quede escrita con consultas versionadas.
+  - **Entregable:** `health.rules[]` (`health` + `rules`, no `health_rules`;
+    `RUN_DURATION_SECONDS` > **1500 s**) y
+    `on_duration_warning_threshold_exceeded` en `resources/elt.job.yml`; event log
+    a ADLS (`landing/_eventlogs/`) en el job cluster, con coste en bytes medido en
+    T-08 y decisión de mantenerlo o no; sección nueva del RUNBOOK (9.8) con las
+    consultas de `system.lakeflow`/`system.billing`, los umbrales y qué hacer en
+    cada alerta.
+  - **Descartado y documentado:** `STREAMING_BACKLOG_*` (los streams son por lotes
+    con `availableNow`, así que no hay backlog continuo que vigilar; la métrica
+    está en **Public Preview** y el cierre ya detecta pendientes) y alertas SQL
+    programadas (~0,43 €/despertar).
+  - **Hecho cuando:** el `.yml` valida, las alertas están descritas con destinatario
+    y umbral, y el RUNBOOK permite diagnosticar un run sin abrir el warehouse.
+  - **Aprobación previa:** `.yml` del job.
+  - **Evidencia:** `bundle validate`, extracto del RUNBOOK y fila en `evidence.md`.
+    **0 €.**
+  - **Estado (2026-11-03):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL; solo
+    `bundle validate/summary`). `resources/elt.job.yml` (+10 líneas, sin borrados):
+    `health.rules[]` en el **job** (`RUN_DURATION_SECONDS` > **1500 s**),
+    `on_duration_warning_threshold_exceeded` con el mismo destinatario que `on_failure`
+    y event log a `abfss://…/_eventlogs/` con rolling (variables `${var…}` resueltas).
+    `Validation OK!`, 9 tareas y timeout 1800 intactos. RUNBOOK §9.8 (EN) / §9.6 (ES)
+    con tabla de alertas, 3 consultas versionadas, diagnóstico sin warehouse en 3
+    pasos y descartes motivados. **Correcciones tras la verificación:** la duración
+    se calcula con `sum(period_end - period_start)` porque las columnas
+    `*_duration_seconds` son **0 en jobs multi-tarea**; las consultas filtran
+    `workspace_id = current_workspace_id()` (`job_id` no es único entre workspaces)
+    y agrupan por `run_id, job_id, trigger_type` (`result_state`/`termination_code`
+    son NULL en las filas intermedias); la vía para los `checks` es
+    `jobs get-run-output` (no existe «notebook enganchado al job cluster») y
+    devuelve el JSON solo con la tarea en verde — si falla, la traza de error; el
+    event log aporta retención más allá de la Spark UI (~60 días), no la sustituye;
+    el motivo de descartar `STREAMING_BACKLOG_*` es `availableNow` + Public Preview,
+    no la duración del run; SQL dentro de un run consume DBUs (no despierta el
+    warehouse) y DBUs no son €; `listing_ok=false` es causa de fallo. **Estados:**
+    health rules **configuradas y validadas, no desplegadas** (deploy en T-08/T-13);
+    los jobs desplegados (dev `320947022571947`, prod `916863262593632`) siguen con
+    **8 tareas** y `ops.run_metrics` la crea el primer `record`.
+    **`[NO VERIFICADO]`:** escritura, tamaño y utilidad real del event log (→ T-08; dev y
+    prod comparten `_eventlogs/`), entrega real del correo de duración (no se puede
+    comprobar sin un run > 1500 s; se observaría en un incidente real, la
+    configuración sí está validada) y lectura real de `system.*` (→ T-07).
+    **Nota de cierre (2026-11-04):** el event log quedó **retirado** en `639d252`
+    —el clúster **no arranca** con `spark.eventLog.dir` en `abfss://`
+    (`SparkMisconfiguration: Invalid configuration value detected for
+    fs.azure.account.key`, comprobado en vivo con el run `873077346042958`)—, así que
+    no hay bytes que medir ni log que conservar: `landing/_eventlogs/` sigue con
+    **0 ficheros y 0 B** (AzCopy). La **decisión medida es no mantenerlo**; **compute
+    log delivery** queda como alternativa **documentada, no implementada**. La regla
+    de duración sí se conserva en el bundle y quedó **desplegada** en dev y en prod
+    (T-13).
+
+- [x] **T-07 — Sesión SQL única: `system.*` y Query Profile** (~30 min)
+  - **Objetivo:** validar los permisos de las tablas de sistema, dejar las consultas
+    de monitorización y coste probadas y practicar Query Profile, **una sola vez**.
+  - **Ejecución (la persona):** abrir el warehouse (2X-Small), ejecutar las
+    consultas del RUNBOOK (`job_run_timeline`, `job_task_run_timeline`,
+    `billing.usage` por run), capturar el Query Profile de una de ellas, cerrar y
+    confirmar `STOPPED`.
+  - **Hecho cuando:** las tres consultas devuelven filas de los jobs del proyecto,
+    el coste por run del último run de producción está registrado, el Query Profile
+    está capturado y el warehouse queda `STOPPED` (antes y después).
+  - **Evidencia:** resultados saneados, captura del Query Profile, coste en
+    `docs/costs.md` y fila en `evidence.md`. **~0,43 €** (1 sesión, < 10 min).
+  - **Estado (2026-11-03):** **hecha** con **1 sesión SQL** (**~0,43 €**
+    presupuestados por la ventana facturable de 10 min; el importe exacto llega
+    del Account Console, `[NO VERIFICADO]`) y **0 € de runs y clústeres**. Sesión
+    de **6 min 44 s** (consultas **07:46:39 → 07:53:23**, hora local) en el
+    warehouse `Serverless Starter Warehouse` (`53d8e3e91af6749c`, 2X-Small,
+    `auto_stop_mins: 10`), workspace `7405619889654446`, perfil `vs_code`:
+    **8 ejecuciones** (1 fallida + 7 correctas); `STOPPED` antes y **`STOPPED`
+    confirmado por CLI después** (el histórico no tenía consultas desde el
+    2026-10-23). Los **tiempos por consulta** y el **`STOPPED`** vienen de la
+    **CLI/API** (`evidence/t07-session-checks.txt`), **no de las capturas**, que
+    solo cubren los resultados y el Query Profile. **Consulta 1**
+    (`job_run_timeline`, **6,4 s**): **29 filas**, **una por run**, de los dos
+    jobs (dev `320947022571947`, prod `916863262593632`). **Cotejo con
+    `docs/costs.md`:** los runs de **dev** de la 010 coinciden con lo registrado
+    —`549237053478569` 985 s ✓, `221895134926434` 816 s ✓, `269508392317481`
+    974 s ✓, `485578578869927` 808 s ✓, `16957686724897` 108 s ✓—;
+    `879269828668729` da **928 s** frente a los 927 s anotados (**+1 s**). Los
+    dos runs **de producción del 31-oct** dan **menos** que el `run_duration` de
+    la API que figura en `docs/costs.md`: `317888374535056` **744 s** frente a
+    747 s (**-3 s**; 2026-10-31 17:15:53 → 17:28:17 UTC = 18:15:53 → 18:28:17
+    local, `ONE_TIME`, `SUCCEEDED`, el run de referencia de T-07) y
+    `321262594455396` **908 s** frente a 915 s (**-7 s**). **Por qué difieren:**
+    la consulta **suma las rebanadas** de `period_start_time`/`period_end_time`,
+    mientras que el `run_duration` de la API incluye esperas (cola/setup) que no
+    siempre caen dentro de las rebanadas; por eso el orden de magnitud coincide y
+    la cifra exacta puede diferir en segundos. Los `TIMED_OUT` **1830-1837 s**
+    del `timeout_seconds: 1800` anterior. **Consulta 1b** (**2,9 s**): **106
+    filas**, **84 runs**, **6 jobs**, `oldest_period` 2026-08-25T18:51:19.492Z y
+    `newest_period` 2026-10-31T17:28:17.090Z → **los datos de la tabla abarcan
+    `2026-08-25` → `2026-10-31` (≈67 días)**; hasta la fecha de la sesión son
+    ≈70 días. **No es una garantía de retención:** es el alcance observado hoy
+    (`rows_all = 106`, `jobs = 6`, `runs = 84`, **~1,26 filas por run**).
+    **Consulta 2**
+    (`job_task_run_timeline`, **2,1 s**): las **8 tareas** del run
+    `317888374535056` en `SUCCEEDED`, con duraciones por tarea **distintas de 0**
+    (bronce 161/73/0 s; silvers 1/353-389/0 s; oro 1/57/0 s; exports 1/57/0 s y
+    1/53/0 s) → **valida la corrección de T-06** (las `*_duration_seconds` a nivel
+    de run **sí** son 0). **Coste por run:** `billing.usage` da
+    **0,15318770833333333 DBU** de `PREMIUM_JOBS_COMPUTE` para el run de **744 s**
+    y el cruce con `list_prices` (`pricing.default`, **0,30** USD/DBU,
+    `price_end_time IS NULL`) da **0,045956 USD**: **solo DBU a precio de lista**
+    (sin VMs/discos, storage ni egress), **≈4× menor** (**3,7-5×** según se
+    compare con el extremo bajo o alto de la banda) que la estimación de
+    **0,17-0,23 €/run** de `docs/costs.md`; **no son magnitudes idénticas**:
+    `0,045956` son **USD de DBU de `PREMIUM_JOBS_COMPUTE` a precio de lista**
+    para un run de **744 s**, y la banda 0,17-0,23 € era una **estimación en EUR
+    por duración** para runs de 808-974 s; el método por duración queda como
+    **cota superior**. `list_prices` trae `pricing.default`, `pricing.promotional`
+    y `pricing.effective_list` (descuentos). **Corrección del RUNBOOK:**
+    `current_workspace_id()` **no resuelve** en este workspace
+    (`[UNRESOLVED_ROUTINE]`, **07:46:39**, **4,8 s**) y las tres consultas de
+    §9.8.2 (EN) / §9.6.2 (ES) pasan al literal `7405619889654446`, con la nota de
+    que el literal es **específico de este workspace**. **Query Profile** de la
+    consulta 1: `query_id 01f1d753-415c-17cf-b993-acd58ccbc14c`, wall-clock
+    **2,603 s**, **29 filas devueltas / 43 leídas**, **15,06 KB**, **0 % de
+    caché**, Photon **58 %**, `Scan Table system.lakeflow.job_run_timeline`
+    **17 ms**. **Evidencia:** 7 capturas `evidence/t07-*.png` (renombradas desde
+    las de la sesión) y 7 filas en `evidence.md`. **`[NO VERIFICADO]`:** la
+    **latencia** de `system.lakeflow` (exige un run fresco → **T-08/T-13**) y la
+    lectura de `system.*` **desde el clúster del job** (→ **T-08**).
+
+## 4. Evaluación del mecanismo de ingesta
+
+> **Reordenación (2026-11-02, a petición de la persona):** **T-09 se adelanta**
+> para poder probar el kit en Free Edition en paralelo; **T-09b** la ejecuta la
+> persona cuando pueda y **T-10 no se cierra hasta entonces**.
+>
+> **Secuencia (2026-11-02):** **T-10 se cerró antes que T-08** porque la comparación
+> se hizo con la demo de Free Edition (T-09/T-09b) y los datos de la 010; **T-08 pasa
+> a ser la primera medición del resumen del bronce en dev, después de T-03–T-06**, y
+> sigue consumiendo **1 de los 3 runs** (el presupuesto no cambia).
+
+- [x] **T-08 — Run 1: mecanismo actual medido (A)** (~20 min de persona)
+  - **Objetivo:** tener la línea base real del bronce con el resumen nuevo y las
+    métricas del run.
+  - **Ejecución (run 1 de 3):** `bundle deploy -t dev` + `bundle run elt -t dev`
+    (sin parámetros), con ficheros nuevos en el landing si el pipeline local los ha
+    subido desde el último run de dev; si no hay ninguno, se anota y el run mide
+    idempotencia.
+  - **Hecho cuando:** las 9 tareas (8 de negocio + cierre) en verde; resumen por
+    fuente con `numInputRows` y cuarentena; fila en `ops.run_metrics`; tiempos por
+    tarea de `system.lakeflow`; bronce ≤ **134 s** de ejecución y run ≤ **1350 s**;
+    coste anotado.
+  - **Evidencia:** id del run, resumen de bronce, `ops.run_metrics`, tiempos, coste
+    en `docs/costs.md` y fila en `evidence.md`. **~0,20 €.**
+  - **Estado (2026-11-04):** **hecha con desviación** — el run instrumentado existe,
+    la fila está en `ops.run_metrics`, el `DESCRIBE` está hecho y el criterio de
+    duración del run se cumple; **el objetivo de tiempo del bronce no se cumple en
+    los runs con ingesta** (ver «Desviación medida» abajo). La tarea se cierra como
+    **hecha con desviación**, no como «todos los umbrales en verde».
+    **Run de dev, `1015457552352783`:** `SUCCESS`, 07:49:48 → 08:04:10 = **862 s**
+    (≤ **1350 s** ✓), **9/9 tareas** (8 de negocio + cierre), `ONE_TIME`. Tareas:
+    bronce **383 s de setup / 93 s de ejecución**; silvers **225/221/234/221 s**;
+    oro **61 s**; exports **49/43 s**; cierre **33 s**. **Ese run ingirió 0 filas**
+    (el export anterior se generó a las `2026-11-03T08:35:35Z` y el run del
+    2026-11-04 no ingirió filas), así que su bronce de 93 s mide **idempotencia, no
+    ingesta**. `checks` del cierre
+    (literales): `bronze_sources` 4/4 ✓, `bronze_summary` con las 4 fuentes ✓,
+    `freshness` `data_date 2026-11-02`, `data_age_days 2`, `max_age_days 8` ✓ y
+    `pending_files` con `total 0`, `listing_ok true`, `listing_error null` y
+    `bronze_rows 0` ✓; `record: {"error": null, "status": "ok"}`. **Fila verificada**
+    en `job_offers_dev.ops.run_metrics`: `duration_s 849.213635`, `bronze_rows 0`,
+    `quarantine_rows 0`, `data_date 2026-11-02`, `data_age_days 2`, `status success`,
+    `recorded_at 2026-11-04T07:03:57.620Z`. **Esquema:** la tabla nace con el primer
+    `record`; `system.information_schema.columns` de `job_offers.ops.run_metrics`
+    devuelve **13 columnas** con los tipos del contrato de T-04 (`run_id`/`job_id`
+    STRING, `started_at`/`finished_at` TIMESTAMP, `duration_s` DOUBLE,
+    `bronze_rows`/`quarantine_rows` LONG, `data_date` DATE, `data_age_days` INT,
+    `status`/`checks`/`metrics` STRING, `recorded_at` TIMESTAMP) → cierra el
+    `DESCRIBE` que T-04 dejó pendiente. **Coste** anotado en `docs/costs.md` (run de
+    dev y segunda sesión SQL).
+    **El intento `873077346042958` (2026-11-03) no cuenta como medición:** el clúster
+    no arrancó con `spark.eventLog.dir` en `abfss://` (`SparkMisconfiguration:
+    Invalid configuration value detected for fs.azure.account.key`), el bronce gastó
+    **472 s de setup** y las **7** dependientes quedaron `UPSTREAM_FAILED`;
+    `Publish_Run_Summary` **sí se lanzó** (nuevo intento del clúster del job,
+    `1103-080127-yh3s5qcy`, a las **09:01:27** local),
+    falló por la misma causa y **no escribió fila** → `run_if: ALL_DONE` está probado
+    **en el lanzamiento**. La combinación «**fila escrita cuando falla otra tarea**»
+    queda **`[NO VERIFICADO]`**: no se ha observado (en el run `1048410431217707` la
+    fila en rojo se escribió con las 8 tareas de negocio en verde y el fallo del
+    propio cierre). Las tres claves `spark.eventLog.*` se retiraron en `639d252`
+    (ver el cierre de T-06).
+    **`[NO VERIFICADO]`:** el correo de duración (ningún run superó 1500 s) y la
+    lectura de `system.*` **desde el clúster del job** (el cierre no la usa; la
+    latencia de `system.lakeflow`, que sí se midió, está en
+    `design-observability.md` §1.8 y en T-13).
+  - **Desviación medida — tiempo del bronce (2026-11-04):** el objetivo de
+    **≤ 134 s** viene de la 010 (T-03b: bronce **383 s de arranque + 134 s de
+    ejecución**, `docs/costs.md`). Los dos runs **con ingesta** de esta spec dan
+    bronce de ejecución de **146 s** (dev `1048410431217707`) y **144 s** (prod
+    `1050766241907151`), **≈7–9 % por encima** del objetivo; el run **sin ingesta**
+    da **93 s** (dev `1015457552352783`). T-03 añadió **una** acción por microbatch
+    (`persist()` + `count()` sobre el frame pequeño de cuarentena) y la lectura del
+    resumen, pero **no hay medición que aísle la causa** de la subida: no se hizo un
+    A/B con la tarea anterior ni un perfil del bronce, así que **no se atribuye** ni
+    a ese cambio ni a ninguna otra causa. Se documenta como **desviación medida**,
+    **no se ajusta el umbral** y **queda pendiente decidir si se abre una spec de
+    corrección**. Los **93 s no son comparables** con los 144-146 s: ese run no
+    ingirió nada.
+  - **Cierre de la decisión (2026-11-04):** en el run A de T-11, **con ingesta**,
+    el bronce ejecutó **121 s ≤ 134 s** (412 s de setup), así que el **objetivo se
+    cumple**. Los **144 s** (prod) y **146 s** (dev) anteriores quedan como
+    **desviación aceptada por la persona** el 2026-11-04: la diferencia se
+    considera **despreciable**, **no se abre spec de corrección** y **no se toca
+    el umbral**. La causa de esa subida sigue sin aislarse; lo que cambia es la
+    decisión, no la medición.
+
+- [x] **T-09 — Kit de la demo para Free Edition (CSV + dos mecanismos)** (~90 min)
+  - **Objetivo:** dejar un kit reproducible y sin secretos que permita ejecutar en
+    otra cuenta Free Edition los **dos mecanismos sobre los mismos datos** y traer
+    evidencia comparable.
+  - **Entregable en `specs/011-Streaming-And-Observability/candidate/`:**
+    - `data/<fuente>.csv` por fuente, generados desde **un Parquet real del landing**
+      (descarga con `LANDING_SAS_TOKEN` + AzCopy, 0 €), con todas las columnas del
+      Parquet (textos largos truncados y declarado en el manifiesto), muestreo
+      acotado y **filas inválidas inyectadas** por fuente (al menos una
+      `missing_key` y una `missing_scraped_at`).
+    - `manifest.json`: ficheros, filas, columnas, filas válidas e inválidas por
+      motivo, y el `sha256` de cada CSV.
+    - `schema.json`: tipología Spark por columna y fuente, base del esquema de
+      lectura y de las claves y la columna de captura.
+    - `pipeline_declarative.py`: streaming tables desde los CSV, `expectations` y
+      `AUTO CDC` SCD1 con claves por fuente y `sequence_by` por instante de captura.
+    - `mechanism_current.py`: el mecanismo actual adaptado al CSV (Structured
+      Streaming + `foreachBatch` + `MERGE`), reutilizando `Upsert_Job_Offers.py`.
+    - `README.md`: cómo subir los CSV a un Volume, crear cada pipeline, ejecutarlo
+      dos veces (segunda sin ficheros nuevos) y qué capturas traer.
+    - `generate_dataset.py`: el script que genera los CSV y el manifiesto (para
+      repetirlo con otro lote).
+  - **Restricciones:** no se sube nada al workspace pagado ni se crea ningún
+    pipeline de pago; ningún secreto en el kit; los CSV no superan ~1 MB en total y
+    **no se versionan** (`candidate/data/` está en `.gitignore`): solo se versionan
+    el generador, `schema.json`, el manifiesto, el código y el README. Los CSV son
+    datos públicos del landing y **pueden contener datos de contacto públicos** (en
+    este extracto aparecen un correo y un nombre), así que la carpeta no se comparte
+    tal cual.
+  - **Hecho cuando:** el script regenera los CSV de forma determinista, el manifiesto
+    cuadra (filas válidas + inválidas = filas del CSV), y el kit se puede ejecutar
+    en Free Edition sin tocar el proyecto pagado.
+  - **Evidencia:** salida del script, manifiesto y fila en `evidence.md`. **0 €**
+    (solo egress de la descarga).
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 clústeres, 0 SQL, 0
+    pipelines en el workspace pagado). Kit en `candidate/`: generador, `schema.json`, manifiesto, CSV de
+    **288 filas** (**280 válidas** + **8 inválidas inyectadas**: 4 `missing_key` + 4
+    `missing_scraped_at`) y **471.643 B** de CSV (≤ 1 MB); `pipeline_declarative.py`,
+    `mechanism_current.py`, README y tests locales (**8 passed**). Regeneración
+    **byte a byte** y `sha256` del manifiesto comprobados. Los CSV **no están
+    versionados** (`candidate/data/` en `.gitignore`). **Incidente T-09b
+    (2026-11-02):** la primera ejecución en Free Edition falló con
+    `[CONFIG_NOT_AVAILABLE.WITHOUT_SUGGESTION] Configuration landing_root is not
+    available. SQLSTATE: 42K0I`: el kit usaba `spark.conf` como bolsa de parámetros
+    y el módulo se ejecutó como notebook. Corrección: `run()` con argumentos
+    **keyword-only** y fallback a widgets, sin `spark.conf` como bolsa de
+    parámetros ni `__main__` (**0 €**). **Primera ejecución real del mecanismo
+    actual en Free Edition (2026-11-02):** **77,7 s** la primera y **7,2 s** la
+    segunda, `status` «Stopped» en las cuatro fuentes y `query_id` estable entre
+    runs (id persistido en el checkpoint). Faltaba la cifra de filas: hasta esta
+    mejora el resumen solo tenía `source`, `query_id` y `status`.
+    `mechanism_current.stream_result` añade `num_input_rows`
+    (`lastProgress["numInputRows"]`, **0** si no hubo lote), `batch_id`
+    (`lastProgress["batchId"]`, **`None`** si no hubo lote) y `batches`
+    (`len(query.recentProgress)`), leyendo solo el progreso del motor; la segunda
+    ejecución debe mostrar `num_input_rows: 0` y `batch_id: None` **si no hubo
+    ningún microbatch**; si Spark ejecuta un microbatch vacío, saldrá
+    `num_input_rows: 0` con su `batch_id`. En ambos casos los conteos del destino no
+    cambian, que es la evidencia de exactly-once. Tests del kit: **16 passed**.
+    **0 €**. **`[NO VERIFICADO]`:** las capturas de `candidate/evidence/` y la
+    duración total del pipeline; **ver el Estado de T-09b** (2026-11-02).
+
+- [x] **T-09b — Ejecutar la demo en Free Edition y traer evidencia** (~60 min, la persona)
+  - **Objetivo:** obtener la evidencia real de los dos mecanismos en el mismo
+    entorno y con los mismos datos.
+  - **Ejecución (la persona, en la cuenta Free Edition):** subir los CSV, crear los
+    dos pipelines (o notebooks), ejecutar cada uno **dos veces** (la segunda sin
+    ficheros nuevos) y capturar: grafo/linaje, event log, métricas de expectativas,
+    tabla resultante (conteos por fuente, cuarentena por motivo), segunda ejecución
+    con 0 filas, y duración de cada ejecución.
+  - **Hecho cuando:** las dos ejecuciones de cada mecanismo están en verde, la
+    segunda no ingiere filas ni mueve los conteos, la cuarentena coincide con el
+    manifiesto y constan en `evidence.md` los **conteos de destino y cuarentena**,
+    las **filas de la repetición** (`num_input_rows`/`batch_id` o «0 registros»),
+    las **duraciones** de cada ejecución y el **`query_id`/`batch_id`** por fuente.
+    Las **capturas** de `evidence/` del kit son **evidencia complementaria
+    opcional**, marcada `[NO VERIFICADO]` mientras no estén; cuando se aporten,
+    deben guardarse saneadas (sin rutas locales ni correos).
+  - **Evidencia:** conteos, filas de la repetición, duraciones, `query_id`/`batch_id`
+    y fila en `evidence.md`; capturas si se aportan. **0 €.**
+  - **Nota:** si `AUTO CDC` no está disponible en Free Edition, se aplica la
+    contingencia de `plan.md` §8.3 y se documenta.
+  - **Estado (2026-11-02):** **hecha con 0 €** en la cuenta **Free Edition** de la
+    persona (0 runs de dev, 0 clústeres, 0 SQL, 0 pipelines en el workspace pagado).
+    **Mecanismo declarativo** (`workspace.bronze_lab`, **2 ejecuciones**): run 1
+    **completado**, con «2 expectations» fallidas por fuente; por fuente
+    `_raw`/`_valid`: `indeed` **103/101**, `infojobs` **124/122**, `linkedin`
+    **49/47**, `multi_site` **12/10**; `_quarantine` **2** por fuente y tablas SCD1
+    `indeed`/`infojobs`/`linkedin`/`multi_site` con **101/122/47/10** filas
+    «updated»; run 2 **completado sin registros** en todas las tablas («Output
+    records -»). Conteos posteriores: destino **101/122/47/10** (`indeed` 101,
+    `infojobs` 122, `linkedin` 47, `multi_site` 10); cuarentena **2 por fuente**
+    (1 `missing_key` + 1 `missing_scraped_at`). **Mecanismo actual**
+    (`workspace.bronze_current`, **3 ejecuciones**): run 1 **77,7 s** y run 2
+    **7,2 s**, cuatro streams «Stopped»; run 3 (con el resumen nuevo)
+    `num_input_rows = 0`, `batch_id = 1`, `batches = 1` en las cuatro fuentes
+    —microbatch vacío, el caso previsto en la nota de T-09— y `query_id` estable
+    entre ejecuciones (id persistido en el checkpoint). Conteos: destino
+    **101/122/47/10**; cuarentena **1 `missing_key` + 1 `missing_scraped_at`** por
+    fuente.
+    **Conclusión:** los dos mecanismos dan **paridad con el manifiesto** del kit
+    (101/122/47/10 de destino y 2 de cuarentena por fuente, una por motivo) y
+    **exactly-once** en ambos (el run de repetición no añade filas ni duplica: 0
+    registros en el declarativo y `num_input_rows = 0` sin cambios de conteo en el
+    actual). La demo valida **semántica, conteos y cuarentena**; el contrato de
+    columnas queda pendiente del diff entre esquemas. **No** mide tiempo ni coste
+    de producción: Free Edition es serverless gratuito y sus duraciones no son
+    comparables con el run real; el coste de producción sigue siendo estimación
+    sujeta a aprobación.
+    **`[NO VERIFICADO]`:** los ficheros de `candidate/evidence/`
+    (`declarative-run1-graph.png`, `declarative-run1-expectations.png`,
+    `declarative-run1-eventlog.png`, `declarative-run2-zero.png`,
+    `current-run1-eventlog.png`, `current-run2-zero.png`, `counts.sql.txt`,
+    `timings.md`), la **duración total del run del pipeline** y la **comparación de
+    columnas entre los dos esquemas** (se pedirá aparte). **La decisión
+    (adoptar / adoptar parcialmente / no cambiar) se escribe en T-10**, no aquí.
+
+- [x] **T-10 — Decisión medida y cierre de la evaluación** (~60 min)
+  - **Objetivo:** decidir **adoptar / adoptar parcialmente / no cambiar** con la
+    tabla de `plan.md` §3 y §8.2, sin margen para la opinión.
+  - **Hecho cuando:** la tabla tiene las 8 puntuaciones y las 4 puertas duras con su
+    evidencia; la decisión, las piezas que se adoptan (si alguna) y la **estimación
+    de coste de producción** (marcada `[NO VERIFICADO]`) están escritas en
+    `design-streaming.md`; la persona la revisa y aprueba el coste si la decisión es
+    adoptar.
+  - **Evidencia:** tabla de decisión, revisión de la persona y fila en
+    `evidence.md`. **0 €.**
+  - **Estado (2026-11-02):** **hecha con 0 €** (0 runs, 0 SQL, 0 pipelines en el
+    workspace pagado; T-09b creó **2 pipelines** en Free Edition). Puertas
+    duras: **contrato ✓** (diff de `workspace.bronze_current.<fuente>` contra
+    `workspace.bronze_lab.<fuente>`: `solo current`, `solo lab` y `tipo distinto`
+    **vacíos en las cuatro fuentes**); **exactly-once ✓** (declarativo: segunda
+    ejecución sin registros; actual: `num_input_rows = 0` y conteos sin mover);
+    **cuarentena ✓** (destino 101/122/47/10 y 1 `missing_key` + 1
+    `missing_scraped_at` por fuente en ambos); **rollback `[NO VERIFICADO]`** (no
+    ensayado; no aplicable al no migrar). Puntuación resumida:
+
+    | # | Criterio | Ganador |
+    |---|---|---|
+    | 1 | Tiempo del bronce | sin ganador |
+    | 2 | Coste por ejecución | A |
+    | 3 | Código propio | **B** |
+    | 4 | Observabilidad | **B** |
+    | 5 | Simplicidad operativa | A |
+    | 6 | Madurez del runtime | A |
+    | 7 | Riesgo de migración | A |
+    | 8 | Reversibilidad | A |
+
+    **B gana 2 de 8** (código propio y observabilidad; en el criterio 3 cumple la
+    rama «elimina el `MERGE` manual», aunque la reducción de líneas sea ≈ 45 %), por
+    debajo de las 5 exigidas: **no se migra** el pipeline declarativo. **Decisión:
+    adoptar parcialmente** (mantener el mecanismo actual y adoptar la observabilidad
+    de T-03–T-06). T-12 se cierra como **no aplicable** y T-13 despliega **solo
+    observabilidad**. La tabla completa con umbrales y evidencia está en
+    `design-streaming.md` §9. Tiempo y coste de producción del declarativo:
+    `[NO VERIFICADO]`, no aprobado. **0 €.** **Aprobada por la persona el
+    2026-11-02** (en conversación): mantener el mecanismo actual y adoptar la
+    observabilidad; no migrar. **Umbral de coste (2026-11-02):** el **1,00 €/mes** se
+    mantiene como referencia y aviso, no como regla dura; superarlo abre revisión y
+    no bloquea, y el techo real es el **presupuesto de producción de 3 €/mes de la
+    009**.
+
+## 5. Validación y producción
+
+- [x] **T-11 — Runs 2 y 3 en dev: repetición e idempotencia** (~30 min de persona)
+  - **Objetivo:** demostrar exactly-once y que las métricas no se duplican ni
+    mienten: un run con lote nuevo y otro inmediato sin ficheros.
+  - **Hecho cuando:** el run 2 ingiere lo pendiente con `numInputRows > 0` en al
+    menos una fuente; el run 3 deja `numInputRows = 0` por fuente (sin `MERGE` de
+    bronce) y sin cambios de conteos en silver, oro ni exports —la idempotencia de
+    silver ya está probada en la 010—, con **una sola fila** por run en
+    `ops.run_metrics`; la tarea final no falla; run ≤ 1350 s; coste anotado.
+  - **Evidencia:** ids de los dos runs, resúmenes, `ops.run_metrics` (dos filas
+    distintas), tiempos, coste y fila en `evidence.md`. **~0,40 €.**
+  - **Estado (2026-11-04):** **hecha.** El par está en **el mismo catálogo**
+    (`job_offers_dev`) y **ambos runs en verde** (9/9 tareas y `record: ok`).
+    **Run A `826958114241409`** (`ONE_TIME`, 22:00:46 → 22:15:30): **SUCCESS**,
+    **884 s** (≤ 1350 s ✓); bronce **412 s de setup / 121 s de ejecución**;
+    silvers **192/189/209/194 s**; oro **55 s**; exports **49/41 s**; cierre **30 s**.
+    Ingiere lo pendiente del 2026-11-04: **infojobs 366 filas**
+    (`trigger_execution` **54,0 s**), **linkedin 4076** (56,7 s), **indeed 0**,
+    **multi_site 0**; `quarantined_rows 0` en las cuatro y `batch_id`
+    **12/12/18/15**. `checks`: `bronze_rows 4442`, `pending_files.total 0`,
+    `listing_ok true`, `listing_error null`, `freshness data_date 2026-11-04` con
+    `data_age_days 0`, todo `ok: true`; `record: {"status": "ok", "error": null}`.
+    **Run B `410084266136659`** (22:15:45 → 22:25:21): **SUCCESS**, **576 s**
+    (≤ 1350 s ✓); bronce **141 s de setup / 67 s de ejecución**; silvers
+    **223/220/230/220 s**; oro **52 s**; exports **44/38 s**; cierre **30 s**.
+    Es la **repetición inmediata sin ficheros nuevos:** `num_input_rows 0` en las
+    **cuatro** fuentes, `quarantined_rows 0` y `batch_id` **12/13/19/15** (avanzan
+    infojobs 12→13 y linkedin 18→19; indeed y multi_site repiten). `checks`:
+    `bronze_rows 0`, `pending_files.total 0`, `listing_ok true`, `freshness`
+    `data_date 2026-11-04` con edad 0, todo `ok: true`; `record: ok`.
+    **La fila de `ops.run_metrics` de cada run se acredita por el `record: ok` del
+    propio cierre** (la fila se escribe antes del `raise`); la **lectura por SQL de
+    esas dos filas** queda **planificada para el cierre** de la spec, así que su
+    presencia en la tabla es **`[NO VERIFICADO]` por consulta, no por escritura**.
+    **`[NO VERIFICADO]` además:** los conteos de silver, oro y exports
+    antes/después del run B (la idempotencia de silver ya está probada en la 010);
+    lo que sí está medido es `bronze_rows 0` y `pending_files.total 0` con
+    `listing_ok true` en el cierre. **Coste:** dos runs más de dev, **autorizados
+    por la persona** el 2026-11-04; la spec acumula **5 runs de dev** (uno perdido)
+    y **≈0,23 USD** de DBU medidos, ver `docs/costs.md`.
+
+- [x] **T-12 — (Condicional) Migración del mecanismo ganador en producción** (~60 min + ventana)
+  - **Objetivo:** si T-10 decide adoptar, llevar el mecanismo a producción con
+    cutover verificado y vuelta atrás; si decide no cambiar, cerrar con el motivo.
+  - **Si se adopta:** backup/`RESTORE` disponible, `pause_status: PAUSED`, deploy con
+    el pipeline en `resources/`, migración de las cuatro fuentes y conmutación
+    (tablas nuevas gestionadas + `bronze_legacy` + ruta canónica), verificación de
+    conteos, reanudación y run programado. Rollback probado en dev y documentado en
+    `cutover.md` propio.
+  - **Si no se adopta:** la tarea se cierra con el motivo medido, **sin gasto** y sin
+    tocar producción.
+  - **Aprobación previa:** el `.yml`, el plan de migración y el **coste de
+    producción** (fuera del techo de dev).
+  - **Hecho cuando:** el mecanismo decidido está en producción con rollback
+    disponible y el run programado en verde, o la decisión «no cambiar» está
+    registrada.
+  - **Evidencia:** deploy, ids, conteos, rollback ensayado y fila en `evidence.md`.
+  - **Estado (2026-11-02): no aplicable.** T-10 decide **no migrar** el pipeline
+    declarativo (B gana 2 de 8; ver `design-streaming.md` §9), así que no hay
+    cutover que ejecutar. Se cierra con el motivo medido, **sin gasto** (0 €) y sin
+    tocar producción; el texto condicional de arriba se conserva por si una revisión
+    futura cambia la decisión.
+
+- [ ] **T-13 — Producción: run programado, dashboard y warehouse** (~30 min)
+  - **Objetivo:** comprobación real de la spec: el run semanal se explica solo.
+  - **Hecho cuando:** el primer run programado tras el deploy cierra las 9 tareas
+    (8 de negocio + cierre), deja su fila en `ops.run_metrics` con `data_date`
+    correcta y `checks` en verde; el dashboard publica con la fecha correcta; el SQL
+    warehouse queda `STOPPED` antes y después; las health rules están activas en el
+    job desplegado.
+  - **Evidencia:** id del run, fila de `ops.run_metrics`, id del workflow del
+    dashboard, estado del warehouse, coste en `docs/costs.md` y fila en
+    `evidence.md`. **0 € de dev** (coste de producción, dentro de la cadencia).
+  - **Estado (2026-11-04):** **parcial** — el despliegue está hecho y hay un run en
+    verde con las 9 tareas, pero **el criterio pide el primer run programado** tras
+    el deploy, y ese run es el del **domingo 2026-11-08 a las 23:00**
+    (`Europe/Madrid`). La tarea **no se marca como hecha**.
+    **Deploy de producción:** `bundle validate -t prod` → `Validation OK!`;
+    `bundle deploy -t prod` → **10 ficheros**, **1 recurso cambiado**. El job
+    `916863262593632` queda con **9 tareas**, `health.rules[]`
+    `RUN_DURATION_SECONDS > 1500`, `spark_conf` con **solo**
+    `spark.sql.shuffle.partitions` (sin `spark.eventLog.*`, retirado en `639d252`),
+    cron `50 0 23 ? * SUN`, `Europe/Madrid` y **`UNPAUSED`**.
+    **Run manual de producción `1050766241907151`:** `SUCCESS`,
+    08:05:15 → 08:15:58 = **643 s**, **9/9 tareas**, `ONE_TIME`; bronce **142 s de
+    setup / 144 s de ejecución**, silvers **191/188/198/189 s**, oro **56 s**,
+    exports **52/44 s**, cierre **38 s**. `checks`: `pending_files.bronze_rows 2283`,
+    `pending_files.total 0` con `listing_ok true` y `listing_error null`,
+    `freshness data_date 2026-11-02` con `data_age_days 2`, todo `ok: true`;
+    `record: ok`. Fila: `duration_s 630.398056`, `bronze_rows 2283`,
+    `quarantine_rows 0`, `data_date 2026-11-02`, `data_age_days 2`, `status success`,
+    `recorded_at 2026-11-04T07:15:46.052Z`. **Ese run manual valida el despliegue,
+    no el criterio** (no es `PERIODIC`).
+    **Falta para cerrar:** el run programado del **2026-11-08** con **9/9** tareas y
+    sin intervención, su fila con `data_date` correcta y `checks` en verde, el
+    workflow del dashboard publicado con esa fecha, el **warehouse `STOPPED` antes y
+    después** y las health rules activas en el job desplegado.
+    **`[NO VERIFICADO]`:** la entrega del **correo de duración** (ningún run superó
+    los 1500 s; se observaría en un incidente real) y la **cifra exacta** de latencia
+    de `system.lakeflow`, hoy solo acotada (**> 7 min 37 s**, ver
+    `design-observability.md` §1.8); el run del domingo la acota.
+
+- [x] **T-15 — Un fichero con filas incoherentes no pierde las válidas**
+  - Origen: la primera validación real de este ciclo. `multi_site` generó 1569
+    ofertas nuevas y `ensure_compatible.py` **rechazó el fichero entero** porque 16
+    filas no cuadraban (`coherence=multi_site`): 0 filas al landing y 1569 tiradas.
+    La separación por filas ya existe en `coherence.py` (`quarantine_bad_rows`
+    escribe `bad_rows_<ts>.csv`); la validación simplemente no la usa.
+  - **Cuando** un parquet del staging tenga filas incoherentes, **el sistema** debe
+    escribir las malas en `<QuarantineRoot>/<fuente>/bad_rows_<stem>_<ts>.csv`, subir el
+    parquet con las válidas restantes y dejar constancia en el log (y en el
+    manifest) de cuántas filas se separaron.
+  - **Si** el fichero es estructuralmente inválido (ilegible, sin columnas
+    obligatorias o vacío), **el sistema** debe seguir rechazándolo entero y moverlo
+    a cuarentena, sin subir nada.
+  - **Si** todas las filas son incoherentes, **el sistema** debe rechazar el fichero
+    entero (no subir un parquet vacío) y dejarlo dicho.
+  - **Hecho cuando:** la prueba real con el fichero de `multi_site` del 2026-11-04
+    sube el parquet limpio a `dia=2026-11-04`, deja el CSV de filas malas en
+    `quarantine/multi_site/` y los tests de `scrapers-pipeline/tests` siguen en
+    verde.
+  - **Estado (2026-11-04):** **hecha** (commit `cf9e4d0`, *fix(pipeline): T-15
+    filas incoherentes separadas en vez de fichero entero*).
+    `ensure_compatible.py` separa las filas incoherentes a
+    `quarantine/<fuente>/bad_rows_<stem>_<ts>.csv`, reescribe el parquet de staging
+    con las válidas (mismo esquema y nulos intactos) y publica `status=partial` con
+    `dropped_rows` en el manifest y **exit 0**; el **rechazo entero** se mantiene
+    para lo estructural (ilegible, sin columnas obligatorias, vacío) y para «todas
+    las filas malas». `coherence.quarantine_bad_rows` acepta `out_dir=None` y el
+    CSV lleva el stem del parquet para que dos ficheros del mismo staging no se
+    pisen; `verification/landing.py` documenta el contrato de `dropped_rows` y que
+    `rows` cuenta las filas publicadas. **Tests:** **1140 passed** en `scrapers-pipeline/tests`
+    (**8 nuevos**). **Prueba real (2026-11-04, 23:08-23:09):**
+    `recover_and_upload.ps1 -Date 2026-11-04` → `multi_site` **publicado** (**1
+    fichero**), con `indeed` **omitido** (no hay parquet de Indeed con la fecha
+    del run) y `linkedin`/`infojobs` **omitidos** por estar ya subidos; el parquet
+    limpio (`jobs_unified_new_20261104_230839.parquet`,
+    **1553 filas válidas de 1569**) queda en `multi_site/dia=2026-11-04`, el CSV
+    `bad_rows_jobs_unified_new_20261104_230839_20261104_230855.csv` (**75 KB, 16
+    filas**) en `scrapers-pipeline/quarantine/multi_site/` y el `run_state` de
+    `multi_site` queda `ok` con `uploaded 1` y `rejected 0`; el `_READY` ya
+    existía y **no se reescribió**. Antes de la recuperación, `multi_site` estaba a
+    **0**; el prefijo `multi_site/dia=2026-11-04` queda con **2 ficheros, 2,88
+    MiB**. **`[NO VERIFICADO]`:** la subida se hizo por la **CLI de recuperación**
+    (`recover_and_upload.ps1`), **no** por el wrapper completo del día
+    (`run_scrapers_and_upload.ps1`), así que la parte del validador está cubierta por
+    tests y el runner no se ha ejecutado en ese camino; la rama `partial` del runner es la del **rechazo entero con
+    válidos restantes**, no la de este caso; y la reconstrucción de las ofertas a
+    partir del CSV no se ha ensayado (limitación de `OnlyNewOffers` documentada en
+    el RUNBOOK §10.1). **Alcance:** T-15 no tiene RF propio en `spec.md`
+    (RF-1..RF-10) y su alcance es `scrapers-pipeline`; se incluye en la 011 por
+    decisión explícita de la persona, al no abrir spec nueva para un cambio de
+    este tamaño.
+
+## 6. Cierre
+
+- [ ] **T-14 — Cierre de la spec**
+  - Notas `docs/databricks-de/notes/03-streaming.md` y `06-observability.md`
+    escritas con la plantilla del índice (qué se practicó, conceptos, comandos,
+    errores, dudas) y el índice actualizado.
+  - Roadmap (calendario, bitácora y estado de la semana 8) y `docs/costs.md` al día;
+    RUNBOOK con la sección de monitorización.
+  - Suites completas en verde; comprobación real registrada (T-13).
+  - **Hecho cuando:** decisión medida cerrada (adoptar/no cambiar) y verificada,
+    run programado en verde, gasto de dev ≤ 2,0 € y merge `--no-ff` a `main` con tag
+    `spec-011`.

@@ -1,0 +1,841 @@
+{
+  "format_version": 1,
+  "description": "Spark schema of the demo CSV files. Derived from the Arrow schema of the latest landing Parquet per source.",
+  "sources": {
+    "indeed": {
+      "csv": "data/indeed.csv",
+      "keys": [
+        "job_key"
+      ],
+      "capture_column": "scraped_at",
+      "columns": [
+        {
+          "name": "job_key",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "title",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "city",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "state",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "country",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_text",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_min",
+          "spark_type": "long",
+          "nullable": true,
+          "arrow_type": "int64"
+        },
+        {
+          "name": "salary_max",
+          "spark_type": "long",
+          "nullable": true,
+          "arrow_type": "int64"
+        },
+        {
+          "name": "salary_type",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "is_remote",
+          "spark_type": "boolean",
+          "nullable": true,
+          "arrow_type": "bool"
+        },
+        {
+          "name": "job_type",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "workplace_type",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "contract_type",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "schedule",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "benefits",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "posted_date",
+          "spark_type": "timestamp",
+          "nullable": true,
+          "arrow_type": "timestamp[us, tz=UTC]"
+        },
+        {
+          "name": "posted_relative",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_rating",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "company_review_count",
+          "spark_type": "long",
+          "nullable": true,
+          "arrow_type": "int64"
+        },
+        {
+          "name": "snippet",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "description_text",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "description_html",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "viewjob_url",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "apply_url",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_overview_link",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_id_encrypted",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "is_sponsored",
+          "spark_type": "boolean",
+          "nullable": true,
+          "arrow_type": "bool"
+        },
+        {
+          "name": "search_term",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "city_query",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "page",
+          "spark_type": "long",
+          "nullable": true,
+          "arrow_type": "int64"
+        },
+        {
+          "name": "scraped_at",
+          "spark_type": "timestamp",
+          "nullable": true,
+          "arrow_type": "timestamp[us, tz=UTC]"
+        }
+      ]
+    },
+    "infojobs": {
+      "csv": "data/infojobs.csv",
+      "keys": [
+        "id_oferta"
+      ],
+      "capture_column": "fecha_scraped",
+      "columns": [
+        {
+          "name": "id_oferta",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "titulo",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "empresa",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "ciudad",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "provincia",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "pais",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "fecha_publicacion",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "categoria",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salario_raw",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salario_min",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "salario_max",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "moneda",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "periodo",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "jornada",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "tipo_contrato",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "experiencia_min",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "modalidad",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "descripcion_snippet",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "url_oferta",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "fecha_scraped",
+          "spark_type": "timestamp",
+          "nullable": true,
+          "arrow_type": "timestamp[us]"
+        },
+        {
+          "name": "fuente",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "ciudad_buscada",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "keyword_buscada",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "pagina",
+          "spark_type": "long",
+          "nullable": true,
+          "arrow_type": "int64"
+        }
+      ]
+    },
+    "linkedin": {
+      "csv": "data/linkedin.csv",
+      "keys": [
+        "job_id"
+      ],
+      "capture_column": "scraped_at",
+      "columns": [
+        {
+          "name": "job_id",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "job_url",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "title",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_name",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_raw",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_city",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_region",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_country",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "posted_datetime",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "posted_relative",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "is_new",
+          "spark_type": "boolean",
+          "nullable": true,
+          "arrow_type": "bool"
+        },
+        {
+          "name": "company_url",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_industry",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_size",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "work_mode",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "employment_type",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "experience_level",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_raw",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_min",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "salary_max",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "salary_currency",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_period",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "num_applicants",
+          "spark_type": "long",
+          "nullable": true,
+          "arrow_type": "int64"
+        },
+        {
+          "name": "description_full",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "role_summary",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_description",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "responsibilities",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "requirements",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "benefits",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "skills",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "list<element: string>"
+        },
+        {
+          "name": "search_role",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "search_city",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "source",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "scraped_at",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        }
+      ]
+    },
+    "multi_site": {
+      "csv": "data/multi_site.csv",
+      "keys": [
+        "site",
+        "job_id"
+      ],
+      "capture_column": "scraped_at",
+      "columns": [
+        {
+          "name": "job_id",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "job_url",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "title",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_name",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_raw",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_city",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_region",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "location_country",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "posted_datetime",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "posted_relative",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "is_new",
+          "spark_type": "boolean",
+          "nullable": true,
+          "arrow_type": "bool"
+        },
+        {
+          "name": "company_url",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_industry",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_size",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "work_mode",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "employment_type",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "experience_level",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_raw",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_min",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "salary_max",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "salary_currency",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_period",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_source",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_is_estimated",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_raw_original",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "num_applicants",
+          "spark_type": "double",
+          "nullable": true,
+          "arrow_type": "double"
+        },
+        {
+          "name": "description_full",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "description_snippet",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "role_summary",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "company_description",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "responsibilities",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "requirements",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "benefits",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "skills",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "site",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "country",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "workload_pct",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "salary_disclosed",
+          "spark_type": "boolean",
+          "nullable": true,
+          "arrow_type": "bool"
+        },
+        {
+          "name": "search_role",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "search_city",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "source",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        },
+        {
+          "name": "scraped_at",
+          "spark_type": "string",
+          "nullable": true,
+          "arrow_type": "string"
+        }
+      ]
+    }
+  }
+}

@@ -243,6 +243,87 @@ al menos un despertar.
   dev y dentro del presupuesto de producción de la 009; el run programado de
   esa semana se pausó (1 run menos).
 
+## Sesión SQL de la spec 011 (T-07, 2026-11-03)
+
+- **Qué se gastó:** **una** sesión en el `Serverless Starter Warehouse`
+  (`53d8e3e91af6749c`, 2X-Small, `auto_stop_mins: 10`), **8 consultas** entre las
+  **07:46:39 y las 07:53:23** (hora local) = **6 min 44 s**, dentro de **una sola
+  ventana facturable de 10 min** → **~0,43 € presupuestados**. El **importe
+  exacto** llega del **Account Console** (DBU por SKU y día), `[NO VERIFICADO]`;
+  aquí no se estima más allá de la ventana. **0 € de runs y de clústeres** (no se
+  lanzó ningún run ni se creó compute). El warehouse quedó **`STOPPED`** antes y
+  después. Los tiempos por consulta y el `STOPPED` constan en
+  `specs/011-Streaming-And-Observability/evidence/t07-session-checks.txt`
+  (CLI/API, no capturas).
+- **Coste medido por run:** `system.billing.usage` da
+  **0,15318770833333333 DBU** de `PREMIUM_JOBS_COMPUTE` para el run de producción
+  `317888374535056` (**744 s**) y el cruce con `system.billing.list_prices`
+  (`pricing.default`, `0,30` USD por DBU, `price_end_time IS NULL`) da
+  **0,045956 USD**.
+- **Caveats del importe:** es **solo DBU a precio de lista**. **No** incluye las
+  VMs ni los discos del resource group gestionado (`databricks-rg-…`, que es la
+  parte de la factura de Azure), ni storage, ni egress, ni NAT. `pricing.default`
+  puede **no** reflejar descuentos: `list_prices` también trae
+  `pricing.effective_list`. Y el importe está en **USD**, no en EUR.
+- **Comparación:** frente a la estimación vigente por duración de este documento
+  (**0,17–0,23 €/run** para 808–974 s), el importe de DBU es **≈4× menor**
+  (**3,7-5×** según se compare con el extremo bajo o alto de la banda), pero **no
+  son magnitudes idénticas**: `0,045956` son **USD de DBU de `PREMIUM_JOBS_COMPUTE`
+  a precio de lista** para un run de **744 s**, y la banda 0,17–0,23 € era una
+  **estimación en EUR por duración** para runs de 808–974 s. Hasta cerrar la parte
+  de VM y disco, el **método por duración queda como cota superior**, no como
+  importe. Las **cifras históricas de este documento no se reescriben**.
+
+## Runs y sesiones SQL de la spec 011 (T-08, T-11, T-13 parcial — 2026-11-03/04)
+
+- **Sesión SQL de T-07 (2026-11-03):** **~0,43 € nominales** por la ventana
+  facturable de 10 min (una sola ventana, **8 consultas** en 6 min 44 s; detalle en
+  la sección anterior). Importe exacto del Account Console, `[NO VERIFICADO]`.
+- **Segunda sesión SQL (T-08, 2026-11-04):** **una ventana de ~10 min** (**07:13 →
+  07:23 UTC**) → **~0,43 € nominales**; importe exacto `[NO VERIFICADO]` hasta el
+  Account Console. Warehouse `STOPPED` **antes y después** (`warehouses list`,
+  `num_clusters: 0`). Lecturas: filas de `ops.run_metrics` en los dos catálogos, el
+  esquema de **13 columnas** y la latencia de `system.lakeflow`. **No se lanzó
+  ningún run desde la sesión.** La sesión fue **aprobada por la persona antes de
+  ejecutarla** (junto con el deploy y los runs), aunque el **RF-9** de `spec.md`
+  hablaba de «una sesión»; con las dos ventanas, el total de SQL sigue por debajo
+  del techo de **2,0 €**.
+- **Runs de dev (presupuesto de la spec: 3):**
+  - `873077346042958` (2026-11-03): **fallido al arrancar** por el event log en
+    `abfss://` (`SparkMisconfiguration`); bronce **472 s de setup**, las 7
+    dependientes `UPSTREAM_FAILED`, el cierre se lanzó y **no escribió fila**.
+    **Consume 1 de los 3 runs** aunque el pipeline no llegara a ejecutarse.
+  - `1048410431217707` (2026-11-03): **8/8 tareas de negocio en verde**, **922 s**;
+    el cierre quedó en rojo por `listing_ok: false` (defecto corregido en
+    `808a3d7`); bronce 472 s de setup + **146 s** de ejecución. **Consume el run 2.**
+  - `1015457552352783` (2026-11-04): **9/9**, **862 s**; bronce 383 s de setup +
+    **93 s** de ejecución; **0 filas ingeridas** (mide idempotencia). **Consume el
+    run 3.**
+  - `826958114241409` (2026-11-04, T-11 A): **9/9**, **884 s**; bronce 412 s de
+    setup + **121 s** de ejecución; **4442 filas** (infojobs 366 + linkedin 4076),
+    `pending_files.total 0` y cierre en verde. **Run 4**, autorizado por la persona.
+  - `410084266136659` (2026-11-04, T-11 B): **9/9**, **576 s**; bronce 141 s de
+    setup + **67 s** de ejecución; `num_input_rows 0` en las cuatro fuentes y
+    cierre en verde (repetición inmediata sin ficheros). **Run 5**, autorizado por
+    la persona.
+  - **El número de runs supera el plan; el coste medido no.** La spec consume
+    **5 runs de dev** frente a los **3** presupuestados (el fallido cuenta), pero a
+    la referencia de **0,045956 USD de DBU por run** (T-07) los cinco suman
+    **≈0,23 USD** de DBU a precio de lista, muy por debajo del techo de **2,0 €**.
+    Los **2 últimos** (A/B de T-11) los **autorizó la persona** el 2026-11-04;
+    cualquier run adicional necesita autorización explícita. El detalle por run
+    sigue arriba y en `tasks.md` (T-11).
+- **Run de producción manual (T-13 parcial, 2026-11-04):** `1050766241907151`,
+  **9/9**, **643 s**; bronce 142 s de setup + **144 s** de ejecución. Va al
+  **presupuesto de producción de la 009**, no al techo de dev; la cadencia normal
+  es el run programado del domingo.
+- **Referencia de coste por run (medida en T-07):** **0,045956 USD** de DBU para un
+  run de **744 s** (`PREMIUM_JOBS_COMPUTE`), **solo DBU a precio de lista**: sin
+  VMs, discos, storage ni egress, y en **USD**. No es un importe en EUR ni la
+  factura completa; sirve como orden de magnitud por run. Las cifras de esta
+  sección (922 s, 862 s, 884 s, 576 s, 643 s) son **duraciones**, no euros: **no
+  se convierten aquí** para no mezclar magnitudes.
+
 ## Cierre de la spec 009 (2026-10-24)
 
 - Runs medidos: dev 16,31 min (~0,24 €), prod 18,93 min (~0,24 €) e intento

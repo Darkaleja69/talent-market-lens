@@ -22,6 +22,13 @@ resources:
             kind: CLASSIC_PREVIEW
             node_type_id: Standard_D4ds_v4
             runtime_engine: STANDARD
+            # The Spark event log is NOT enabled: on this job cluster (single
+            # node, SINGLE_USER, no init scripts) `spark.eventLog.dir` pointing
+            # to raw ADLS fails at driver start-up with "Invalid configuration
+            # value detected for fs.azure.account.key" and the cluster never
+            # launches (measured 2026-11-03, T-08). Retention stays with the
+            # Spark UI (~60 days); compute log delivery is the documented
+            # alternative, not implemented.
             spark_conf:
               spark.sql.shuffle.partitions: "8"
             spark_version: 17.3.x-scala2.13
@@ -164,10 +171,44 @@ resources:
           run_if: ALL_SUCCESS
           timeout_seconds: 0
           webhook_notifications: {}
+        - task_key: Publish_Run_Summary
+          depends_on:
+            - task_key: Bronze_Ingestion
+            - task_key: Silver_Indeed
+            - task_key: Silver_Infojobs
+            - task_key: Silver_Linkedin
+            - task_key: Silver_Multi_site
+            - task_key: Gold_Complete_Catalog
+            - task_key: Build_for_Web-Dashboard
+            - task_key: Build_Report_Export
+          job_cluster_key: tm-lens-job
+          disabled: false
+          email_notifications: {}
+          notebook_task:
+            base_parameters:
+              catalog: ${var.catalog}
+              storage_account: ${var.storage_account}
+              container: ${var.container}
+              export_prefix: ${var.export_prefix}
+              run_id: "{{job.run_id}}"
+              job_id: "{{job.id}}"
+              started_at: "{{job.start_time.iso_datetime}}"
+            notebook_path: ${workspace.file_path}/databricks_notebooks/run_summary.ipynb
+            source: WORKSPACE
+          run_if: ALL_DONE
+          timeout_seconds: 0
+          webhook_notifications: {}
       email_notifications:
         no_alert_for_skipped_runs: false
+        on_duration_warning_threshold_exceeded:
+          - gomeznatesalejandro@gmail.com
         on_failure:
           - gomeznatesalejandro@gmail.com
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1500
       max_concurrent_runs: 1
       notification_settings:
         no_alert_for_canceled_runs: false

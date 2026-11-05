@@ -147,12 +147,18 @@ def coherence_issues(row: dict, site: str | None = None) -> list[str]:
     return issues
 
 
-def quarantine_bad_rows(df: pd.DataFrame, site: str, out_dir: Path,
+def quarantine_bad_rows(df: pd.DataFrame, site: str, out_dir: Path | None,
                         label: str = "") -> pd.DataFrame:
-    """Separa filas incoherentes y las escribe a <out_dir>/bad_rows_<ts>.csv.
+    """Separa filas incoherentes y las escribe a <out_dir>/bad_rows_<label>_<ts>.csv.
 
-    Devuelve el DataFrame SOLO con filas validas. Si no hay problemas,
-    devuelve el mismo DataFrame y no escribe nada.
+    `label` identifica el fichero de origen (p. ej. su stem), de modo que dos
+    ficheros del mismo staging con filas malas en el mismo segundo no se pisen
+    el CSV. Sin label el nombre es <out_dir>/bad_rows_<ts>.csv.
+    Devuelve el DataFrame SOLO con filas validas (conserva el indice original,
+    asi que sus etiquetas siguen siendo las posiciones de las filas validas).
+    Si no hay problemas, devuelve el mismo DataFrame y no escribe nada.
+    Con out_dir=None solo separa: el llamante decide que hacer con las malas
+    (p. ej. rechazar el fichero entero cuando no hay donde guardarlas).
     """
     if df is None or len(df) == 0:
         return df
@@ -164,12 +170,13 @@ def quarantine_bad_rows(df: pd.DataFrame, site: str, out_dir: Path,
 
     bad = df[bad_mask]
     good = df[~bad_mask]
-    out_dir.mkdir(parents=True, exist_ok=True)
-    import datetime as dt
-    ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    label_suffix = f"_{label}" if label else ""
-    path = out_dir / f"bad_rows_{ts}{label_suffix}.csv"
-    bad.to_csv(path, index=False, encoding="utf-8-sig")
-    print(f"[coherence] {site}: {len(bad)} fila(s) incoherentes -> cuarentena "
-          f"{path}")
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        import datetime as dt
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        label_prefix = f"{label}_" if label else ""
+        path = out_dir / f"bad_rows_{label_prefix}{ts}.csv"
+        bad.to_csv(path, index=False, encoding="utf-8-sig")
+        print(f"[coherence] {site}: {len(bad)} fila(s) incoherentes -> "
+              f"cuarentena {path}")
     return good

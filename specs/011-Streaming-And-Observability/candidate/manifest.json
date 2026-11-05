@@ -1,0 +1,157 @@
+{
+  "kit": "spec-011 free edition demo",
+  "generator": "generate_dataset.py",
+  "input_selection": "Latest Parquet per source (recursive): dia= partition date first, then file name, then modification time.",
+  "seed": 20261102,
+  "rows_requested_per_source": 200,
+  "sampling": "Deterministic sample without replacement per source: random.Random(sha256('<seed>:<source>')), selected indices sorted to keep the source row order. All rows are used when the input has fewer rows than requested.",
+  "truncation": {
+    "description_columns": [
+      "description",
+      "descripcion"
+    ],
+    "description_chars": 600,
+    "other_text_chars": 300,
+    "line_breaks": "replaced by spaces (Spark CSV multiLine=false)",
+    "timestamps": "naive UTC strings with microseconds: yyyy-MM-dd HH:mm:ss.SSSSSS",
+    "list_columns": "serialized as JSON strings; not truncated"
+  },
+  "injected_rows_are_synthetic": true,
+  "injected_rows": [
+    {
+      "reason": "missing_key",
+      "detail": "one row per source with a blank bronze key"
+    },
+    {
+      "reason": "missing_scraped_at",
+      "detail": "one row per source with the capture column set to 'not-a-timestamp'"
+    }
+  ],
+  "total_csv_bytes": 471643,
+  "total_bytes_warning": null,
+  "totals": {
+    "rows": 288,
+    "valid_rows": 280,
+    "invalid_rows": 8,
+    "invalid_by_reason": {
+      "missing_key": 4,
+      "missing_scraped_at": 4
+    }
+  },
+  "sources": [
+    {
+      "source": "indeed",
+      "input_file": "dia=2026-11-01/indeed_jobs_20261102_0221.parquet",
+      "input_date": "2026-11-01",
+      "input_rows": 101,
+      "input_bytes": 729242,
+      "sampled": false,
+      "sampled_rows": 101,
+      "csv": "data/indeed.csv",
+      "csv_bytes": 239210,
+      "sha256": "4bc7956e4130aea0b790429f30e9a9ffd93dbd8d7c9b6543fe9293bd8e8d2904",
+      "rows": 103,
+      "columns": 33,
+      "valid_rows": 101,
+      "invalid_rows": 2,
+      "invalid_by_reason": {
+        "missing_key": 1,
+        "missing_scraped_at": 1
+      },
+      "distinct_valid_keys": 101,
+      "columns_truncated": [
+        "snippet",
+        "description_text",
+        "description_html",
+        "viewjob_url",
+        "apply_url"
+      ],
+      "list_columns_as_json": []
+    },
+    {
+      "source": "infojobs",
+      "input_file": "dia=2026-11-01/offers_20261101_234608.parquet",
+      "input_date": "2026-11-01",
+      "input_rows": 122,
+      "input_bytes": 202230,
+      "sampled": false,
+      "sampled_rows": 122,
+      "csv": "data/infojobs.csv",
+      "csv_bytes": 123825,
+      "sha256": "6ca20b994cb11b62cf9ba5638272099834e11d6a05e87a59ff7e583271049ff6",
+      "rows": 124,
+      "columns": 24,
+      "valid_rows": 122,
+      "invalid_rows": 2,
+      "invalid_by_reason": {
+        "missing_key": 1,
+        "missing_scraped_at": 1
+      },
+      "distinct_valid_keys": 122,
+      "columns_truncated": [
+        "descripcion_snippet"
+      ],
+      "list_columns_as_json": []
+    },
+    {
+      "source": "linkedin",
+      "input_file": "dia=2026-11-01/jobs_new_20261102_000514.parquet",
+      "input_date": "2026-11-01",
+      "input_rows": 47,
+      "input_bytes": 200105,
+      "sampled": false,
+      "sampled_rows": 47,
+      "csv": "data/linkedin.csv",
+      "csv_bytes": 81229,
+      "sha256": "a1fd205d3471fb7ea64fab85e883db8e0c6e6db96a07993367685a1153b67d07",
+      "rows": 49,
+      "columns": 34,
+      "valid_rows": 47,
+      "invalid_rows": 2,
+      "invalid_by_reason": {
+        "missing_key": 1,
+        "missing_scraped_at": 1
+      },
+      "distinct_valid_keys": 47,
+      "columns_truncated": [
+        "description_full",
+        "role_summary",
+        "responsibilities",
+        "requirements",
+        "benefits"
+      ],
+      "list_columns_as_json": [
+        "skills"
+      ]
+    },
+    {
+      "source": "multi_site",
+      "input_file": "dia=2026-10-31/jobs_unified_new_20261101_033851.parquet",
+      "input_date": "2026-10-31",
+      "input_rows": 10,
+      "input_bytes": 72199,
+      "sampled": false,
+      "sampled_rows": 10,
+      "csv": "data/multi_site.csv",
+      "csv_bytes": 27379,
+      "sha256": "4c9296eb472a3425be3c78c0537deb36b0ca0080baf273aaa2e17e2f08cca2de",
+      "rows": 12,
+      "columns": 42,
+      "valid_rows": 10,
+      "invalid_rows": 2,
+      "invalid_by_reason": {
+        "missing_key": 1,
+        "missing_scraped_at": 1
+      },
+      "distinct_valid_keys": 10,
+      "columns_truncated": [
+        "description_full",
+        "company_description",
+        "responsibilities",
+        "requirements",
+        "benefits"
+      ],
+      "list_columns_as_json": []
+    }
+  ]
+}
