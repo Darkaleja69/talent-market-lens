@@ -1,18 +1,21 @@
-# Matriz de acceso — inventario y objetivo (spec 012, T-01)
+# Matriz de acceso — inventario y objetivo (spec 012, T-01 y T-02)
 
-> **Fecha:** 2026-11-06. **Tarea:** T-01 de `specs/012-Security-And-Governance`.
-> **Método:** solo lectura por Databricks CLI/API (`--profile vs_code`) y lectura
-> de código. **Sin SQL, sin abrir el SQL warehouse, sin runs, sin cambios.**
-> **Coste:** 0 €. Evidencia saneada en `docs/governance/evidence/`.
+> **Fecha:** 2026-11-06. **Tarea:** T-01 y T-02 (actualizado 2026-11-06) de
+> `specs/012-Security-And-Governance`.
+> **Método:** T-01 fue solo lectura por Databricks CLI/API (`--profile vs_code`)
+> y lectura de código; T-02 hizo un grant temporal en dev, verificado y revertido
+> en el mismo acto. **Sin SQL, sin abrir el SQL warehouse, sin runs, sin cambios
+> en prod.** **Coste:** 0 €. Evidencia saneada en `docs/governance/evidence/`.
 >
 > Este documento tiene dos partes que no deben confundirse:
 > 1. **Estado actual medido** (lo que la API devuelve hoy).
-> 2. **Objetivo y rollback** (propuesta para T-02/T-09, **no aplicada**).
+> 2. **Objetivo y rollback** (ensayado en dev en T-02; comandos de prod
+>    preparados para T-09, **sin aplicar en prod**).
 >
 > **No se afirma least privilege.** El estado actual es «sin grants explícitos y
 > todo por ownership»: la persona que ejecuta el job es propietaria de todos los
 > objetos y miembro de `admins`, así que su privilegio efectivo es máximo. Ese
-> exceso se mide y se registra abajo como limitación/desviación a aprobar.
+> exceso se mide y se registra abajo como limitación/desviación aprobada (D-01).
 
 ## 1. Resumen de hallazgos
 
@@ -22,13 +25,13 @@
 | H2 | **El owner de los 2 catálogos, de los 8 esquemas de capa y de las 39 tablas es la persona** (la misma que ejecuta el job). | El `run_as` del job dispone de **todas las capacidades por ownership** en cada objeto. Reducirlo exige migrar `run_as` a otra identidad: decisión separada, fuera de esta spec. |
 | H3 | **La Storage Credential es Azure Managed Identity**, no service principal: `azure_managed_identity.access_connector_id = access-connector-joboffers` (RG `projects-workspace`). | No hay service principal que reducir; el estándar de least privilege se aplica a la Managed Identity y a su Azure RBAC. |
 | H4 | La identidad de almacenamiento es **dedicada al proyecto** por nombre y resource group: un único access connector (`access-connector-joboffers`, RG `projects-workspace`) sirve a dev y prod; el workspace de sandbox usa otro (`unity-catalog-access-connector`, RG del sandbox). | «Dedicada» en el sentido de la spec: es la MI del proyecto y no la del workspace de sandbox. Dev y prod **sí comparten** la misma MI y el mismo contenedor. Que ningún otro recurso ajeno al proyecto reutilice ese connector es `[NO VERIFICADO]` (requiere Azure). |
-| H5 | **Hay 5 Storage Credentials del proyecto y solo 1 la usa la External Location**; las otras 4 no están referenciadas por ninguna EL. | Higiene de gobernanza: credenciales duplicadas del mismo access connector. Candidatas a limpieza en T-02/T-09 **tras verificar que no las usa nada más**. |
+| H5 | **Hay 5 Storage Credentials del proyecto y solo 1 la usa la External Location**; las otras 4 no están referenciadas por ninguna EL. | Higiene de gobernanza: credenciales duplicadas del mismo access connector. Candidatas a limpieza en T-09 **tras verificar que no las usa nada más**. |
 | H6 | La External Location `landing-loc` cubre **la raíz del contenedor** (`abfss://landing@joboffershns.dfs.core.windows.net/`), no un prefijo del pipeline. | READ/WRITE FILES alcanza crudo, checkpoints, almacenamiento gestionado de UC y ambos exports. Exceso de alcance real; ver §7. |
 | H7 | **No existen las tablas `bronze.<fuente>_quarantine`** (8 comprobaciones, dev y prod: «does not exist»). | El esquema de cuarentena no es verificable por metadatos; se deriva del código. Ver `quality-inventory.md`. |
 | H8 | El job tiene **9 tareas**, `run_as` persona y `edit_mode: UI_LOCKED`; ACL: persona `IS_OWNER`, grupo `admins` `CAN_MANAGE` heredado de `/jobs/`. | El job corre con privilegios de owner sobre todos los objetos del catálogo del entorno. La ACL no añade nadie más. |
 | H9 | Power BI y el dashboard público leen ADLS por **SAS de solo lectura por prefijo** (`gold/pbi_export`, `gold/web_export`), fuera de Unity Catalog. | No necesitan ni deben recibir grants UC. La comprobación de esa vía es independiente (T-09/T-10). |
 | H10 | **El metastore sí tiene grants**: `account users` → `USE_MARKETPLACE_ASSETS`; el grupo de cuenta de administradores del workspace → 9 `CREATE_*` (catálogo, clean room, connection, external location, provider, recipient, service credential, share, storage credential). | Son privilegios **administrativos**: no dan `SELECT`/`MODIFY` ni heredan a los objetos de datos. La capa de administración no está «sin ACL»; lo que no hay es acceso a datos por grant. |
-| H11 | El grupo `admins` tiene **dos miembros activos** (`141486372609033` y `146517773436349`) con el mismo `externalId` y el mismo nombre: dos registros SCIM de la misma identidad de Entra. | Ambos heredan `CAN_MANAGE` sobre los 3 jobs. Ninguno de los dos tiene grants UC directos. Hay que decidir en T-02/T-09 cuál es el registro canónico y si el duplicado se retira (hoy el ownership y el `run_as` están en `141486372609033`). |
+| H11 | El grupo `admins` tiene **dos miembros activos** (`141486372609033` y `146517773436349`) con el mismo `externalId` y el mismo nombre: dos registros SCIM de la misma identidad de Entra. | Ambos heredan `CAN_MANAGE` sobre los 3 jobs. Ninguno de los dos tiene grants UC directos. La decisión sobre el registro canónico y una eventual retirada del duplicado queda **fuera de la 012** (hoy el ownership y el `run_as` están en `141486372609033`). |
 
 ## 2. Identidades y grupos
 
@@ -48,9 +51,9 @@ son la **misma identidad de Entra** representada dos veces en el workspace (una
 con `userName` `#ext#@…onmicrosoft.com` y otra con el correo directo). Hoy los
 owners, el `run_as` y los 3 jobs están en `141486372609033`; el otro registro no
 tiene ownership ni grants, pero **sí hereda `CAN_MANAGE` sobre los 3 jobs** por
-pertenecer a `admins`. Decisión pendiente para T-02/T-09: confirmar cuál es el
-registro canónico y si el duplicado se retira o se deja documentado como legado
-(no se toca en T-01).
+pertenecer a `admins`. Decisión pendiente y **fuera de la 012**: confirmar cuál
+es el registro canónico y si el duplicado se retira o se deja documentado como
+legado (no se toca en T-01 ni en T-02).
 
 **`[NO VERIFICADO]`:** a qué principal corresponden esos UUID (posible service
 principal de plataforma). La API de workspace no los resuelve a un nombre legible
@@ -140,8 +143,8 @@ Fuente: `evidence/t01-storage.txt`.
 (`access-connector-joboffers`) aparece con **dos `credential_id` distintos**
 (`d3be66a9-…` en `job-offers-access_…`/`landing_loc_…` y `d937de4b-…` en
 `landing-loc_…`). Puede ser un connector recreado o dos identidades asociadas.
-Cuál de las dos tiene el RBAC efectivo sobre el contenedor es `[NO VERIFICADO]` y
-debe comprobarse antes de retirar credenciales en T-02.
+Cuál de las dos tiene el RBAC efectivo sobre el contenedor es `[NO VERIFICADO]`
+(requiere Azure) y debe comprobarse antes de retirar credenciales en T-09.
 
 **Clasificación pedida por la spec:**
 
@@ -184,10 +187,11 @@ principal `run_as`, de ahí que su ACL no conceda datos.
 
 ## 5. Matriz por principal y objeto
 
-> **Columnas «privilegio objetivo» y «rollback»: propuesta para T-02/T-09, no
-> aplicada.** Todo grant nuevo en T-02 tiene como inverso su `REVOKE`, que
-> devuelve el objeto al estado inventariado aquí (`{}`). No hay nada que
-> restaurar hoy porque no hay grants.
+> **Columnas «privilegio objetivo» y «rollback»: referencia para una futura
+> identidad de automatización (y para la decisión de storage de T-09); no
+> aplicadas en prod.** T-02 ensayó un grant en dev y lo revirtió; todo grant nuevo
+> tiene como inverso su `REVOKE`, que devuelve el objeto al estado inventariado
+> aquí (`{}`). No hay nada que restaurar hoy porque no hay grants.
 
 ### 5.1 Persona `run_as` (hoy también administradora)
 
@@ -222,8 +226,9 @@ cuenta de administradores del workspace, y la persona pertenece al grupo de
 workspace `admins`. Lo que **no** demuestra: la expansión de esa pertenencia al
 consultar `get-effective` (devuelve las asignaciones sin resolver miembros). No se
 afirma un privilegio personal enumerado; se registra la capacidad administrativa
-del rol y se deja la comprobación de membresía efectiva a T-02 (`[NO VERIFICADO]`
-solo en ese punto, no en la existencia de la ACL).
+del rol y la expansión de la membresía efectiva queda `[NO VERIFICADO]` (la API
+no la resuelve y T-02 no consultó Azure/Account Console); la existencia de la ACL
+sí está medida.
 
 ### 5.3 Grupos `users` y `users-clone-…`
 
@@ -242,7 +247,7 @@ para dev y prod, crudo, checkpoints, managed y exports (H4/H6). Reducirlo a
 prefijos exige **crear External Locations por prefijo** y, para el RBAC de Azure,
 contenedores separados o condiciones ABAC: Azure RBAC no se asigna por prefijo
 con una asignación estándar. Es un cambio de configuración de storage, no un
-grant: se decide en T-02/T-09 y hoy queda como **desviación medida**.
+grant: se decide en T-09 y hoy queda como **desviación medida**.
 
 ### 5.5 Lectores reales
 
@@ -256,7 +261,8 @@ grant: se decide en T-02/T-09 y hoy queda como **desviación medida**.
 
 Privilegios **mínimos que exige cada operación** (referencia de privilegios de
 Unity Catalog). `MODIFY` exige además `SELECT` y los `USE` de los contenedores.
-Hoy el owner los tiene todos; esta columna es el objetivo de T-02.
+Hoy el owner los tiene todos; esta columna es la referencia de privilegios
+mínimos para una futura identidad de automatización (ver `grants-plan.md` §4).
 
 | Tarea / módulo | Operación real | Objetos | Privilegio mínimo |
 |---|---|---|---|
@@ -278,12 +284,13 @@ Notas de precisión:
 
 - `MERGE WITH SCHEMA EVOLUTION` se ejecuta con `MODIFY` sobre la tabla destino;
   que la evolución de esquema no exija un privilegio adicional con un principal
-  **no owner** se comprobará en el preflight de T-02 (`[NO VERIFICADO]`); hoy solo
-  lo garantiza el ownership.
+  **no owner** sigue `[NO VERIFICADO]`: no hay principal no owner con el que
+  probarlo y se comprobará en la spec futura de identidad; hoy solo lo garantiza
+  el ownership.
 - `saveAsTable(..., overwriteSchema=true)` sobre una tabla existente requiere
   `MODIFY`; si la tabla no existe, `CREATE TABLE` en el esquema. El
-  comportamiento exacto con un principal no owner es `[NO VERIFICADO]` hasta el
-  preflight de T-02.
+  comportamiento exacto con un principal no owner sigue `[NO VERIFICADO]` hasta
+  que exista ese principal (spec futura).
 - `CREATE SCHEMA` no lo necesita ninguna tarea del job; los privilegios de
   creación de catálogo/esquema son de administración, no del pipeline.
 
@@ -310,7 +317,7 @@ Notas de precisión:
 - Las SAS de Power BI y del dashboard son **independientes** de UC: no heredan ni
   reciben grants; su alcance es el prefijo y los permisos `r`/`l` de la firma.
 
-## 7. Exceso medido y no reducible (limitación / desviación a aprobar)
+## 7. Exceso medido y no reducible (limitación / desviación aprobada o pendiente)
 
 1. **La cuenta personal es owner de todo y miembro de `admins`.** El job corre
    como ella. Aunque cada operación necesite solo `SELECT`/`MODIFY`, su efectivo
@@ -318,53 +325,69 @@ Notas de precisión:
    `ALL PRIVILEGES`). **No se afirma least privilege.** Migrar `run_as` a un service
    principal dedicado exige crear una identidad y cambiar el job: fuera de esta
    spec (RF-2), decisión separada y con su propio presupuesto.
+   **Aprobado como limitación por D-01 (2026-11-06):** no se migra `run_as`, no
+   se crean identidades y el exceso se documenta sin afirmar que quedó mínimo.
 2. **La identidad de almacenamiento es una MI dedicada al proyecto pero con
    alcance de contenedor completo**, compartida dev/prod. La EL no está
    particionada por prefijo y el RBAC de Azure de la MI no es comprobable con las
    credenciales de esta tarea (`[NO VERIFICADO]`). Reducir el alcance exige
    cambios de storage (nuevas EL por prefijo y, para Azure, contenedores
    separados o condiciones ABAC); se registra como desviación, no como mínimo.
+   **D-01 deja la EL en la raíz como desviación medida pendiente de aprobación
+   explícita antes de T-09** (no la aprueba).
 3. **Cuatro Storage Credentials duplicadas** de la misma MI, sin EL que las
    referencie. No es una escalada (misma identidad), pero amplía la superficie de
-   administración. Se propone su retirada en T-02 **solo tras confirmar que no
-   las referencia ningún catálogo/esquema/metastore**; el rollback es recrearlas
-   con el mismo access connector.
+   administración. **T-02 no las retira** (D-01): solo deja el preflight
+   preparado en `grants-plan.md` §5. **La retirada se decide y, si procede, se
+   ejecuta en T-09** tras confirmar que no las referencia ninguna EL (los
+   catálogos y esquemas no referencian credenciales por nombre: dependen de la
+   EL); el rollback es recrearlas con el mismo access connector.
 4. **El warehouse `Serverless Starter Warehouse`** (`53d8e3e91af6749c`,
-   2X-Small, `PRO`, serverless) está `STOPPED`. No se ha abierto. No forma parte
-   de la matriz de datos, pero su creador es el UUID `9e033aa4-…`
-   (`[NO VERIFICADO]`).
+   2X-Small, `PRO`, serverless) está `STOPPED`. No se ha abierto (T-02 lo
+   reverificó el 2026-11-06). No forma parte de la matriz de datos, pero su
+   creador es el UUID `9e033aa4-…` (`[NO VERIFICADO]`).
 5. **Hay dos registros de usuario de la misma identidad en `admins`** (H11). El
    duplicado no tiene ownership ni grants, pero hereda `CAN_MANAGE` de los jobs.
-   No es un exceso de datos; es una decisión de identidad pendiente (§8.6).
+   No es un exceso de datos; es una decisión de identidad pendiente (§8.6) que
+   D-01 no decide ni T-02 toca.
 
-**Aprobación pendiente:** estos cinco puntos deben aprobarse como limitación,
-desviación o decisión antes de T-09 (plan §3.1). T-02 no puede cerrar afirmando
-que las identidades quedaron mínimas.
+**Estado de aprobación (2026-11-06):** el punto 1 queda **aprobado como
+limitación** por D-01; el punto 3 se traslada a **T-09**; el punto 2 (EL en la
+raíz) sigue **pendiente de aprobación explícita antes de T-09**; los puntos 4 y 5
+son inventario y no requieren cambio. T-02 no cierra afirmando que las
+identidades quedaron mínimas.
 
-## 8. Qué se propone para T-02 (sin aplicar aquí)
+## 8. Qué hizo T-02 y qué queda preparado para T-09
 
 1. **No crear identidades nuevas** (RF-2): no hay service principal y no se crea
    uno solo para el temario. Se conserva `run_as` persona y su camino de
-   administración.
+   administración (D-01).
 2. **No hay grants de datos que revocar** en los objetos del proyecto (los del
-   metastore son administrativos y se conservan): el trabajo de T-02 es *definir y
-   ensayar en dev* los grants mínimos que necesitaría una identidad de
-   automatización si algún día se migra `run_as`, y los de la MI si se
-   particionara la EL. Los comandos y su inverso se versionan en la spec.
-   Para ensayar herencia y rollback sin tocar al owner, T-02 puede conceder en
-   **dev** un privilegio no crítico a un principal de laboratorio y revocarlo;
-   el estado inventariado aquí (`{}`) es el punto de restauración.
-3. **Preflight por operación** antes de cualquier cambio, con la matriz de §5 como
-   referencia y el estado `{}` como rollback natural.
+   metastore son administrativos y se conservan). El trabajo de T-02 era
+   *definir y ensayar en dev* el grant y su inverso: se ejecutó el **2026-11-06**
+   con `SELECT` de `account users` sobre `job_offers_dev.ops.run_metrics`,
+   verificado con `grants get`/`get-effective` y **revocado en el mismo acto**;
+   el estado volvió a `{}` (`grants-plan.md` §2,
+   `evidence/t02-rollback-after.txt`). No se aplicó ningún grant permanente en
+   dev. Los comandos de una futura identidad de automatización quedan en
+   `grants-plan.md` §4, **sin ejecutar**.
+3. **Preflight por operación** antes de cualquier cambio: el de prod está
+   preparado en `grants-plan.md` §3, con los valores esperados de la matriz §5 y
+   el estado `{}` como punto de restauración.
 4. **Cualquier cambio de storage** (EL por prefijo, retirada de credenciales
    duplicadas) se trata como cambio aparte, con su propio rollback y sin tocar la
-   SAS de Power BI ni la del dashboard.
+   SAS de Power BI ni la del dashboard. T-02 solo prepara el preflight de las 4
+   credenciales duplicadas (`grants-plan.md` §5); la retirada se decide en
+   **T-09** y la EL en la raíz sigue pendiente de aprobación antes de T-09.
 5. **Comprobación de no regresión:** el primer run programado (T-10) debe cerrar
    las 9 tareas; si falla por permisos, se aplica el inverso documentado.
-6. **Decisión sobre la identidad duplicada (H11):** confirmar por la Account
-   Console cuál de los dos registros es el canónico, comprobar que el duplicado no
-   es owner ni `run_as` de nada (hoy no lo es) y, si se retira, dejar constancia en
-   el RUNBOOK. No se hace en T-01 ni se improvisa en T-02 sin esa confirmación.
+6. **Decisión sobre la identidad duplicada (H11):** no se decide en la 012. Se
+   mantiene como está: el duplicado no es owner ni `run_as` de nada y no tiene
+   grants; si una tarea futura lo retirara, se dejaría constancia en el RUNBOOK.
+7. **T-09 no aplicará ningún grant en prod con el modelo actual** (D-01): no hay
+   nada que revocar y no se crea identidad. Su paso de grants será una
+   **verificación de no regresión** (todo `{}`, owners intactos, job de 9 tareas,
+   storage sin cambios).
 
 ## 9. Comandos de verificación (solo lectura, 0 €)
 
@@ -396,10 +419,10 @@ sola EL (`landing-loc`) con URL en la raíz del contenedor; job de 9 tareas con
 
 | Tema | Motivo |
 |---|---|
-| Azure RBAC de la Managed Identity (roles y ámbito sobre `joboffershns`) | Requiere Azure CLI/Portal; T-01 solo está autorizada a Databricks. |
+| Azure RBAC de la Managed Identity (roles y ámbito sobre `joboffershns`) | Requiere Azure CLI/Portal; T-01/T-02 solo están autorizadas a Databricks. |
 | Cuál de los dos `credential_id` del access connector tiene el RBAC efectivo | Mismo motivo; el connector aparece con `d3be66a9…` y `d937de4b…`. |
-| Expansión de la pertenencia de `admins` al grupo de cuenta que recibe los `CREATE_*` del metastore | La ACL del metastore sí está medida (H10); lo que la API no hace es expandir miembros al consultar `get-effective`. Se verifica en T-02 si se necesita para la matriz de prod. |
+| Expansión de la pertenencia de `admins` al grupo de cuenta que recibe los `CREATE_*` del metastore | La ACL del metastore sí está medida (H10); lo que la API no hace es expandir miembros al consultar `get-effective`. Queda `[NO VERIFICADO]`: T-02 no consultó la Account Console. |
 | Principal real de los UUID `9e033aa4-…`, `f4ae815d-…`, `421bd159-…` | La API de workspace no los resuelve. |
 | Privilegios exactos del owner enumerados por la API | En los objetos del proyecto `grants get-effective` devuelve `{}`: UC no enumera los privilegios implícitos por ownership (en el metastore sí devuelve las asignaciones, pero sin expandir miembros). |
 | Row filters/column masks y perfiles de Free Edition | Sin credenciales de Free Edition; se confirma al inicio de T-03 antes de la demo. |
-| Necesidad exacta de privilegios para `MERGE WITH SCHEMA EVOLUTION` y `overwriteSchema` con un principal no owner | Hoy lo garantiza el ownership; se valida en el preflight de T-02 con una identidad de prueba **solo en dev**. |
+| Necesidad exacta de privilegios para `MERGE WITH SCHEMA EVOLUTION` y `overwriteSchema` con un principal no owner | Hoy lo garantiza el ownership; queda `[NO VERIFICADO]` y se validará en la spec futura de identidad con un principal no owner **solo en dev**. |

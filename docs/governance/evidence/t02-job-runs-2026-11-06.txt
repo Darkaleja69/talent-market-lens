@@ -1,0 +1,16 @@
+# T-02 evidence - Databricks job runs on 2026-11-06 (Europe/Madrid)
+# All epoch values are Unix MILLISECONDS (jobs list-runs start_time is in ms).
+# Window: 2026-11-06T00:00:00+01:00 = 1793919600000 ms (inclusive) to 2026-11-07T00:00:00+01:00 = 1794006000000 ms (exclusive).
+# Reproducible command:
+#   $from = [DateTimeOffset]::new(2026,11,6,0,0,0,[TimeSpan]::FromHours(1)).ToUnixTimeMilliseconds()
+#   $to   = [DateTimeOffset]::new(2026,11,7,0,0,0,[TimeSpan]::FromHours(1)).ToUnixTimeMilliseconds()
+#   databricks jobs list-runs --limit 200 --start-time-from $from --start-time-to ($to - 1) --profile vs_code -o json
+# Runs returned for the window: 0
+
+## 5 most recent runs overall (context; start_time in ms)
+# databricks jobs list-runs --limit 5 --profile vs_code -o json
+run_id=410084266136659 job_id=320947022571947 start_ms=1793826945267 start=2026-11-04 21:15:45 +00:00 state=SUCCESS
+run_id=826958114241409 job_id=320947022571947 start_ms=1793826046285 start=2026-11-04 21:00:46 +00:00 state=SUCCESS
+run_id=1050766241907151 job_id=916863262593632 start_ms=1793775915654 start=2026-11-04 07:05:15 +00:00 state=SUCCESS
+run_id=1015457552352783 job_id=320947022571947 start_ms=1793774988407 start=2026-11-04 06:49:48 +00:00 state=SUCCESS
+run_id=1048410431217707 job_id=320947022571947 start_ms=1793694077776 start=2026-11-03 08:21:17 +00:00 state=FAILED

@@ -1,0 +1,20 @@
+# T-02 evidence - before state (2026-11-06)
+# Profile: vs_code. Operator: <cuenta-personal> (workspace admin). No SQL. 0 EUR.
+
+## grants get table job_offers_dev.ops.run_metrics
+{}
+
+## grants get schema job_offers_dev.ops
+{}
+
+## grants get catalog job_offers_dev
+{}
+
+## grants get-effective table job_offers_dev.ops.run_metrics --principal 'account users'
+{}
+
+## tables get job_offers_dev.ops.run_metrics (identity of the target object)
+full_name: job_offers_dev.ops.run_metrics
+table_type: MANAGED
+data_source_format: DELTA
+owner (sanitized): <cuenta-personal>

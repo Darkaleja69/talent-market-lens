@@ -1,9 +1,11 @@
-# Evidencia — T-01 (inventario de identidades, privilegios y calidad)
+# Evidencia — gobernanza (spec 012)
 
-> **Fecha de todas las comprobaciones:** 2026-11-06.
-> **Tarea:** T-01 de `specs/012-Security-And-Governance`.
-> **Modo:** solo lectura por CLI/API de Databricks (`--profile vs_code`) y lectura
-> local de código. **0 runs, 0 sentencias SQL, 0 cambios de recursos, 0 €.**
+> **Fecha de las comprobaciones:** 2026-11-06.
+> **Tareas:** T-01 (inventario, solo lectura) y T-02 (ensayo de grant/revoke en
+> dev y preflight de prod).
+> **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código.
+> **0 runs, 0 sentencias SQL, 0 €.** El único cambio de recursos es el grant
+> temporal de T-02, aplicado y revocado en el mismo acto (§5).
 >
 > Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
 > nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
@@ -69,7 +71,7 @@
 | Esquema/conteos de `<fuente>_quarantine` | Las tablas no existen | T-06/T-08 |
 | Conteos de violaciones (job_id vacío, min>max, fechas fuera de rango) | Prohibido SQL en T-01 | T-08 (sesión única) |
 
-## 4. Declaración de no intervención
+## 4. Declaración de no intervención (T-01)
 
 - **No se ha abierto el SQL warehouse** (`state = STOPPED` antes y después) ni se
   ha ejecutado ninguna sentencia SQL.
@@ -80,3 +82,34 @@
 - **No se ha leído** ningún token, SAS, clave de storage ni cabecera de
   autenticación.
 - **Coste:** 0 € (todas las llamadas son API/CLI de metadatos y lectura local).
+
+## 5. T-02 — ensayo de grant/revoke en dev y preflight de prod
+
+> **Modo:** CLI/API (`--profile vs_code`). **0 runs, 0 sentencias SQL, 0 €.**
+> **Único cambio:** `SELECT` temporal de `account users` sobre
+> `job_offers_dev.ops.run_metrics`, aplicado, verificado y **revocado** el
+> 2026-11-06 (autorizado en D-01). Prod **no se tocó**.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 30 | 2026-11-06 | T-02 | `grants get table job_offers_dev.ops.run_metrics`, `… schema job_offers_dev.ops`, `… catalog job_offers_dev` y `get-effective … --principal "account users"` | **`{}` en los cuatro**: estado de partida sin grants | `job_offers_dev.ops.run_metrics` | 0 € | `evidence/t02-before-grants.txt` |
+| 31 | 2026-11-06 | T-02 | `grants update table job_offers_dev.ops.run_metrics --json {"changes":[{"principal":"account users","add":["SELECT"]}]}` | Grant aplicado: `account users` → `SELECT`; `get-effective` del principal devuelve `SELECT` | `account users`, tabla dev | 0 € | `evidence/t02-grant-applied.txt` |
+| 32 | 2026-11-06 | T-02 | `grants update … --json {"changes":[{"principal":"account users","remove":["SELECT"]}]}` | **Revocado**; `grants get` de tabla, esquema y catálogo y `get-effective` vuelven a **`{}`**. Sin residuo | `job_offers_dev.ops.run_metrics` | 0 € | `evidence/t02-rollback-after.txt`, `evidence/t02-final-state.txt` |
+| 33 | 2026-11-06 | T-02 | Preflight de prod: `grants get` de catálogo, 4 esquemas, **las 20 tablas**, EL y storage credential; `catalogs get`/`schemas list`; `external-locations list`; `jobs get 916863262593632` | **`{}` en todos los grants**; owners `<cuenta-personal>` en el catálogo, los 4 esquemas y las 20 tablas; única EL `landing-loc` con credential `…1791406770615`; job de **9 tareas**, `run_as` persona, `50 0 23 ? * SUN` `Europe/Madrid`, `UNPAUSED` | `job_offers`, `landing-loc`, `916863262593632` | 0 € | `evidence/t02-prod-baseline.txt` |
+| 34 | 2026-11-06 | T-02 | `databricks warehouses list` | `Serverless Starter Warehouse` (`53d8e3e91af6749c`, 2X-Small) **`STOPPED`** | `53d8e3e91af6749c` | 0 € | `evidence/t02-warehouse.txt` |
+| 35 | 2026-11-06 | T-02 | `databricks jobs list-runs --start-time-from/--start-time-to` con epoch en **milisegundos** (ventana 2026-11-06 `Europe/Madrid`) | **0 runs** en la ventana; el más reciente es del 2026-11-04 | — | 0 € | `evidence/t02-job-runs-2026-11-06.txt` |
+| 36 | 2026-11-06 | T-02 | `storage-credentials list` + `external-locations list` | **5 credenciales del proyecto** con el connector `access-connector-joboffers`; **4 sin EL que las referencie** (`0e78f15f…`, `15b01141…`, `73515c4d…`, `62442f4d…`). No se borra nada: preflight para **T-09** | `landing-loc_…1791406770615` en uso | 0 € | `evidence/t02-prod-baseline.txt`; `grants-plan.md` §5 |
+| 37 | 2026-11-06 | T-02 | Registro de la decisión aprobada por la persona | **D-01**: exceso de la cuenta personal aprobado como limitación; `run_as` no se migra; prod no se toca; credenciales duplicadas a T-09; EL en la raíz pendiente de aprobación antes de T-09 | D-01 | 0 € | `decisions.md` |
+
+**Preflight de prod preparado (sin ejecutar cambios):** comandos de verificación
+en `grants-plan.md` §3, grants hipotéticos de una futura identidad de
+automatización con su inverso en §4, preflight/retirada de las credenciales
+duplicadas en §5 y rollback/criterios de parada en §6. **T-09 no aplicará grants
+en prod con el modelo actual**: su paso de grants es una verificación de no
+regresión.
+
+**Declaración de no intervención de T-02:** no se ejecutó SQL ni se despertó el
+warehouse; no se ejecutó ningún run ni `bundle deploy/run`; no se modificaron
+catálogos, esquemas, tablas, storage, jobs ni bundles; no se tocó la SAS de Power
+BI ni la del dashboard; no se crearon identidades ni grupos. El único cambio fue
+el grant temporal de la fila 31, revertido en la fila 32. **Prod: 0 cambios.**

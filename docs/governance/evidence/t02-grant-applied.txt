@@ -1,0 +1,29 @@
+# T-02 evidence - temporary SELECT grant applied (2026-11-06)
+# Command: databricks grants update table job_offers_dev.ops.run_metrics --json "@$env:TEMP\uc-grant.json"
+# Request body: {changes:[{principal:'account users', add:['SELECT']}]}  (SELECT only, single table, dev catalog)
+
+## grants get table job_offers_dev.ops.run_metrics (after grant)
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        "SELECT"
+      ]
+    }
+  ]
+}
+
+## grants get-effective table job_offers_dev.ops.run_metrics --principal 'account users' (after grant)
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        {
+          "privilege": "SELECT"
+        }
+      ]
+    }
+  ]
+}

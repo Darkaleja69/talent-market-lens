@@ -1,0 +1,66 @@
+# T-02 evidence - prod baseline, read only (2026-11-06)
+# Profile: vs_code. No SQL, no changes. 0 EUR.
+
+## grants get catalog job_offers
+{}
+
+## grants get schema job_offers.<layer> (bronze, silver, gold, ops)
+job_offers.bronze -> {}
+job_offers.silver -> {}
+job_offers.gold -> {}
+job_offers.ops -> {}
+
+## grants get table job_offers.ops.run_metrics
+{}
+
+## storage credential and external location grants
+landing-loc_azuremanagedidentity_1791406770615 (credential) -> {}
+landing-loc (external location) -> {}
+
+## external locations (which credentials are referenced)
+name=dbw_dataengineering_sandbox_weurope_001 url=abfss://unity-catalog-storage@dbstorageqf2otsivkpxmy.dfs.core.windows.net/7405619889654446 credential_name=dbw_dataengineering_sandbox_weurope_001
+name=landing-loc url=abfss://landing@joboffershns.dfs.core.windows.net/ credential_name=landing-loc_azuremanagedidentity_1791406770615
+
+## production job 916863262593632 (tasks and run_as)
+name=Git Based ELT
+run_as_user_name (sanitized)=<cuenta-personal>
+task_count=9
+tasks=Bronze_Ingestion, Build_Report_Export, Build_for_Web-Dashboard, Gold_Complete_Catalog, Publish_Run_Summary, Silver_Indeed, Silver_Infojobs, Silver_Linkedin, Silver_Multi_site
+schedule=50 0 23 ? * SUN Europe/Madrid pause_status=UNPAUSED
+
+## storage credentials of the project (duplicates)
+name=dbw_dataengineering_sandbox_weurope_001 id=a8e657f1-f137-440b-aabd-f1c4bf5bb5dc connector=/subscriptions/<suscripcion>/resourceGroups/databricks-rg-dbw-dataengineering-sandbox-weurope-001-tzthkzhj3blmg/providers/Microsoft.Databricks/accessConnectors/unity-catalog-access-connector read_only=False
+name=job-offers-access_azuremanagedidentity_1784834714439 id=0e78f15f-3ff5-4756-bca5-69d9474170bf connector=/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers read_only=False
+name=landing-loc_azuremanagedidentity_1791406375118 id=15b01141-9b25-4ab0-be85-334308536c89 connector=/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers read_only=False
+name=landing-loc_azuremanagedidentity_1791406770615 id=2f54fa2c-5e5d-42be-92eb-ef571657d0f4 connector=/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers read_only=False
+name=landing_loc_azuremanagedidentity_1784832562230 id=73515c4d-700c-4379-9639-749818ebffcd connector=/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers read_only=False
+name=landing_loc_azuremanagedidentity_1784834657039 id=62442f4d-ec94-4a8f-9e45-4d5323be7d1f connector=/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers read_only=False
+
+## all production tables: owner and direct grants (20 tables)
+job_offers.bronze.indeed owner=<cuenta-personal> grants={}
+job_offers.bronze.infojobs owner=<cuenta-personal> grants={}
+job_offers.bronze.linkedin owner=<cuenta-personal> grants={}
+job_offers.bronze.multi_site owner=<cuenta-personal> grants={}
+job_offers.silver.companies_indeed owner=<cuenta-personal> grants={}
+job_offers.silver.companies_infojobs owner=<cuenta-personal> grants={}
+job_offers.silver.companies_linkedin owner=<cuenta-personal> grants={}
+job_offers.silver.companies_multi_site owner=<cuenta-personal> grants={}
+job_offers.silver.linkedin_companies owner=<cuenta-personal> grants={}
+job_offers.silver.offers_indeed owner=<cuenta-personal> grants={}
+job_offers.silver.offers_infojobs owner=<cuenta-personal> grants={}
+job_offers.silver.offers_linkedin owner=<cuenta-personal> grants={}
+job_offers.silver.offers_multi_site owner=<cuenta-personal> grants={}
+job_offers.gold.companies_complete_catalog owner=<cuenta-personal> grants={}
+job_offers.gold.dim_calendar owner=<cuenta-personal> grants={}
+job_offers.gold.dim_currency owner=<cuenta-personal> grants={}
+job_offers.gold.dim_skill_list owner=<cuenta-personal> grants={}
+job_offers.gold.fact_offer_skills owner=<cuenta-personal> grants={}
+job_offers.gold.fact_offers owner=<cuenta-personal> grants={}
+job_offers.ops.run_metrics owner=<cuenta-personal> grants={}
+
+## catalog and schema owners (prod; before = after, no changes applied)
+job_offers owner=<cuenta-personal>
+job_offers.bronze owner=<cuenta-personal>
+job_offers.silver owner=<cuenta-personal>
+job_offers.gold owner=<cuenta-personal>
+job_offers.ops owner=<cuenta-personal>
