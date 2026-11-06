@@ -1,0 +1,60 @@
+# T-01 evidence — catalogs (read-only CLI, 2026-11-06)
+# Saneado: correos -> <cuenta-personal>. Los UUID de updated_by son identificadores internos, no secretos.
+
+## catalogs get job_offers_dev
+{
+  "browse_only": false,
+  "catalog_type": "MANAGED_CATALOG",
+  "comment": "",
+  "created_at": 1792177391004,
+  "created_by": "<cuenta-personal>",
+  "effective_predictive_optimization_flag": {
+    "inherited_from_name": "metastore_azure_westeurope",
+    "inherited_from_type": "METASTORE",
+    "value": "ENABLE"
+  },
+  "enable_predictive_optimization": "INHERIT",
+  "full_name": "job_offers_dev",
+  "isolation_mode": "OPEN",
+  "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+  "name": "job_offers_dev",
+  "owner": "<cuenta-personal>",
+  "properties": {
+    "collation": "UTF8_BINARY"
+  },
+  "securable_type": "CATALOG",
+  "storage_location": "abfss://landing@joboffershns.dfs.core.windows.net/managed/_unitystorage/catalogs/19bc1d62-8039-4e42-9416-4f52f80c422c_dev/__unitystorage/catalogs/632e6e27-5e4c-4359-81ed-5cc1dfdd82bf",
+  "storage_root": "abfss://landing@joboffershns.dfs.core.windows.net/managed/_unitystorage/catalogs/19bc1d62-8039-4e42-9416-4f52f80c422c_dev",
+  "updated_at": 1792177395145,
+  "updated_by": "9e033aa4-045e-4937-b4c5-448692cc3f57"
+}
+
+
+## catalogs get job_offers
+{
+  "browse_only": false,
+  "catalog_type": "MANAGED_CATALOG",
+  "comment": "Pipeline de ofertas desde scrapers",
+  "created_at": 1784835011019,
+  "created_by": "<cuenta-personal>",
+  "effective_predictive_optimization_flag": {
+    "inherited_from_name": "metastore_azure_westeurope",
+    "inherited_from_type": "METASTORE",
+    "value": "ENABLE"
+  },
+  "enable_predictive_optimization": "INHERIT",
+  "full_name": "job_offers",
+  "isolation_mode": "OPEN",
+  "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+  "name": "job_offers",
+  "owner": "<cuenta-personal>",
+  "properties": {
+    "collation": "UTF8_BINARY"
+  },
+  "securable_type": "CATALOG",
+  "storage_location": "abfss://landing@joboffershns.dfs.core.windows.net/managed/__unitystorage/catalogs/19bc1d62-8039-4e42-9416-4f52f80c422c",
+  "storage_root": "abfss://landing@joboffershns.dfs.core.windows.net/managed",
+  "updated_at": 1793492318885,
+  "updated_by": "9e033aa4-045e-4937-b4c5-448692cc3f57"
+}
+

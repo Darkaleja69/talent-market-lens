@@ -1,0 +1,47 @@
+# T-01 evidence - direct grants on every table (databricks grants get table; read-only, 2026-11-06)
+# Objetivo: demostrar que no hay grants directos distintos del ownership. Se listan las 39 tablas con su resultado.
+
+total tablas: 39
+
+tabla -> resultado de grants get table
+  job_offers.bronze.indeed -> {}
+  job_offers.bronze.infojobs -> {}
+  job_offers.bronze.linkedin -> {}
+  job_offers.bronze.multi_site -> {}
+  job_offers.gold.companies_complete_catalog -> {}
+  job_offers.gold.dim_calendar -> {}
+  job_offers.gold.dim_currency -> {}
+  job_offers.gold.dim_skill_list -> {}
+  job_offers.gold.fact_offer_skills -> {}
+  job_offers.gold.fact_offers -> {}
+  job_offers.ops.run_metrics -> {}
+  job_offers.silver.companies_indeed -> {}
+  job_offers.silver.companies_infojobs -> {}
+  job_offers.silver.companies_linkedin -> {}
+  job_offers.silver.companies_multi_site -> {}
+  job_offers.silver.linkedin_companies -> {}
+  job_offers.silver.offers_indeed -> {}
+  job_offers.silver.offers_infojobs -> {}
+  job_offers.silver.offers_linkedin -> {}
+  job_offers.silver.offers_multi_site -> {}
+  job_offers_dev.bronze.indeed -> {}
+  job_offers_dev.bronze.infojobs -> {}
+  job_offers_dev.bronze.linkedin -> {}
+  job_offers_dev.bronze.multi_site -> {}
+  job_offers_dev.gold.companies_complete_catalog -> {}
+  job_offers_dev.gold.dim_calendar -> {}
+  job_offers_dev.gold.dim_currency -> {}
+  job_offers_dev.gold.dim_skill_list -> {}
+  job_offers_dev.gold.fact_offer_skills -> {}
+  job_offers_dev.gold.fact_offers -> {}
+  job_offers_dev.ops.run_metrics -> {}
+  job_offers_dev.silver.companies_indeed -> {}
+  job_offers_dev.silver.companies_infojobs -> {}
+  job_offers_dev.silver.companies_linkedin -> {}
+  job_offers_dev.silver.companies_multi_site -> {}
+  job_offers_dev.silver.offers_indeed -> {}
+  job_offers_dev.silver.offers_infojobs -> {}
+  job_offers_dev.silver.offers_linkedin -> {}
+  job_offers_dev.silver.offers_multi_site -> {}
+
+tablas con resultado distinto de {}: 0

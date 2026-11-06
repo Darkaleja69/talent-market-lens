@@ -1,0 +1,82 @@
+# Evidencia — T-01 (inventario de identidades, privilegios y calidad)
+
+> **Fecha de todas las comprobaciones:** 2026-11-06.
+> **Tarea:** T-01 de `specs/012-Security-And-Governance`.
+> **Modo:** solo lectura por CLI/API de Databricks (`--profile vs_code`) y lectura
+> local de código. **0 runs, 0 sentencias SQL, 0 cambios de recursos, 0 €.**
+>
+> Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
+> nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
+> Azure → `<suscripcion>`. **No hay tokens, SAS, claves ni cabeceras de
+> autenticación en ninguna salida.** Los UUID de objetos y de access connectors se
+> conservan por ser identificadores, no secretos.
+
+## 1. Comprobaciones
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 1 | 2026-11-06 | T-01 | `databricks current-user me --profile vs_code -o json` | Usuario `<cuenta-personal>`, id `141486372609033`; grupos `admins` (`151347827406338`), `users` (`150981975206808`), `users-clone-2026-08-05-2234-UTC` (`2126387033071238`) | user `141486372609033` | 0 € | `evidence/t01-current-user.txt` |
+| 2 | 2026-11-06 | T-01 | `databricks catalogs get job_offers_dev` y `… job_offers` | Ambos `MANAGED_CATALOG`, `OPEN`, owner `<cuenta-personal>`, `storage_root` en `abfss://landing@joboffershns…/managed` | `job_offers_dev`, `job_offers` | 0 € | `evidence/t01-catalogs.txt` |
+| 3 | 2026-11-06 | T-01 | `databricks schemas list job_offers_dev` / `job_offers` | 6 esquemas por catálogo: `bronze`, `silver`, `gold`, `ops`, `default`, `information_schema`; owner `<cuenta-personal>` salvo `information_schema` (`System user`) | 8 esquemas de capa | 0 € | `evidence/t01-schemas-and-tables.txt` |
+| 4 | 2026-11-06 | T-01 | `databricks tables list <cat> <sch> --omit-columns` | **39 tablas** (19 dev, 20 prod), todas `MANAGED`/`DELTA`, owner `<cuenta-personal>` | 39 tablas | 0 € | `evidence/t01-schemas-and-tables.txt` |
+| 5 | 2026-11-06 | T-01 | `databricks grants get catalog …` (2) | `{}` en los dos catálogos: **sin `privilege_assignments` directas** | 2 catálogos | 0 € | `evidence/t01-grants-direct.txt` |
+| 6 | 2026-11-06 | T-01 | `databricks grants get schema …` (8) | `{}` en los 8 esquemas de capa | 8 esquemas | 0 € | `evidence/t01-grants-direct.txt` |
+| 7 | 2026-11-06 | T-01 | `databricks grants get table …` (39) | `{}` en las 39 tablas, **listadas una a una** en la evidencia; 0 tablas con grants directos | 39 tablas | 0 € | `evidence/t01-grants-tables.txt` |
+| 8 | 2026-11-06 | T-01 | `databricks grants get-effective …` (catálogo, 2 esquemas, 4 tablas) con `--principal`, y control `grants get-effective catalog samples --principal <persona>` | `{}` en los objetos del proyecto: el owner no aparece con privilegios enumerados (ownership no es grant). **Control positivo:** `get-effective` sobre `samples` devuelve `account users` con `SELECT`/`USE_CATALOG`/`USE_SCHEMA` | job_offers_dev, job_offers | 0 € | `evidence/t01-grants-effective.txt` |
+| 9 | 2026-11-06 | T-01 | `databricks tables get <cat>.bronze.<fuente>_quarantine` (8) y `tables list … bronze` | Las 8 tablas **no existen** («does not exist»); en `bronze` solo están las 4 tablas de fuente | 8 rutas | 0 € | `evidence/t01-quarantine-tables.txt` |
+| 10 | 2026-11-06 | T-01 | `databricks jobs list` + `jobs get 916863262593632` / `320947022571947` / `704156530681034` | Prod y dev con **9 tareas**, `run_as` = persona, `UI_LOCKED`, bundle; prod `UNPAUSED` (`50 0 23 ? * SUN`, Europe/Madrid); legado de 7 tareas `PAUSED` | `916863262593632`, `320947022571947`, `704156530681034` | 0 € | `evidence/t01-jobs.txt` |
+| 11 | 2026-11-06 | T-01 | `databricks jobs get-permissions <id>` (3) | `<cuenta-personal>` `IS_OWNER` (directo); grupo `admins` `CAN_MANAGE` **heredado de `/jobs/`** | 3 jobs | 0 € | `evidence/t01-jobs.txt` |
+| 12 | 2026-11-06 | T-01 | `databricks storage-credentials list` | 6 credenciales, todas con `azure_managed_identity` (**no service principal**); 5 del proyecto usan el access connector `access-connector-joboffers`; 1 del sandbox usa `unity-catalog-access-connector` | `access-connector-joboffers` | 0 € | `evidence/t01-storage.txt` |
+| 13 | 2026-11-06 | T-01 | `databricks external-locations list` + `get landing-loc` | Una sola EL del proyecto: `landing-loc`, URL `abfss://landing@joboffershns.dfs.core.windows.net/` (**raíz del contenedor**), credential `landing-loc_azuremanagedidentity_1791406770615`, `fallback: false` | `landing-loc` | 0 € | `evidence/t01-storage.txt` |
+| 14 | 2026-11-06 | T-01 | `databricks grants get storage-credential …` y `… external-location landing-loc` | `{}` en ambos: sin grants directos | `landing-loc` | 0 € | `evidence/t01-storage.txt` |
+| 15 | 2026-11-06 | T-01 | `databricks metastores summary` | `metastore_azure_westeurope` (`9be7f9ac-2bf3-4f70-9e81-4e754169af3d`), owner `System user`, `external_access_enabled: false`, `privilege_model_version 1.0` | metastore `9be7f9ac…` | 0 € | `evidence/t01-objects-extra.txt` |
+| 16 | 2026-11-06 | T-01 | `databricks volumes list` / `functions list` en los **12** esquemas (4 de capa ×2 + `default` + `information_schema` ×2) | Sin volumes y sin funciones en ninguno de los 12 esquemas | 12 esquemas | 0 € | `evidence/t01-objects-extra.txt` |
+| 17 | 2026-11-06 | T-01 | `databricks groups list` | Grupos de workspace: `users`, `admins`, `users-clone-2026-08-05-2234-UTC` | 3 grupos | 0 € | `evidence/t01-objects-extra.txt` |
+| 18 | 2026-11-06 | T-01 | `databricks warehouses list` antes y después | `Serverless Starter Warehouse` (`53d8e3e91af6749c`, 2X-Small, PRO, serverless) **`STOPPED` antes y después** | `53d8e3e91af6749c` | 0 € | `evidence/t01-objects-extra.txt`, `evidence/t01-warehouse-after.txt` |
+| 19 | 2026-11-06 | T-01 | `databricks tables get` de 10 tablas clave | Tipos confirmados: bronce `job_key`/`job_id`/`id_oferta`/`site` `STRING`; silver `job_id` `STRING`, `salary_min_annual`/`salary_max_annual` `DOUBLE`, `posted_date` `DATE`; gold `SalaryMinAnnual_EUR`/`SalaryMaxAnnual_EUR` `DOUBLE`, `posted_date` `DATE` | 10 tablas | 0 € | `evidence/t01-table-metadata-detail.txt` |
+| 20 | 2026-11-06 | T-01 | Metadatos de las 39 tablas (`tables get`) | **0** tablas con propiedades `delta.constraints.*`; **0** columnas con `nullable=false` (equivalente a `NOT NULL`) | 39 tablas | 0 € | `evidence/t01-table-metadata-detail.txt` |
+| 21 | 2026-11-06 | T-01 | Grep de `ADD CONSTRAINT` / `CHECK (` / `CONSTRAINT ` / `NOT NULL` en `databricks_notebooks/`, `resources/`, `databricks.yml` | **Sin DDL de constraints**: 0 `ADD CONSTRAINT`, 0 `CHECK (`, 0 `CONSTRAINT <nombre>`; las 4 coincidencias son predicados `IS NOT NULL`/`isEmpty` y un docstring | repo | 0 € | `evidence/t01-repo-constraints-grep.txt` |
+| 22 | 2026-11-06 | T-01 | Lectura de `Upsert_Job_Offers.py` | Motivos `missing_key` y `missing_scraped_at` con precedencia; identidad `(_row_hash, _quarantine_reason, _source_file)`; anti-join limitado a `_source_file` del lote | módulo `Upsert_Job_Offers.py` | 0 € | `quality-inventory.md` §3 |
+| 23 | 2026-11-06 | T-01 | Lectura de `Enrich_Job_Offers_Dataframes.py` | `non_pos`, `inv_range`, `unknown_period`, `outlier_review`: marca `salary_quality` y neutraliza anuales; no rechaza | módulo `Enrich…py` l. 1582-1650 | 0 € | `quality-inventory.md` §5 |
+| 24 | 2026-11-06 | T-01 | Lectura de `Prepare_Gold.py` + `gold_build.ipynb` | `IsValidPostingDate` 2026–2089 (flag, no filtro); filtro de rating en `companies_complete_catalog` (`^\d+[,.]\d{1,2}$`); dedup `job_id` y `title_norm+company_norm+salary_filled` | módulos/notebook | 0 € | `quality-inventory.md` §2, §6 |
+| 25 | 2026-11-06 | T-01 | Estadística Delta de `job_offers.gold.fact_offers` (metadatos, sin SQL) | `posted_date` min `2018-10-13`, max `2026-11-02`, `nullCount 0`; `IsValidPostingDate` 2 valores distintos; `job_id nullCount 0`; `SalaryMinAnnual_EUR nullCount 18614` | `job_offers.gold.fact_offers` | 0 € | `evidence/t01-table-metadata-detail.txt` |
+| 26 | 2026-11-06 | T-01 | Revisión de `scrapers-pipeline/coherence.py` | `RATING_RE = ^\d[,.]\d{1,2}$`; `company_name` con rating/URL es fila inválida en las 4 fuentes (defensa local previa) | `scrapers-pipeline/coherence.py` | 0 € | `quality-inventory.md` §2 |
+| 27 | 2026-11-06 | T-01 | Búsqueda/documentación del informe y del dashboard | Power BI usa `PBI_EXPORT_SAS` (read-only, prefijo `gold/pbi_export`); workflow usa `WEB_EXPORT_SAS` (read-only, `gold/web_export`): ambos fuera de Unity Catalog | SAS (no leídas) | 0 € | `access-matrix.md` §5.5 |
+| 28 | 2026-11-06 | T-01 | `databricks grants get metastore 9be7f9ac-…` y `get-effective metastore … --principal <persona>` | **Sí hay ACL de metastore**: `account users` → `USE_MARKETPLACE_ASSETS`; grupo de cuenta de admins del workspace → 9 `CREATE_*` (catálogo, clean room, connection, external location, provider, recipient, service credential, share, storage credential). No heredan a los objetos de datos | metastore `9be7f9ac…` | 0 € | `evidence/t01-metastore-grants.txt` |
+| 29 | 2026-11-06 | T-01 | `databricks groups get 151347827406338` + `users get` de sus dos miembros | `admins` tiene **dos miembros activos**: `141486372609033` y `146517773436349`, con **el mismo `externalId`** (`b5a26491-…`) y nombre: dos registros SCIM de la misma identidad. Ambos heredan `CAN_MANAGE` de `/jobs/`; el segundo no es owner ni tiene grants UC | `151347827406338` | 0 € | `evidence/t01-identities.txt` |
+
+## 2. Salidas que no se versionan
+
+- La salida cruda de `tables list` (≈760 KB con todas las columnas) **no se
+  conserva** en el repo: se sustituyó por el resumen compacto
+  `evidence/t01-schemas-and-tables.txt` (nombre, tipo, formato, owner,
+  constraints, filas de estadística) y por el detalle de columnas clave de
+  `evidence/t01-table-metadata-detail.txt`.
+- No se guarda ningún `databricks jobs get` completo porque incluye
+  `email_notifications`; se guarda el extracto saneado de `evidence/t01-jobs.txt`.
+
+## 3. `[NO VERIFICADO]` de esta tarea
+
+| Tema | Motivo | Cuándo se cierra |
+|---|---|---|
+| Azure RBAC de la Managed Identity (roles/ámbito sobre `joboffershns`) | Requiere Azure CLI/Portal; T-01 solo autoriza Databricks con `--profile vs_code` | T-02 (o se registra como desviación) |
+| Cuál de los dos `credential_id` del access connector (`d3be66a9…`/`d937de4b…`) tiene el RBAC efectivo | El connector aparece con dos identidades registradas; requiere Azure | T-02, antes de retirar credenciales |
+| Expansión de la pertenencia de `admins` al grupo de cuenta que recibe los `CREATE_*` del metastore | La ACL del metastore sí está medida (fila 28); la API no expande miembros en `get-effective` | T-02, si hace falta para prod |
+| Cuál de los dos registros de la misma identidad (`141486372609033`/`146517773436349`) es el canónico y si el duplicado se retira | Mismo `externalId`; requiere Account Console/Entra | T-02/T-09 (decisión, no cambio en T-01) |
+| Principal real de los UUID `9e033aa4-…`, `f4ae815d-…`, `421bd159-…` | La API de workspace no los resuelve | T-02, si afecta a la matriz |
+| Privilegios implícitos por ownership enumerados por la API | En los objetos del proyecto `grants get-effective` devuelve `{}` para el owner (en el metastore sí devuelve asignaciones, sin expandir miembros) | No se cierra: se documenta como limitación de la API |
+| Row filters / column masks y dos perfiles en Free Edition | Sin credenciales de Free Edition | Inicio de T-03, antes de la demo |
+| Esquema/conteos de `<fuente>_quarantine` | Las tablas no existen | T-06/T-08 |
+| Conteos de violaciones (job_id vacío, min>max, fechas fuera de rango) | Prohibido SQL en T-01 | T-08 (sesión única) |
+
+## 4. Declaración de no intervención
+
+- **No se ha abierto el SQL warehouse** (`state = STOPPED` antes y después) ni se
+  ha ejecutado ninguna sentencia SQL.
+- **No se ha creado, modificado ni revocado** ningún grant, ownership, constraint,
+  job, cluster, credential ni external location.
+- **No se ha ejecutado** `bundle validate`, `bundle deploy`, `bundle run` ni
+  ningún run de job.
+- **No se ha leído** ningún token, SAS, clave de storage ni cabecera de
+  autenticación.
+- **Coste:** 0 € (todas las llamadas son API/CLI de metadatos y lectura local).

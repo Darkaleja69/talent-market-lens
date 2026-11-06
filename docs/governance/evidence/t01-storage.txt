@@ -1,0 +1,201 @@
+# T-01 evidence — storage credentials and external locations (read-only CLI, 2026-11-06)
+# No se ha leido ni copiado ningun secreto: la API de Storage Credential no devuelve claves; solo el tipo de identidad y el access connector.
+
+## storage-credentials list
+[
+  {
+    "azure_managed_identity": {
+      "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/databricks-rg-dbw-dataengineering-sandbox-weurope-001-tzthkzhj3blmg/providers/Microsoft.Databricks/accessConnectors/unity-catalog-access-connector",
+      "credential_id": "763fb13e-ff8e-4f56-94a6-a984c973e85a"
+    },
+    "created_at": 1782815459287,
+    "created_by": "<cuenta-personal>",
+    "full_name": "dbw_dataengineering_sandbox_weurope_001",
+    "id": "a8e657f1-f137-440b-aabd-f1c4bf5bb5dc",
+    "isolation_mode": "ISOLATION_MODE_ISOLATED",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "dbw_dataengineering_sandbox_weurope_001",
+    "owner": "_workspace_admins_dbw_dataengineering_sandbox_weurope_001_7405619889654446",
+    "read_only": false,
+    "updated_at": 1792826807632,
+    "updated_by": "421bd159-0ed2-4e15-9f85-14bc8ef5387c"
+  },
+  {
+    "azure_managed_identity": {
+      "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers",
+      "credential_id": "d3be66a9-21c6-42eb-9ff7-afc99c8eb550"
+    },
+    "created_at": 1784834714529,
+    "created_by": "<cuenta-personal>",
+    "full_name": "job-offers-access_azuremanagedidentity_1784834714439",
+    "id": "0e78f15f-3ff5-4756-bca5-69d9474170bf",
+    "isolation_mode": "ISOLATION_MODE_OPEN",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "job-offers-access_azuremanagedidentity_1784834714439",
+    "owner": "<cuenta-personal>",
+    "read_only": false,
+    "updated_at": 1784834714529,
+    "updated_by": "<cuenta-personal>"
+  },
+  {
+    "azure_managed_identity": {
+      "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers",
+      "credential_id": "d937de4b-7d28-45b9-a78d-3216c59fb183"
+    },
+    "created_at": 1791406376115,
+    "created_by": "<cuenta-personal>",
+    "full_name": "landing-loc_azuremanagedidentity_1791406375118",
+    "id": "15b01141-9b25-4ab0-be85-334308536c89",
+    "isolation_mode": "ISOLATION_MODE_OPEN",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "landing-loc_azuremanagedidentity_1791406375118",
+    "owner": "<cuenta-personal>",
+    "read_only": false,
+    "updated_at": 1791406376115,
+    "updated_by": "<cuenta-personal>"
+  },
+  {
+    "azure_managed_identity": {
+      "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers",
+      "credential_id": "d937de4b-7d28-45b9-a78d-3216c59fb183"
+    },
+    "created_at": 1791406770799,
+    "created_by": "<cuenta-personal>",
+    "full_name": "landing-loc_azuremanagedidentity_1791406770615",
+    "id": "2f54fa2c-5e5d-42be-92eb-ef571657d0f4",
+    "isolation_mode": "ISOLATION_MODE_OPEN",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "landing-loc_azuremanagedidentity_1791406770615",
+    "owner": "<cuenta-personal>",
+    "read_only": false,
+    "updated_at": 1791406770799,
+    "updated_by": "<cuenta-personal>"
+  },
+  {
+    "azure_managed_identity": {
+      "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers",
+      "credential_id": "d3be66a9-21c6-42eb-9ff7-afc99c8eb550"
+    },
+    "created_at": 1784832563188,
+    "created_by": "<cuenta-personal>",
+    "full_name": "landing_loc_azuremanagedidentity_1784832562230",
+    "id": "73515c4d-700c-4379-9639-749818ebffcd",
+    "isolation_mode": "ISOLATION_MODE_OPEN",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "landing_loc_azuremanagedidentity_1784832562230",
+    "owner": "<cuenta-personal>",
+    "read_only": false,
+    "updated_at": 1784832563188,
+    "updated_by": "<cuenta-personal>"
+  },
+  {
+    "azure_managed_identity": {
+      "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers",
+      "credential_id": "d3be66a9-21c6-42eb-9ff7-afc99c8eb550"
+    },
+    "created_at": 1784834657207,
+    "created_by": "<cuenta-personal>",
+    "full_name": "landing_loc_azuremanagedidentity_1784834657039",
+    "id": "62442f4d-ec94-4a8f-9e45-4d5323be7d1f",
+    "isolation_mode": "ISOLATION_MODE_OPEN",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "landing_loc_azuremanagedidentity_1784834657039",
+    "owner": "<cuenta-personal>",
+    "read_only": false,
+    "updated_at": 1784834657207,
+    "updated_by": "<cuenta-personal>"
+  }
+]
+
+## storage-credentials get landing-loc_azuremanagedidentity_1791406770615
+{
+  "azure_managed_identity": {
+    "access_connector_id": "/subscriptions/<suscripcion>/resourceGroups/projects-workspace/providers/Microsoft.Databricks/accessConnectors/access-connector-joboffers",
+    "credential_id": "d937de4b-7d28-45b9-a78d-3216c59fb183"
+  },
+  "created_at": 1791406770799,
+  "created_by": "<cuenta-personal>",
+  "full_name": "landing-loc_azuremanagedidentity_1791406770615",
+  "id": "2f54fa2c-5e5d-42be-92eb-ef571657d0f4",
+  "isolation_mode": "ISOLATION_MODE_OPEN",
+  "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+  "name": "landing-loc_azuremanagedidentity_1791406770615",
+  "owner": "<cuenta-personal>",
+  "read_only": false,
+  "updated_at": 1791406770799,
+  "updated_by": "<cuenta-personal>"
+}
+
+## external-locations list
+[
+  {
+    "created_at": 1782815460846,
+    "created_by": "<cuenta-personal>",
+    "credential_id": "a8e657f1-f137-440b-aabd-f1c4bf5bb5dc",
+    "credential_name": "dbw_dataengineering_sandbox_weurope_001",
+    "effective_enable_file_events": true,
+    "effective_file_event_queue": {
+      "managed_aqs": {
+        "managed_resource_id": "4a888e4f-2d06-4922-878e-985a20660c44",
+        "resource_group": "databricks-rg-dbw-dataengineering-sandbox-weurope-001-tzthkzhj3blmg",
+        "subscription_id": "<suscripcion>"
+      }
+    },
+    "fallback": false,
+    "isolation_mode": "ISOLATION_MODE_ISOLATED",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "dbw_dataengineering_sandbox_weurope_001",
+    "owner": "_workspace_admins_dbw_dataengineering_sandbox_weurope_001_7405619889654446",
+    "read_only": false,
+    "updated_at": 1782815473908,
+    "updated_by": "System user",
+    "url": "abfss://unity-catalog-storage@dbstorageqf2otsivkpxmy.dfs.core.windows.net/7405619889654446"
+  },
+  {
+    "comment": "",
+    "created_at": 1784834811685,
+    "created_by": "<cuenta-personal>",
+    "credential_id": "2f54fa2c-5e5d-42be-92eb-ef571657d0f4",
+    "credential_name": "landing-loc_azuremanagedidentity_1791406770615",
+    "effective_enable_file_events": false,
+    "enable_file_events": false,
+    "fallback": false,
+    "isolation_mode": "ISOLATION_MODE_OPEN",
+    "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+    "name": "landing-loc",
+    "owner": "<cuenta-personal>",
+    "read_only": false,
+    "updated_at": 1791406931772,
+    "updated_by": "<cuenta-personal>",
+    "url": "abfss://landing@joboffershns.dfs.core.windows.net/"
+  }
+]
+
+## external-locations get landing-loc
+{
+  "comment": "",
+  "created_at": 1784834811685,
+  "created_by": "<cuenta-personal>",
+  "credential_id": "2f54fa2c-5e5d-42be-92eb-ef571657d0f4",
+  "credential_name": "landing-loc_azuremanagedidentity_1791406770615",
+  "effective_enable_file_events": false,
+  "enable_file_events": false,
+  "fallback": false,
+  "isolation_mode": "ISOLATION_MODE_OPEN",
+  "metastore_id": "9be7f9ac-2bf3-4f70-9e81-4e754169af3d",
+  "name": "landing-loc",
+  "owner": "<cuenta-personal>",
+  "read_only": false,
+  "updated_at": 1791406931772,
+  "updated_by": "<cuenta-personal>",
+  "url": "abfss://landing@joboffershns.dfs.core.windows.net/"
+}
+
+## grants get storage-credential landing-loc_azuremanagedidentity_1791406770615
+{}
+
+## grants get external-location landing-loc
+{}
+
+## grants get-effective external-location landing-loc (persona)
+{}

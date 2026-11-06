@@ -1,0 +1,12 @@
+# T-01 evidence - busqueda de DDL de constraints en el repositorio (2026-11-06)
+# Comando: Select-String -Path databricks_notebooks\*.py,databricks_notebooks\*.ipynb,resources\*.yml,databricks.yml -Pattern 'ADD CONSTRAINT|CHECK \(|CONSTRAINT |NOT NULL'
+Run_Metrics.py:426: is a failed check (it is) or a run without bronze.
+Silver_Incremental.py:389: if not nulls.isEmpty():
+Silver_Incremental.py:536: f"WHEN NOT MATCHED AND s.{INGEST_DATE_COLUMN} IS NOT NULL THEN "
+Upsert_Job_Offers.py:247: f"(`{key}` IS NOT NULL AND trim(cast(`{key}` AS STRING)) <> '')"
+
+# Control: cuantas coincidencias hay de 'CHECK' frente a 'checkpoint/checksum' (ruido esperado)
+  coincidencias exactas 'CHECK' (mayusculas): 5
+  coincidencias 'checkpoint/checksum/checks': 139
+
+# Tambien se revisaron las 39 tablas por metadatos: 0 propiedades delta.constraints.* (ver t01-table-metadata-detail.txt).

@@ -1,0 +1,127 @@
+# T-01 evidence - grupo admins y sus dos miembros (read-only, 2026-11-06)
+# Saneado: correos -> <cuenta-personal>/<cuenta-personal-alt>; nombres -> <persona>/<nombre>/<apellido>; los IDs se conservan.
+
+## groups get 151347827406338 (admins)
+{
+  "displayName": "admins",
+  "entitlements": [
+    {
+      "value": "databricks-sql-access"
+    },
+    {
+      "value": "workspace-access"
+    },
+    {
+      "value": "workspace-consume"
+    },
+    {
+      "value": "allow-instance-pool-create"
+    },
+    {
+      "value": "allow-cluster-create"
+    }
+  ],
+  "id": "151347827406338",
+  "members": [
+    {
+      "$ref": "Users/141486372609033",
+      "display": "<persona>",
+      "value": "141486372609033"
+    },
+    {
+      "$ref": "Users/146517773436349",
+      "display": "<persona>",
+      "value": "146517773436349"
+    }
+  ],
+  "meta": {
+    "resourceType": "WorkspaceGroup"
+  },
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:Group"
+  ]
+}
+
+## users get 141486372609033
+{
+  "active": true,
+  "displayName": "<persona>",
+  "emails": [
+    {
+      "primary": true,
+      "type": "work",
+      "value": "<cuenta-personal>"
+    }
+  ],
+  "externalId": "b5a26491-86cd-4adc-a86f-61717bf8463b",
+  "groups": [
+    {
+      "$ref": "Groups/151347827406338",
+      "display": "admins",
+      "type": "direct",
+      "value": "151347827406338"
+    },
+    {
+      "$ref": "Groups/2126387033071238",
+      "display": "users-clone-2026-08-05-2234-UTC (created by Databricks)",
+      "type": "direct",
+      "value": "2126387033071238"
+    }
+  ],
+  "id": "141486372609033",
+  "name": {
+    "familyName": "<apellido>",
+    "givenName": "<nombre>"
+  },
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:workspace:2.0:User"
+  ],
+  "userName": "<cuenta-personal>"
+}
+
+## users get 146517773436349
+{
+  "active": true,
+  "displayName": "<persona>",
+  "emails": [
+    {
+      "primary": true,
+      "type": "work",
+      "value": "<cuenta-personal-alt>"
+    }
+  ],
+  "entitlements": [
+    {
+      "value": "allow-cluster-create"
+    },
+    {
+      "value": "allow-instance-pool-create"
+    }
+  ],
+  "externalId": "b5a26491-86cd-4adc-a86f-61717bf8463b",
+  "groups": [
+    {
+      "$ref": "Groups/151347827406338",
+      "display": "admins",
+      "type": "direct",
+      "value": "151347827406338"
+    },
+    {
+      "$ref": "Groups/2126387033071238",
+      "display": "users-clone-2026-08-05-2234-UTC (created by Databricks)",
+      "type": "direct",
+      "value": "2126387033071238"
+    }
+  ],
+  "id": "146517773436349",
+  "name": {
+    "familyName": "<apellido>",
+    "givenName": "<nombre>"
+  },
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:workspace:2.0:User"
+  ],
+  "userName": "<cuenta-personal-alt>"
+}

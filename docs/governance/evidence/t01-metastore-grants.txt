@@ -1,0 +1,75 @@
+# T-01 evidence - grants del metastore (read-only, 2026-11-06)
+# Los privilegios de metastore NO heredan a los objetos de datos (CREATE_* son administrativos).
+
+## grants get metastore 9be7f9ac-2bf3-4f70-9e81-4e754169af3d
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        "USE_MARKETPLACE_ASSETS"
+      ]
+    },
+    {
+      "principal": "_workspace_admins_dbw_dataengineering_sandbox_weurope_001_7405619889654446",
+      "privileges": [
+        "CREATE_CATALOG",
+        "CREATE_CLEAN_ROOM",
+        "CREATE_CONNECTION",
+        "CREATE_EXTERNAL_LOCATION",
+        "CREATE_PROVIDER",
+        "CREATE_RECIPIENT",
+        "CREATE_SERVICE_CREDENTIAL",
+        "CREATE_SHARE",
+        "CREATE_STORAGE_CREDENTIAL"
+      ]
+    }
+  ]
+}
+
+## grants get-effective metastore 9be7f9ac-2bf3-4f70-9e81-4e754169af3d --principal <persona>
+# La API devuelve las asignaciones del metastore; no expande la pertenencia a grupos (no prueba por si sola la pertenencia al grupo de admins de cuenta).
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        {
+          "privilege": "USE_MARKETPLACE_ASSETS"
+        }
+      ]
+    },
+    {
+      "principal": "_workspace_admins_dbw_dataengineering_sandbox_weurope_001_7405619889654446",
+      "privileges": [
+        {
+          "privilege": "CREATE_CATALOG"
+        },
+        {
+          "privilege": "CREATE_CLEAN_ROOM"
+        },
+        {
+          "privilege": "CREATE_CONNECTION"
+        },
+        {
+          "privilege": "CREATE_EXTERNAL_LOCATION"
+        },
+        {
+          "privilege": "CREATE_PROVIDER"
+        },
+        {
+          "privilege": "CREATE_RECIPIENT"
+        },
+        {
+          "privilege": "CREATE_SERVICE_CREDENTIAL"
+        },
+        {
+          "privilege": "CREATE_SHARE"
+        },
+        {
+          "privilege": "CREATE_STORAGE_CREDENTIAL"
+        }
+      ]
+    }
+  ]
+}
