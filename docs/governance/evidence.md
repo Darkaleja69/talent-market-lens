@@ -2,8 +2,9 @@
 
 > **Fecha de las comprobaciones:** 2026-11-06.
 > **Tareas:** T-01 (inventario, solo lectura), T-02 (ensayo de grant/revoke en
-> dev y preflight de prod) y T-04 (ensayo de herencia en dev, RUNBOOK de
-> gobernanza y consulta de auditoría preparada).
+> dev y preflight de prod), T-03 (preparación del laboratorio, **sin ejecutar**)
+> y T-04 (ensayo de herencia en dev, RUNBOOK de gobernanza y consulta de
+> auditoría preparada).
 > **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código.
 > **0 runs, 0 sentencias SQL, 0 €.** Los únicos cambios de recursos son los
 > grants temporales de T-02 y T-04, aplicados, verificados y revocados en el
@@ -69,7 +70,7 @@
 | Cuál de los dos registros de la misma identidad (`141486372609033`/`146517773436349`) es el canónico y si el duplicado se retira | Mismo `externalId`; requiere Account Console/Entra | T-02/T-09 (decisión, no cambio en T-01) |
 | Principal real de los UUID `9e033aa4-…`, `f4ae815d-…`, `421bd159-…` | La API de workspace no los resuelve | T-02, si afecta a la matriz |
 | Privilegios implícitos por ownership enumerados por la API | En los objetos del proyecto `grants get-effective` devuelve `{}` para el owner (en el metastore sí devuelve asignaciones, sin expandir miembros) | No se cierra: se documenta como limitación de la API |
-| Row filters / column masks y dos perfiles en Free Edition | Sin credenciales de Free Edition | Inicio de T-03, antes de la demo |
+| Row filters / column masks y dos perfiles en Free Edition | Sin credenciales de Free Edition | Preflight de `lab-row-filter-column-mask.md` §3 (bloques 0A y 0C del SQL); **pendiente de ejecución** |
 | Esquema/conteos de `<fuente>_quarantine` | Las tablas no existen | T-06/T-08 |
 | Conteos de violaciones (job_id vacío, min>max, fechas fuera de rango) | Prohibido SQL en T-01 | T-08 (sesión única) |
 
@@ -115,6 +116,23 @@ warehouse; no se ejecutó ningún run ni `bundle deploy/run`; no se modificaron
 catálogos, esquemas, tablas, storage, jobs ni bundles; no se tocó la SAS de Power
 BI ni la del dashboard; no se crearon identidades ni grupos. El único cambio fue
 el grant temporal de la fila 31, revertido en la fila 32. **Prod: 0 cambios.**
+
+## 6. T-03 — laboratorio de row filter y column mask (preparado, sin ejecutar)
+
+> **Modo:** preparación documental. **0 sentencias SQL, 0 objetos creados,
+> 0 €.** Sin credenciales de Free Edition en este equipo y sin usar el
+> workspace pagado.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 38 | 2026-11-06 | T-03 | Preparación del SQL y de la guía del laboratorio; contraste con la documentación oficial de Databricks | **Preparado, pendiente de ejecución por la persona** en Free Edition o en el laboratorio del curso. Sin resultados de ejecución ni datos inventados | `governance_lab` (objetos previstos, no creados) | 0 € | `docs/governance/lab-row-filter-column-mask.sql`, `docs/governance/lab-row-filter-column-mask.md` |
+
+Lo que la documentación **sí** confirma: sintaxis y requisitos de row
+filters/column masks, sus limitaciones (`MERGE`, time travel, clones) y que
+`CREATE GROUP` crea grupos workspace-local **no utilizables en Unity Catalog**.
+Lo que **no** está confirmado y decide el preflight: soporte de filtros/máscaras
+en Free Edition, creación de grupos de cuenta y existencia de dos perfiles
+(`lab-row-filter-column-mask.md` §2).
 
 ## 7. T-04 — ensayo de herencia en dev, RUNBOOK y auditoría preparada
 
