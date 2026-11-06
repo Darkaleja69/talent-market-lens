@@ -1,0 +1,37 @@
+# T-04 evidence - temporary SELECT on the dev SCHEMA applied (2026-11-06)
+# Command: databricks grants update schema job_offers_dev.ops --json '@...uc-t04-grant.json'
+# Request body: {changes:[{principal:'account users', add:['SELECT']}]}  (dev catalog, ops schema, not a table)
+
+## grants get schema job_offers_dev.ops (direct grant, after)
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        "SELECT"
+      ]
+    }
+  ]
+}
+
+## grants get table job_offers_dev.ops.run_metrics (direct grant: still {})
+{}
+
+## grants get-effective table job_offers_dev.ops.run_metrics --principal 'account users' (inherited SELECT)
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        {
+          "inherited_from_name": "job_offers_dev.ops",
+          "inherited_from_type": "SCHEMA",
+          "privilege": "SELECT"
+        }
+      ]
+    }
+  ]
+}
+
+## control: grants get-effective table job_offers_dev.bronze.indeed --principal 'account users' (not covered by the ops schema grant)
+{}

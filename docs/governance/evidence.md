@@ -1,11 +1,13 @@
 # Evidencia — gobernanza (spec 012)
 
 > **Fecha de las comprobaciones:** 2026-11-06.
-> **Tareas:** T-01 (inventario, solo lectura) y T-02 (ensayo de grant/revoke en
-> dev y preflight de prod).
+> **Tareas:** T-01 (inventario, solo lectura), T-02 (ensayo de grant/revoke en
+> dev y preflight de prod) y T-04 (ensayo de herencia en dev, RUNBOOK de
+> gobernanza y consulta de auditoría preparada).
 > **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código.
-> **0 runs, 0 sentencias SQL, 0 €.** El único cambio de recursos es el grant
-> temporal de T-02, aplicado y revocado en el mismo acto (§5).
+> **0 runs, 0 sentencias SQL, 0 €.** Los únicos cambios de recursos son los
+> grants temporales de T-02 y T-04, aplicados, verificados y revocados en el
+> mismo acto (§5 y §7).
 >
 > Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
 > nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
@@ -113,3 +115,30 @@ warehouse; no se ejecutó ningún run ni `bundle deploy/run`; no se modificaron
 catálogos, esquemas, tablas, storage, jobs ni bundles; no se tocó la SAS de Power
 BI ni la del dashboard; no se crearon identidades ni grupos. El único cambio fue
 el grant temporal de la fila 31, revertido en la fila 32. **Prod: 0 cambios.**
+
+## 7. T-04 — ensayo de herencia en dev, RUNBOOK y auditoría preparada
+
+> **Modo:** CLI/API (`--profile vs_code`). **0 runs, 0 sentencias SQL, 0 €.**
+> **Único cambio:** `SELECT` temporal de `account users` sobre el **esquema**
+> `job_offers_dev.ops` (padre de `run_metrics`), aplicado, verificado con
+> `get-effective` y **revocado** el 2026-11-06. Prod **no se tocó**.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 39 | 2026-11-06 | T-04 | `grants get schema job_offers_dev.ops`, `grants get table job_offers_dev.ops.run_metrics` y `get-effective table … --principal "account users"` | **`{}` en los tres**: estado de partida sin grants | `job_offers_dev.ops` | 0 € | `evidence/t04-before-grants.txt` |
+| 40 | 2026-11-06 | T-04 | `grants update schema job_offers_dev.ops --json {"changes":[{"principal":"account users","add":["SELECT"]}]}` | Grant aplicado en el **esquema**; `grants get table run_metrics` sigue **`{}`** (no hay grant directo en la tabla) | `account users`, esquema dev | 0 € | `evidence/t04-grant-applied-inherited.txt` |
+| 41 | 2026-11-06 | T-04 | `grants get-effective table job_offers_dev.ops.run_metrics --principal "account users"` y control en `job_offers_dev.bronze.indeed` | **Herencia demostrada:** `SELECT` con `inherited_from_name: job_offers_dev.ops` y `inherited_from_type: SCHEMA`; el control en otro esquema devuelve **`{}`** | `job_offers_dev.ops.run_metrics` | 0 € | `evidence/t04-grant-applied-inherited.txt` |
+| 42 | 2026-11-06 | T-04 | `grants update schema job_offers_dev.ops --json {"changes":[{"principal":"account users","remove":["SELECT"]}]}` | **Revocado** (respuesta `{}`); `grants get` de esquema, tabla y catálogo y `get-effective` vuelven a **`{}`**. Sin residuo | `job_offers_dev.ops` | 0 € | `evidence/t04-rollback-after.txt`, `evidence/t04-final-state.txt` |
+| 43 | 2026-11-06 | T-04 | Lectura de `grants get` de `job_offers` (catálogo, esquema `ops`, tabla `run_metrics`) y `warehouses list` | **Prod intacto:** `{}` en los tres objetos; `Serverless Starter Warehouse` (`53d8e3e91af6749c`, 2X-Small) **`STOPPED`**. Sin SQL y sin runs | `job_offers`, `53d8e3e91af6749c` | 0 € | `evidence/t04-no-touch.txt` |
+| 44 | 2026-11-06 | T-04 | Redacción de la sección §11 de `docs/RUNBOOK.md` y de `t04-audit-query.sql`; contraste con la documentación oficial de UC y de `system.access.audit` | Operativa publicada (matriz por capa/principal, herencia y ownership vs `MANAGE`, comandos/rollback, SAS de Power BI, diagnóstico UC vs ADLS). **Consulta de auditoría preparada y NO ejecutada**: se correrá en la sesión única de T-08 | `docs/RUNBOOK.md` §11; `t04-audit-query.sql` | 0 € | `access-matrix.md` §6 y §8.1; `docs/RUNBOOK.md` §11; `t04-audit-query.sql` |
+
+Pendiente fuera de T-04: `docs/es/RUNBOOK.md` está **desincronizado** (no
+contiene §9 ni la sección de gobernanza) y queda anotado como pendiente, sin
+editarlo.
+
+**Declaración de no intervención de T-04:** no se ejecutó SQL ni se despertó el
+warehouse; no se ejecutó ningún run ni `bundle deploy/run`; no se crearon
+identidades, grupos, storage, constraints ni recursos; no se tocó la SAS de
+Power BI ni la del dashboard. **Prod: 0 cambios.** El único cambio fue el grant
+temporal de la fila 40, revertido en la fila 42. La consulta de auditoría **no se
+ha ejecutado**: `system.access.audit` sigue `[NO VERIFICADO]` hasta T-08.

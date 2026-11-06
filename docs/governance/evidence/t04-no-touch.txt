@@ -1,0 +1,14 @@
+# T-04 evidence - production untouched and warehouse state (2026-11-06)
+# Read-only API/CLI checks after the dev exercise. No SQL, no runs, no prod changes.
+
+## grants get catalog job_offers (prod, expected {})
+{}
+
+## grants get schema job_offers.ops (prod, expected {})
+{}
+
+## grants get table job_offers.ops.run_metrics (prod, expected {})
+{}
+
+## warehouses list (expected STOPPED)
+Serverless Starter Warehouse | id=53d8e3e91af6749c | state=STOPPED | size=2X-Small

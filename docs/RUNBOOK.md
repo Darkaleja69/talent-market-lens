@@ -568,3 +568,253 @@ reason (the empty account name), while `multi_site` failed for a different one
 `indeed` had no data. The worktree did not have `config.local.ps1` during that
 cycle; the file was created there at **19:10**, after the two failed uploads, and
 both the 22:00 and 23:08 recoveries ran from the worktree.
+
+---
+
+## 11. Unity Catalog governance: privileges, inheritance and rollback
+
+This section is the operating manual for access to the project's data. The
+inventory, the per-object matrix and the approved deviations live in
+[`docs/governance/access-matrix.md`](governance/access-matrix.md); the commands
+for the dev trial, the production preflight and the inverse of every grant live
+in [`docs/governance/grants-plan.md`](governance/grants-plan.md); the decisions
+are in [`docs/governance/decisions.md`](governance/decisions.md). **Do not
+duplicate a grant here without updating those files.** Grants, owners and ACLs
+are inspected with the **CLI/API** (free); SQL is only used for `SHOW GRANTS`
+or the audit query, and every warehouse wake-up costs ~0.43 EUR.
+
+### 11.1 Privileges by layer and principal (operational summary)
+
+| Principal | Scope | Current effective access (2026-11-06) | Operation that justifies it |
+|---|---|---|---|
+| `<cuenta-personal>` (`run_as` of the ELT jobs) | `job_offers_dev` and `job_offers`: catalog, `bronze`/`silver`/`gold`/`ops`, 39 tables; `landing-loc`; storage credential; the 3 jobs | **Owner at all three levels and member of `admins`**: all capabilities implied on each object, plus administrative `CREATE_*` on the metastore (via the workspace-admin account group; membership expansion `[NO VERIFICADO]`). The API does not enumerate them (`grants get` = `{}`). **Not least privilege: approved limitation D-01** | Runs the ELT pipeline and administers the workspace |
+| `admins` | Jobs | `CAN_MANAGE` **inherited from `/jobs/`**; the 9 `CREATE_*` on the metastore are granted to the workspace-admin account group (membership expansion `[NO VERIFICADO]`) | Workspace administration; it does not grant data access |
+| `account users` | Project objects | **No grant** (`{}`); on the metastore only `USE_MARKETPLACE_ASSETS` | None. It was only the trial principal of T-02/T-04 |
+| `users`, `users-clone-2026-08-05-2234-UTC` | Project objects | No grant | None |
+| Storage Managed Identity (`access-connector-joboffers`) | `landing` container via `landing-loc` | **No UC grants** (it is not a UC principal): it authorizes the external location, so access is the credential/path plus Azure RBAC (`[NO VERIFICADO]`). The job needs `READ FILES` + `WRITE FILES` over the **container root** | Auto Loader input/checkpoints and web/PBI exports |
+| Power BI / dashboard workflow | `gold/pbi_export`, `gold/web_export` | Read-only **SAS per prefix, outside Unity Catalog** | Report refresh and public site; no UC grant |
+| Future automation identity | per `grants-plan.md` §4 | **Does not exist**; not created in this spec | Separate spec |
+
+What each layer needs if an identity is ever migrated (the job today has all of
+it through ownership):
+
+| Layer / task | Objects | Minimum privilege |
+|---|---|---|
+| Context | catalog and each layer schema | `USE CATALOG`, `USE SCHEMA` |
+| `Bronze_Ingestion` | `bronze.<source>` (4) | `SELECT`, `MODIFY` (`MERGE WITH SCHEMA EVOLUTION`) |
+| `Bronze_Ingestion` | `bronze.<source>_quarantine` (4) | `SELECT`, `MODIFY`; `CREATE TABLE` on `bronze` only if they are not pre-created |
+| `Silver_*` | `bronze.<source>` (read) and `silver.offers_*`/`companies_*` (write) | `SELECT` on the source; `SELECT`, `MODIFY` on the target |
+| `Gold_Complete_Catalog` | `silver.*` (read) and `gold.*` (write) | `SELECT` on the source; `SELECT`, `MODIFY` on the target |
+| `Publish_Run_Summary` | `ops.run_metrics` | `SELECT`, `MODIFY` |
+| Auto Loader and exports | `landing-loc` | `READ FILES`, `WRITE FILES` (`READ FILES` is mandatory even to write) |
+
+No task needs `CREATE SCHEMA`; the schemas are created outside the job. The
+per-table list and the rationale are in `access-matrix.md` §5.6 and
+`grants-plan.md` §4.
+
+### 11.2 Inheritance: what descends, what does not
+
+**Grants descend, and it was measured on 2026-11-06 (T-04).** A temporary
+`SELECT` granted on the schema `job_offers_dev.ops` to `account users`:
+
+- did **not** appear in `grants get table ...run_metrics` (direct grants only:
+  still `{}`);
+- **did** appear in `get-effective table ...run_metrics --principal "account
+  users"` with `inherited_from_name: job_offers_dev.ops` and
+  `inherited_from_type: SCHEMA`;
+- did **not** reach `job_offers_dev.bronze.indeed` (different schema, `{}`);
+- disappeared from both endpoints after the `REVOKE` (all `{}`).
+
+So the two endpoints answer different questions and both are needed:
+`grants get` = explicitly assigned; `get-effective` = assigned + inherited. The
+grant was reverted immediately; the sanitised output is in
+`docs/governance/evidence/t04-*.txt`. The trial granted **on the schema on
+purpose** to measure inheritance: it is the controlled exception to the
+table-scoped rule. Operational grants stay table-scoped except `USE
+CATALOG`/`USE SCHEMA`.
+
+**A new table inherits the container grants.** Privileges granted on a catalog
+or schema apply to all **current and future** children; the table starts with no
+direct grants and the creating principal becomes its owner. That is why project
+grants are table-scoped except `USE CATALOG`/`USE SCHEMA`, and why a `SELECT` on
+a schema is a deliberate decision that also covers future tables.
+
+**`USE CATALOG` / `USE SCHEMA` are not data access.** They are usage
+prerequisites; reading still needs `SELECT` on the table (plus both usage
+privileges on the parents). By the UC rule, without `USE SCHEMA` the read would
+fail; the T-04 trial did not grant `USE` (it only measured that the `SELECT` is
+inherited), so `get-effective` listing it is not proof of readability. `MODIFY`
+additionally requires `SELECT`.
+
+**Ownership is not `MANAGE`** (Unity Catalog permissions model, checked
+2026-11-06):
+
+| Capability | Owner | `MANAGE` |
+|---|---|---|
+| All capabilities on the object | Yes, implied; not listed as `ALL PRIVILEGES` | No; each privilege must be granted (the holder can self-grant) |
+| Grant/revoke, transfer ownership, drop | Yes | Yes |
+| Manage child objects | Yes, implied on all children | Yes, inherited when granted on a container |
+| Number of principals | Exactly one | As many as needed |
+| Usage privileges | Not on the owned object | Not at the level where it is held, but yes above it |
+| Included in `ALL PRIVILEGES` | n/a | **No** |
+
+- Ownership **does not inherit downward**: owning a catalog does not make you
+  owner of its schemas or tables, but the owner can manage every child object
+  (functionally `MANAGE`, not granted explicitly).
+- Consequently `get-effective` returns `{}` for an owner: **`{}` does not mean
+  "no access"** and does not prove least privilege. It only means "no explicit
+  grant".
+- `MANAGE` on a container inherits to its children; `MANAGE` does not give data
+  access by itself (but the holder can grant it to themselves).
+
+**Metastore grants do not descend** to catalogs/schemas/tables (the documented
+exception is `READ METADATA`). That is why the 9 `CREATE_*` of the workspace
+admin group are administrative and do not read data.
+
+**External Location grants cover the whole path, present and future.** A grant
+on `landing-loc` reaches the container root (raw, checkpoints, managed storage
+and both exports); scoping it is a storage decision, not a UC one.
+
+**SAS are independent of UC.** They neither inherit nor receive grants; see
+§11.4.
+
+### 11.3 Inspect, change, verify and revert
+
+Pattern used in T-02/T-04: capture the before state, apply the smallest grant,
+verify with both endpoints, revert with the exact inverse, verify `{}` again, and
+save the sanitised output as evidence (date, command, result, identifier, 0 EUR)
+in `docs/governance/evidence/`.
+
+```powershell
+$profile = 'vs_code'
+
+# 1) Inspect. Direct grants vs effective (direct + inherited).
+databricks grants get catalog job_offers_dev --profile $profile -o json
+databricks grants get schema  job_offers_dev.ops --profile $profile -o json
+databricks grants get table   job_offers_dev.ops.run_metrics --profile $profile -o json
+databricks grants get-effective table job_offers_dev.ops.run_metrics `
+  --principal "account users" --profile $profile -o json
+
+# 2) Change. Use @file: PowerShell quoting and the CLI JSON both work better.
+'{"changes":[{"principal":"account users","add":["SELECT"]}]}' |
+  Set-Content -Encoding ascii $env:TEMP\uc-grant.json
+databricks grants update schema job_offers_dev.ops `
+  --profile $profile --json "@$env:TEMP\uc-grant.json"
+
+# 3) Verify: get (direct) and get-effective (inherited).
+databricks grants get schema job_offers_dev.ops --profile $profile -o json
+databricks grants get-effective table job_offers_dev.ops.run_metrics `
+  --principal "account users" --profile $profile -o json
+
+# 4) Revert: same call, "remove" instead of "add".
+'{"changes":[{"principal":"account users","remove":["SELECT"]}]}' |
+  Set-Content -Encoding ascii $env:TEMP\uc-revoke.json
+databricks grants update schema job_offers_dev.ops `
+  --profile $profile --json "@$env:TEMP\uc-revoke.json"
+
+# 5) Confirm {}. If the revoke fails, stop: do not leave the grant in place.
+```
+
+Inside a SQL session the same state can be read with:
+
+```sql
+SHOW GRANTS ON TABLE job_offers_dev.ops.run_metrics;
+SHOW GRANTS ON SCHEMA job_offers_dev.ops;
+SHOW GRANTS ON CATALOG job_offers_dev;
+SHOW GRANTS `account users` ON TABLE job_offers_dev.ops.run_metrics;
+```
+
+`SHOW GRANTS` lists the privileges that affect the object **including inherited
+and denied ones** (SQL reference, checked 2026-11-06), so it complements the two
+API endpoints: it is the in-session view, while `grants get` shows explicit
+grants only and `get-effective` shows explicit + inherited with the
+`inherited_from_*` provenance.
+
+**Jobs ACL.** `jobs get-permissions <job_id>` returns direct and inherited
+entries; `inherited: true` identifies the ones that come from `/jobs/`.
+Rollback of a job ACL **restores only the direct ACL** captured before the
+change (the owner with `IS_OWNER`). The `admins` group `CAN_MANAGE` is inherited
+from `/jobs/` and is **not** fixed or removed with `jobs set-permissions`:
+
+```powershell
+databricks jobs get-permissions 916863262593632 --profile vs_code -o json
+databricks jobs set-permissions 916863262593632 --profile vs_code `
+  --json "@$env:TEMP\job-acl-direct.json"
+```
+
+Minimal body of `job-acl-direct.json` (`jobs set-permissions` replaces the
+**direct** ACL with this list):
+
+```json
+{
+  "access_control_list": [
+    { "user_name": "<cuenta-personal>", "permission_level": "IS_OWNER" }
+  ]
+}
+```
+
+Keep only entries with `inherited: false` from `jobs get-permissions`. Entries
+can use `user_name`, `group_name` or `service_principal_name`; **do not add
+`admins`**, because its `CAN_MANAGE` is inherited from `/jobs/` and is not part
+of the direct ACL. The full production preflight, the hypothetical commands for
+a future automation identity and the inverse of every grant are in
+`grants-plan.md` §3-§6; do not improvise a grant outside that plan.
+
+### 11.4 Power BI, the SAS and why it is not in the UC reader matrix
+
+`Job_Offers_Dashboard.pbip` reads `gold/pbi_export/*.parquet` from ADLS with
+`AzureStorage.DataLake` and a **read-only SAS** (`PBI_EXPORT_SAS`, `rl`) scoped
+to that prefix. The public dashboard workflow does the same with
+`WEB_EXPORT_SAS` on `gold/web_export`. Both bypass Unity Catalog: **no
+`SELECT`, no `USE CATALOG`, no inheritance**, so Power BI is intentionally
+absent from the UC matrix of §11.1 and from `access-matrix.md` §5.5.
+
+Practical consequences:
+
+- Do not "fix" a report with a UC grant: it has no effect on the SAS path.
+- A UC grant or revoke cannot break the report by itself; what breaks it is the
+  export task losing write access to `landing-loc`, a missing export, or the SAS
+  expiring/being rotated without updating Power BI.
+- The SAS lives in Power BI Desktop dataset credentials or in the GitHub
+  secret, never in the repository, logs or evidence. Rotation: new SAS in Cloud
+  Shell, update the credential, refresh.
+- The report must not wake the warehouse: keep it `STOPPED`, refresh, and check
+  that `/api/2.0/sql/history/queries?filter_by.warehouse_id=53d8e3e91af6749c`
+  shows no query in the window.
+
+### 11.5 A run failed "by permissions": UC or SAS/ADLS?
+
+Classify before changing anything: **UC errors come from the table/schema
+metadata; storage errors come from the path or the SAS.** Both are diagnosed
+without SQL (`jobs get-run`, `jobs get-run-output`); the warehouse stays
+`STOPPED`.
+
+| What the task shows | Where | First check | Rollback / fix |
+|---|---|---|---|
+| `PERMISSION_DENIED`, `not authorized`, `USE CATALOG`/`USE SCHEMA`/`SELECT`/`MODIFY` in the message | Unity Catalog | `grants get` + `get-effective` of the failing object and of `run_as`; compare with `access-matrix.md` §5; if the audit table is available, run `t04-audit-query.sql` block 1 (all changes) and block 2 (filter by principal) in the T-08 session; block 3 is only for job ACLs | Apply the inverse documented in `grants-plan.md` §6 (re-grant or revoke), then re-run only with approval of the cost |
+| `403`, `AuthorizationFailure`, `This request is not authorized`, `Signature not found`, `InvalidAuthenticationToken`, `BlobNotFound`/`PathNotFound` on Auto Loader or exports | ADLS / SAS / storage credential | `external-locations get landing-loc`, credential name, widget/path (`storage_account`, `container`, prefixes), SAS expiry; Azure RBAC is `[NO VERIFICADO]` | Fix the path or rotate the SAS/credential; never grant UC to solve a storage 403 |
+| Power BI refresh fails while the job is green | SAS / export | Is `gold/pbi_export/` complete with `meta.json`? Did the SAS expire? | New SAS and update the dataset credential; no UC change |
+| Cluster does not start / job fails before a task runs | Compute or storage credential | `jobs get-run` state and `state_message` | Do not touch grants |
+
+**Who to notify:** the project owner/workspace admin, and the `on_failure`
+email of the job if it is production. **Never apply a production grant or
+revoke without the preflight of `grants-plan.md` §3 and the approval recorded
+in `decisions.md`.** If the cause is a storage 403 and the Azure RBAC cannot be
+read, record `[NO VERIFICADO]` and do not claim it was fixed.
+
+### 11.6 Where the detail lives
+
+- `docs/governance/access-matrix.md`: measured inventory, per-object matrix,
+  measured excess and `[NO VERIFICADO]`.
+- `docs/governance/grants-plan.md`: T-02/T-04 trial, production preflight,
+  hypothetical grants of a future automation identity, duplicate storage
+  credentials and stop criteria.
+- `docs/governance/decisions.md`: D-01 (personal-account excess approved as a
+  limitation; `run_as` not migrated).
+- `docs/governance/evidence.md` + `docs/governance/evidence/`: one row per
+  check with date, command, result, identifier and cost.
+- `docs/governance/t04-audit-query.sql`: audit query for T-08 (prepared, not
+  executed) and the alternative if `system.access.audit` is unavailable.
+- `docs/es/RUNBOOK.md`: **out of sync** with this runbook; it does not contain
+  §9 or this governance section. Do not use it as the operational source until
+  it is updated (pending).

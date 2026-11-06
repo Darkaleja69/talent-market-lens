@@ -1,15 +1,17 @@
-# Matriz de acceso — inventario y objetivo (spec 012, T-01 y T-02)
+# Matriz de acceso — inventario y objetivo (spec 012, T-01, T-02 y T-04)
 
-> **Fecha:** 2026-11-06. **Tarea:** T-01 y T-02 (actualizado 2026-11-06) de
-> `specs/012-Security-And-Governance`.
+> **Fecha:** 2026-11-06. **Tarea:** T-01, T-02 y T-04 (actualizado 2026-11-06)
+> de `specs/012-Security-And-Governance`.
 > **Método:** T-01 fue solo lectura por Databricks CLI/API (`--profile vs_code`)
 > y lectura de código; T-02 hizo un grant temporal en dev, verificado y revertido
-> en el mismo acto. **Sin SQL, sin abrir el SQL warehouse, sin runs, sin cambios
-> en prod.** **Coste:** 0 €. Evidencia saneada en `docs/governance/evidence/`.
+> en el mismo acto; T-04 hizo el ensayo de **herencia** (grant temporal en el
+> esquema dev, verificado con `get-effective` y revocado en el mismo acto).
+> **Sin SQL, sin abrir el SQL warehouse, sin runs, sin cambios en prod.**
+> **Coste:** 0 €. Evidencia saneada en `docs/governance/evidence/`.
 >
 > Este documento tiene dos partes que no deben confundirse:
 > 1. **Estado actual medido** (lo que la API devuelve hoy).
-> 2. **Objetivo y rollback** (ensayado en dev en T-02; comandos de prod
+> 2. **Objetivo y rollback** (ensayado en dev en T-02 y T-04; comandos de prod
 >    preparados para T-09, **sin aplicar en prod**).
 >
 > **No se afirma least privilege.** El estado actual es «sin grants explícitos y
@@ -205,7 +207,7 @@ principal `run_as`, de ahí que su ACL no conceda datos.
 | 39 tablas | owner ⇒ ALL | lectura y escritura de cada capa | `SELECT` (+ `MODIFY` solo en las tablas que escribe el job) | `t01-grants-tables.txt`, código | ídem |
 | External Location `landing-loc` | owner ⇒ ALL | Auto Loader lee el landing y escribe checkpoints; exports escriben Parquet | `READ FILES` + `WRITE FILES` (READ es obligatorio también para escribir) | `bronze_ingest.ipynb`, `run_summary.ipynb`, `Prepare_Web_Export`/`Prepare_PBI_Export`, [privileges reference](https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/access-control/privileges-reference) | `ALTER EXTERNAL LOCATION … OWNER TO <persona>` / `REVOKE` |
 | Storage Credential | owner | Solo se necesita para **crear** EL/tablas externas; el job no la usa por nombre | ninguno en runtime (se conserva al owner como vía de administración) | `t01-storage.txt` | `ALTER STORAGE CREDENTIAL … OWNER TO <persona>` |
-| Jobs ELT (3) | `IS_OWNER` | ejecutar/editar el pipeline | `IS_OWNER` (vía de administración) | `t01-jobs.txt` | `jobs set-permissions` con la ACL capturada |
+| Jobs ELT (3) | `IS_OWNER` | ejecutar/editar el pipeline | `IS_OWNER` (vía de administración) | `t01-jobs.txt` | `jobs set-permissions` con la **ACL directa** capturada (la persona `IS_OWNER`). `admins` `CAN_MANAGE` es **heredado de `/jobs/`** (`inherited: true`) y **no se fija ni se retira** con esa llamada |
 
 **Exceso de esta fila:** la persona **no** tiene el mínimo de la operación: tiene
 ALL por ownership (H2). No se reduce en esta spec porque el `run_as` actual no se
@@ -294,24 +296,79 @@ Notas de precisión:
 - `CREATE SCHEMA` no lo necesita ninguna tarea del job; los privilegios de
   creación de catálogo/esquema son de administración, no del pipeline.
 
-## 6. Herencia: qué hereda quién hoy
+## 6. Herencia: qué hereda quién hoy (medido en T-04 el 2026-11-06)
 
-- **Ownership NO hereda hacia abajo**: el owner de un catálogo no pasa a ser owner
-  de sus esquemas ni tablas. La documentación de UC describe además una capacidad
-  de gestión del owner sobre los hijos, pero **ese detalle no se ha medido aquí**
-  y queda como comprobación de T-04 (junto a `ownership` vs `MANAGE`). Para este
-  inventario es irrelevante: la persona es owner **directo en los tres niveles**
-  (2 catálogos, 8 esquemas, 39 tablas), así que tiene todas las capacidades sobre
-  cada objeto por ownership del propio objeto.
-- **Grants heredan hacia abajo** por diseño de UC, pero **en los objetos del
-  proyecto no hay ninguno declarado**: lo único con ACL es el metastore (H10), y
-  los privilegios de metastore **no heredan** a catálogos/esquemas/tablas. Un
-  grant nuevo en un catálogo alcanzaría a todos los objetos presentes y futuros de
-  **ese** catálogo; por eso la matriz propone conceder en el objeto concreto salvo
-  `USE CATALOG`/`USE SCHEMA` y `CREATE TABLE` en los esquemas del pipeline.
+**Grants heredan hacia abajo; medido.** Ensayo de ida y vuelta en dev, autorizado
+y con coste 0 €: `SELECT` temporal de `account users` sobre el **esquema**
+`job_offers_dev.ops` (no sobre una tabla).
+
+| Momento | `grants get` tabla `run_metrics` | `get-effective` tabla de `account users` | Evidencia |
+|---|---|---|---|
+| Antes | `{}` | `{}` | `evidence/t04-before-grants.txt` |
+| Con el `SELECT` en el esquema | `{}` (el grant es del esquema, no de la tabla) | `SELECT` con `inherited_from_name: job_offers_dev.ops` y `inherited_from_type: SCHEMA` | `evidence/t04-grant-applied-inherited.txt` |
+| Control en **otro** esquema (`bronze.indeed`) | `{}` | `{}` | `evidence/t04-grant-applied-inherited.txt` |
+| Tras el `REVOKE` | `{}` | `{}` | `evidence/t04-rollback-after.txt`, `t04-final-state.txt` |
+
+Lectura del ensayo:
+
+- `grants get` devuelve **solo lo asignado explícitamente**; `grants
+  get-effective` devuelve **asignado + heredado**. Para inventariar hacen falta
+  los dos: mirar solo `get` oculta la herencia y mirar solo `get-effective`
+  oculta de dónde viene.
+- Que `get-effective` incluya `SELECT` **no demuestra que el principal pueda
+  leer**: el ensayo no concedió `USE CATALOG`/`USE SCHEMA` (solo midió la
+  herencia del `SELECT`) y, por la regla de UC, sin esos `USE` la lectura
+  seguiría fallando. Los `USE` no dan datos y los datos no se leen sin los
+  `USE`.
+- El grant en esquema alcanza a **todos los hijos presentes y futuros** de ese
+  esquema (incluida `run_metrics`) y a ninguno de otro esquema. Por eso el
+  proyecto concede en tabla salvo `USE CATALOG`/`USE SCHEMA`; `CREATE TABLE` en
+  un esquema solo se plantea si las cuarentenas no se pre-crean fuera del job
+  (`grants-plan.md` §4).
+- El inverso exacto (`remove` del mismo privilegio en el mismo objeto) devuelve
+  el estado a `{}` sin residuo: el rollback de un grant de UC es simétrico.
+- El ensayo concede **a propósito en el esquema** para poder medir la herencia:
+  es la excepción controlada a la regla de RF-3 de conceder en la tabla. La
+  regla operativa no cambia: en tabla salvo `USE CATALOG`/`USE SCHEMA` (y el
+  `CREATE TABLE` justificado de las cuarentenas).
+
+**Qué hereda una tabla nueva.** Una tabla nueva no nace con grants directos:
+hereda los privilegios vigentes en su catálogo/esquema y el principal que la
+crea pasa a ser su owner. Consecuencia práctica: conceder `SELECT` en un esquema
+también publica las tablas futuras, y crear una tabla con una identidad de
+automatización la deja a nombre de esa identidad (habría que transferir el
+ownership o crear las tablas fuera del job).
+
+**Ownership no es `MANAGE`** (contrastado con la documentación oficial de Unity
+Catalog el 2026-11-06; el detalle que T-01 dejó abierto queda resuelto):
+
+| Capacidad | Owner | `MANAGE` |
+|---|---|---|
+| Todas las capacidades del objeto | Sí, **implícitas**; la API no las devuelve como `ALL PRIVILEGES` | No: cada privilegio se concede aparte (quien lo tiene puede autoconcederse) |
+| Conceder/revocar, transferir ownership, borrar | Sí | Sí |
+| Gestionar los objetos hijos | Sí, implícito sobre todos los hijos | Sí, heredado al concederlo en un contenedor |
+| Número de principales | **Uno solo** | Tantos como haga falta |
+| Privilegios de uso (`USE`) | No sobre el objeto propio | No en el nivel donde se tiene, sí en los contenedores superiores |
+| Incluido en `ALL PRIVILEGES` | No aplica | **No** |
+
+- **Ownership no hereda hacia abajo**: el owner de un catálogo no pasa a ser
+  owner de sus esquemas ni tablas, pero **sí obtiene la capacidad de gestionar
+  todos los hijos** (equivalente funcional a `MANAGE`, no concedido de forma
+  explícita). Para este inventario es irrelevante: la persona es owner **directo
+  en los tres niveles** (2 catálogos, 8 esquemas, 39 tablas).
+- Por eso `get-effective` de la persona devuelve `{}`: **no es falta de acceso**,
+  es que el ownership no se enumera como privilegio. `{}` no prueba least
+  privilege.
+- `MANAGE` sí es un grant explícito, **hereda a los hijos** cuando se concede en
+  un contenedor, **no concede datos por sí mismo** y no está incluido en
+  `ALL PRIVILEGES`. No se reparte en este proyecto.
+- **Grants de metastore no heredan** a catálogos/esquemas/tablas (la excepción
+  documentada es `READ METADATA`). Los 9 `CREATE_*` del grupo de administradores
+  son administrativos y no dan acceso a datos (H10).
 - **ACL de jobs**: `admins` recibe `CAN_MANAGE` por la ACL de `/jobs/` (nivel
-  workspace), no por una concesión del bundle. Cambiar la ACL del job no quita
-  ese permiso heredado.
+  workspace), no por una concesión del bundle. Cambiar la ACL directa del job no
+  quita ese permiso heredado; el rollback con `jobs set-permissions` restaura
+  **solo la ACL directa**.
 - **External Location**: un grant de `READ FILES`/`WRITE FILES` en `landing-loc`
   alcanza **todo** el contenedor, presente y futuro (H6).
 - Las SAS de Power BI y del dashboard son **independientes** de UC: no heredan ni
@@ -389,6 +446,33 @@ identidades quedaron mínimas.
    **verificación de no regresión** (todo `{}`, owners intactos, job de 9 tareas,
    storage sin cambios).
 
+### 8.1 T-04 — ensayo de herencia y reversión (2026-11-06)
+
+Autorizado por la persona y ejecutado con CLI/API, **0 €, sin SQL, sin runs y sin
+tocar prod**:
+
+1. **Estado de partida comprobado `{}`** en `grants get schema
+   job_offers_dev.ops`, `grants get table job_offers_dev.ops.run_metrics` y
+   `get-effective` de `account users` (`evidence/t04-before-grants.txt`).
+2. **Grant temporal en el esquema** (el nivel intermedio, no la tabla):
+   `SELECT` de `account users` sobre `job_offers_dev.ops`. La tabla siguió con
+   `{}` en `grants get`, pero `get-effective` de `run_metrics` devolvió `SELECT`
+   con `inherited_from_name: job_offers_dev.ops` y `inherited_from_type: SCHEMA`;
+   el control en `bronze.indeed` siguió `{}`
+   (`evidence/t04-grant-applied-inherited.txt`).
+3. **Revocación inmediata** con el inverso exacto; `get` de esquema, tabla y
+   catálogo y `get-effective` volvieron a `{}`
+   (`evidence/t04-rollback-after.txt`, `t04-final-state.txt`).
+4. **Prod sin cambios** (`job_offers` catálogo/esquema/tabla en `{}`) y
+   **warehouse `STOPPED`** (`evidence/t04-no-touch.txt`).
+5. **Operativa publicada:** sección §11 del `docs/RUNBOOK.md` (matriz,
+   herencia, comandos, SAS y diagnóstico UC vs ADLS) y consulta de auditoría
+   `t04-audit-query.sql` **preparada para T-08, sin ejecutar**. `docs/es/RUNBOOK.md`
+   sigue desincronizado y queda pendiente.
+
+La lección queda en §6: `grants get` no muestra la herencia, `get-effective` sí,
+y el inverso deja el objeto exactamente como estaba.
+
 ## 9. Comandos de verificación (solo lectura, 0 €)
 
 ```powershell
@@ -415,14 +499,21 @@ objetos del proyecto; **dos asignaciones en el metastore** (`account users` →
 sola EL (`landing-loc`) con URL en la raíz del contenedor; job de 9 tareas con
 `run_as` persona; **dos miembros** en el grupo `admins`; warehouse `STOPPED`.
 
+**Herencia y auditoría (T-04):** el patrón de ida y vuelta con `grants get`,
+`grants get-effective` y `grants update … --json` está en
+`docs/RUNBOOK.md` §11.3, y su resultado medido en §8.1 de este documento. La
+consulta de auditoría `t04-audit-query.sql` **no se ha ejecutado**: se reserva
+para la sesión única de T-08.
+
 ## 10. Pendientes `[NO VERIFICADO]`
 
 | Tema | Motivo |
 |---|---|
-| Azure RBAC de la Managed Identity (roles y ámbito sobre `joboffershns`) | Requiere Azure CLI/Portal; T-01/T-02 solo están autorizadas a Databricks. |
+| Azure RBAC de la Managed Identity (roles y ámbito sobre `joboffershns`) | Requiere Azure CLI/Portal; T-01/T-02/T-04 solo están autorizadas a Databricks. |
 | Cuál de los dos `credential_id` del access connector tiene el RBAC efectivo | Mismo motivo; el connector aparece con `d3be66a9…` y `d937de4b…`. |
 | Expansión de la pertenencia de `admins` al grupo de cuenta que recibe los `CREATE_*` del metastore | La ACL del metastore sí está medida (H10); lo que la API no hace es expandir miembros al consultar `get-effective`. Queda `[NO VERIFICADO]`: T-02 no consultó la Account Console. |
 | Principal real de los UUID `9e033aa4-…`, `f4ae815d-…`, `421bd159-…` | La API de workspace no los resuelve. |
 | Privilegios exactos del owner enumerados por la API | En los objetos del proyecto `grants get-effective` devuelve `{}`: UC no enumera los privilegios implícitos por ownership (en el metastore sí devuelve las asignaciones, pero sin expandir miembros). |
 | Row filters/column masks y perfiles de Free Edition | Sin credenciales de Free Edition; se confirma al inicio de T-03 antes de la demo. |
 | Necesidad exacta de privilegios para `MERGE WITH SCHEMA EVOLUTION` y `overwriteSchema` con un principal no owner | Hoy lo garantiza el ownership; queda `[NO VERIFICADO]` y se validará en la spec futura de identidad con un principal no owner **solo en dev**. |
+| Disponibilidad de `system.access.audit`, permisos, retención y nombre exacto del evento de cambio de ownership en UC | T-04 no ejecuta SQL; la consulta queda preparada (`t04-audit-query.sql`) y se comprueba en la sesión única de T-08. `changeSecurableOwner` es del metastore Hive legado (`sqlPermissions`), no de UC. |

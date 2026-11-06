@@ -1,0 +1,11 @@
+# T-04 evidence - before state (2026-11-06)
+# Profile: vs_code. Operator: <cuenta-personal> (workspace admin). No SQL. 0 EUR.
+
+## grants get schema job_offers_dev.ops
+{}
+
+## grants get table job_offers_dev.ops.run_metrics
+{}
+
+## grants get-effective table job_offers_dev.ops.run_metrics --principal 'account users'
+{}
