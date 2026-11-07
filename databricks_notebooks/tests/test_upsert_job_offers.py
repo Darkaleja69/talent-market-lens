@@ -310,6 +310,209 @@ def test_blank_site_in_multisite_goes_to_quarantine(spark):
 
 
 # ---------------------------------------------------------------------------
+# Quarantine: a rating in company_name (spec 012 T-06)
+# ---------------------------------------------------------------------------
+
+RATING_SCHEMA = T.StructType([
+    T.StructField("job_id", T.StringType(), True),
+    T.StructField("company_name", T.StringType(), True),
+    T.StructField("scraped_at", T.StringType(), True),
+    T.StructField("_ingest_date", T.DateType(), True),
+    T.StructField("_source_file", T.StringType(), True),
+])
+
+RATING_DEFAULTS = {field.name: None for field in RATING_SCHEMA.fields}
+
+
+def _rating_batch(spark, rows):
+    """Bronze-like batch that carries ``company_name`` (LinkedIn layout)."""
+    return spark.createDataFrame(
+        [{**RATING_DEFAULTS, **row} for row in rows], schema=RATING_SCHEMA
+    )
+
+
+def _rating_split(spark, rows):
+    batch = _rating_batch(spark, rows)
+    valid, quarantine = upsert.split_quarantine(batch, "linkedin")
+    return batch, valid, quarantine
+
+
+def _rating_reasons(quarantine):
+    return {
+        row[upsert.COMPANY_NAME_COLUMN]:
+            row[upsert.QUARANTINE_REASON_COLUMN]
+        for row in quarantine.collect()
+    }
+
+
+def test_company_name_that_is_only_a_rating_goes_to_quarantine(spark):
+    # A shifted parser column leaves the rating alone in company_name; the
+    # row cannot reach bronze because there is no company to store.
+    _, valid, quarantine = _rating_split(spark, [
+        {"job_id": "1", "company_name": "4,0",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        {"job_id": "2", "company_name": "4.0",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        {"job_id": "3", "company_name": " 4,00 ",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        {"job_id": "4", "company_name": "ACME",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+    ])
+    assert valid.count() == 1
+    assert valid.collect()[0]["job_id"] == "4"
+    assert _rating_reasons(quarantine) == {
+        "4,0": upsert.COMPANY_NAME_RATING,
+        "4.0": upsert.COMPANY_NAME_RATING,
+        " 4,00 ": upsert.COMPANY_NAME_RATING,
+    }
+
+
+def test_company_names_with_digits_are_not_rating_shifts(spark):
+    # The rule matches the whole value only: a legitimate name that contains
+    # digits or a rating inside text is not a shifted column.
+    legit = [
+        "4.0 Retail", "24/7 Retail", "ACME 4,0", "Rating 4,0",
+        "4,0 SL", "1.2.3", "10,0", "Data 4.0 Labs",
+    ]
+    _, valid, quarantine = _rating_split(spark, [
+        {"job_id": str(index), "company_name": name,
+         "scraped_at": "2026-10-01T10:00:00+00:00"}
+        for index, name in enumerate(legit)
+    ] + [
+        {"job_id": "null-name", "company_name": None,
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        {"job_id": "blank-name", "company_name": "  ",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+    ])
+    assert valid.count() == len(legit) + 2
+    assert quarantine.count() == 0
+
+
+def test_a_batch_without_company_name_is_not_quarantined_by_the_rule(spark):
+    # Some bronze sources may not have company_name: the rule must not fail
+    # nor quarantine a row because of a column that is absent.
+    batch = _batch(spark, "linkedin", [
+        {"job_id": "1", "title": "valid",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+    ])
+    valid, quarantine = upsert.split_quarantine(batch, "linkedin")
+    assert upsert.COMPANY_NAME_COLUMN not in batch.columns
+    assert valid.count() == 1
+    assert quarantine.count() == 0
+
+
+def test_company_name_rating_is_the_last_reason(spark):
+    # Precedence stays stable: key > capture time > rating in company_name.
+    _, valid, quarantine = _rating_split(spark, [
+        {"job_id": None, "company_name": "4,0",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        {"job_id": "2", "company_name": "4,0", "scraped_at": None},
+        {"job_id": "3", "company_name": "4,0",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+    ])
+    assert valid.count() == 0
+    reasons = {row["job_id"]: row[upsert.QUARANTINE_REASON_COLUMN]
+               for row in quarantine.collect()}
+    assert reasons == {
+        None: upsert.MISSING_KEY,
+        "2": upsert.MISSING_SCRAPED_AT,
+        "3": upsert.COMPANY_NAME_RATING,
+    }
+
+
+def test_all_invalid_batch_leaves_no_valid_rows(spark):
+    # Every row quarantined: the upsert receives nothing and must not fabricate
+    # an empty-looking bronze; the quarantine count carries the batch.
+    batch, valid, quarantine = _rating_split(spark, [
+        {"job_id": str(index), "company_name": "4,0",
+         "scraped_at": "2026-10-01T10:00:00+00:00"}
+        for index in range(3)
+    ])
+    assert batch.count() == 3
+    assert valid.count() == 0
+    assert quarantine.count() == 3
+    assert upsert.dedupe_batch(valid, "linkedin").count() == 0
+
+
+def test_mixed_batch_reconciles_input_rows(spark):
+    # entrada = válidas + filas únicas enviadas a cuarentena + repetidas del lote
+    row = {"job_id": "9", "company_name": "4,0",
+           "scraped_at": "2026-10-01T10:00:00+00:00"}
+    batch, valid, quarantine = _rating_split(spark, [
+        {"job_id": "1", "company_name": "ACME",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        {"job_id": "2", "company_name": "Globex",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        row,
+        {"job_id": "8", "company_name": "4.0",
+         "scraped_at": "2026-10-01T10:00:00+00:00"},
+        dict(row),
+    ])
+    unique = upsert.new_quarantine_rows(quarantine, quarantine.limit(0))
+    assert batch.count() == 5
+    assert valid.count() == 2
+    assert quarantine.count() == 3
+    assert unique.count() == 2
+    assert batch.count() == valid.count() + quarantine.count()
+    # The only unexplained-by-identity row is the repetition inside the batch.
+    assert quarantine.count() - unique.count() == 1
+
+
+def test_reprocessing_a_rating_batch_does_not_grow_quarantine(spark):
+    row = {"job_id": "1", "company_name": "4,0",
+           "scraped_at": "2026-10-01T10:00:00+00:00",
+           "_source_file": SOURCE_FILE}
+    other = {"job_id": "2", "company_name": "4.0",
+             "scraped_at": "2026-10-01T10:00:00+00:00",
+             "_source_file": SOURCE_FILE}
+    _, _, quarantine = _rating_split(spark, [row, other])
+    first = upsert.new_quarantine_rows(quarantine, quarantine.limit(0))
+    assert first.count() == 2
+    # The same batch again (two copies) adds nothing: identity is stable.
+    repeated = quarantine.unionByName(quarantine)
+    second = upsert.new_quarantine_rows(repeated, first)
+    assert second.count() == 0
+
+
+def test_rating_identity_includes_the_source_file(spark):
+    # The same invalid row in two landing files is two quarantine rows: a
+    # corrected file must be able to coexist with the original one.
+    row = {"job_id": "1", "company_name": "4,0",
+           "scraped_at": "2026-10-01T10:00:00+00:00"}
+    _, _, first = _rating_split(
+        spark, [dict(row, _source_file="file-a"), dict(row, _source_file="file-b")]
+    )
+    assert upsert.new_quarantine_rows(first, first.limit(0)).count() == 2
+    _, _, same_file = _rating_split(
+        spark, [dict(row, _source_file="file-a"), dict(row, _source_file="file-a")]
+    )
+    assert upsert.new_quarantine_rows(same_file, same_file.limit(0)).count() == 1
+
+
+def test_corrected_row_is_valid_and_the_original_stays_quarantined(spark):
+    # Treatment A (RUNBOOK 10.2): fix the parser, publish a corrected copy of
+    # the batch with the same key. The corrected row is valid and the MERGE
+    # updates that key; the original quarantine row is kept as evidence.
+    broken = {"job_id": "1", "company_name": "4,0",
+              "scraped_at": "2026-10-01T10:00:00+00:00",
+              "_source_file": SOURCE_FILE}
+    _, _, quarantine = _rating_split(spark, [broken])
+    stored = upsert.new_quarantine_rows(quarantine, quarantine.limit(0))
+    assert stored.count() == 1
+
+    corrected = dict(broken, company_name="ACME",
+                     scraped_at="2026-10-02T10:00:00+00:00")
+    batch, valid, repaired_quarantine = _rating_split(spark, [corrected])
+    assert valid.count() == 1
+    assert repaired_quarantine.count() == 0
+    # Same source key: the upsert updates the stored offer instead of inserting.
+    key_match = "t.job_id = s.job_id"
+    assert key_match in upsert.merge_sql("bronze.linkedin", "linkedin")
+    # Nothing is reprocessed in the quarantine table: it only grows by new rows.
+    assert upsert.new_quarantine_rows(repaired_quarantine, stored).count() == 0
+
+
+# ---------------------------------------------------------------------------
 # Row fingerprint
 # ---------------------------------------------------------------------------
 

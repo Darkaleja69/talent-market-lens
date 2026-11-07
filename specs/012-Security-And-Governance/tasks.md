@@ -189,7 +189,7 @@
     **0 €.**
   - **Estimación:** 4–6 h; diff ~300–400 líneas entre módulo y tests.
 
-- [ ] **T-06 — Ampliar y cerrar el ciclo de cuarentena Delta**
+- [x] **T-06 — Ampliar y cerrar el ciclo de cuarentena Delta**
   - **Objetivo:** llevar el caso `company_name` a la cuarentena Delta como segunda
     defensa y definir cómo se corrige/reprocesa o descarta con evidencia.
   - **Entregable:** integración mínima en `Upsert_Job_Offers.py`/bronce, reutilizando

@@ -548,7 +548,58 @@ the recovery path (fix the rule, then re-ingest the CSV by hand). The runner's
 `status: partial` only counts whole rejected files, so a run with separated rows
 reports `rejected 0`.
 
-### 10.2 Run it from the clone that has the config
+### 10.2 Delta quarantine: a rating in `company_name` and treatment by reason
+
+The local coherence validator is the first defence (a rating in a text column
+rejects the row or the file before the upload). The **Delta quarantine is the
+second defence**: it catches what the local rules let through, without losing
+the valid rows of the same batch.
+
+- **Rule (`company_name_rating`).** A row goes to quarantine when
+  `company_name` is **only** a decimal rating (`4,0`, `4.0`, ` 4,00 `), the
+  signature of a shifted parser column. A legitimate name that contains digits
+  (`24/7 Retail`, `4.0 Retail`, `ACME 4,0`) is **not** matched. A source without
+  the column is never quarantined by this rule.
+- **Precedence.** One reason per row: `missing_key` > `missing_scraped_at` >
+  `company_name_rating`. The separation is in
+  `databricks_notebooks/Upsert_Job_Offers.py::split_quarantine`; the contract
+  and the generated statements live in `databricks_notebooks/Data_Quality.py`.
+- **Where it lands.** `<catalog>.bronze.<source>_quarantine`, append-only, with
+  identity `(_row_hash, _quarantine_reason, _source_file)`. Repeating the same
+  file does not grow the table; the same invalid row in two landing files is two
+  rows, so a corrected file can coexist with the original. The valid rows of the
+  batch continue to the `MERGE`.
+- **Bronze summary.** `ops.run_metrics`/the bronze summary still counts the new
+  quarantine rows of the batch without scanning the table: an all-invalid batch
+  shows `input > 0` and `quarantined = input`, not an empty bronze.
+
+**Treatment A — correct and reprocess (preferred).** Never edit the raw file.
+Fix the parser (or the coherence rule) and publish a corrected copy of the
+batch; keep its reference to the original in the file name and in the report.
+The corrected row has a different `_row_hash` and is valid, so it enters bronze;
+the original stays quarantined. The `MERGE` keys on the source key and the
+capture instant, so the corrected offer does not duplicate an existing one.
+The raw landing remains the canonical copy.
+
+**Treatment B — discard.** Before deleting anything, record the source file,
+date, reason and count. Only then remove those rows from the quarantine table
+(a SQL statement: it needs the warehouse and is **not** free — group it in a
+single window or use the T-08 session). Never delete a whole quarantine table to
+"clean up".
+
+**Local proof of both paths.** The fixtures of
+`databricks_notebooks/tests/test_upsert_job_offers.py` (spec 012) demonstrate
+the separation, the precedence, the idempotency, the reconciliation
+`input = valid + unique quarantined (+ repeated within the batch)` and the
+`_source_file` identity. No historical quarantine is deleted or reprocessed by
+the pipeline.
+
+**Inventory for T-08.** `docs/governance/t08-profile-queries.sql` counts rows
+per source and reason with the first and last `_quarantine_at` (no payloads).
+T-01 measured that no `<source>_quarantine` table exists yet: run only the
+blocks whose table the `information_schema` preflight returns.
+
+### 10.3 Run it from the clone that has the config
 
 The pipeline resolves the storage account from
 `scrapers-pipeline/config.local.ps1` (git-ignored) or from the
@@ -818,3 +869,4 @@ read, record `[NO VERIFICADO]` and do not claim it was fixed.
 - `docs/es/RUNBOOK.md`: **out of sync** with this runbook; it does not contain
   §9 or this governance section. Do not use it as the operational source until
   it is updated (pending).
+
