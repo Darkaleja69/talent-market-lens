@@ -38,7 +38,7 @@
 
 ## 1. Reconocimiento y gobernanza (dominio 7)
 
-- [ ] **T-01 — Inventario gratuito de identidades, privilegios y calidad actual**
+- [x] **T-01 — Inventario gratuito de identidades, privilegios y calidad actual**
   - **Objetivo:** sustituir supuestos por una línea base comprobada de Unity
     Catalog, almacenamiento y reglas existentes, sin abrir el warehouse.
   - **Comprobaciones:**
@@ -71,7 +71,7 @@
     `evidence.md`. **0 €, 0 runs, 0 SQL.**
   - **Estimación:** 3–4 h; diff documental ~200–300 líneas.
 
-- [ ] **T-02 — Aplicar privilegios mínimos en dev y preparar prod**
+- [x] **T-02 — Aplicar privilegios mínimos en dev y preparar prod**
   - **Objetivo:** ensayar en dev el modelo mínimo justificado por T-01 y dejar
     preparados los comandos de producción, sin migrar `run_as` ni crear un service
     principal de adorno. Las identidades de automatización/almacenamiento —dedicadas
@@ -109,7 +109,7 @@
     rollback en dev y fila en `evidence.md`. **0 €.**
   - **Estimación:** 2–3 h; diff ~150–250 líneas entre comandos y documentación.
 
-- [ ] **T-03 — Demo de row filter y column mask en Free Edition o laboratorio del curso**
+- [x] **T-03 — Demo de row filter y column mask en Free Edition o laboratorio del curso**
   - **Objetivo:** demostrar control de filas y columnas sobre una misma tabla
     sintética con un perfil autorizado y otro restringido.
   - **Entregable:** SQL versionado de creación, grants base, funciones de política,
@@ -135,7 +135,7 @@
     limpieza y fila en `evidence.md`. **0 €.**
   - **Estimación:** 3–4 h; diff ~250–350 líneas entre SQL y documentación.
 
-- [ ] **T-04 — Herencia, auditoría y RUNBOOK de gobernanza**
+- [x] **T-04 — Herencia, auditoría y RUNBOOK de gobernanza**
   - **Objetivo:** dejar el modelo operable por una persona junior y demostrar que
     una concesión puede rastrearse y revertirse.
   - **Entregable:** sección del RUNBOOK con matriz de privilegios, herencia,
