@@ -6,10 +6,10 @@ row is written, the invalid one fails, NULL follows the agreed semantics, the
 logical deployment is idempotent and the inverse removes the constraint.
 
 Delta needs a session with the Delta extension and, on Windows, a Hadoop that
-can write. This module runs in isolation (``python -m pytest
-databricks_notebooks/tests/test_constraints_delta.py -q``); inside the full
-suite an earlier module owns the session, so the tests skip with instructions,
-exactly like the Delta integration of ``test_run_metrics``.
+can write. The module is **opt-in** so the main suite never starts a second
+JVM: run it in isolation with ``TML_LOCAL_DELTA=1`` set; without it the module
+skips with instructions (as the existing Delta integration of
+``test_run_metrics`` does inside the shared suite).
 """
 import os
 import sys
@@ -17,6 +17,18 @@ import sys
 import pytest
 
 pyspark = pytest.importorskip("pyspark")  # noqa: F841
+
+if os.environ.get("TML_LOCAL_DELTA") != "1":
+    # The main suite runs on a shared session that cannot take the Delta
+    # extension (a static key) and this module would otherwise be the first to
+    # create a second JVM. Opt in explicitly when running the file alone:
+    #   $env:TML_LOCAL_DELTA=1; python -m pytest \
+    #       databricks_notebooks/tests/test_constraints_delta.py -q
+    pytest.skip(
+        "T-07 Delta tests are opt-in: set TML_LOCAL_DELTA=1 and run this "
+        "file in isolation.",
+        allow_module_level=True,
+    )
 
 from pyspark.sql import SparkSession  # noqa: E402
 

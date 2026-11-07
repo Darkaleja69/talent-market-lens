@@ -26,6 +26,7 @@ def spark():
     """Local session for the predicates (no Delta needed)."""
     os.environ["PYSPARK_PYTHON"] = sys.executable
     os.environ["PYSPARK_DRIVER_PYTHON"] = sys.executable
+    active = SparkSession.getActiveSession()
     session = (
         SparkSession.builder.master("local[1]")
         .appName("data-quality-tests")
@@ -39,7 +40,10 @@ def spark():
         .getOrCreate()
     )
     yield session
-    session.stop()
+    # Only stop a session this module created: the shared one belongs to the
+    # module that started it.
+    if active is None:
+        session.stop()
 
 
 # ---------------------------------------------------------------------------

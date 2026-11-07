@@ -947,11 +947,13 @@ already-deployed table is empty. The local Delta tests prove the whole cycle
 again) on temporary tables, without touching a real one:
 
 ```powershell
+$env:TML_LOCAL_DELTA=1
 python -m pytest databricks_notebooks/tests/test_constraints_delta.py -q
 ```
 
-Run that file **in isolation**: inside the full suite an earlier module owns the
-Spark session and the Delta tests skip with instructions.
+Run that file **in isolation**: it is opt-in with `TML_LOCAL_DELTA=1` because it
+needs its own Delta session, and inside the shared suite an earlier module owns
+the Spark session.
 
 ### 12.4 If a task fails with a constraint violation
 
