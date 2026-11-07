@@ -505,7 +505,10 @@ sola EL (`landing-loc`) con URL en la raíz del contenedor; job de 9 tareas con
 consulta de auditoría `t04-audit-query.sql` **no se ha ejecutado**: se reserva
 para la sesión única de T-08.
 
-## 10. Pendientes `[NO VERIFICADO]`
+## 10. Pendientes y verificados
+
+> La tabla mantiene los pendientes abiertos y la fila de **Free Edition**,
+> verificada el 2026-11-07 en T-03 (ruta B).
 
 | Tema | Motivo |
 |---|---|
@@ -514,6 +517,6 @@ para la sesión única de T-08.
 | Expansión de la pertenencia de `admins` al grupo de cuenta que recibe los `CREATE_*` del metastore | La ACL del metastore sí está medida (H10); lo que la API no hace es expandir miembros al consultar `get-effective`. Queda `[NO VERIFICADO]`: T-02 no consultó la Account Console. |
 | Principal real de los UUID `9e033aa4-…`, `f4ae815d-…`, `421bd159-…` | La API de workspace no los resuelve. |
 | Privilegios exactos del owner enumerados por la API | En los objetos del proyecto `grants get-effective` devuelve `{}`: UC no enumera los privilegios implícitos por ownership (en el metastore sí devuelve las asignaciones, pero sin expandir miembros). |
-| Row filters/column masks y perfiles de Free Edition | Sin credenciales de Free Edition; se confirma al inicio de T-03 antes de la demo. |
+| Row filters/column masks y perfiles de Free Edition | **Verificado el 2026-11-07** en Free Edition (catálogo `workspace`, esquema `governance_lab`): soporta filtros y máscaras, pero **no permite conceder permisos a grupos** (ruta A no viable). La demo se hizo con la **ruta B** (dos usuarios reales), coste 0 €; detalle en `evidence.md` §8. |
 | Necesidad exacta de privilegios para `MERGE WITH SCHEMA EVOLUTION` y `overwriteSchema` con un principal no owner | Hoy lo garantiza el ownership; queda `[NO VERIFICADO]` y se validará en la spec futura de identidad con un principal no owner **solo en dev**. |
 | Disponibilidad de `system.access.audit`, permisos, retención y nombre exacto del evento de cambio de ownership en UC | T-04 no ejecuta SQL; la consulta queda preparada (`t04-audit-query.sql`) y se comprueba en la sesión única de T-08. `changeSecurableOwner` es del metastore Hive legado (`sqlPermissions`), no de UC. |

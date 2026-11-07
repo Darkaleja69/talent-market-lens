@@ -1,14 +1,19 @@
 # Evidencia — gobernanza (spec 012)
 
-> **Fecha de las comprobaciones:** 2026-11-06.
+> **Fecha de las comprobaciones:** 2026-11-06 (T-01, T-02 y T-04) y 2026-11-07
+> (T-03, ejecución real en Free Edition).
 > **Tareas:** T-01 (inventario, solo lectura), T-02 (ensayo de grant/revoke en
-> dev y preflight de prod), T-03 (preparación del laboratorio, **sin ejecutar**)
-> y T-04 (ensayo de herencia en dev, RUNBOOK de gobernanza y consulta de
-> auditoría preparada).
-> **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código.
-> **0 runs, 0 sentencias SQL, 0 €.** Los únicos cambios de recursos son los
-> grants temporales de T-02 y T-04, aplicados, verificados y revocados en el
-> mismo acto (§5 y §7).
+> dev y preflight de prod), T-03 (laboratorio de row filter y column mask
+> **ejecutado el 2026-11-07 en Free Edition**, ruta B) y T-04 (ensayo de herencia
+> en dev, RUNBOOK de gobernanza y consulta de auditoría preparada).
+> **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código;
+> T-03 lo ejecutó la persona a mano en Databricks Free Edition.
+> **0 runs, 0 sentencias SQL del proyecto, 0 €.** No se ejecutó SQL en el
+> workspace pagado: el laboratorio de T-03 vive en **Free Edition** (§8). Los
+> únicos cambios de recursos del proyecto son los grants temporales de T-02 y
+> T-04, aplicados, verificados y revocados en el mismo acto (§5 y §7); los
+> objetos sintéticos de T-03 se crearon y se retiraron dentro de Free Edition
+> (§8).
 >
 > Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
 > nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
@@ -60,7 +65,10 @@
 - No se guarda ningún `databricks jobs get` completo porque incluye
   `email_notifications`; se guarda el extracto saneado de `evidence/t01-jobs.txt`.
 
-## 3. `[NO VERIFICADO]` de esta tarea
+## 3. Pendientes y verificados de esta tarea
+
+> La tabla conserva los pendientes abiertos de T-01 y añade, marcada como
+> **verificada**, la fila de Free Edition cerrada en T-03 (§8).
 
 | Tema | Motivo | Cuándo se cierra |
 |---|---|---|
@@ -70,7 +78,7 @@
 | Cuál de los dos registros de la misma identidad (`141486372609033`/`146517773436349`) es el canónico y si el duplicado se retira | Mismo `externalId`; requiere Account Console/Entra | T-02/T-09 (decisión, no cambio en T-01) |
 | Principal real de los UUID `9e033aa4-…`, `f4ae815d-…`, `421bd159-…` | La API de workspace no los resuelve | T-02, si afecta a la matriz |
 | Privilegios implícitos por ownership enumerados por la API | En los objetos del proyecto `grants get-effective` devuelve `{}` para el owner (en el metastore sí devuelve asignaciones, sin expandir miembros) | No se cierra: se documenta como limitación de la API |
-| Row filters / column masks y dos perfiles en Free Edition | Sin credenciales de Free Edition | Preflight de `lab-row-filter-column-mask.md` §3 (bloques 0A y 0C del SQL); **pendiente de ejecución** |
+| Row filters / column masks y dos perfiles en Free Edition | **Verificado el 2026-11-07** (ya no pendiente): Free Edition soporta filtros y máscaras, pero **no permite conceder permisos a grupos**, así que la ruta A no es viable | Cerrado con la **ruta B** (dos usuarios reales) sobre `workspace.governance_lab`; evidencia en §8 |
 | Esquema/conteos de `<fuente>_quarantine` | Las tablas no existen | T-06/T-08 |
 | Conteos de violaciones (job_id vacío, min>max, fechas fuera de rango) | Prohibido SQL en T-01 | T-08 (sesión única) |
 
@@ -117,15 +125,15 @@ catálogos, esquemas, tablas, storage, jobs ni bundles; no se tocó la SAS de Po
 BI ni la del dashboard; no se crearon identidades ni grupos. El único cambio fue
 el grant temporal de la fila 31, revertido en la fila 32. **Prod: 0 cambios.**
 
-## 6. T-03 — laboratorio de row filter y column mask (preparado, sin ejecutar)
+## 6. T-03 — laboratorio de row filter y column mask (preparación, 2026-11-06)
 
 > **Modo:** preparación documental. **0 sentencias SQL, 0 objetos creados,
-> 0 €.** Sin credenciales de Free Edition en este equipo y sin usar el
-> workspace pagado.
+> 0 €.** Sin credenciales de Free Edition en este equipo en la preparación y sin
+> usar el workspace pagado. **Ejecución real el 2026-11-07 en Free Edition: §8.**
 
 | # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
 |---:|---|---|---|---|---|---:|---|
-| 38 | 2026-11-06 | T-03 | Preparación del SQL y de la guía del laboratorio; contraste con la documentación oficial de Databricks | **Preparado, pendiente de ejecución por la persona** en Free Edition o en el laboratorio del curso. Sin resultados de ejecución ni datos inventados | `governance_lab` (objetos previstos, no creados) | 0 € | `docs/governance/lab-row-filter-column-mask.sql`, `docs/governance/lab-row-filter-column-mask.md` |
+| 38 | 2026-11-06 | T-03 | Preparación del SQL y de la guía del laboratorio; contraste con la documentación oficial de Databricks | **Preparado el 2026-11-06**; **ejecutado el 2026-11-07** en Free Edition (ruta B, §8). Esta fila conserva solo el estado de la preparación | `governance_lab` (objetos previstos, no creados el 2026-11-06) | 0 € | `docs/governance/lab-row-filter-column-mask.sql`, `docs/governance/lab-row-filter-column-mask.md` |
 
 Lo que la documentación **sí** confirma: sintaxis y requisitos de row
 filters/column masks, sus limitaciones (`MERGE`, time travel, clones) y que
@@ -160,3 +168,46 @@ identidades, grupos, storage, constraints ni recursos; no se tocó la SAS de
 Power BI ni la del dashboard. **Prod: 0 cambios.** El único cambio fue el grant
 temporal de la fila 40, revertido en la fila 42. La consulta de auditoría **no se
 ha ejecutado**: `system.access.audit` sigue `[NO VERIFICADO]` hasta T-08.
+
+## 8. T-03 — ejecución real en Free Edition (2026-11-07)
+
+> **Modo:** ejecución manual de la persona en **Databricks Free Edition**,
+> catálogo `workspace`, esquema `governance_lab`, **ruta B** (dos usuarios
+> reales). **0 €, 0 runs, 0 sentencias SQL en el workspace pagado.** La ruta A
+> (grupos de cuenta) **no es viable** en Free Edition: no se pueden conceder
+> permisos a grupos.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 45 | 2026-11-07 | T-03 | Perfil autorizado: consulta de verificación sobre la tabla sintética con la política aplicada | **8 filas**; `contact_email` original | `workspace.governance_lab.offers` | 0 € | `evidence/t03-authorized-8-rows.png` |
+| 46 | 2026-11-07 | T-03 | Perfil restringido: consulta de verificación con row filter y column mask | **4 filas**, solo `Barcelona`; `contact_email = '***'` | `workspace.governance_lab.offers` | 0 € | `evidence/t03-restricted-4-rows-mask.png` |
+| 47 | 2026-11-07 | T-03 | Caso negativo: `REVOKE SELECT` al perfil restringido y consulta | **Error `[INSUFFICIENT_PERMISSIONS]`**: `Principal [redactado] does not have SELECT on Table 'workspace.governance_lab.offers'. SQLSTATE: 42501`; la política no concede acceso | `workspace.governance_lab.offers` | 0 € | `evidence/t03-negative-no-select.png` |
+| 48 | 2026-11-07 | T-03 | Limpieza: retirada de políticas y objetos; comprobación del esquema y las bases | **Esquema y bases vacíos**: sin tabla ni objetos | `workspace.governance_lab` | 0 € | `evidence/t03-cleanup-schema-empty.png` |
+| 49 | 2026-11-07 | T-03 | Limpieza: consulta a `information_schema.column_masks` | **`No rows returned`**: sin máscaras activas | `workspace.governance_lab` | 0 € | `evidence/t03-cleanup-mask-empty.png` |
+
+**Notas de la ejecución (T-03):**
+
+- **Entorno:** Databricks **Free Edition**, catálogo `workspace`, esquema
+  `governance_lab`; **ruta B** con dos usuarios reales. La tabla sintética
+  `governance_lab.offers` tenía las **8 filas** insertadas.
+- **Ruta A no viable en Free Edition:** no se pueden conceder permisos a grupos.
+  Se descartó sin forzar la demo y sin usar el workspace pagado.
+- **No capturado:** los **query IDs**, el **preflight completo** (bloques 0A/0C)
+  y el **`SHOW GRANTS` final**. No se deducen ni se rellenan: quedan como
+  limitación de la evidencia visual.
+- **Alcance de las capturas:** muestran la **rejilla de resultados**, no la
+  consulta ni el **perfil/sesión** que la ejecutó.
+- **Limpieza del esquema:** la captura de limpieza no muestra el **nombre del
+  esquema** ni el SQL ejecutado.
+- **Acceso base sin política:** el caso «acceso base sin política» **no se
+  capturó** en esta ejecución.
+- **Atribución del perfil autorizado:** la captura de **8 filas** se atribuye al
+  perfil autorizado, pero **no se ve el usuario** en la imagen.
+- **Herencia de grants:** no se repitió en el laboratorio; se demostró en **T-04
+  en dev** (`evidence/t04-grant-applied-inherited.txt`, §7).
+- **Saneado:** la captura del error de permisos conserva el mensaje completo
+  (`Principal [redactado] does not have SELECT on Table 'workspace.governance_lab.offers'. SQLSTATE: 42501`);
+  el correo real se **redactó** con un **rectángulo negro** antes de versionarla.
+  **Ningún correo real aparece en esta documentación.**
+- La ejecución la hizo la persona **a mano**; no se usó el warehouse del
+  proyecto ni se lanzaron runs. **Coste: 0 €.**

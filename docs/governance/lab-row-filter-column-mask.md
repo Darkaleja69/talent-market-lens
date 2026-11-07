@@ -1,16 +1,18 @@
 # Laboratorio de row filter y column mask (spec 012, T-03)
 
-> **Fecha:** 2026-11-06. **Tarea:** T-03 de `specs/012-Security-And-Governance`.
-> **Estado:** **preparado, pendiente de ejecución por la persona.** No se ha
-> ejecutado ninguna sentencia: en este equipo no hay credenciales de Free
-> Edition y el workspace pagado no se usa.
+> **Fecha:** 2026-11-06 (preparación) y 2026-11-07 (ejecución). **Tarea:** T-03
+> de `specs/012-Security-And-Governance`.
+> **Estado:** preparado el 2026-11-06 y **ejecutado el 2026-11-07 en Databricks
+> Free Edition** (catálogo `workspace`, ruta B). Resultados observados en §12; la
+> tabla de §7 quedó sin rellenar (query IDs no capturados).
 > **Coste:** 0 €. **Sin datos reales, sin objetos en `job_offers` ni
 > `job_offers_dev`, sin tocar el dashboard ni la SAS.**
 >
 > Este documento es la guía de ejecución del SQL versionado
 > `docs/governance/lab-row-filter-column-mask.sql`. La guía **no sustituye a la
-> evidencia**: los resultados se anotan en la tabla de §7 con la salida real y su
-> query ID.
+> evidencia**: los resultados se anotarían en la tabla de §7 con la salida real y
+> su query ID; en la ejecución del 2026-11-07 no se capturaron los query IDs y la
+> tabla quedó vacía, así que el resumen observado está en §12.
 
 ## 1. Qué demuestra el laboratorio y qué no
 
@@ -195,6 +197,9 @@ demo completada.
 
 ## 7. Tabla de evidencia (rellenar durante la ejecución)
 
+> **No rellenada en la ejecución del 2026-11-07:** no se capturaron los query
+> IDs. Los resultados observados están en §12 y en `evidence.md` §8.
+
 El **query ID** se copia del historial del SQL editor (Query history) de la
 sesión que ejecutó la consulta; no se inventa ni se deduce. Para `SHOW GRANTS` y
 DDL también hay un ID de ejecución en el historial.
@@ -321,6 +326,59 @@ Comprobaciones que puede hacer el `verifier` con búsquedas de texto sobre
 8. **Sintaxis:** paréntesis equilibrados excluyendo comentarios (0); sin
    `DROP GROUP IF EXISTS` (no existe); sin `GRANT`/`REVOKE` con varios
    principales (la sintaxis admite uno solo).
-9. **Que no hay resultados inventados:** este documento y `evidence.md` no
-   afirman ningún resultado de ejecución; solo expectativas y el estado
-   «preparado, pendiente de ejecución».
+9. **Que no hay resultados inventados:** las expectativas de §6 no se
+   reescribieron; los resultados observados están en §12 y en `evidence.md` §8,
+   limitados a lo que muestran las cinco capturas. Lo no capturado (query IDs,
+   preflight completo y `SHOW GRANTS` final) se declara como tal, sin rellenar.
+
+## 12. Resultados de la ejecución (2026-11-07)
+
+> **Entorno:** Databricks **Free Edition**, catálogo **`workspace`**, esquema
+> `governance_lab` (`` `workspace.governance_lab` ``). **Ruta B** con **dos
+> usuarios reales** (autorizado y restringido). La **ruta A no es viable** en
+> Free Edition: no se pueden conceder permisos a grupos. **Coste: 0 €**; sin
+> runs, sin SQL en el workspace pagado y sin tocar `job_offers`/`job_offers_dev`.
+
+La tabla sintética `governance_lab.offers` se cargó con las **8 filas** previstas
+en el bloque 0B. Casos observados:
+
+| Caso | Perfil | Prueba | Resultado observado | Captura |
+|---|---|---|---|---|
+| Autorizado con política | AU | Consulta de verificación (5.1 + 5.2) | **8 filas**; `contact_email` **original** | `evidence/t03-authorized-8-rows.png` |
+| Restringido con política | RE | Consulta de verificación (5.1 + 5.3) | **4 filas**, solo `Barcelona`; `contact_email = '***'` (row filter + column mask) | `evidence/t03-restricted-4-rows-mask.png` |
+| Caso negativo sin `SELECT` | RE | `REVOKE SELECT` y consulta (5.5) | **Error `[INSUFFICIENT_PERMISSIONS]`**: `Principal [redactado] does not have SELECT on Table 'workspace.governance_lab.offers'. SQLSTATE: 42501`; la política **no concede acceso** | `evidence/t03-negative-no-select.png` |
+| Limpieza de objetos | A | Retirada de políticas/objetos (6.4–6.5) | **Esquema y bases vacíos**: sin tabla ni objetos | `evidence/t03-cleanup-schema-empty.png` |
+| Limpieza de máscaras | A | `information_schema.column_masks` | **`No rows returned`**: sin máscaras activas | `evidence/t03-cleanup-mask-empty.png` |
+
+**Qué confirma la ejecución:** los row filters y las column masks **funcionan en
+Free Edition**; el perfil autorizado conserva las 8 filas y el valor original de
+`contact_email`, el restringido ve 4 filas de `Barcelona` y `***`, y un principal
+sin `SELECT` sigue recibiendo error de permisos aunque la política exista. La
+limpieza deja el esquema sin objetos ni políticas.
+
+**Limitaciones y qué no se capturó:**
+
+- **Query IDs:** no se capturaron; la tabla de §7 queda vacía a propósito.
+- **Preflight completo (bloques 0A/0C):** no capturado. La ruta A se descartó
+  porque Free Edition no permite conceder permisos a grupos.
+- **`SHOW GRANTS` final:** no capturado; no se afirma el estado «0 grants» más
+  allá de lo que muestran las capturas de limpieza.
+- **Vista del owner (5.4) y caso opcional sin `EXECUTE` (7):** sin captura; no
+  se afirma su resultado.
+- **Alcance de las capturas:** muestran la **rejilla de resultados**, no la
+  consulta ni el **perfil/sesión** que la ejecutó.
+- **Limpieza del esquema:** la captura de limpieza no muestra el **nombre del
+  esquema** ni el SQL ejecutado.
+- **Acceso base sin política:** el caso «acceso base sin política» **no se
+  capturó** en esta ejecución.
+- **Atribución del perfil autorizado:** la captura de **8 filas** se atribuye al
+  perfil autorizado, pero **no se ve el usuario** en la imagen.
+- **Herencia de grants:** no se repitió en el laboratorio; está demostrada en
+  **T-04 en dev** (`evidence/t04-grant-applied-inherited.txt` y
+  `evidence.md` §7).
+- **Saneado:** la captura del error de permisos conserva el mensaje completo
+  (`Principal [redactado] does not have SELECT on Table 'workspace.governance_lab.offers'. SQLSTATE: 42501`);
+  el correo real se **redactó** con un **rectángulo negro** antes de versionarla.
+  **No se incluye ningún correo real en este documento ni en las capturas.**
+- La ejecución la hizo la persona **a mano** en Free Edition; no se usó el
+  workspace pagado ni el warehouse del proyecto.

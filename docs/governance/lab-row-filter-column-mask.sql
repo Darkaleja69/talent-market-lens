@@ -10,8 +10,10 @@
 --   * Every object lives under `governance_lab` and is removed in block 6.
 --
 -- BEFORE YOU RUN
---   * This script was NOT executed when it was written (no Free Edition
---     credentials on this machine). It is a lab script, not evidence.
+--   * This script was executed on 2026-11-07 in Databricks Free Edition
+--     (catalog `workspace`, route B with two real users). Results are in
+--     `lab-row-filter-column-mask.md` §12 and `evidence.md` §8. Re-running it
+--     recreates the same synthetic objects; never run it in the paid workspace.
 --   * Replace the single placeholder `<catalog>` with the catalog returned by
 --     `SHOW CATALOGS` BEFORE running anything. Use find/replace "all": it
 --     appears in every block. Free Edition often exposes `workspace`; the
