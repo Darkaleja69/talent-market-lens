@@ -241,7 +241,7 @@
     **0 €.**
   - **Estimación:** 3–4 h; diff ~250–350 líneas entre DDL y tests.
 
-- [ ] **T-08 — Sesión SQL única: perfil, cuarentena, constraints y auditoría**
+- [x] **T-08 — Sesión SQL única: perfil, cuarentena, constraints y auditoría**
   - **Objetivo:** medir el histórico, perfilar las cuarentenas, aplicar únicamente el
     DDL seguro y consultar la auditoría de gobernanza en una sola ventana.
   - **Preparación:** warehouse `STOPPED` antes; sentencias y orden revisados;

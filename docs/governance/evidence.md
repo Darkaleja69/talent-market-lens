@@ -1,24 +1,28 @@
 # Evidencia — gobernanza (spec 012)
 
 > **Fecha de las comprobaciones:** 2026-11-06 (T-01, T-02 y T-04) y 2026-11-07
-> (T-03, ejecución real en Free Edition; T-05, T-06 y T-07, local).
+> (T-03, ejecución real en Free Edition; T-05, T-06 y T-07, local; T-08, sesión
+> SQL única y verificación de constraints por API).
 > **Tareas:** T-01 (inventario, solo lectura), T-02 (ensayo de grant/revoke en
 > dev y preflight de prod), T-03 (laboratorio de row filter y column mask
 > **ejecutado el 2026-11-07 en Free Edition**, ruta B), T-04 (ensayo de herencia
 > en dev, RUNBOOK de gobernanza y consulta de auditoría preparada), T-05
 > (contrato de calidad y mapa tabla-columna), T-06 (cuarentena
-> `company_name_rating` y tratamiento por motivo) y T-07 (DDL versionado y
-> pruebas Delta locales).
+> `company_name_rating` y tratamiento por motivo), T-07 (DDL versionado y
+> pruebas Delta locales) y T-08 (perfiles, constraints y auditoría en **una**
+> sesión SQL).
 > **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código
 > en T-01–T-04; T-03 lo ejecutó la persona a mano en Databricks Free Edition;
-> T-05–T-07 son **locales** (Python, PySpark y Delta 4.4 en este equipo).
-> **0 runs, 0 sentencias SQL del proyecto, 0 €.** No se ejecutó SQL en el
-> workspace pagado: el laboratorio de T-03 vive en **Free Edition** (§8). Los
-> únicos cambios de recursos del proyecto son los grants temporales de T-02 y
-> T-04, aplicados, verificados y revocados en el mismo acto (§5 y §7); los
+> T-05–T-07 son **locales** (Python, PySpark y Delta 4.4 en este equipo); T-08 lo
+> ejecutó la persona en **una** sesión del warehouse y se verificó después por
+> API gratuita.
+> **0 runs; 1 sesión SQL; ~0,43 €.** El laboratorio de T-03 vive en **Free
+> Edition** (§8) y T-07 probó el DDL en un warehouse local temporal: T-08 es la
+> única sesión del proyecto sobre el warehouse pagado. Los grants de T-02 y T-04
+> fueron temporales, aplicados y revocados en el mismo acto (§5 y §7); T-08
+> aplicó **20 constraints** (10 dev + 10 prod) y las verificó por API (§12). Los
 > objetos sintéticos de T-03 se crearon y se retiraron dentro de Free Edition
-> (§8). T-07 **no aplicó ningún DDL** a Databricks: las constraints se probaron
-> sobre tablas temporales de un warehouse local (§11).
+> (§8).
 >
 > Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
 > nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
@@ -269,3 +273,125 @@ crearon, modificaron ni revocaron grants, owners, constraints ni recursos de
 Databricks; no se tocó la SAS de Power BI ni la del dashboard; no se modificó el
 crudo de ADLS; no se reprocesó ni borró histórico; no hay tokens, SAS ni
 credenciales en la evidencia. **Coste: 0 €.**
+
+## 12. T-08 — sesión SQL única: perfiles, constraints y auditoría (2026-11-07)
+
+> **Modo:** **una** sesión SQL ejecutada a mano por la persona sobre
+> `Serverless Starter Warehouse` (`53d8e3e91af6749c`, 2X-Small). **1 sesión,
+> ~0,43 €** (10 minutos facturables). Warehouse **`STOPPED`** antes y
+> **`STOPPED` después** (comprobado por API el 2026-11-07, sin SQL). Sin runs.
+> **Capturas:** `docs/governance/screenshots/t08-*.png`, 33 imágenes de la
+> rejilla de resultados. **Limitación registrada:** las capturas no muestran el
+> SQL ni los *query IDs*; el coste es el estándar de 10 min facturables porque no
+> se capturó la duración. No hay tokens, SAS ni correos en ellas.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 62 | 2026-11-07 | T-08 | 11 perfiles de `job_id_required` y `salary_range_order` en dev y prod | **0 violaciones en las 10 tablas**; nulos de salario masivos (gold prod 18.614 y 18.789) | 10 tablas | ~0,43 € (sesión) | §12.1; capturas `t08-*-job-id`, `t08-*-salary` |
+| 63 | 2026-11-07 | T-08 | Perfil de `posted_date_contract` en `gold.fact_offers` | **138 violaciones** en dev y en prod; `min_date` 2018-10-13; 0 nulos | `job_offers[_dev].gold.fact_offers` | incluido | §12.2; `t08-*-gold-posted-date` |
+| 64 | 2026-11-07 | T-08 | Preflight `SHOW TBLPROPERTIES` y `ALTER TABLE ... ADD CONSTRAINT` | **0 constraints previas**; **20 aplicadas** (10 dev + 10 prod) | 10 tablas | incluido | §12.3; `evidence/t08-constraints-api.txt`; `t08-*-preflight-properties*` |
+| 65 | 2026-11-07 | T-08 | Inventario de `<fuente>_quarantine` | **0 tablas en dev y en prod**: sin histórico Delta para RF-6; no se creó ninguna a mano | `information_schema` | incluido | §12.4; `t08-dev-quarantine-inventory-empty.png` |
+| 66 | 2026-11-07 | T-08 | `t04-audit-query.sql` (bloques 0–3) | **Bloque 0: 2.711 filas** (tabla disponible); bloques 1–3: **0 filas** con los filtros | `system.access.audit` | incluido | §12.5; `t08-audit-*` |
+| 67 | 2026-11-07 | T-08 | `warehouses list` antes y después (API, sin SQL) | `Serverless Starter Warehouse` **`STOPPED`** antes y después | `53d8e3e91af6749c` | 0 € | §12.7 |
+| 68 | 2026-11-07 | T-08 | Coste de la sesión | **~0,43 €** (1 sesión < 10 min); sin segunda sesión | — | ~0,43 € | §12.7; `docs/costs.md` |
+
+### 12.1 Perfiles antes del DDL
+
+| Catálogo | Tabla | `job_id_required`: filas / violaciones / nulos | `salary_range_order`: filas / violaciones / nulos min–max |
+|---|---|---|---|
+| dev | `silver.offers_indeed` | 3.414 / 0 / 0 | 3.414 / 0 / 2.359–2.359 |
+| dev | `silver.offers_infojobs` | 2.741 / 0 / 0 | 2.741 / 0 / 1.667–1.668 |
+| dev | `silver.offers_linkedin` | 13.461 / 0 / 0 | 13.461 / 0 / 13.362–13.411 |
+| dev | `silver.offers_multi_site` | 10.259 / 0 / 0 | 10.259 / 0 / 3.420–3.552 |
+| dev | `gold.fact_offers` | 27.742 / 0 / 0 | 27.742 / 0 / 18.915–19.093 |
+| prod | `silver.offers_indeed` | 3.414 / 0 / 0 | 3.414 / 0 / 2.359–2.359 |
+| prod | `silver.offers_infojobs` | 2.681 / 0 / 0 | 2.681 / 0 / 1.639–1.640 |
+| prod | `silver.offers_linkedin` | 13.134 / 0 / 0 | 13.134 / 0 / 13.041–13.087 |
+| prod | `silver.offers_multi_site` | 10.281 / 0 / 0 | 10.281 / 0 / 3.442–3.574 |
+| prod | `gold.fact_offers` | 27.402 / 0 / 0 | 27.402 / 0 / 18.614–18.789 |
+
+**Lectura:**
+
+- `job_id` y orden salarial: **0 violaciones en las 10 tablas**. Ambas
+  constraints eran aplicables.
+- Los importes anuales nulos son masivos (gold prod: 18.614 y 18.789 de 27.402).
+  Eso confirma que la forma explícita `IS NULL OR ...` es la que hace viable la
+  constraint: la forma ingenua habría rechazado esas filas (§12.2 de RUNBOOK).
+- Las tablas y los volúmenes son coherentes con T-01 (gold dev 27.742, prod
+  27.402; las diferencias entre catálogos son de ingesta, no de la regla).
+
+### 12.2 Regla de fecha (pospuesta)
+
+| Catálogo | Tabla | Filas | Violaciones | Nulos | `min_date` | `max_date` |
+|---|---|---|---:|---:|---|---|
+| dev | `gold.fact_offers` | 27.742 | **138** | 0 | 2018-10-13 | 2026-11-04 |
+| prod | `gold.fact_offers` | 27.402 | **138** | 0 | 2018-10-13 | 2026-11-02 |
+
+**Decisión: la constraint de fecha no se aplica.** `IsValidPostingDate` es un
+flag y las 138 filas anteriores a 2026 son legítimas para el diseño actual
+(confirma Q7 de T-01). La regla queda **`[NO VERIFICADO]`** como constraint,
+con medición y motivo; convertir el flag en rechazo exigiría una decisión de
+producto y un tratamiento del histórico, no un `ADD CONSTRAINT` en esta spec.
+
+### 12.3 Constraints aplicadas y verificadas
+
+- **Preflight:** `SHOW TBLPROPERTIES` de las 5 tablas de cada catálogo **sin
+  ninguna propiedad `delta.constraints.*`** (dev: capturas 1–5; prod: una
+  captura, todas iguales). Es decir, el punto de partida era 0 constraints.
+- **Aplicadas:** **20** (10 por catálogo; 5 `chk_<tabla>_job_id_required` y 5
+  `chk_<tabla>_salary_range_order`), dev y prod, con el DDL de T-07.
+- **Verificadas después por API gratuita** (sin despertar el warehouse):
+  `docs/governance/evidence/t08-constraints-api.txt` lista las 20 propiedades y
+  su expresión. **No se capturó el `SHOW TBLPROPERTIES` posterior**; la
+  verificación autoritativa es la API.
+- **La regla de fecha no generó DDL** y no hay nada que revertir por ella.
+- Los `DROP CONSTRAINT` inversos siguen en `constraints-ddl.sql` (comentados)
+  por si hay que revertir.
+
+### 12.4 Cuarentenas históricas (RF-6)
+
+- La consulta de existencia sobre `information_schema` devolvió **`No rows
+  returned`**: no existe ninguna tabla `<fuente>_quarantine` en dev.
+- En prod tampoco existen (comprobado por la persona; no se ejecutaron los
+  bloques de inventario).
+- Consecuencia: **no hay histórico Delta de cuarentena que inventariar**; RF-6
+  parte de cero y la primera fila inválida creará la tabla con `mergeSchema`
+  (ver `quality-inventory.md` §3.4). No se creó ninguna tabla a mano.
+
+### 12.5 Auditoría de gobernanza (`t04-audit-query.sql`)
+
+| Bloque | Resultado |
+|---|---|
+| 0 — disponibilidad | **`audit_rows_last_day = 2711`**: `system.access.audit` **está disponible**. |
+| 1 — grants/ownership de `job_offers%`, `landing-loc%` y metastore | **0 filas** con los filtros y la ventana preparados. |
+| 2 — grants recibidos/perdidos por un principal | **0 filas**. |
+| 3 — ACL de los jobs | **0 filas**. |
+
+**Interpretación:** la tabla de auditoría funciona (bloque 0), pero los filtros
+no devolvieron eventos en la ventana: no se puede afirmar que los grants
+temporales de T-02/T-04 aparezcan en ella (se hicieron el 2026-11-06 y la
+ventana/parámetros no los capturaron). No se marca `[NO VERIFICADO]` la
+disponibilidad —está medida—; queda registrado que **no hubo eventos
+coincidentes**, sin inventar la causa. El bloque 4 (alternativa por CLI) no fue
+necesario.
+
+### 12.6 Matriz de reglas: aplicada o pospuesta
+
+| `rule_id` | Perfil dev / prod | Acción | Estado tras T-08 |
+|---|---|---|---|
+| `missing_key` | no aplica (bronce) | Cuarentena | Activa (T-06); sin histórico Delta |
+| `missing_scraped_at` | no aplica (bronce) | Cuarentena | Activa (T-06); sin histórico Delta |
+| `company_name_rating` | no aplica (bronce) | Cuarentena | Activa (T-06); **0 filas históricas** (no hay tablas) |
+| `job_id_required` | 0 / 0 | `CHECK` | **Aplicada**: 5 dev + 5 prod, verificada por API |
+| `salary_range_order` | 0 / 0 | `CHECK` | **Aplicada**: 5 dev + 5 prod, verificada por API |
+| `posted_date_contract` | 138 / 138 | Marca (flag) | **Pospuesta `[NO VERIFICADO]`**; sin DDL, histórico intacto |
+
+### 12.7 Coste y límites
+
+- **1 sesión SQL < 10 min: ~0,43 €** (anotado en `docs/costs.md`).
+- Warehouse `STOPPED` antes y después (API, sin SQL).
+- **No se abrió una segunda sesión**; no se despertó el warehouse para la
+  verificación de constraints (API gratuita).
+- Limitaciones: sin *query IDs* ni duración exacta en las capturas; sin captura
+  del `SHOW TBLPROPERTIES` posterior; las capturas muestran la rejilla, no la
+  sentencia. Ninguna de ellas invalida los conteos ni la verificación por API.
