@@ -156,7 +156,7 @@
 
 ## 2. Calidad de datos y constraints (backlog)
 
-- [ ] **T-05 — Contrato de calidad comprobable**
+- [x] **T-05 — Contrato de calidad comprobable**
   - **Objetivo:** definir reglas, precedencia y acciones sin duplicar la lógica ya
     existente ni cambiar la semántica de ofertas válidas.
   - **Entregable:** módulo propuesto `databricks_notebooks/Data_Quality.py` con
