@@ -869,4 +869,98 @@ read, record `[NO VERIFICADO]` and do not claim it was fixed.
 - `docs/es/RUNBOOK.md`: **out of sync** with this runbook; it does not contain
   §9 or this governance section. Do not use it as the operational source until
   it is updated (pending).
-
+
+---
+
+## 12. Data quality: contract, Delta constraints and the single SQL session
+
+The quality rules have a single definition in
+`databricks_notebooks/Data_Quality.py`: the stable `rule_id`, the layers, the
+explicit **table-column map per layer** (silver `salary_min_annual` /
+`salary_max_annual`, gold `SalaryMinAnnual_EUR` / `SalaryMaxAnnual_EUR`; the
+names are never assumed to match), the predicate and its SQL expression, the
+action and the evidence. The mediation rules that already existed are
+**referenced**, not reimplemented: `missing_key`, `missing_scraped_at` and the
+new `company_name_rating` live in `Upsert_Job_Offers.py`; the posting-date flag
+lives in `Prepare_Gold.py`. The registry is Python (frozen dataclasses), not a
+Delta table.
+
+### 12.1 The rules and their action
+
+| `rule_id` | Layers | Action | Why |
+|---|---|---|---|
+| `missing_key` | bronze | Quarantine | A row without a source key cannot be merged (existing). |
+| `missing_scraped_at` | bronze | Quarantine | A row without a parseable capture instant cannot be ordered (existing). |
+| `company_name_rating` | bronze | Quarantine | The rating spilled into the company column; second defence (§10.2). |
+| `job_id_required` | silver, gold | Delta `CHECK` | `job_id` is not NULL and, as a STRING, not blank after `trim`. |
+| `salary_range_order` | silver, gold | Delta `CHECK` | If both annualised amounts exist, `min <= max`. |
+| `posted_date_contract` | gold | Mark (deferred) | `IsValidPostingDate` (2026..2089) is a flag today; a constraint needs the T-08 measurement. |
+
+Nothing is changed in the semantics of a valid offer: an offer with an invalid
+original salary keeps its row, `salary_quality = invalid` and NULL annualised
+amounts; that is why no constraint is created over the original range.
+
+### 12.2 How a `CHECK` handles NULL (measured, not assumed)
+
+A Delta `CHECK` must be **true for each input row**. Measured locally with
+Delta 4.4, `salary_min_annual <= salary_max_annual` rejected a row with both
+amounts NULL (the result is NULL, not TRUE). Every expression therefore allows
+the missing values explicitly:
+
+```sql
+CHECK (salary_min_annual IS NULL OR salary_max_annual IS NULL
+       OR salary_min_annual <= salary_max_annual)
+```
+
+The same applies to the date rule (`posted_date IS NULL OR (year(...) ...)`).
+`job_id` uses `IS NOT NULL AND trim(...) <> ''`: a NULL job_id must fail.
+
+A violation is **not** a silent drop: the write fails and the task fails. Since
+the ELT neutralises an invalid salary to NULL before silver/gold, the constraint
+should never fire with the current data; it is the last defence against a
+regression.
+
+### 12.3 Prepare and apply (T-07 and the single session of T-08)
+
+The statements are generated, never hand-edited:
+
+- `docs/governance/constraints-ddl.sql`: preflight
+  (`SHOW TBLPROPERTIES <table>`, all properties), the forward
+  `ADD CONSTRAINT` for dev and prod, and the **commented** inverse
+  `DROP CONSTRAINT`. Re-running the file never drops a constraint: uncomment
+  the inverse only to roll back.
+- `docs/governance/t08-profile-queries.sql`: one profile statement per table and
+  rule (`rows_total`, `violating_rows`, NULL counts, date range) and the
+  quarantine inventory per source and reason. Run each block on its own.
+
+Order of the T-08 window: profile dev and prod → **only** add a constraint whose
+`violating_rows` is 0 (or whose rows were treated with evidence) → verify by
+metadata. `ADD CONSTRAINT` validates the rows already in the table: with
+pending violations the statement fails and the table is left unchanged. If a
+rule has violations it is not forced: record the count and the pending treatment
+and mark it `[NO VERIFICADO]`. No second session is opened.
+
+Idempotence: feed the property names read in the preflight back into
+`Data_Quality.ddl_statements(catalog, existing_properties)`; the plan for an
+already-deployed table is empty. The local Delta tests prove the whole cycle
+(add → valid write → invalid rejection → empty second plan → inverse → forward
+again) on temporary tables, without touching a real one:
+
+```powershell
+python -m pytest databricks_notebooks/tests/test_constraints_delta.py -q
+```
+
+Run that file **in isolation**: inside the full suite an earlier module owns the
+Spark session and the Delta tests skip with instructions.
+
+### 12.4 If a task fails with a constraint violation
+
+1. Read the statement in the task log: the message names the constraint
+   (`chk_<table>_<rule_id>`) and the row values.
+2. Decide with the profile: is it an unexpected value (a regression) or data
+   allowed by a rule that was wrong? Do not disable the constraint in a hurry.
+3. Fix the ingestion/ELT and reprocess the batch idempotently, or roll back the
+   constraint with the inverse of the DDL file.
+4. Record the incident in `docs/governance/evidence.md`; if the rule changes,
+   update `Data_Quality.py` and regenerate the two SQL files (the tests compare
+   them with the module).

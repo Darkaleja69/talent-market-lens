@@ -214,7 +214,7 @@
     `evidence.md`. **0 €.**
   - **Estimación:** 4–6 h; diff ~300–400 líneas entre código, tests y RUNBOOK.
 
-- [ ] **T-07 — DDL y pruebas locales de constraints en silver/gold**
+- [x] **T-07 — DDL y pruebas locales de constraints en silver/gold**
   - **Objetivo:** dejar listas solo las constraints compatibles con los datos y el
     diseño actual, con su comprobación negativa y rollback.
   - **Entregable:** DDL versionado desde el contrato de T-05 para las tablas
