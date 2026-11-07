@@ -1,19 +1,24 @@
 # Evidencia — gobernanza (spec 012)
 
 > **Fecha de las comprobaciones:** 2026-11-06 (T-01, T-02 y T-04) y 2026-11-07
-> (T-03, ejecución real en Free Edition).
+> (T-03, ejecución real en Free Edition; T-05, T-06 y T-07, local).
 > **Tareas:** T-01 (inventario, solo lectura), T-02 (ensayo de grant/revoke en
 > dev y preflight de prod), T-03 (laboratorio de row filter y column mask
-> **ejecutado el 2026-11-07 en Free Edition**, ruta B) y T-04 (ensayo de herencia
-> en dev, RUNBOOK de gobernanza y consulta de auditoría preparada).
-> **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código;
-> T-03 lo ejecutó la persona a mano en Databricks Free Edition.
+> **ejecutado el 2026-11-07 en Free Edition**, ruta B), T-04 (ensayo de herencia
+> en dev, RUNBOOK de gobernanza y consulta de auditoría preparada), T-05
+> (contrato de calidad y mapa tabla-columna), T-06 (cuarentena
+> `company_name_rating` y tratamiento por motivo) y T-07 (DDL versionado y
+> pruebas Delta locales).
+> **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código
+> en T-01–T-04; T-03 lo ejecutó la persona a mano en Databricks Free Edition;
+> T-05–T-07 son **locales** (Python, PySpark y Delta 4.4 en este equipo).
 > **0 runs, 0 sentencias SQL del proyecto, 0 €.** No se ejecutó SQL en el
 > workspace pagado: el laboratorio de T-03 vive en **Free Edition** (§8). Los
 > únicos cambios de recursos del proyecto son los grants temporales de T-02 y
 > T-04, aplicados, verificados y revocados en el mismo acto (§5 y §7); los
 > objetos sintéticos de T-03 se crearon y se retiraron dentro de Free Edition
-> (§8).
+> (§8). T-07 **no aplicó ningún DDL** a Databricks: las constraints se probaron
+> sobre tablas temporales de un warehouse local (§11).
 >
 > Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
 > nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
@@ -211,3 +216,55 @@ ha ejecutado**: `system.access.audit` sigue `[NO VERIFICADO]` hasta T-08.
   **Ningún correo real aparece en esta documentación.**
 - La ejecución la hizo la persona **a mano**; no se usó el warehouse del
   proyecto ni se lanzaron runs. **Coste: 0 €.**
+
+## 9. T-05 — contrato de calidad comprobable (2026-11-07)
+
+> **Modo:** local (Python + PySpark). **0 SQL, 0 runs, 0 cambios de recursos,
+> 0 €.** El módulo no lo importa ningún notebook todavía: el job no cambia.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 50 | 2026-11-07 | T-05 | `python -m pytest databricks_notebooks/tests/test_data_quality.py -q` | **25 passed**: registro estable (6 reglas), mapa tabla-columna por capa, predicados válido/inválido/nulo/límite, expresiones SQL compartidas con el DDL, nombres, plan idempotente y guiones de T-08 | `databricks_notebooks/Data_Quality.py` | 0 € | `test_data_quality.py` |
+| 51 | 2026-11-07 | T-05 | `python -m pytest databricks_notebooks/tests/test_integration_spark.py -q` | **27 passed** (23 de la línea base + 4 nuevos): rango invertido y salario no positivo (`0`, negativo y `max = 0`) ⇒ `salary_quality = invalid`, anuales a `NULL` y **rango original conservado** | `Enrich_Job_Offers_Dataframes.enrich` | 0 € | `test_integration_spark.py` |
+| 52 | 2026-11-07 | T-05 | Contraste de la constraint con **Delta 4.4 local** (tabla temporal) | Un `CHECK` que evalúa a `NULL` **cuenta como violación**: `salary_min_annual <= salary_max_annual` rechazó la fila con ambos importes nulos. Las expresiones permiten el nulo de forma explícita (`IS NULL OR`) | `chk_t_salary_order` (local) | 0 € | `docs/RUNBOOK.md` §12.2 |
+
+**Mapa tabla-columna fijado (sin suponer nombres iguales):** silver
+(4 tablas × `job_id`, `salary_min_annual`, `salary_max_annual`) y
+`gold.fact_offers` (`job_id`, `SalaryMinAnnual_EUR`, `SalaryMaxAnnual_EUR`,
+`posted_date`). Las claves de bronce se leen de
+`Upsert_Job_Offers.SOURCE_SPECS`. El único nulo explicable por diseño (salario
+ausente o neutralizado) sigue siendo válido; la regla de fecha queda pospuesta
+(§11, fila 60).
+
+## 10. T-06 — cuarentena `company_name_rating` y tratamiento (2026-11-07)
+
+> **Modo:** local (PySpark). **0 SQL, 0 runs, 0 €.** El crudo no se toca y no
+> hay ninguna tabla de cuarentena real sobre la que actuar (T-01, fila 9).
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 53 | 2026-11-07 | T-06 | `python -m pytest databricks_notebooks/tests/test_upsert_job_offers.py -q` | **44 passed** (35 de la línea base + 9 nuevos): `4,0`/`4.0`/` 4,00 ` a cuarentena; `24/7 Retail`, `4.0 Retail`, `ACME 4,0`, `10,0` y nulos válidos; precedencia `missing_key` > `missing_scraped_at` > `company_name_rating`; lote mixto; todo inválido; repetición del lote; identidad por `_source_file`; corrección y reproceso | `databricks_notebooks/Upsert_Job_Offers.py` | 0 € | `test_upsert_job_offers.py` |
+| 54 | 2026-11-07 | T-06 | Reconciliación del lote en los fixtures | `entrada = válidas + filas únicas enviadas a cuarentena` (5 = 2 + 2 + 1 repetida del lote); repetir el lote **no** crece la cuarentena; un lote 100 % inválido deja `válidas = 0` y `cuarentena = entrada`, sin bronce vacío aparente | `new_quarantine_rows` | 0 € | `test_upsert_job_offers.py` |
+| 55 | 2026-11-07 | T-06 | Corrección/reproceso local | La fila corregida (misma clave, `company_name` real, captura más nueva) es **válida** y el `MERGE` actualiza la clave; la fila original **sigue en cuarentena** como evidencia. El descarte exige motivo, fecha, conteo y referencia al lote | `merge_sql` (clave `job_id`) | 0 € | `test_upsert_job_offers.py`; `RUNBOOK` §10.2 |
+| 56 | 2026-11-07 | T-06 | Resumen de bronce y `ops.run_metrics` | **Sin cambios**: `QUARANTINE_COUNTS` cuenta solo las filas nuevas del lote por `(source, batch_id)`; no se añade ninguna acción sobre todo el lote | `Bronze_Summary.quarantine_total` | 0 € | `test_bronze_summary.py` (sin cambios) |
+
+## 11. T-07 — DDL versionado y pruebas Delta locales (2026-11-07)
+
+> **Modo:** local (Delta 4.4 sobre tablas temporales de `spark_catalog`).
+> **Ningún DDL se aplicó a Databricks**, ningún grant ni recurso se tocó,
+> 0 SQL contra el warehouse pagado, 0 €.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 57 | 2026-11-07 | T-07 | `python -m pytest databricks_notebooks/tests/test_constraints_delta.py -q` (**en aislamiento**) | **12 passed**: el DDL se aplica y aparece en metadatos; la fila válida escribe; `job_id` nulo o en blanco se rechaza; rango invertido se rechaza; nulos salariales válidos; segundo plan **vacío** (idempotencia); el inverso retira y el forward reaplica; los perfiles cuentan; los dos ficheros SQL coinciden con el módulo | `spark_catalog.silver.*`, `spark_catalog.gold.fact_offers` | 0 € | `test_constraints_delta.py` |
+| 58 | 2026-11-07 | T-07 | DDL generado e inverso | **10 `ADD CONSTRAINT` por catálogo** (5 `job_id_required` + 5 `salary_range_order`) para dev y prod, con los 10 `DROP CONSTRAINT` inversos **comentados**; ninguna constraint sobre el rango salarial original | `docs/governance/constraints-ddl.sql` | 0 € | módulo §12.3 |
+| 59 | 2026-11-07 | T-07 | Consultas de perfil para T-08 | **11 perfiles por catálogo** (`rows_total`, `violating_rows`, nulos por columna y rango de fechas) + inventario de las 4 cuarentenas por catálogo, con preflight de existencia por `information_schema` | `docs/governance/t08-profile-queries.sql` | 0 € | módulo §12.3 |
+| 60 | 2026-11-07 | T-07 | Regla `posted_date_contract` | **`[NO VERIFICADO]`**: `IsValidPostingDate` es un flag (2026–2089), no un filtro, y gold tiene `posted_date` desde 2018-10-13; **no genera DDL** y se mide en T-08 antes de decidir | `Prepare_Gold.add_posted_date_flags` | 0 € | `quality-inventory.md` §6 |
+
+**Declaración de no intervención de T-05–T-07:** no se ejecutó SQL ni se
+despertó el warehouse del proyecto (el Delta de T-07 corre en un warehouse
+local temporal); no se ejecutó ningún run ni `bundle deploy/run`; no se
+crearon, modificaron ni revocaron grants, owners, constraints ni recursos de
+Databricks; no se tocó la SAS de Power BI ni la del dashboard; no se modificó el
+crudo de ADLS; no se reprocesó ni borró histórico; no hay tokens, SAS ni
+credenciales en la evidencia. **Coste: 0 €.**
