@@ -268,7 +268,7 @@
 
 ## 3. Despliegue, comprobación real y cierre
 
-- [ ] **T-09 — Validar, merge checkpoint y desplegar prod desde `main`**
+- [x] **T-09 — Validar, merge checkpoint y desplegar prod desde `main`**
   - **Objetivo:** publicar los cambios aprobados desde `main`, conservando un camino
     de vuelta atrás y sin consumir compute de desarrollo.
   - **Comprobaciones:** suites afectadas, `databricks bundle validate -t dev` y

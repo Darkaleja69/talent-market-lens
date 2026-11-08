@@ -1,0 +1,69 @@
+T-09 production deployment - 2026-11-08 (Europe/Madrid)
+========================================================
+
+Approval: D-02 (2026-11-08). Merge checkpoint and prod deploy explicitly
+approved by the project owner; no grants/revokes, EL root approved as a measured
+deviation, duplicate storage credentials left documented.
+
+Git
+---
+- Spec branch before merge: spec/012-security-governance @ 202ae91.
+- Merge checkpoint on main: 9876765
+  ("merge: spec 012 seguridad y gobernanza (checkpoint)", --no-ff).
+- main was checked out in the primary clone (C:/Users/aleja/Documents/projects);
+  the merge was done there. The pre-existing local modification
+  infojobs_jobs_scraper/tests/fixtures/listing_madrid.html was not touched.
+- No tag, branch deletion or worktree removal.
+
+Bundle validation from main
+---------------------------
+databricks bundle validate -t prod --profile vs_code  -> Validation OK
+
+Deploy from main
+----------------
+databricks bundle deploy -t prod --profile vs_code
+  Uploading bundle files to .../prod/files...
+  Files: 36 uploaded, 0 deleted
+  Resources: 0 created, 0 changed, 0 deleted, 4 unchanged
+
+The PowerShell wrapper reported exit code 1 because the CLI writes the
+"Uploading..." progress line to stderr; the deployment itself completed (the
+summary below and the unchanged resources confirm it). No job was run.
+
+Deployed files (workspace metadata)
+-----------------------------------
+Data_Quality.py       FILE 22,084 bytes  modified 2026-11-08 08:45:36Z
+Upsert_Job_Offers.py  FILE 14,167 bytes  modified 2026-11-08 08:45:39Z
+The exported Data_Quality.py matches the repository file after normalizing
+line endings (CRLF in the workspace export).
+
+Post-deploy verification (API, 0 EUR)
+-------------------------------------
+Job 916863262593632:
+  tasks=9, run_as=<cuenta-personal>, cron=50 0 23 ? * SUN,
+  tz=Europe/Madrid, pause=UNPAUSED, edit_mode=UI_LOCKED.
+  Task keys: Bronze_Ingestion, Silver_Indeed, Silver_Infojobs, Silver_Linkedin,
+  Silver_Multi_site, Gold_Complete_Catalog, Build_for_Web-Dashboard,
+  Build_Report_Export, Publish_Run_Summary.
+Constraints (prod, 10 total):
+  silver.offers_indeed        2
+  silver.offers_infojobs      2
+  silver.offers_linkedin      2
+  silver.offers_multi_site    2
+  gold.fact_offers            2
+  Owners: <cuenta-personal> on all five tables.
+Grants:
+  catalog job_offers {}, schemas bronze/silver/gold/ops {},
+  external-location landing-loc {}, storage-credential ...1791406770615 {}.
+Warehouse 53d8e3e91af6749c: STOPPED.
+Last production run: 1050766241907151 (2026-11-04 07:05Z) SUCCESS; no run on
+2026-11-08 yet.
+
+What is deployed vs what is not executed
+----------------------------------------
+- Deployed: Data_Quality.py and the company_name_rating rule in
+  Upsert_Job_Offers.py (uploaded to the prod bundle files).
+- Not executed: no job run, no SQL, no warehouse wake-up. The functional
+  verification is T-10 (scheduled run 2026-11-08 23:00 Europe/Madrid).
+- No changes in job definition, cron, run_as, compute, tasks, grants or
+  constraints during this deploy.

@@ -395,3 +395,32 @@ necesario.
 - Limitaciones: sin *query IDs* ni duración exacta en las capturas; sin captura
   del `SHOW TBLPROPERTIES` posterior; las capturas muestran la rejilla, no la
   sentencia. Ninguna de ellas invalida los conteos ni la verificación por API.
+
+## 13. T-09 — validación, merge checkpoint y deploy de producción (2026-11-08)
+
+> **Modo:** CLI/API (`--profile vs_code`), suite local y Git. **0 runs, 0 SQL,
+> 0 €.** El deploy **no ejecuta** el job: la comprobación funcional es T-10.
+> **Aprobación:** D-02 (2026-11-08) cubre el merge checkpoint, el deploy de
+> prod, la EL en la raíz como desviación medida y la no retirada de las cuatro
+> credenciales duplicadas.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 69 | 2026-11-08 | T-09 | `python -m pytest databricks_notebooks/tests -q` | **324 passed, 5 skipped** en 1709,64 s (28 min 29 s); los 12 Delta de T-07 siguen en aislamiento | repo | 0 € | `t09-prod-preflight.txt` |
+| 70 | 2026-11-08 | T-09 | `databricks bundle validate -t dev` y `-t prod` desde la rama | **Validation OK** en los dos targets | bundle | 0 € | `t09-prod-preflight.txt` |
+| 71 | 2026-11-08 | T-09 | Preflight de prod: grants, owners, job, constraints, storage y warehouse | Grants `{}` en catálogo/esquemas/tablas/EL/SC; owners persona; job **9 tareas**, `50 0 23 ? * SUN`, `Europe/Madrid`, `UNPAUSED`, `run_as` persona; **10 constraints**; warehouse `STOPPED`; 4 credenciales duplicadas sin EL | `job_offers`, `916863262593632`, `53d8e3e91af6749c` | 0 € | `t09-prod-preflight.txt` |
+| 72 | 2026-11-08 | T-09 | `git merge --no-ff spec/012-security-governance` en `main` (clon principal) | Merge checkpoint **`9876765`**; sin tag, sin borrar rama ni worktree; el cambio local ajeno del fixture de infojobs no se tocó | `9876765` | 0 € | `git log main`; `t09-post-deploy.txt` |
+| 73 | 2026-11-08 | T-09 | `databricks bundle validate -t prod` desde `main` | **Validation OK** | `main` | 0 € | `t09-post-deploy.txt` |
+| 74 | 2026-11-08 | T-09 | `databricks bundle deploy -t prod` desde `main` | **36 ficheros subidos, 0 borrados; 4 recursos sin cambios**; job, cron, `run_as`, compute y tareas intactos. El wrapper de PowerShell devolvió 1 por la línea de progreso en stderr, no por fallo del deploy | `916863262593632` | 0 € | `t09-post-deploy.txt` |
+| 75 | 2026-11-08 | T-09 | Verificación posterior por API (sin SQL) | `Data_Quality.py` y `Upsert_Job_Offers.py` desplegados (hash normalizado coincide); job **9 tareas** con cron y `run_as` intactos; **10 constraints**; grants `{}`; warehouse `STOPPED`; sin run nuevo | `job_offers`, `916863262593632` | 0 € | `t09-post-deploy.txt` |
+
+**Qué queda desplegado y qué no se ha ejecutado:** el deploy sube el contrato de
+calidad y la regla `company_name_rating`; **no ejecuta el job, no abre SQL y no
+despierta el warehouse**. La comprobación real es T-10 (run programado del
+**2026-11-08 23:00** `Europe/Madrid` y dashboard del **2026-11-09 01:00 UTC**).
+No se ha creado tag ni se ha borrado rama/worktree.
+
+**Declaración de no intervención de T-09:** no se aplicó ningún grant ni
+revocación en prod; no se modificaron owners, storage, job, cron, compute ni
+tareas; no se ejecutó ningún run; no se abrió el SQL warehouse; no se tocó la SAS
+de Power BI ni la del dashboard. **Coste de desarrollo: 0 €.**
