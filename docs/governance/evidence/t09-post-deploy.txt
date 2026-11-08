@@ -67,3 +67,22 @@ What is deployed vs what is not executed
   verification is T-10 (scheduled run 2026-11-08 23:00 Europe/Madrid).
 - No changes in job definition, cron, run_as, compute, tasks, grants or
   constraints during this deploy.
+
+Rollback (prepared, not executed)
+---------------------------------
+1. Files/job: revert the merge checkpoint `9876765` on main (or check out the
+   previous main `74f3c11`) and redeploy from that commit with
+   `databricks bundle deploy -t prod`. The deploy does not run the job.
+2. Grants: none were applied in T-09, so there is no inverse to execute. The
+   T-02/T-04 trial grants were already reverted; prod stays `{}`.
+3. Constraints: the 10 prod constraints were applied in T-08. To remove them,
+   uncomment the `DROP CONSTRAINT` block of `docs/governance/constraints-ddl.sql`
+   for `job_offers` and run it in a single SQL window (cost ~0.43 EUR).
+4. Quarantine: do not delete rows to "clean up". If the new rule misbehaves,
+   revert the module and redeploy; the quarantine table can stay as evidence.
+   Any discard needs source file, date, reason and count recorded first.
+5. If a run is in progress when a rollback is needed, do not cancel it blindly:
+   wait for it to finish or cancel it from the Jobs UI, then redeploy; the
+   `Publish_Run_Summary` task runs with `run_if: ALL_DONE` and records the row.
+6. Last resort of production: the paused manual job `704156530681034`
+   (`specs/007-ELT-As-Code/cutover.md`).
