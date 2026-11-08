@@ -1,0 +1,10 @@
+# T-04 evidence - final dev state after the inheritance round trip (2026-11-06)
+# Confirms the exercise left no residual grant.
+
+schema job_offers_dev.ops -> {}
+table job_offers_dev.ops.run_metrics -> {}
+catalog job_offers_dev -> {}
+get-effective table job_offers_dev.ops.run_metrics --principal 'account users' -> {}
+
+# Prod untouched: catalog job_offers {}, schema job_offers.ops {}, table job_offers.ops.run_metrics {}
+# Warehouse 53d8e3e91af6749c (Serverless Starter Warehouse, 2X-Small): STOPPED. No SQL, no runs. 0 EUR.

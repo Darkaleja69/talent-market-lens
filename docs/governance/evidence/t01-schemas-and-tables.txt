@@ -1,0 +1,74 @@
+# T-01 evidence — schemas and tables, compact (read-only CLI, 2026-11-06)
+# Saneado: correos -> <cuenta-personal>.
+
+## schemas list job_offers_dev
+  job_offers_dev.bronze  owner=<cuenta-personal>  comment=
+  job_offers_dev.default  owner=<cuenta-personal>  comment=Default schema (auto-created)
+  job_offers_dev.gold  owner=<cuenta-personal>  comment=
+  job_offers_dev.information_schema  owner=System user  comment=Information schema (auto-created)
+  job_offers_dev.ops  owner=<cuenta-personal>  comment=
+  job_offers_dev.silver  owner=<cuenta-personal>  comment=
+
+## tables list job_offers_dev bronze
+  job_offers_dev.bronze.indeed  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=3599
+  job_offers_dev.bronze.infojobs  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=2903
+  job_offers_dev.bronze.linkedin  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=16108
+  job_offers_dev.bronze.multi_site  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=11185
+
+## tables list job_offers_dev silver
+  job_offers_dev.silver.companies_indeed  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=1561
+  job_offers_dev.silver.companies_infojobs  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=1026
+  job_offers_dev.silver.companies_linkedin  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=4194
+  job_offers_dev.silver.companies_multi_site  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=4558
+  job_offers_dev.silver.offers_indeed  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=3414
+  job_offers_dev.silver.offers_infojobs  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=2558
+  job_offers_dev.silver.offers_linkedin  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=13134
+  job_offers_dev.silver.offers_multi_site  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=10250
+
+## tables list job_offers_dev gold
+  job_offers_dev.gold.companies_complete_catalog  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=10272
+  job_offers_dev.gold.dim_calendar  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=2941
+  job_offers_dev.gold.dim_currency  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=19
+  job_offers_dev.gold.dim_skill_list  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=95
+  job_offers_dev.gold.fact_offer_skills  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=46381
+  job_offers_dev.gold.fact_offers  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=27050
+
+## tables list job_offers_dev ops
+  job_offers_dev.ops.run_metrics  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=2
+
+## schemas list job_offers
+  job_offers.bronze  owner=<cuenta-personal>  comment=Capa bronze: una tabla Delta por scraper
+  job_offers.default  owner=<cuenta-personal>  comment=Default schema (auto-created)
+  job_offers.gold  owner=<cuenta-personal>  comment=Capa gold: agregados y KPIs
+  job_offers.information_schema  owner=System user  comment=Information schema (auto-created)
+  job_offers.ops  owner=<cuenta-personal>  comment=
+  job_offers.silver  owner=<cuenta-personal>  comment=Capa silver: ofertas unificadas y deduplicadas
+
+## tables list job_offers bronze
+  job_offers.bronze.indeed  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=3366
+  job_offers.bronze.infojobs  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=43417
+  job_offers.bronze.linkedin  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=14677
+  job_offers.bronze.multi_site  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=11114
+
+## tables list job_offers silver
+  job_offers.silver.companies_indeed  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=1561
+  job_offers.silver.companies_infojobs  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=1057
+  job_offers.silver.companies_linkedin  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=4194
+  job_offers.silver.companies_multi_site  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=4558
+  job_offers.silver.linkedin_companies  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=1326
+  job_offers.silver.offers_indeed  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=3414
+  job_offers.silver.offers_infojobs  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=2681
+  job_offers.silver.offers_linkedin  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=13063
+  job_offers.silver.offers_multi_site  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=10281
+
+## tables list job_offers gold
+  job_offers.gold.companies_complete_catalog  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=10197
+  job_offers.gold.dim_calendar  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=2943
+  job_offers.gold.dim_currency  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=19
+  job_offers.gold.dim_skill_list  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=95
+  job_offers.gold.fact_offer_skills  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=47128
+  job_offers.gold.fact_offers  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=27402
+
+## tables list job_offers ops
+  job_offers.ops.run_metrics  type=MANAGED  format=DELTA  owner=<cuenta-personal>  constraints=(ninguna)  filas_estadistica=1
+# Nota: 'filas_estadistica' es la estadistica Delta (spark.sql.statistics.numRows), no un conteo SQL: puede estar desactualizada.

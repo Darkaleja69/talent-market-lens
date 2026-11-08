@@ -1,0 +1,31 @@
+# T-01 evidence — direct grants (databricks grants get; does NOT include inherited), read-only, 2026-11-06
+
+## grants get catalog job_offers_dev
+{}
+
+## grants get catalog job_offers
+{}
+
+## grants get schema job_offers_dev.bronze
+{}
+
+## grants get schema job_offers_dev.silver
+{}
+
+## grants get schema job_offers_dev.gold
+{}
+
+## grants get schema job_offers_dev.ops
+{}
+
+## grants get schema job_offers.bronze
+{}
+
+## grants get schema job_offers.silver
+{}
+
+## grants get schema job_offers.gold
+{}
+
+## grants get schema job_offers.ops
+{}

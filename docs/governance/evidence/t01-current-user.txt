@@ -1,0 +1,45 @@
+# T-01 evidence — current-user me (read-only, 2026-11-06)
+# Saneado: correo -> <cuenta-personal>; nombre y apellidos -> <persona>/<nombre>/<apellido>.
+{
+  "active": true,
+  "displayName": "<persona>",
+  "emails": [
+    {
+      "primary": true,
+      "type": "work",
+      "value": "<cuenta-personal>"
+    }
+  ],
+  "externalId": "b5a26491-86cd-4adc-a86f-61717bf8463b",
+  "groups": [
+    {
+      "$ref": "Groups/151347827406338",
+      "display": "admins",
+      "type": "direct",
+      "value": "151347827406338"
+    },
+    {
+      "$ref": "Groups/150981975206808",
+      "display": "users",
+      "type": "direct",
+      "value": "150981975206808"
+    },
+    {
+      "$ref": "Groups/2126387033071238",
+      "display": "users-clone-2026-08-05-2234-UTC (created by Databricks)",
+      "type": "direct",
+      "value": "2126387033071238"
+    }
+  ],
+  "id": "141486372609033",
+  "name": {
+    "familyName": "<apellido>",
+    "givenName": "<nombre>"
+  },
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:workspace:2.0:User"
+  ],
+  "userName": "<cuenta-personal>"
+}
+

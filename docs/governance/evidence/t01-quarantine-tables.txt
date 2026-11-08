@@ -1,0 +1,24 @@
+# T-01 evidence - existencia de las tablas de cuarentena Delta (tables get, read-only, 2026-11-06)
+# Hallazgo: NINGUNA de las 8 tablas <fuente>_quarantine existe en dev ni en prod.
+  job_offers_dev.bronze.indeed_quarantine -> databricks : Error: Table 'job_offers_dev.bronze.indeed_quarantine' does not exist.
+  job_offers_dev.bronze.linkedin_quarantine -> databricks : Error: Table 'job_offers_dev.bronze.linkedin_quarantine' does not exist.
+  job_offers_dev.bronze.infojobs_quarantine -> databricks : Error: Table 'job_offers_dev.bronze.infojobs_quarantine' does not exist.
+  job_offers_dev.bronze.multi_site_quarantine -> databricks : Error: Table 'job_offers_dev.bronze.multi_site_quarantine' does not exist.
+  job_offers.bronze.indeed_quarantine -> databricks : Error: Table 'job_offers.bronze.indeed_quarantine' does not exist.
+  job_offers.bronze.linkedin_quarantine -> databricks : Error: Table 'job_offers.bronze.linkedin_quarantine' does not exist.
+  job_offers.bronze.infojobs_quarantine -> databricks : Error: Table 'job_offers.bronze.infojobs_quarantine' does not exist.
+  job_offers.bronze.multi_site_quarantine -> databricks : Error: Table 'job_offers.bronze.multi_site_quarantine' does not exist.
+
+## tables list <catalogo> bronze (columnas omitidas): no aparece ninguna tabla *_quarantine
+
+### job_offers_dev.bronze
+  job_offers_dev.bronze.indeed
+  job_offers_dev.bronze.infojobs
+  job_offers_dev.bronze.linkedin
+  job_offers_dev.bronze.multi_site
+
+### job_offers.bronze
+  job_offers.bronze.indeed
+  job_offers.bronze.infojobs
+  job_offers.bronze.linkedin
+  job_offers.bronze.multi_site

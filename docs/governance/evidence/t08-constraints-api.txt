@@ -1,0 +1,45 @@
+# T-08 evidence - constraints aplicadas, verificadas por API (2026-11-07)
+# Fuente: databricks tables get <catalog>.<schema>.<tabla> --profile vs_code
+# Sin SQL, sin despertar el warehouse. Solo propiedades delta.constraints.*
+
+job_offers_dev.silver.offers_indeed
+  delta.constraints.chk_offers_indeed_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_indeed_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers_dev.silver.offers_infojobs
+  delta.constraints.chk_offers_infojobs_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_infojobs_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers_dev.silver.offers_linkedin
+  delta.constraints.chk_offers_linkedin_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_linkedin_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers_dev.silver.offers_multi_site
+  delta.constraints.chk_offers_multi_site_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_multi_site_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers_dev.gold.fact_offers
+  delta.constraints.chk_fact_offers_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_fact_offers_salary_range_order = `SalaryMinAnnual_EUR` IS NULL OR `SalaryMaxAnnual_EUR` IS NULL OR `SalaryMinAnnual_EUR` <= `SalaryMaxAnnual_EUR`
+
+job_offers.silver.offers_indeed
+  delta.constraints.chk_offers_indeed_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_indeed_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers.silver.offers_infojobs
+  delta.constraints.chk_offers_infojobs_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_infojobs_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers.silver.offers_linkedin
+  delta.constraints.chk_offers_linkedin_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_linkedin_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers.silver.offers_multi_site
+  delta.constraints.chk_offers_multi_site_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_offers_multi_site_salary_range_order = `salary_min_annual` IS NULL OR `salary_max_annual` IS NULL OR `salary_min_annual` <= `salary_max_annual`
+
+job_offers.gold.fact_offers
+  delta.constraints.chk_fact_offers_job_id_required = `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  delta.constraints.chk_fact_offers_salary_range_order = `SalaryMinAnnual_EUR` IS NULL OR `SalaryMaxAnnual_EUR` IS NULL OR `SalaryMinAnnual_EUR` <= `SalaryMaxAnnual_EUR`
+
+total constraints: 20

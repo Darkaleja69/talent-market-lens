@@ -1,0 +1,119 @@
+# T-01 evidence - metadatos de tablas: constraints, nulabilidad y estadisticas (read-only, 2026-11-06)
+# Fuente: databricks tables get/list. Sin SQL y sin leer datos. Las estadisticas pueden estar desactualizadas.
+
+## Recuento global
+tablas inventariadas: 39
+tablas con propiedades delta.constraints.*: 0
+columnas con nullable=false (equivalente a NOT NULL en UC): 0
+
+## Tablas con mayor volumen (estadistica Delta) y columnas clave
+
+### job_offers_dev.bronze.indeed  (filas estadistica=3599, owner=<cuenta-personal>)
+  job_key: STRING nullable=True
+  posted_date: TIMESTAMP nullable=True
+  _source_file: STRING nullable=True
+
+### job_offers_dev.bronze.linkedin  (filas estadistica=16108, owner=<cuenta-personal>)
+  job_id: STRING nullable=True
+  company_name: STRING nullable=True
+  _source_file: STRING nullable=True
+
+### job_offers_dev.bronze.infojobs  (filas estadistica=2903, owner=<cuenta-personal>)
+  id_oferta: STRING nullable=True
+  _source_file: STRING nullable=True
+
+### job_offers_dev.bronze.multi_site  (filas estadistica=11185, owner=<cuenta-personal>)
+  job_id: STRING nullable=True
+  company_name: STRING nullable=True
+  site: STRING nullable=True
+  _source_file: STRING nullable=True
+
+### job_offers_dev.silver.offers_indeed  (filas estadistica=3414, owner=<cuenta-personal>)
+  company_name: STRING nullable=True
+  job_id: STRING nullable=True
+  posted_date: DATE nullable=True
+  salary_min_annual: DOUBLE nullable=True
+  salary_max_annual: DOUBLE nullable=True
+  salary_quality: STRING nullable=True
+
+### job_offers_dev.silver.offers_infojobs  (filas estadistica=2558, owner=<cuenta-personal>)
+  job_id: STRING nullable=True
+  company_name: STRING nullable=True
+  posted_date: DATE nullable=True
+  salary_min_annual: DOUBLE nullable=True
+  salary_max_annual: DOUBLE nullable=True
+  salary_quality: STRING nullable=True
+
+### job_offers_dev.silver.offers_linkedin  (filas estadistica=13134, owner=<cuenta-personal>)
+  company_name: STRING nullable=True
+  job_id: STRING nullable=True
+  posted_date: DATE nullable=True
+  salary_min_annual: DOUBLE nullable=True
+  salary_max_annual: DOUBLE nullable=True
+  salary_quality: STRING nullable=True
+
+### job_offers_dev.silver.offers_multi_site  (filas estadistica=10250, owner=<cuenta-personal>)
+  company_name: STRING nullable=True
+  job_id: STRING nullable=True
+  posted_date: DATE nullable=True
+  salary_min_annual: DOUBLE nullable=True
+  salary_max_annual: DOUBLE nullable=True
+  salary_quality: STRING nullable=True
+
+### job_offers.gold.fact_offers  (filas estadistica=27402, owner=<cuenta-personal>)
+  job_id: STRING nullable=True
+  company_name: STRING nullable=True
+  posted_date: DATE nullable=True
+  SalaryMinAnnual_EUR: DOUBLE nullable=True
+  SalaryMaxAnnual_EUR: DOUBLE nullable=True
+  salary_quality: STRING nullable=True
+  -- propiedades delta.* relevantes: delta.enableDeletionVectors, delta.feature.appendOnly, delta.feature.deletionVectors, delta.feature.invariants, delta.lastCommitTimestamp, delta.lastUpdateVersion, delta.minReaderVersion, delta.minWriterVersion, delta.parquet.compression.codec
+  -- delta.constraints presentes: 0
+  -- estadisticas por columna (nullCount): job_id=0, posted_date=0, SalaryMinAnnual_EUR=18614, SalaryMaxAnnual_EUR=18789
+  -- rango posted_date (estadistica): min=2018-10-13 max=2026-11-02
+  -- IsValidPostingDate (estadistica): distinctCount=2 nullCount=0
+
+### job_offers.ops.run_metrics  (filas estadistica=1, owner=<cuenta-personal>)
+  run_id: STRING nullable=True
+  job_id: STRING nullable=True
+
+## updated_by de las 39 tablas (metadatos; los UUID son identificadores)
+  job_offers.bronze.indeed updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.bronze.infojobs updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.bronze.linkedin updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.bronze.multi_site updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.gold.companies_complete_catalog updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.gold.dim_calendar updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.gold.dim_currency updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.gold.dim_skill_list updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.gold.fact_offer_skills updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.gold.fact_offers updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.ops.run_metrics updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.companies_indeed updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.companies_infojobs updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.companies_linkedin updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.companies_multi_site updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.linkedin_companies updated_by=<cuenta-personal>
+  job_offers.silver.offers_indeed updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.offers_infojobs updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.offers_linkedin updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers.silver.offers_multi_site updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.bronze.indeed updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.bronze.infojobs updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.bronze.linkedin updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.bronze.multi_site updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.gold.companies_complete_catalog updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.gold.dim_calendar updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.gold.dim_currency updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.gold.dim_skill_list updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.gold.fact_offer_skills updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.gold.fact_offers updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.ops.run_metrics updated_by=<cuenta-personal>
+  job_offers_dev.silver.companies_indeed updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.companies_infojobs updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.companies_linkedin updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.companies_multi_site updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.offers_indeed updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.offers_infojobs updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.offers_linkedin updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf
+  job_offers_dev.silver.offers_multi_site updated_by=f4ae815d-2749-4cc5-840d-fa2c33e521cf

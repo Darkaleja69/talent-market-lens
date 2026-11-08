@@ -1,0 +1,66 @@
+# T-01 evidence - effective permissions (read-only, 2026-11-06)
+# El propietario recibe sus privilegios por ownership, no por grant: la API de permisos efectivos devuelve {} en los objetos del proyecto.
+
+## grants get-effective catalog job_offers_dev --principal <persona>
+{}
+
+## grants get-effective schema job_offers_dev.bronze --principal <persona>
+{}
+
+## grants get-effective schema job_offers.silver --principal <persona>
+{}
+
+## grants get-effective table job_offers_dev.bronze.indeed --principal <persona>
+{}
+
+## grants get-effective table job_offers_dev.silver.offers_indeed --principal <persona>
+{}
+
+## grants get-effective table job_offers.gold.fact_offers --principal <persona>
+{}
+
+## grants get-effective table job_offers.ops.run_metrics --principal <persona>
+{}
+
+## CONTROL get-effective: grants get-effective catalog samples --principal <persona>
+# Demuestra que get-effective devuelve asignaciones cuando existen (aqui, del grupo 'account users').
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        {
+          "privilege": "EXECUTE"
+        },
+        {
+          "privilege": "READ_VOLUME"
+        },
+        {
+          "privilege": "SELECT"
+        },
+        {
+          "privilege": "USE_CATALOG"
+        },
+        {
+          "privilege": "USE_SCHEMA"
+        }
+      ]
+    }
+  ]
+}
+
+## CONTROL directo (referencia): grants get catalog samples
+{
+  "privilege_assignments": [
+    {
+      "principal": "account users",
+      "privileges": [
+        "EXECUTE",
+        "READ_VOLUME",
+        "SELECT",
+        "USE_CATALOG",
+        "USE_SCHEMA"
+      ]
+    }
+  ]
+}

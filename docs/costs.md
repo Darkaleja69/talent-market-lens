@@ -336,6 +336,22 @@ al menos un despertar.
 - Pendiente: captura de Azure Cost Analysis / Account Console tras una semana
   para confirmar la bajada.
 
+## Sesión SQL de la spec 012 (2026-11-07)
+
+- **Una sesión** en `Serverless Starter Warehouse` (2X-Small) para T-08:
+  perfiles de dev y prod, inventario de cuarentenas, constraints y auditoría.
+  Coste estándar de un despertar: **~0,43 €** (10 minutos facturables). No se
+  capturó la duración exacta ni los *query IDs*; se imputa el estándar.
+- **20 constraints aplicadas** (10 en dev + 10 en prod) y verificadas después
+  por **API gratuita** (`tables get`), sin despertar el warehouse. Estado
+  `STOPPED` antes y después. **Sin segunda sesión.**
+- Consumo de la spec 012: **1 sesión / ~0,43 €** (techo 1,3 €; **0 runs de
+  dev**).
+- **T-09 (2026-11-08): 0 €.** Validaciones de bundle, preflight de prod, merge
+  checkpoint y deploy de producción por CLI/API: sin runs, sin SQL y sin
+  despertar el warehouse. El coste del run programado de T-10 es ordinario de
+  producción (no se imputa al techo de dev de la 012).
+
 ## Pendiente
 
 - Detalle por recurso del resource group gestionado (VMs y discos) para cerrar

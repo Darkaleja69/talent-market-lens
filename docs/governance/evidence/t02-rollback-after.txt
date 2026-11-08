@@ -1,0 +1,13 @@
+# T-02 evidence - temporary SELECT grant revoked (2026-11-06)
+# Command: databricks grants update table job_offers_dev.ops.run_metrics --json "@$env:TEMP\uc-revoke.json"
+# Request body: {changes:[{principal:'account users', remove:['SELECT']}]}
+
+## response of the REVOKE call
+{}
+
+## grants get table job_offers_dev.ops.run_metrics (after revoke)
+{}
+
+## grants get-effective table job_offers_dev.ops.run_metrics --principal 'account users' (after revoke)
+{}
+

@@ -1,0 +1,7 @@
+# T-02 evidence - final dev state after rollback (2026-11-06)
+# Confirms the trial left no residual grant.
+
+table job_offers_dev.ops.run_metrics -> {}
+schema job_offers_dev.ops -> {}
+catalog job_offers_dev -> {}
+get-effective table job_offers_dev.ops.run_metrics --principal 'account users' -> {}

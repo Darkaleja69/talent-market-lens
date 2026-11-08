@@ -1,0 +1,18 @@
+# T-04 evidence - temporary SELECT on the dev SCHEMA revoked (2026-11-06)
+# Command: databricks grants update schema job_offers_dev.ops --json '@...uc-t04-revoke.json'
+# Request body: {changes:[{principal:'account users', remove:['SELECT']}]}
+
+## response of the REVOKE call
+{}
+
+## grants get schema job_offers_dev.ops (after revoke)
+{}
+
+## grants get table job_offers_dev.ops.run_metrics (after revoke)
+{}
+
+## grants get catalog job_offers_dev (after revoke)
+{}
+
+## grants get-effective table job_offers_dev.ops.run_metrics --principal 'account users' (after revoke)
+{}

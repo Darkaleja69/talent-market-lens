@@ -1,0 +1,134 @@
+# T-01 evidence — jobs and job ACL (read-only API/CLI, 2026-11-06)
+# Saneado: correos -> <cuenta-personal>. El correo de notificacion ya esta versionado en resources/elt.job.yml.
+
+## jobs get 916863262593632
+job_id              : 916863262593632
+name                : Git Based ELT
+run_as_user_name    : <cuenta-personal>
+run_as.user_name    : <cuenta-personal>
+creator_user_name   : <cuenta-personal>
+format / edit_mode  : MULTI_TASK / UI_LOCKED
+deployment.kind     : BUNDLE
+schedule            : {"pause_status":"UNPAUSED","quartz_cron_expression":"50 0 23 ? * SUN","timezone_id":"Europe/Madrid"}
+job_cluster        : DATA_SECURITY_MODE_DEDICATED Standard_D4ds_v4 17.3.x-scala2.13
+task_count          : 9
+task_keys           : Bronze_Ingestion, Build_Report_Export, Build_for_Web-Dashboard, Gold_Complete_Catalog, Publish_Run_Summary, Silver_Indeed, Silver_Infojobs, Silver_Linkedin, Silver_Multi_site
+
+## jobs get-permissions 916863262593632
+{
+  "access_control_list": [
+    {
+      "all_permissions": [
+        {
+          "inherited": false,
+          "permission_level": "IS_OWNER"
+        }
+      ],
+      "display_name": "<persona>",
+      "user_name": "<cuenta-personal>"
+    },
+    {
+      "all_permissions": [
+        {
+          "inherited": true,
+          "inherited_from_object": [
+            "/jobs/"
+          ],
+          "permission_level": "CAN_MANAGE"
+        }
+      ],
+      "group_name": "admins"
+    }
+  ],
+  "object_id": "/jobs/916863262593632",
+  "object_type": "job"
+}
+
+
+## jobs get 320947022571947
+job_id              : 320947022571947
+name                : [dev <cuenta-personal-dev>] Git Based ELT Dev
+run_as_user_name    : <cuenta-personal>
+run_as.user_name    : 
+creator_user_name   : <cuenta-personal>
+format / edit_mode  : MULTI_TASK / UI_LOCKED
+deployment.kind     : BUNDLE
+schedule            : 
+job_cluster        : DATA_SECURITY_MODE_DEDICATED Standard_D4ds_v4 17.3.x-scala2.13
+task_count          : 9
+task_keys           : Bronze_Ingestion, Build_Report_Export, Build_for_Web-Dashboard, Gold_Complete_Catalog, Publish_Run_Summary, Silver_Indeed, Silver_Infojobs, Silver_Linkedin, Silver_Multi_site
+
+## jobs get-permissions 320947022571947
+{
+  "access_control_list": [
+    {
+      "all_permissions": [
+        {
+          "inherited": false,
+          "permission_level": "IS_OWNER"
+        }
+      ],
+      "display_name": "<persona>",
+      "user_name": "<cuenta-personal>"
+    },
+    {
+      "all_permissions": [
+        {
+          "inherited": true,
+          "inherited_from_object": [
+            "/jobs/"
+          ],
+          "permission_level": "CAN_MANAGE"
+        }
+      ],
+      "group_name": "admins"
+    }
+  ],
+  "object_id": "/jobs/320947022571947",
+  "object_type": "job"
+}
+
+
+## jobs get 704156530681034
+job_id              : 704156530681034
+name                : Git Based ELT
+run_as_user_name    : <cuenta-personal>
+run_as.user_name    : 
+creator_user_name   : <cuenta-personal>
+format / edit_mode  : MULTI_TASK / 
+deployment.kind     : 
+schedule            : {"pause_status":"PAUSED","quartz_cron_expression":"50 0 23 * * ?","timezone_id":"Europe/Madrid"}
+job_cluster        : DATA_SECURITY_MODE_DEDICATED Standard_D4ds_v4 17.3.x-scala2.13
+task_count          : 7
+task_keys           : Bronze_Ingestion, Silver_Indeed, Silver_Infojobs, Silver_Linkedin, Silver_Multi_site, Gold_Complete_Catalog, Build_for_Web-Dashboard
+
+## jobs get-permissions 704156530681034
+{
+  "access_control_list": [
+    {
+      "all_permissions": [
+        {
+          "inherited": false,
+          "permission_level": "IS_OWNER"
+        }
+      ],
+      "display_name": "<persona>",
+      "user_name": "<cuenta-personal>"
+    },
+    {
+      "all_permissions": [
+        {
+          "inherited": true,
+          "inherited_from_object": [
+            "/jobs/"
+          ],
+          "permission_level": "CAN_MANAGE"
+        }
+      ],
+      "group_name": "admins"
+    }
+  ],
+  "object_id": "/jobs/704156530681034",
+  "object_type": "job"
+}
+

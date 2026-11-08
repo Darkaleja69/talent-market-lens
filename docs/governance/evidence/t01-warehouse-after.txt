@@ -1,0 +1,3 @@
+# T-01 evidence - estado del SQL warehouse al terminar (read-only, 2026-11-06, tras la revision)
+id=53d8e3e91af6749c name=Serverless Starter Warehouse state=STOPPED size=2X-Small type=PRO
+# Comprobacion: queda STOPPED. No se ha ejecutado ninguna sentencia SQL ni se ha abierto en toda la tarea.

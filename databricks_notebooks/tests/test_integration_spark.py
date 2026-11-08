@@ -201,6 +201,37 @@ def test_enrich_periodo_hora_se_anualiza(spark):
     assert out["salary_period_norm"] == ""
 
 
+def test_enrich_rango_invertido_se_marca_y_neutraliza(spark):
+    # min > max conserva la fila, marca salary_quality y anula los anuales:
+    # la oferta no se rechaza y el rango original queda como evidencia.
+    row = dict(SAMPLE, job_id="inv", salary_raw="", salary_period="year",
+               salary_min=55000.0, salary_max=40000.0, location_city=None)
+    out = e.enrich(_df(spark, [row])).collect()[0]
+    assert out["salary_quality"] == "invalid"
+    assert out["salary_min_annual"] is None
+    assert out["salary_max_annual"] is None
+    assert out["salary_min"] == 55000.0
+    assert out["salary_max"] == 40000.0
+
+
+@pytest.mark.parametrize("salary_min, salary_max", [
+    (0.0, 1000.0),
+    (-100.0, 1000.0),
+    (1000.0, 0.0),
+])
+def test_enrich_salario_no_positivo_se_marca_y_neutraliza(
+    spark, salary_min, salary_max
+):
+    # Un importe <= 0 no es un salario: se marca y se neutraliza, igual que el
+    # rango invertido. La fila se conserva para no perder la oferta.
+    row = dict(SAMPLE, job_id="non-pos", salary_raw="", salary_period="year",
+               salary_min=salary_min, salary_max=salary_max, location_city=None)
+    out = e.enrich(_df(spark, [row])).collect()[0]
+    assert out["salary_quality"] == "invalid"
+    assert out["salary_min_annual"] is None
+    assert out["salary_max_annual"] is None
+
+
 def test_enrich_reejecucion_idempotente(spark):
     first = e.enrich(_df(spark, [SAMPLE]))
     # localCheckpoint corta el linaje: sin el, enrich(enrich(df)) multiplica

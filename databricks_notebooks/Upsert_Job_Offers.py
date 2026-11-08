@@ -6,7 +6,8 @@ The bronze ingestion (``bronze_ingest``) processes one microbatch per
 * :data:`SOURCE_SPECS` maps each source to its key column(s) and capture-time
   column in bronze (the four tables do not share names or types).
 * :func:`split_quarantine` separates the rows that cannot be merged (missing
-  key or capture time) and adds the quarantine metadata.
+  key or capture time, or a rating in ``company_name``) and adds the
+  quarantine metadata.
 * :func:`dedupe_batch` keeps one row per key inside the batch: the latest
   capture, with ``_ingest_date`` as tie-breaker, reusing ``keep_latest_by``.
 * :func:`merge_sql` builds the ``MERGE WITH SCHEMA EVOLUTION`` statement.
@@ -43,6 +44,14 @@ DEDUPE_RN_COLUMN = "_dedupe_rn"
 
 MISSING_KEY = "missing_key"
 MISSING_SCRAPED_AT = "missing_scraped_at"
+COMPANY_NAME_RATING = "company_name_rating"
+
+COMPANY_NAME_COLUMN = "company_name"
+
+#: Whole-value decimal rating (one digit, 1-2 decimals) that betrays a shifted
+#: parser column. A name that merely contains digits (``24/7 Retail``) does not
+#: match: the value must be *only* the rating.
+RATING_PATTERN = r"^[0-9][.,][0-9]{1,2}$"
 
 #: Columns that identify a quarantine row when writing the table.
 QUARANTINE_IDENTITY_COLUMNS = (
@@ -139,13 +148,36 @@ def row_hash(df: DataFrame) -> Column:
     return F.sha2(F.to_json(struct), 256)
 
 
+def company_name_rating_expr(df: DataFrame) -> Column:
+    """True when ``company_name`` is exactly a decimal rating.
+
+    The parser shift that spills the rating into the company column leaves a
+    whole value such as ``4,0`` or ``4.0``, which is not a company name. The
+    value must be *only* the rating: a name that contains digits (``24/7
+    Retail``) or a rating surrounded by text is legitimate and does not match.
+    The column is checked before use, so a source without ``company_name`` is
+    never quarantined by this rule.
+    """
+    if COMPANY_NAME_COLUMN not in df.columns:
+        return F.lit(False)
+    rating = F.trim(F.col(COMPANY_NAME_COLUMN).cast("string")) \
+        .rlike(RATING_PATTERN)
+    # NULL in the column makes the match NULL: coalesce so the row is valid
+    # (it is not a shifted rating) instead of falling out of both frames.
+    return F.coalesce(rating, F.lit(False))
+
+
 def split_quarantine(df: DataFrame, source: str) -> Tuple[DataFrame, DataFrame]:
     """Split a bronze batch into ``(valid_df, quarantine_df)`` for ``source``.
 
     A row goes to quarantine when any key is NULL or blank
-    (``missing_key``) or when its capture-time column is NULL, blank or
-    unparseable (``try_to_timestamp(...) IS NULL``, ``missing_scraped_at``).
-    When both conditions hold, ``missing_key`` wins.
+    (``missing_key``), when its capture-time column is NULL, blank or
+    unparseable (``try_to_timestamp(...) IS NULL``, ``missing_scraped_at``) or
+    when ``company_name`` is exactly a decimal rating
+    (``company_name_rating``, the signature of a shifted parser column; the
+    local scraper already rejects it before the upload and this is the second
+    defence). Precedence is stable and assigns one reason per row:
+    ``missing_key`` > ``missing_scraped_at`` > ``company_name_rating``.
 
     The valid frame keeps the input columns untouched. The quarantine frame
     adds ``_quarantine_reason``, ``_quarantine_at`` and ``_row_hash``, and
@@ -156,7 +188,8 @@ def split_quarantine(df: DataFrame, source: str) -> Tuple[DataFrame, DataFrame]:
     hash_expr = row_hash(df)
     missing_key = _missing_key_expr(spec.keys)
     missing_scraped_at = F.try_to_timestamp(F.col(spec.scraped_at)).isNull()
-    invalid = missing_key | missing_scraped_at
+    company_name_rating = company_name_rating_expr(df)
+    invalid = missing_key | missing_scraped_at | company_name_rating
 
     valid = df.filter(~invalid)
 
@@ -170,9 +203,9 @@ def split_quarantine(df: DataFrame, source: str) -> Tuple[DataFrame, DataFrame]:
         .withColumn(ROW_HASH_COLUMN, hash_expr)
         .withColumn(
             QUARANTINE_REASON_COLUMN,
-            F.when(missing_key, F.lit(MISSING_KEY)).otherwise(
-                F.lit(MISSING_SCRAPED_AT)
-            ),
+            F.when(missing_key, F.lit(MISSING_KEY))
+            .when(missing_scraped_at, F.lit(MISSING_SCRAPED_AT))
+            .otherwise(F.lit(COMPANY_NAME_RATING)),
         )
         .withColumn(QUARANTINE_AT_COLUMN, F.current_timestamp())
     )
