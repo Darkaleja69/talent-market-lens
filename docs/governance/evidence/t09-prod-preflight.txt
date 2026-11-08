@@ -1,0 +1,100 @@
+T-09 preflight - production publication (2026-11-08, Europe/Madrid)
+=====================================================================
+
+Profile: vs_code
+Branch: spec/012-security-governance @ 24eb1f5 (clean working tree)
+Scope: read-only preflight before the checkpoint merge and the prod deploy.
+Cost: 0 EUR (CLI/API metadata only; no SQL, no job runs).
+
+Bundle validation (from the spec branch)
+----------------------------------------
+databricks bundle validate -t dev  --profile vs_code  -> Validation OK
+databricks bundle validate -t prod --profile vs_code  -> Validation OK
+
+Main test suite (2026-11-08)
+----------------------------
+python -m pytest databricks_notebooks/tests -q
+-> 324 passed, 5 skipped in 1709.64 s (28 min 29 s).
+The 12 Delta tests of T-07 run in isolation (TML_LOCAL_DELTA=1); the 4 Delta
+integration tests of test_run_metrics skip in the shared suite, as before.
+
+Functional diff against main (74f3c11)
+---------------------------------------
+- A databricks_notebooks/Data_Quality.py (new quality registry and DDL generator)
+- M databricks_notebooks/Upsert_Job_Offers.py (company_name_rating quarantine)
+- Tests: test_data_quality.py, test_constraints_delta.py,
+  test_integration_spark.py, test_upsert_job_offers.py
+- No changes in databricks.yml, resources/*.yml, notebooks or compute.
+- Deploy therefore uploads the two modules and leaves the job definition,
+  cron, run_as, tasks and cluster untouched.
+
+SQL warehouse
+-------------
+id 53d8e3e91af6749c | Serverless Starter Warehouse | 2X-Small | PRO
+state STOPPED | num_clusters 0
+
+Production job 916863262593632
+------------------------------
+name Git Based ELT
+run_as <cuenta-personal> (same user as the workspace owner)
+edit_mode UI_LOCKED
+tasks 9: Bronze_Ingestion, Silver_Indeed, Silver_Infojobs, Silver_Linkedin,
+         Silver_Multi_site, Gold_Complete_Catalog, Build_for_Web-Dashboard,
+         Build_Report_Export, Publish_Run_Summary
+schedule 50 0 23 ? * SUN | Europe/Madrid | UNPAUSED
+ACL: <cuenta-personal> IS_OWNER (direct); admins CAN_MANAGE (inherited /jobs/)
+
+Grants (direct; expected and measured {})
+-----------------------------------------
+catalog job_offers                 {}
+schema  job_offers.bronze          {}
+schema  job_offers.silver          {}
+schema  job_offers.gold            {}
+schema  job_offers.ops             {}
+20 tables of the 4 layers          {} (checked one by one)
+external-location landing-loc      {}
+storage-credential landing-loc_azuremanagedidentity_1791406770615 {}
+
+Owners (unchanged)
+------------------
+catalog job_offers                 <cuenta-personal>
+schemas bronze/silver/gold/ops     <cuenta-personal>
+20 tables (4+9+6+1)                <cuenta-personal>
+information_schema                 System user
+
+Constraints (T-08, verified by API metadata; 20 total = 10 dev + 10 prod)
+--------------------------------------------------------------------------
+5 prod tables x 2 constraints:
+- chk_<table>_job_id_required
+- chk_<table>_salary_range_order
+Tables: silver.offers_indeed, silver.offers_infojobs, silver.offers_linkedin,
+silver.offers_multi_site, gold.fact_offers.
+No delta.constraints.* on the original salary range; the date rule is deferred.
+
+Storage
+-------
+External Location landing-loc -> abfss://landing@joboffershns.dfs.core.windows.net/
+credential landing-loc_azuremanagedidentity_1791406770615 (Azure Managed Identity,
+access connector access-connector-joboffers, dedicated to the project, shared by
+dev and prod). Azure RBAC [NO VERIFICADO] (requires Azure CLI/Portal).
+4 duplicate storage credentials of the same connector are not referenced by any
+External Location of this workspace; decision: leave them documented (see
+decisions.md D-02) because another resource outside the workspace cannot be
+excluded with the available credentials.
+
+Last production runs (API)
+--------------------------
+1050766241907151 SUCCESS (manual, 2026-11-04)
+317888374535056 SUCCESS
+321262594455396 SUCCESS
+636564838129029 SUCCESS
+No run on 2026-11-08 yet: the scheduled run is expected at 23:00 Europe/Madrid.
+
+Stop criteria checked
+---------------------
+[x] All prod grants are {} or explained.
+[x] Owners are still the personal account (administration path preserved).
+[x] Job has 9 tasks, run_as person, schedule unchanged and UNPAUSED.
+[x] Warehouse STOPPED (not woken to check).
+[x] No duplicate credential is referenced by an External Location.
+[x] No token, SAS, secret or authentication header is stored here.

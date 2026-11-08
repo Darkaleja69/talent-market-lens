@@ -390,15 +390,16 @@ Catalog el 2026-11-06; el detalle que T-01 dejó abierto queda resuelto):
    credenciales de esta tarea (`[NO VERIFICADO]`). Reducir el alcance exige
    cambios de storage (nuevas EL por prefijo y, para Azure, contenedores
    separados o condiciones ABAC); se registra como desviación, no como mínimo.
-   **D-01 deja la EL en la raíz como desviación medida pendiente de aprobación
-   explícita antes de T-09** (no la aprueba).
+   **D-02 (2026-11-08) la aprueba como desviación medida** para cerrar T-09; no
+   se cambia el storage en la 012.
 3. **Cuatro Storage Credentials duplicadas** de la misma MI, sin EL que las
    referencie. No es una escalada (misma identidad), pero amplía la superficie de
    administración. **T-02 no las retira** (D-01): solo deja el preflight
-   preparado en `grants-plan.md` §5. **La retirada se decide y, si procede, se
-   ejecuta en T-09** tras confirmar que no las referencia ninguna EL (los
-   catálogos y esquemas no referencian credenciales por nombre: dependen de la
-   EL); el rollback es recrearlas con el mismo access connector.
+   preparado en `grants-plan.md` §5. **D-02 (2026-11-08) decide dejarlas
+   documentadas**: el preflight demuestra que ninguna EL de este workspace las
+   referencia, pero no puede excluir otro recurso fuera del workspace; no se
+   borra nada en producción. El rollback, si se retiraran, sería recrearlas con
+   el mismo access connector.
 4. **El warehouse `Serverless Starter Warehouse`** (`53d8e3e91af6749c`,
    2X-Small, `PRO`, serverless) está `STOPPED`. No se ha abierto (T-02 lo
    reverificó el 2026-11-06). No forma parte de la matriz de datos, pero su
@@ -408,11 +409,11 @@ Catalog el 2026-11-06; el detalle que T-01 dejó abierto queda resuelto):
    No es un exceso de datos; es una decisión de identidad pendiente (§8.6) que
    D-01 no decide ni T-02 toca.
 
-**Estado de aprobación (2026-11-06):** el punto 1 queda **aprobado como
-limitación** por D-01; el punto 3 se traslada a **T-09**; el punto 2 (EL en la
-raíz) sigue **pendiente de aprobación explícita antes de T-09**; los puntos 4 y 5
-son inventario y no requieren cambio. T-02 no cierra afirmando que las
-identidades quedaron mínimas.
+**Estado de aprobación (2026-11-08):** el punto 1 queda **aprobado como
+limitación** por D-01; el punto 2 (EL en la raíz) queda **aprobado como
+desviación medida** por D-02; el punto 3 (credenciales duplicadas) queda
+**documentado y sin retirar** por D-02; los puntos 4 y 5 son inventario y no
+requieren cambio. T-02 no cierra afirmando que las identidades quedaron mínimas.
 
 ## 8. Qué hizo T-02 y qué queda preparado para T-09
 
@@ -434,8 +435,9 @@ identidades quedaron mínimas.
 4. **Cualquier cambio de storage** (EL por prefijo, retirada de credenciales
    duplicadas) se trata como cambio aparte, con su propio rollback y sin tocar la
    SAS de Power BI ni la del dashboard. T-02 solo prepara el preflight de las 4
-   credenciales duplicadas (`grants-plan.md` §5); la retirada se decide en
-   **T-09** y la EL en la raíz sigue pendiente de aprobación antes de T-09.
+   credenciales duplicadas (`grants-plan.md` §5); **D-02 (2026-11-08) decide
+   dejarlas documentadas** y aprueba la EL en la raíz como desviación medida
+   antes de T-09.
 5. **Comprobación de no regresión:** el primer run programado (T-10) debe cerrar
    las 9 tareas; si falla por permisos, se aplica el inverso documentado.
 6. **Decisión sobre la identidad duplicada (H11):** no se decide en la 012. Se

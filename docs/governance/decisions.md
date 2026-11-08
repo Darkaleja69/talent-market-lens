@@ -7,6 +7,7 @@
 | ID | Fecha | Tema | Estado |
 |---|---|---|---|
 | D-01 | 2026-11-06 | Exceso de la cuenta personal, `run_as` y alcance de T-02/T-09 | **Aprobada** |
+| D-02 | 2026-11-08 | Publicación de T-09: deploy de prod, EL en la raíz y credenciales duplicadas | **Aprobada** |
 
 ## D-01 — El exceso de la cuenta personal se aprueba como limitación; `run_as` no se migra en esta spec
 
@@ -90,8 +91,8 @@ en los términos escritos aquí.
 | Tema | Estado | Cuándo |
 |---|---|---|
 | Migración de `run_as` a una identidad de automatización dedicada | Candidata a **spec futura**; requiere crear identidad, cambiar el job y probar permisos con un run | Fuera de la 012 |
-| External Location sobre la raíz del contenedor | Desviación medida; **pendiente de aprobación explícita** | Antes de T-09 |
-| Retirada de las 4 Storage Credentials duplicadas | Preflight preparado; **decisión en T-09** | T-09 |
+| External Location sobre la raíz del contenedor | Desviación medida; **aprobada por D-02** (2026-11-08) | Cerrado antes de T-09 |
+| Retirada de las 4 Storage Credentials duplicadas | Preflight preparado; **D-02 decide dejarlas documentadas** | T-09 (D-02) |
 | RBAC de Azure de la Managed Identity | `[NO VERIFICADO]` | Se documenta como limitación; no se inventa |
 | Identidad duplicada en `admins` (H11) | No se decide aquí ni se toca; sigue como está | Sin cambio en la 012 |
 | Grants de una futura identidad de automatización | Comandos e inversos preparados en `grants-plan.md` §4, no aplicados | Spec futura |
@@ -105,3 +106,71 @@ en los términos escritos aquí.
   9 tareas). Si el preflight falla, T-09 no se cierra y no se aplica nada.
 - T-10 valida que el exceso aprobado no impide el run ni el dashboard; no se usa
   para afirmar least privilege.
+
+## D-02 — Publicación de T-09: deploy de prod, EL en la raíz y credenciales duplicadas
+
+**Fecha:** 2026-11-08.
+**Tareas afectadas:** T-09 (publicación), T-10 (comprobación real).
+**Requisitos afectados:** RF-1, RF-2, RF-3, RF-9 y RF-10.
+
+### Contexto
+
+El preflight de T-09 (2026-11-08) confirmó el estado medido en T-01/T-02: prod
+sin grants (`{}`), owners en la cuenta personal, job de 9 tareas con el cron
+`50 0 23 ? * SUN` (`Europe/Madrid`, `UNPAUSED`) y `run_as` persona, 20
+constraints presentes y warehouse `STOPPED`. El deploy de prod solo sube
+`databricks_notebooks/Data_Quality.py` y `Upsert_Job_Offers.py`; no cambia
+YAML, job, cron, compute ni tareas.
+
+Quedaban abiertos tres puntos de D-01: la aprobación explícita de la External
+Location en la raíz, la retirada de las 4 Storage Credentials duplicadas y el
+paso de grants de T-09.
+
+### Decisión
+
+1. **Se aprueba el merge checkpoint `--no-ff` de la rama a `main` y el deploy de
+   producción desde `main`**, con `databricks bundle validate -t prod` repetido
+   desde `main` antes del deploy. El deploy no ejecuta el job.
+2. **No se aplica ningún grant ni revocación en prod**: el preflight devuelve
+   `{}` en catálogo, esquemas, tablas, External Location y Storage Credential.
+   El paso de grants de T-09 es una verificación de no regresión.
+3. **Se aprueba la External Location `landing-loc` sobre la raíz del contenedor
+   como desviación medida.** Reducirla a prefijos exige EL por prefijo y, para
+   Azure RBAC, contenedores separados o condiciones ABAC; queda fuera de la 012
+   y no se afirma least privilege sobre el almacenamiento.
+4. **Las 4 Storage Credentials duplicadas se dejan y se documentan** como
+   pendiente de higiene. El preflight demuestra que ninguna External Location de
+   este workspace las referencia, pero no puede excluir otro recurso fuera del
+   workspace; no se borra nada en producción.
+
+### Motivo
+
+- El objetivo de T-09 es publicar los cambios aprobados sin consumir compute de
+  desarrollo y conservar la vía de vuelta atrás.
+- No hay grants que cambiar con el modelo actual (D-01), y crear o retirar
+  credenciales sin poder verificar todo su uso añadiría riesgo sin mejorar el
+  resultado de la spec.
+- La aprobación de la EL en la raíz cierra el punto que D-01 dejó pendiente y
+  permite registrar la desviación sin maquillarla.
+
+### Quién aprueba
+
+La persona propietaria del proyecto y administradora del workspace, el
+**2026-11-08**, antes del merge y del deploy de producción.
+
+### Qué queda abierto
+
+| Tema | Estado | Cuándo |
+|---|---|---|
+| Retirada de las 4 Storage Credentials duplicadas | Pendiente de higiene, `[NO VERIFICADO]` fuera del workspace | Spec futura |
+| Reducción de la External Location a prefijos | Desviación aprobada; no se cambia en la 012 | Fuera de la 012 |
+| RBAC de Azure de la Managed Identity | `[NO VERIFICADO]` | Se documenta como limitación |
+| Migración de `run_as` a una identidad dedicada | Candidata a spec futura | Fuera de la 012 |
+
+### Consecuencias
+
+- T-09 se cierra con el deploy de prod y la evidencia del preflight, sin runs de
+  dev y sin SQL.
+- T-10 queda a la espera del run programado del **2026-11-08 a las 23:00**
+  (`Europe/Madrid`); el tag `spec-012` y el cierre no se hacen antes de que ese
+  run esté en verde.

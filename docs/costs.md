@@ -347,6 +347,10 @@ al menos un despertar.
   `STOPPED` antes y después. **Sin segunda sesión.**
 - Consumo de la spec 012: **1 sesión / ~0,43 €** (techo 1,3 €; **0 runs de
   dev**).
+- **T-09 (2026-11-08): 0 €.** Validaciones de bundle, preflight de prod, merge
+  checkpoint y deploy de producción por CLI/API: sin runs, sin SQL y sin
+  despertar el warehouse. El coste del run programado de T-10 es ordinario de
+  producción (no se imputa al techo de dev de la 012).
 
 ## Pendiente
 

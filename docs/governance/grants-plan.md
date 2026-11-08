@@ -372,8 +372,10 @@ descrito en `specs/007-ELT-As-Code/cutover.md`.
   con 9 tareas.
 - **No se afirmará least privilege** para la cuenta personal: su exceso por
   ownership y rol `admins` queda aprobado como limitación en D-01.
-- **Storage:** T-09 decidirá sobre las 4 credenciales duplicadas con el preflight
-  de §5; si no hay evidencia suficiente, se dejan y se documentan.
+- **Storage:** **D-02 (2026-11-08) decide dejar las 4 credenciales duplicadas
+  documentadas** tras el preflight de §5: ninguna EL de este workspace las
+  referencia, pero no se puede excluir otro recurso fuera de él. No se borra
+  nada en producción.
 - **Fuera de esta spec:** migración de `run_as` a un service principal dedicado
-  (spec futura) y reducción de la External Location a prefijos, que sigue como
-  desviación pendiente de aprobación antes de T-09.
+  (spec futura) y reducción de la External Location a prefijos, **aprobada como
+  desviación medida por D-02**.
