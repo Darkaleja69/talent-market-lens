@@ -348,3 +348,7 @@
   - **Evidencia:** suites, nota, roadmap, costes, aprobación y registro del cierre.
     **0 € adicionales.**
   - **Estimación:** 4–6 h; diff documental ~250–400 líneas.
+  - **Estado (2026-11-08):** nota `docs/databricks-de/notes/07-security-governance.md`,
+    índice y roadmap preparados y commiteados (`b47217c`). T-11 **no se cierra**
+    hasta que T-10 esté en verde; el tag `spec-012`, el merge final y la retirada
+    del worktree quedan pendientes de esa comprobación.
