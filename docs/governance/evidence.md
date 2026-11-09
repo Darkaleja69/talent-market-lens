@@ -1,28 +1,32 @@
 # Evidencia — gobernanza (spec 012)
 
-> **Fecha de las comprobaciones:** 2026-11-06 (T-01, T-02 y T-04) y 2026-11-07
+> **Fecha de las comprobaciones:** 2026-11-06 (T-01, T-02 y T-04), 2026-11-07
 > (T-03, ejecución real en Free Edition; T-05, T-06 y T-07, local; T-08, sesión
-> SQL única y verificación de constraints por API).
+> SQL única y verificación de constraints por API), 2026-11-08 (T-09, deploy de
+> producción) y 2026-11-09 (T-10, run programado y dashboard; T-11, cierre).
 > **Tareas:** T-01 (inventario, solo lectura), T-02 (ensayo de grant/revoke en
 > dev y preflight de prod), T-03 (laboratorio de row filter y column mask
 > **ejecutado el 2026-11-07 en Free Edition**, ruta B), T-04 (ensayo de herencia
 > en dev, RUNBOOK de gobernanza y consulta de auditoría preparada), T-05
 > (contrato de calidad y mapa tabla-columna), T-06 (cuarentena
 > `company_name_rating` y tratamiento por motivo), T-07 (DDL versionado y
-> pruebas Delta locales) y T-08 (perfiles, constraints y auditoría en **una**
-> sesión SQL).
+> pruebas Delta locales), T-08 (perfiles, constraints y auditoría en **una**
+> sesión SQL), T-09 (validación, merge checkpoint y deploy de prod) y T-10
+> (comprobación real: run programado, constraints, grants y dashboard).
 > **Modo:** CLI/API de Databricks (`--profile vs_code`) y lectura local de código
 > en T-01–T-04; T-03 lo ejecutó la persona a mano en Databricks Free Edition;
 > T-05–T-07 son **locales** (Python, PySpark y Delta 4.4 en este equipo); T-08 lo
 > ejecutó la persona en **una** sesión del warehouse y se verificó después por
-> API gratuita.
-> **0 runs; 1 sesión SQL; ~0,43 €.** El laboratorio de T-03 vive en **Free
+> API gratuita; T-09 y T-10 se comprobaron por CLI/API y GitHub.
+> **0 runs de dev; 1 sesión SQL; ~0,43 € de desarrollo; 1 run de producción
+> ordinario (T-10).** El laboratorio de T-03 vive en **Free
 > Edition** (§8) y T-07 probó el DDL en un warehouse local temporal: T-08 es la
 > única sesión del proyecto sobre el warehouse pagado. Los grants de T-02 y T-04
 > fueron temporales, aplicados y revocados en el mismo acto (§5 y §7); T-08
 > aplicó **20 constraints** (10 dev + 10 prod) y las verificó por API (§12). Los
 > objetos sintéticos de T-03 se crearon y se retiraron dentro de Free Edition
-> (§8).
+> (§8). El run de T-10 es el programado de producción del 2026-11-08 y se imputa
+> al presupuesto ordinario de producción, no al techo de dev de la 012.
 >
 > Salidas saneadas en `docs/governance/evidence/`. Saneado aplicado: correos y
 > nombres personales → `<cuenta-personal>` / `<persona>`; el id de suscripción de
@@ -424,3 +428,76 @@ No se ha creado tag ni se ha borrado rama/worktree.
 revocación en prod; no se modificaron owners, storage, job, cron, compute ni
 tareas; no se ejecutó ningún run; no se abrió el SQL warehouse; no se tocó la SAS
 de Power BI ni la del dashboard. **Coste de desarrollo: 0 €.**
+
+## 14. T-10 — comprobación real: run programado, permisos y dashboard (2026-11-09)
+
+> **Modo:** run programado real, CLI/API de Databricks (`--profile vs_code`) y
+> API pública de GitHub. **0 SQL, 0 runs de dev.** El run es el programado de
+> producción del **2026-11-08 23:00** (`Europe/Madrid`); su coste va al
+> presupuesto ordinario de producción. Sin cambios de grants, constraints,
+> storage, job ni dashboard.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 76 | 2026-11-09 | T-10 | `databricks jobs list-runs --job-id 916863262593632 --limit 5 -o json` | Primero de la ventana: **`762969079133747`**, `PERIODIC`, `SUCCESS`, 9 tareas | `762969079133747` | producción | `t10-prod-run.txt` |
+| 77 | 2026-11-09 | T-10 | `databricks jobs get-run 762969079133747 -o json` | Inicio `2026-11-08 22:00:51Z` (23:00:51 Madrid), fin `22:15:32Z`, **14 min 40 s**; **9/9 tareas SUCCESS**, luego la identidad `run_as` pudo leer/escribir todo lo necesario; cron, `run_as` persona y `UI_LOCKED` intactos | `762969079133747` | producción | `t10-prod-run.txt` |
+| 78 | 2026-11-09 | T-10 | `jobs get-run-output` de `Bronze_Ingestion` (`413119331541619`) | **11.710 filas** de entrada (indeed 0, infojobs 922, linkedin 5.886, multi_site 4.902); **0 en cuarentena**; total = procesadas + cuarentena | `413119331541619` | producción | `t10-bronze-summary.txt` |
+| 79 | 2026-11-09 | T-10 | `jobs get-run-output` de `Publish_Run_Summary` (`238014189201478`) | `record.status = ok`; `run_id` correcto; **4/4 checks en verde**: `bronze_summary`, `bronze_sources` (4/4), `freshness` (`data_date 2026-11-07`, edad 1 día), `pending_files` (`bronze_rows 11710`, `total 0`, `listing_ok true`) | `238014189201478` | producción | `t10-run-summary.txt` |
+| 80 | 2026-11-09 | T-10 | `databricks tables get` de las 5 tablas de prod | **10 constraints presentes** (2 por tabla), con las expresiones de T-08; ninguna escritura del run las violó (9/9 SUCCESS) | 5 tablas | 0 € | `t10-constraints-and-grants.txt` |
+| 81 | 2026-11-09 | T-10 | `grants get` de catálogo, 4 esquemas, 6 tablas, EL y SC; `jobs get` y `jobs get-permissions` | **`{}` en todos los grants**; job de **9 tareas**, cron y `run_as` intactos; persona `IS_OWNER` y `admins` `CAN_MANAGE` heredado de `/jobs/`; bronce sin tablas de cuarentena | `job_offers`, `916863262593632` | 0 € | `t10-constraints-and-grants.txt` |
+| 82 | 2026-11-09 | T-10 | `databricks warehouses list -o json` | `53d8e3e91af6749c` **`STOPPED`** después; **`STOPPED`** antes en el preflight de T-09; sin SQL en T-10 | `53d8e3e91af6749c` | 0 € | `t10-warehouse.txt` |
+| 83 | 2026-11-09 | T-10 | GitHub API: workflow run `42581592569` y sus jobs | **`success`**: build (checkout, ensamblado, descarga, validación, Pages, artefacto) y deploy; evento `schedule`; rama `main` | `42581592569` | 0 € | `t10-dashboard.txt` |
+| 84 | 2026-11-09 | T-10 | Lectura pública de `https://darkaleja69.github.io/talent-market-lens/data/meta.json` | `data_date 2026-11-07`, `generated_at 2026-11-08T22:14:31Z`, `fact_offers 29.501` y `sha256` idénticos al export del run; 2 días de antigüedad (límite 8) | sitio publicado | 0 € | `t10-dashboard.txt` |
+| 85 | 2026-11-09 | T-10 | Coste del run | Run ordinario de producción de **14 min 40 s**; **~0,18 €** estimados a 0,75 €/h; importe exacto del Account Console `[NO VERIFICADO]`; **0 € de dev** | `762969079133747` | ~0,18 € (producción) | `docs/costs.md`; `t10-prod-run.txt` |
+
+**Lectura de T-10:**
+
+- **Sin regresión:** las 9 tareas cierran en verde; el run no falla por ninguna
+  constraint y `ops.run_metrics` recibe una fila con los cuatro checks en verde.
+- **Conteos coherentes:** 11.710 filas de entrada, 11.710 procesadas y 0 en
+  cuarentena; no se creó ninguna tabla `<fuente>_quarantine`, así que no hay
+  histórico nuevo que reconciliar ni tratamiento que aplicar.
+- **Gobernanza intacta:** los 10 constraints y el estado `{}` de grants siguen
+  igual que tras T-08/T-09. El exceso de la cuenta personal sigue aprobado como
+  limitación (D-01) y **no se afirma least privilege** sobre ella.
+- **Dashboard:** el workflow publica el export del run; `data_date` es
+  `2026-11-07`, dentro del límite de 8 días. El planificador de GitHub arrancó el
+  workflow a las 07:48 UTC en vez de las 01:00 UTC del lunes, pero terminó en
+  `success` el mismo día.
+- **Limitación registrada:** `origin/main` seguía en `74f3c11` cuando corrió el
+  workflow (el merge checkpoint `9876765` aún no se había publicado). El
+  workflow no cambió y el dato se descarga de ADLS, por lo que la publicación es
+  válida; el push de `main` se hace en el cierre de T-11.
+- **Coste:** 0 SQL y 0 runs de dev; el run programado es ordinario de producción.
+
+## 15. T-11 — cierre del track de certificación (2026-11-09)
+
+> **Modo:** documentación, suite local y Git. **0 € adicionales.** La aprobación
+> de la persona queda registrada en D-03; el cierre no se hace antes de T-10.
+
+| # | Fecha | Tarea | Comando o prueba | Resultado | Identificador | Coste | Evidencia |
+|---:|---|---|---|---|---|---:|---|
+| 86 | 2026-11-09 | T-11 | `python -m pytest databricks_notebooks/tests -q` | **324 passed, 5 skipped** en 3380,65 s (56 min 20 s); los 12 Delta de T-07 siguen en aislamiento opt-in, como en T-09 | repo | 0 € | este documento |
+| 87 | 2026-11-09 | T-11 | Nota, índice, roadmap, RUNBOOK §12.5, costes y D-03 | Documentación cerrada con el run real; roadmap con la 012 cerrada, bronce deduplicado 008/010 y dominio 7 con `run_as` persona y Managed Identity | `spec-012` | 0 € | `docs/databricks-de/notes/07-security-governance.md`; `roadmap.md`; `docs/RUNBOOK.md`; `docs/costs.md`; `decisions.md` |
+| 88 | 2026-11-09 | T-11 | Merge final `--no-ff` a `main` desde `spec/012-security-governance`, tag anotado y retirada de rama/worktree | Merge final y tag `spec-012`; sin cambios de código pendientes; rama y worktree retirados según `AGENTS.md` | `spec-012` | 0 € | `git log`; este documento |
+
+### 15.1 Mapa de requisitos funcionales
+
+| RF | Estado | Evidencia o desviación |
+|---|---|---|
+| RF-1 | Cumplido | `access-matrix.md` (T-01/T-02/T-04): owners, grants directos/efectivos, operación y privilegio objetivo; consultas por API/CLI sin SQL. |
+| RF-2 | Cumplido con desviación aprobada | Managed Identity dedicada inventariada; `run_as` persona y su exceso aprobados como limitación (D-01); Azure RBAC `[NO VERIFICADO]`; sin service principal. |
+| RF-3 | Cumplido; auditoría con límite | Herencia y rollback ensayados en dev (T-04); `system.access.audit` disponible pero los filtros no devolvieron eventos de los grants temporales (`[NO VERIFICADO]` para esa relación). |
+| RF-4 | Cumplido | Demo en Free Edition (T-03, §8): 8 filas autorizadas, 4 restringidas con `contact_email = '***'`, sin `SELECT` no hay acceso y limpieza verificada. |
+| RF-5 | Cumplido | Contrato y cuarentena (`Data_Quality.py`, `Upsert_Job_Offers.py`); tests de T-05/T-06; run real con 11.710 filas y 0 en cuarentena. |
+| RF-6 | Cumplido; sin histórico | Tratamiento por motivo en RUNBOOK §10.2; inventario de T-08 sin tablas de cuarentena; no se borró ni reprocesó histórico. |
+| RF-7 | Cumplido con regla pospuesta | 20 constraints (10 dev + 10 prod) aplicadas y verificadas; `posted_date_contract` pospuesta `[NO VERIFICADO]` con 138 filas medidas. |
+| RF-8 | Cumplido | Cuarentena/marca antes de la escritura (T-05/T-06/T-07); el run real no violó ninguna constraint y no falló. |
+| RF-9 | Cumplido | T-09 deploy y T-10 run programado 9/9; dashboard publicado; warehouse `STOPPED`; sin regresión. |
+| RF-10 | Cumplido | 0 runs de dev, 1 sesión SQL (~0,43 €), run de producción ordinario (~0,18 € estimados); todo en `docs/costs.md`. |
+| RF-11 | Cumplido | Nota `07-security-governance.md`, índice y roadmap; dominio 7 con `run_as` persona y Managed Identity. |
+
+**Hallazgos no bloqueantes:** `docs/es/RUNBOOK.md` sigue sin las secciones §11–§12
+(desincronización ya anotada en T-04); no afecta a la operativa principal ni a
+la comprobación real. El RBAC de Azure y la relación exacta de eventos de
+auditoría siguen `[NO VERIFICADO]`; no se inventan.

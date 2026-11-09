@@ -12,7 +12,7 @@ examen: frases propias, comandos usados, errores cometidos y dudas abiertas.
 - [x] `04-incremental-architecture.md` (spec 008)
 - [x] `05-cicd.md` (spec 007)
 - [x] `06-observability.md` (spec 011)
-- [x] `07-security-governance.md` (spec 012; pendiente el run programado de T-10)
+- [x] `07-security-governance.md` (spec 012; cerrada el 2026-11-09)
 
 ## Plantilla
 

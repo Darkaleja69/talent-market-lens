@@ -1,0 +1,15 @@
+T-10 - estado del SQL warehouse
+===============================
+
+`databricks warehouses list --profile vs_code -o json` (2026-11-09):
+
+  name:      Serverless Starter Warehouse
+  id:        53d8e3e91af6749c
+  size:      2X-Small
+  state:     STOPPED
+  clusters:  0
+
+Antes: STOPPED en el preflight de T-09 (2026-11-08,
+`t09-prod-preflight.txt`). Despues del run y del workflow: STOPPED.
+No se abrio el warehouse para T-10; la comprobacion de constraints, grants,
+job y run se hizo por API gratuita.

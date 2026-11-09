@@ -1,0 +1,22 @@
+T-10 - resumen del bronce y cuarentena (run 762969079133747)
+============================================================
+
+Salida de la tarea Bronze_Ingestion (run 413119331541619), leida con
+`databricks jobs get-run-output` (API gratuita, sin SQL).
+
+  source       batch_id  num_input_rows  num_input_rows_total  quarantined_rows
+  -----------  --------  --------------  --------------------  ----------------
+  indeed       22        0               0                     0
+  infojobs     21        922             922                   0
+  linkedin     55        5886            5886                  0
+  multi_site   44        4902            4902                  0
+  -----------  --------  --------------  --------------------  ----------------
+  TOTAL                              11710                  0
+
+Reconciliacion: 11.710 filas de entrada = 11.710 filas procesadas +
+0 filas en cuarentena. Coincide con `checks.pending_files.bronze_rows = 11710`
+y `checks.pending_files.total = 0` del cierre.
+
+No se creo ninguna tabla <fuente>_quarantine: `tables list job_offers bronze`
+devuelve solo las 4 tablas de fuente. No hay filas nuevas en cuarentena que
+reconciliar ni tratamiento que aplicar en esta comprobacion.

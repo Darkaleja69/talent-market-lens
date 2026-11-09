@@ -351,6 +351,13 @@ al menos un despertar.
   checkpoint y deploy de producción por CLI/API: sin runs, sin SQL y sin
   despertar el warehouse. El coste del run programado de T-10 es ordinario de
   producción (no se imputa al techo de dev de la 012).
+- **T-10 (2026-11-08/09): run programado ordinario de producción.** Run
+  `762969079133747`, **9/9** tareas, **14 min 40 s** (880.445 ms), 11.710 filas
+  de bronce y 0 en cuarentena. Coste estimado **~0,18 €** a 0,75 €/h de job
+  clásico; el importe exacto del Account Console queda `[NO VERIFICADO]`. **No
+  consume el techo de dev**: la spec 012 cierra con **0 runs de dev** y **1
+  sesión SQL** de ~0,43 €, por debajo del techo de 1,3 €.
+  El dashboard de GitHub Pages no tiene coste de Databricks.
 
 ## Pendiente
 

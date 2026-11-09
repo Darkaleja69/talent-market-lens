@@ -1,8 +1,7 @@
 # Seguridad y gobernanza (dominio 7)
 
-> Nota escrita el **2026-11-08** desde la evidencia de la spec 012. El run
-> programado de esa noche (T-10) es la comprobación real; si cambia algún
-> resultado, se anota al final y se corrige lo que corresponda.
+> Nota escrita el **2026-11-08** desde la evidencia de la spec 012 y cerrada el
+> **2026-11-09** con el resultado del run programado (T-10).
 
 ## Qué he practicado
 
@@ -28,6 +27,26 @@
 - **CHECK constraints** en silver y gold: `job_id` obligatorio y orden de los
   salarios anualizados, con `IS NULL OR` explícito. Se midió el histórico en
   una única sesión SQL y se aplicaron 20 constraints (10 dev + 10 prod).
+
+## Comprobación real (T-10, 2026-11-09)
+
+El run programado del **2026-11-08 23:00** (`Europe/Madrid`) fue el primero
+posterior al deploy de T-09. Cerró **9/9 tareas en SUCCESS** en **14 min 40 s**
+(`run_id 762969079133747`). El bronce procesó **11.710 filas** y **0** fueron a
+cuarentena; no se creó ninguna tabla `<fuente>_quarantine`. El cierre
+`Publish_Run_Summary` escribió la fila de `ops.run_metrics` (`record.status ok`)
+y sus cuatro checks quedaron en verde: fuentes 4/4, resumen del bronce,
+`data_date 2026-11-07` con 1 día de antigüedad y 0 ficheros pendientes.
+
+Las **10 constraints de producción** siguen presentes y ninguna escritura las
+violó. Los grants siguen en `{}`, el job conserva sus 9 tareas, el cron y el
+`run_as` persona, y el warehouse quedó **`STOPPED`** antes y después. El
+workflow del dashboard (`42581592569`) publicó el export del run con
+`data_date 2026-11-07`, dentro del límite de 8 días.
+
+Lo que **no** demuestra este run: la idempotencia (se probó en local en T-06)
+ni que la cuenta personal tenga privilegios mínimos (su exceso sigue aprobado
+como limitación en D-01).
 
 ## Conceptos clave (en mis palabras)
 
@@ -169,8 +188,9 @@ Trucos que me llevo:
   exceso medido y `[NO VERIFICADO]`.
 - `docs/governance/grants-plan.md`: ensayo de dev, preflight de prod, comandos
   de una futura identidad y rollback.
-- `docs/governance/decisions.md`: D-01 (exceso de la cuenta personal) y D-02
-  (publicación de T-09, EL en la raíz y credenciales duplicadas).
+- `docs/governance/decisions.md`: D-01 (exceso de la cuenta personal), D-02
+  (publicación de T-09, EL en la raíz y credenciales duplicadas) y D-03 (cierre
+  de la spec tras el run real).
 - `docs/governance/quality-inventory.md`: reglas existentes y mapa por capa.
 - `docs/governance/constraints-ddl.sql` y `t08-profile-queries.sql`: DDL e
   inventario de la sesión única.

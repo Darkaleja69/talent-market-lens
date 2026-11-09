@@ -1,10 +1,12 @@
 # Plan técnico: seguridad, gobernanza y calidad de datos
 
-> Borrador del **2026-11-05**, rama `spec/012-security-governance` (desde `main`,
+> Cerrado el **2026-11-09**, rama `spec/012-security-governance` (desde `main`,
 > `74f3c11`), worktree `talent-market-lens-012`.
 >
 > Regla de oro: **primero inventario y rollback; después grants, cuarentena y
 > constraints**. Ninguna revocación ni restricción se improvisa sobre producción.
+> La comprobación real de T-10 está registrada en `docs/governance/evidence.md`
+> §14 y en `docs/governance/decisions.md` (D-03).
 
 ## 1. Objetivo y límites
 

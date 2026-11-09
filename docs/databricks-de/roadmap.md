@@ -36,8 +36,9 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
   nuevo `company_name_rating` (`4,0`/`4.0` exactos, no `24/7 Retail`), con
   precedencia estable, identidad `(_row_hash, _quarantine_reason,
   _source_file)` y tratamiento documentado en el RUNBOOK §10.2. El run
-  programado del 2026-11-08 es la primera prueba en producción; no hay histórico
-  Delta previo que inventariar.
+  programado del 2026-11-08 (T-10) procesó 11.710 filas y **0 fueron a
+  cuarentena**; no se creó ninguna tabla `<fuente>_quarantine` y no hay
+  histórico Delta previo que inventariar.
 - **CHECK constraints de Delta (data quality).** **Cerrada por la 012
   (T-05/T-07/T-08).** 20 constraints aplicadas y verificadas por API (10 dev +
   10 prod): `chk_<tabla>_job_id_required` y `chk_<tabla>_salary_range_order` en
@@ -67,7 +68,7 @@ una spec planificada se anota aquí y se encaja al planificar la siguiente.
 | 4–6 | 2–22 nov | **Spec 008:** Delta y arquitectura incremental (bloque A: bronce upsert) | 008 **cerrada el 1-nov** (merge `--no-ff` y tag `spec-008`); bloque B cerrado por herencia en la 010 (T-08/T-09) |
 | 7 | 23-29 nov | **Spec 010:** rendimiento, layout físico y compute | hecha (28–31 oct 2026) |
 | 8 | 30 nov – 6 dic | **Spec 011:** streaming y observabilidad | **hecha** (adelantada al 1–5 nov 2026); cerrada salvo el run programado del domingo 8-nov |
-| 9 | 7–13 dic | **Spec 012:** seguridad y gobernanza | hecha (5–8 nov 2026); pendiente el run programado del domingo 8-nov y el tag |
+| 9 | 7–13 dic | **Spec 012:** seguridad y gobernanza | **cerrada el 9-nov 2026**: run programado 9/9, dashboard publicado y tag `spec-012` |
 | 10–11 | 14–27 dic | Simulacros, repaso final y **examen** | pendiente |
 
 Contingencias:
@@ -167,3 +168,4 @@ Unity Catalog del laboratorio y puntuar en batch dentro del job semanal
 | 2026-11-01 | Spec 008 cerrada | T-06 registrada con el run programado `636564838129029` (**8/8, 14 min 01 s**, dashboard por el workflow `40276725938`, warehouse `STOPPED`; los conteos de ese export quedan `[NO VERIFICADO]` porque su `meta.json` se sobrescribió y el contenedor no tiene versionado). T-10 y T-11 cerradas **por herencia** de la 010 (T-08/T-09), con el desvío del gate de T-10 (816 s frente a 13 m 16 s) cubierto por el RF-3 de la 010 (≤ 1350 s). Notas `02-delta.md` y `04-incremental-architecture.md` escritas; merge `--no-ff` a `main` con `AGENTS.md` restaurado de `main` y tag `spec-008` |
 | 2026-11-05 | Spec 011: cierre documental (queda el run programado del 8-nov) | Decisión medida sobre el mismo extracto CSV en Free Edition: el declarativo gana **2 de 8** criterios (código propio y observabilidad) y **no se migra**; se adopta la observabilidad (resumen del bronce, `ops.run_metrics` de **13 columnas**, novena tarea `Publish_Run_Summary` con `run_if: ALL_DONE`, cuatro `checks` y health rule `RUN_DURATION_SECONDS > 1500` en dev y prod). Banco local `streaming_lab.py` con **6 tests**. Medido: **0,045956 USD de DBU** por run de 744 s (≈4× menos que la estimación por duración), retención de `system.lakeflow` ≈**67 días** y latencia **> 7 min 37 s**; event log retirado (el clúster no arranca con `abfss://`). T-15 (16 filas incoherentes de 1569) incluida por decisión explícita. Coste: **5 runs de dev** (uno perdido) y **2 sesiones SQL**, ≈**0,23 USD** de DBU y ≈**0,86 €** nominales de warehouse. Pendiente: run programado del domingo **2026-11-08 23:00** (`Europe/Madrid`), dashboard del lunes 01:00 UTC y merge/tag. Notas `03-streaming.md` y `06-observability.md` escritas |
 | 2026-11-08 | Spec 012: gobernanza, calidad y publicación de T-09 | Inventario real de UC sin SQL: sin grants directos, owners en la persona, `run_as` persona, storage con **Azure Managed Identity** dedicada (no service principal) y 4 credenciales duplicadas sin EL. Ensayo de grant/rollback y herencia en dev; demo de row filter/column mask en **Free Edition** (ruta B, dos usuarios). Contrato de calidad en `Data_Quality.py`, cuarentena `company_name_rating` y **20 CHECK constraints** aplicadas en una única sesión SQL (~0,43 €). T-09: `bundle validate` dev/prod en verde, merge checkpoint a `main` y deploy de prod desde `main`; sin grants nuevos, EL en la raíz aprobada como desviación (D-02). Pendiente: run programado del **8-nov 23:00**, dashboard del 9-nov y tag `spec-012` |
+| 2026-11-09 | Spec 012 cerrada | Run programado `762969079133747`: **9/9** tareas en **14 min 40 s**, 11.710 filas de bronce y **0 en cuarentena**; `ops.run_metrics` con `record.status ok` y los cuatro checks en verde; **10 constraints** y grants `{}` intactos; warehouse `STOPPED` antes y después. Dashboard publicado por el workflow `42581592569` con `data_date 2026-11-07` (2 días, límite 8). Suite `databricks_notebooks/tests` en verde; nota `07-security-governance.md`, índice, roadmap, RUNBOOK y costes actualizados; merge final `--no-ff` a `main` y tag `spec-012`. Coste: 1 sesión SQL (~0,43 €) + run ordinario de producción (~0,18 € estimados); **0 runs de dev** |
