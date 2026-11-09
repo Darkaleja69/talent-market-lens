@@ -231,3 +231,25 @@ reglas descartadas quedan con medición y motivo.
 - No se toca el crudo de ADLS, ni se reprocesa histórico, ni se borran
   cuarentenas (no hay ninguna en Delta).
 - No se aplica ningún DDL en T-01; el mapa de §7.2 es la entrada de T-05/T-07.
+
+## 11. Estado final tras T-08 y T-10 (2026-11-09)
+
+> Esta sección actualiza el inventario; las tablas de §8 y §9 conservan el
+> estado del 2026-11-06 y no se reescriben.
+
+- **Reglas de bronce activas:** `missing_key`, `missing_scraped_at` y
+  `company_name_rating` (T-06). El run programado `762969079133747` procesó
+  11.710 filas y **0 fueron a cuarentena**; no se creó ninguna tabla
+  `<fuente>_quarantine`.
+- **Constraints aplicadas:** `job_id_required` y `salary_range_order` en las 4
+  silver y `gold.fact_offers` (20 en total, 10 dev + 10 prod), verificadas por
+  API y respetadas por el run real.
+- **Regla pospuesta:** `posted_date_contract` sigue `[NO VERIFICADO]` como
+  constraint; se midieron 138 filas anteriores a 2026 en cada catálogo y
+  `IsValidPostingDate` es un flag, no un filtro.
+- **Desconocidos cerrados:** esquema/tipos de cuarentena (no hay tablas),
+  conteos de `job_id` y de rango salarial (0 violaciones en T-08), y valores de
+  `salary_quality` (perfilados en la sesión única).
+- **Desconocido que no se cierra:** el reparto exacto de eventos de auditoría y
+  el RBAC de Azure de la Managed Identity siguen `[NO VERIFICADO]`; no se
+  inventan.

@@ -966,3 +966,21 @@ the Spark session.
 4. Record the incident in `docs/governance/evidence.md`; if the rule changes,
    update `Data_Quality.py` and regenerate the two SQL files (the tests compare
    them with the module).
+
+### 12.5 Verified in production (T-10, 2026-11-09)
+
+The first scheduled run after the deploy (`762969079133747`) finished **9/9**
+tasks in **SUCCESS** in 14 min 40 s. The bronze task ingested 11,710 rows,
+quarantined **0** and created no `<source>_quarantine` table, so there was no
+new quarantine row to reconcile or treat. `Publish_Run_Summary` wrote the
+`ops.run_metrics` row (`record.status = ok`) with all four checks green, and
+no write violated the 10 production constraints. Grants stayed at `{}`, the
+job kept its 9 tasks, cron and `run_as`, and the warehouse was `STOPPED`
+before and after. The dashboard workflow `42581592569` published the same run
+export with `data_date 2026-11-07`.
+
+The run proves **no regression and no permission failure**; it does **not**
+prove idempotency (T-06 does, locally) or least privilege for the personal
+account (its excess remains approved in D-01). If a future run fails here,
+follow §12.4 and §11; do not open a second SQL session just to inspect the
+constraints, because `tables get` already returns them.

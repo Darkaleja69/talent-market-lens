@@ -268,7 +268,7 @@
 
 ## 3. Despliegue, comprobación real y cierre
 
-- [ ] **T-09 — Validar, merge checkpoint y desplegar prod desde `main`**
+- [x] **T-09 — Validar, merge checkpoint y desplegar prod desde `main`**
   - **Objetivo:** publicar los cambios aprobados desde `main`, conservando un camino
     de vuelta atrás y sin consumir compute de desarrollo.
   - **Comprobaciones:** suites afectadas, `databricks bundle validate -t dev` y
@@ -306,7 +306,7 @@
     **0 € de dev.**
   - **Estimación:** 2–3 h; diff ~100–200 líneas entre comandos y evidencia.
 
-- [ ] **T-10 — Comprobación real: run programado, permisos y dashboard**
+- [x] **T-10 — Comprobación real: run programado, permisos y dashboard**
   - **Objetivo:** demostrar que la gobernanza y la calidad funcionan juntas en el
     ciclo semanal real, sin regresión.
   - **Alcance de la prueba:** la idempotencia se prueba en T-06 en local y se hereda
@@ -327,8 +327,19 @@
     workflow, metadatos de grants/constraints, warehouse, coste en `docs/costs.md`
     y fila en `evidence.md`. **0 runs de dev; coste ordinario de producción.**
   - **Estimación:** 1–2 h; diff ~50–100 líneas de evidencia.
+  - **Estado (2026-11-09): completada.** Run programado `762969079133747`
+    (`PERIODIC`, 2026-11-08 23:00:51 `Europe/Madrid`): **9/9 tareas en
+    `SUCCESS`** en 14 min 40 s. Bronce: **11.710 filas**, **0 en cuarentena**,
+    sin tablas `<fuente>_quarantine`. `Publish_Run_Summary` escribió la fila de
+    `ops.run_metrics` (`record.status = ok`) con los cuatro checks en verde.
+    **10 constraints** y grants `{}` siguen presentes; job de 9 tareas, cron y
+    `run_as` persona intactos; warehouse `STOPPED` antes y después. Dashboard
+    publicado por el workflow `42581592569` con `data_date 2026-11-07` (2 días,
+    límite 8). Evidencia en `docs/governance/evidence.md` §14 y
+    `docs/governance/evidence/t10-*`; coste ordinario de producción (~0,18 €
+    estimados) en `docs/costs.md`. **0 SQL y 0 runs de dev.**
 
-- [ ] **T-11 — Cierre del track de certificación**
+- [x] **T-11 — Cierre del track de certificación**
   - **Objetivo:** dejar el aprendizaje y el estado operativo cerrados, con el
     backlog correctamente reflejado.
   - **Entregables:** nota `docs/databricks-de/notes/07-security-governance.md` e
@@ -348,3 +359,16 @@
   - **Evidencia:** suites, nota, roadmap, costes, aprobación y registro del cierre.
     **0 € adicionales.**
   - **Estimación:** 4–6 h; diff documental ~250–400 líneas.
+  - **Estado (2026-11-09): completada.** T-10 en verde con el run
+    `762969079133747` (9/9, 11.710 filas, 0 en cuarentena), constraints y grants
+    intactos y dashboard `42581592569` con `data_date 2026-11-07`. Suite
+    `databricks_notebooks/tests` en verde. Nota
+    `docs/databricks-de/notes/07-security-governance.md` cerrada con el resultado
+    real; índice, roadmap (012 cerrada, bronce deduplicado 008/010, dominio 7 con
+    `run_as` persona y Managed Identity), RUNBOOK §12.5 y `docs/costs.md`
+    actualizados; decisión de cierre D-03. Presupuesto: **0 runs de dev, 1 sesión
+    SQL (~0,43 €) y un run ordinario de producción (~0,18 € estimados)**.
+    Aprobación de la persona registrada en D-03; merge final `--no-ff` a `main`,
+    tag anotado `spec-012` y retirada de rama/worktree ejecutados tras la
+    comprobación. La desincronización de `docs/es/RUNBOOK.md` sigue como
+    pendiente documental no bloqueante.

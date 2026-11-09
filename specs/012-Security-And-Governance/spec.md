@@ -1,11 +1,13 @@
 # Especificación funcional: seguridad, gobernanza y calidad de datos
 
-> **Borrador (2026-11-05).** Rama `spec/012-security-governance`, creada desde
+> **Cerrada (2026-11-09).** Rama `spec/012-security-governance`, creada desde
 > `main` (`74f3c11`) en el worktree `talent-market-lens-012`. Es la última spec
 > del track de certificación: practica el **dominio 7 (seguridad y gobernanza)** y
 > absorbe las prácticas de **cuarentena Delta y CHECK constraints** pendientes del
 > backlog del roadmap. Presupuesto asignado por la 009: **0 runs de dev + 1 sesión
-> SQL, ≤ 1,3 €**.
+> SQL, ≤ 1,3 €**. La comprobación real (T-10) cerró con el run programado
+> `762969079133747` (9/9), 0 filas en cuarentena, constraints y grants intactos y
+> el dashboard publicado; el detalle está en `docs/governance/evidence.md` §14.
 
 ## Contexto y objetivo
 

@@ -1,0 +1,50 @@
+T-10 - cierre del run y fila de ops.run_metrics
+================================================
+
+Salida de la tarea Publish_Run_Summary (run 238014189201478), leida con
+`databricks jobs get-run-output` (API gratuita, sin SQL):
+
+{
+  "checks": {
+    "bronze_sources": {
+      "expected": 4,
+      "ok": true,
+      "present": 4
+    },
+    "bronze_summary": {
+      "ok": true,
+      "sources": ["indeed", "infojobs", "linkedin", "multi_site"]
+    },
+    "freshness": {
+      "data_age_days": 1,
+      "data_date": "2026-11-07",
+      "max_age_days": 8,
+      "ok": true
+    },
+    "pending_files": {
+      "bronze_rows": 11710,
+      "by_source": {},
+      "listing_error": null,
+      "listing_ok": true,
+      "ok": true,
+      "total": 0
+    }
+  },
+  "record": {
+    "error": null,
+    "status": "ok"
+  },
+  "run_id": "762969079133747"
+}
+
+Lectura:
+  - Los cuatro checks estan en verde.
+  - `record.status = ok`: la fila de `job_offers.ops.run_metrics` se escribio
+    (MERGE por `run_id`); no fue necesario abrir el warehouse para confirmarlo.
+  - `bronze_rows = 11710` coincide con la suma de `num_input_rows_total` del
+    bronce; `quarantine_rows` es 0 (no hay filas en cuarentena).
+  - `freshness.data_date = 2026-11-07`, edad 1 dia, limite 8.
+  - `pending_files.total = 0` y `listing_ok = true`: no quedan ficheros
+    pendientes y el landing se pudo listar.
+
+El run no fallo por ninguna constraint: las 9 tareas terminaron en SUCCESS.

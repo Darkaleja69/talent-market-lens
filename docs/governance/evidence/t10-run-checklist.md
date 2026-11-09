@@ -1,9 +1,10 @@
 # T-10 — comprobación real: run programado, permisos y dashboard
 
-> **Estado:** preparado el **2026-11-08**; se ejecuta **después** del run
-> programado del domingo **2026-11-08 23:00** (`Europe/Madrid`) y del workflow
-> del dashboard del lunes **2026-11-09 01:00 UTC**. No se marca T-10 como
-> completada hasta tener todos los resultados.
+> **Estado:** preparado el **2026-11-08** y **ejecutado el 2026-11-09**. El run
+> programado del domingo **2026-11-08 23:00** (`Europe/Madrid`) cerró 9/9 y el
+> workflow del dashboard publicó el lunes con `data_date 2026-11-07`. T-10 está
+> completada; los resultados están en `evidence.md` §14 y en los ficheros
+> `t10-*.txt`.
 
 ## Ventana
 

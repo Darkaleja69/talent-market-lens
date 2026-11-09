@@ -8,6 +8,7 @@
 |---|---|---|---|
 | D-01 | 2026-11-06 | Exceso de la cuenta personal, `run_as` y alcance de T-02/T-09 | **Aprobada** |
 | D-02 | 2026-11-08 | Publicación de T-09: deploy de prod, EL en la raíz y credenciales duplicadas | **Aprobada** |
+| D-03 | 2026-11-09 | Cierre de la spec 012 tras la comprobación real de T-10 | **Aprobada** |
 
 ## D-01 — El exceso de la cuenta personal se aprueba como limitación; `run_as` no se migra en esta spec
 
@@ -174,3 +175,45 @@ La persona propietaria del proyecto y administradora del workspace, el
 - T-10 queda a la espera del run programado del **2026-11-08 a las 23:00**
   (`Europe/Madrid`); el tag `spec-012` y el cierre no se hacen antes de que ese
   run esté en verde.
+
+## D-03 — Cierre de la spec 012 tras la comprobación real de T-10
+
+**Fecha:** 2026-11-09.
+**Tareas afectadas:** T-10 (comprobación real) y T-11 (cierre).
+**Requisitos afectados:** RF-9, RF-10 y RF-11.
+
+### Contexto
+
+El run programado posterior al deploy de T-09 (`762969079133747`) cerró **9/9**
+tareas en **SUCCESS** en 14 min 40 s. El bronce procesó 11.710 filas y **0**
+fueron a cuarentena; `Publish_Run_Summary` escribió la fila de
+`ops.run_metrics` con `record.status ok` y los cuatro checks en verde. Las 10
+constraints de producción y los grants `{}` siguen presentes, el job conserva
+sus 9 tareas, cron y `run_as` persona, y el warehouse quedó `STOPPED` antes y
+después. El workflow del dashboard `42581592569` publicó el export con
+`data_date 2026-11-07` (2 días, límite 8).
+
+### Decisión
+
+1. **Se aprueba el cierre de la spec 012**: T-10 pasa a completada con la
+   evidencia del run real y T-11 con la documentación actualizada.
+2. **Se aprueba el merge final `--no-ff` a `main`**, el tag anotado
+   `spec-012`, el borrado de la rama `spec/012-security-governance` y la
+   retirada del worktree `talent-market-lens-012`, según `AGENTS.md`.
+3. **No se repite el run** ni se abre una segunda sesión SQL: el resultado es
+   suficiente y el coste adicional no está autorizado.
+4. Se mantienen como limitaciones/desviaciones aprobadas el exceso de la
+   cuenta personal (D-01), la EL en la raíz y las credenciales duplicadas
+   (D-02), y el RBAC de Azure `[NO VERIFICADO]`.
+
+### Quién aprueba
+
+La persona propietaria del proyecto y administradora del workspace, el
+**2026-11-09**, al pedir el cierre de la spec tras revisar el run y el
+dashboard.
+
+### Consecuencias
+
+- La spec 012 se cierra con **0 runs de dev**, **1 sesión SQL** (~0,43 €) y un
+  run ordinario de producción (~0,18 € estimados); no se imputa al techo de dev.
+- T-11 queda cerrada y el track de certificación queda completo.

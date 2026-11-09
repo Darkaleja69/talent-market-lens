@@ -1,0 +1,64 @@
+T-10 - constraints, grants y ACL despues del run (API gratuita)
+==============================================================
+
+Consultas: `databricks tables get`, `databricks grants get`,
+`databricks jobs get` y `databricks jobs get-permissions`.
+Sin SQL y sin despertar el warehouse.
+
+Constraints en produccion (10, dos por tabla):
+
+  job_offers.silver.offers_indeed
+    delta.constraints.chk_offers_indeed_job_id_required
+    delta.constraints.chk_offers_indeed_salary_range_order
+  job_offers.silver.offers_infojobs
+    delta.constraints.chk_offers_infojobs_job_id_required
+    delta.constraints.chk_offers_infojobs_salary_range_order
+  job_offers.silver.offers_linkedin
+    delta.constraints.chk_offers_linkedin_job_id_required
+    delta.constraints.chk_offers_linkedin_salary_range_order
+  job_offers.silver.offers_multi_site
+    delta.constraints.chk_offers_multi_site_job_id_required
+    delta.constraints.chk_offers_multi_site_salary_range_order
+  job_offers.gold.fact_offers
+    delta.constraints.chk_fact_offers_job_id_required
+    delta.constraints.chk_fact_offers_salary_range_order
+
+Expresiones (identicas a T-08):
+
+  job_id_required:
+    `job_id` IS NOT NULL AND trim(cast(`job_id` AS STRING)) <> ''
+  salary_range_order:
+    `<min> IS NULL OR <max> IS NULL OR <min> <= <max>`
+    (silver: salary_min_annual/salary_max_annual;
+     gold: SalaryMinAnnual_EUR/SalaryMaxAnnual_EUR)
+
+Grants directos: `{}` en todos los objetos comprobados.
+
+  catalog job_offers                 {}
+  schema  job_offers.bronze          {}
+  schema  job_offers.silver          {}
+  schema  job_offers.gold            {}
+  schema  job_offers.ops             {}
+  table   job_offers.silver.offers_indeed        {}
+  table   job_offers.silver.offers_infojobs      {}
+  table   job_offers.silver.offers_linkedin      {}
+  table   job_offers.silver.offers_multi_site    {}
+  table   job_offers.gold.fact_offers            {}
+  table   job_offers.ops.run_metrics             {}
+  external-location landing-loc                  {}
+  storage-credential landing-loc_azuremanagedidentity_1791406770615  {}
+
+ACL del job 916863262593632:
+
+  - persona: IS_OWNER (directo)
+  - grupo admins: CAN_MANAGE (heredado de /jobs/)
+
+Job: 9 tareas, cron 50 0 23 ? * SUN, Europe/Madrid, UNPAUSED,
+run_as persona, UI_LOCKED. Sin cambios respecto a T-09.
+
+Bronce de produccion: solo indeed, infojobs, linkedin y multi_site;
+ninguna tabla <fuente>_quarantine.
+
+Conclusion: las 10 constraints siguen presentes y ninguna escritura del run
+las violo (9/9 SUCCESS); los grants siguen en el estado aprobado ({}), sin
+grants residuales ni cambios de ownership.
