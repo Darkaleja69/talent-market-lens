@@ -701,7 +701,7 @@
     tocar producción; el texto condicional de arriba se conserva por si una revisión
     futura cambia la decisión.
 
-- [ ] **T-13 — Producción: run programado, dashboard y warehouse** (~30 min)
+- [x] **T-13 — Producción: run programado, dashboard y warehouse** (~30 min)
   - **Objetivo:** comprobación real de la spec: el run semanal se explica solo.
   - **Hecho cuando:** el primer run programado tras el deploy cierra las 9 tareas
     (8 de negocio + cierre), deja su fila en `ops.run_metrics` con `data_date`
@@ -739,6 +739,24 @@
     los 1500 s; se observaría en un incidente real) y la **cifra exacta** de latencia
     de `system.lakeflow`, hoy solo acotada (**> 7 min 37 s**, ver
     `design-observability.md` §1.8); el run del domingo la acota.
+  - **Estado (2026-11-09): completada.** El run programado
+    `762969079133747` (`PERIODIC`, 2026-11-08 23:00:51 `Europe/Madrid`) cerró
+    **SUCCESS** con **9/9 tareas** en **14 min 40 s** (880.445 ms; por debajo del
+    umbral de salud de 1500 s y del `timeout_seconds` de 1800). Bronce:
+    **11.710 filas**, **0 en cuarentena**; `Publish_Run_Summary` escribió la
+    fila de `job_offers.ops.run_metrics` con `record.status = ok`, `data_date
+    2026-11-07` y los cuatro `checks` en verde (`bronze_summary`,
+    `bronze_sources` 4/4, `freshness` y `pending_files` con `total 0`).
+    Dashboard publicado por el workflow `42581592569` con la misma
+    `data_date`; warehouse `53d8e3e91af6749c` **`STOPPED` antes y después**.
+    Health rule **`RUN_DURATION_SECONDS > 1500`** activa en el job desplegado,
+    que conserva **9 tareas**, cron `50 0 23 ? * SUN` (`Europe/Madrid`) y
+    `run_as` persona. **0 € de dev**; run ordinario de producción (~0,18 €
+    estimados, `docs/costs.md`). Siguen `[NO VERIFICADO]` el correo de duración
+    (ningún run superó 1500 s) y la latencia exacta de `system.lakeflow` (no se
+    abrió una tercera sesión SQL). Evidencia:
+    `specs/011-Streaming-And-Observability/evidence.md` (2026-11-09).
+
 
 - [x] **T-15 — Un fichero con filas incoherentes no pierde las válidas**
   - Origen: la primera validación real de este ciclo. `multi_site` generó 1569
@@ -794,7 +812,7 @@
 
 ## 6. Cierre
 
-- [ ] **T-14 — Cierre de la spec**
+- [x] **T-14 — Cierre de la spec**
   - Notas `docs/databricks-de/notes/03-streaming.md` y `06-observability.md`
     escritas con la plantilla del índice (qué se practicó, conceptos, comandos,
     errores, dudas) y el índice actualizado.
@@ -804,3 +822,14 @@
   - **Hecho cuando:** decisión medida cerrada (adoptar/no cambiar) y verificada,
     run programado en verde, gasto de dev ≤ 2,0 € y merge `--no-ff` a `main` con tag
     `spec-011`.
+  - **Estado (2026-11-09): completada.** Notas `03-streaming.md` y
+    `06-observability.md` cerradas con el run real; índice, roadmap (semana 8 y
+    bitácora), RUNBOOK §9.8 y `docs/costs.md` actualizados. La comprobación real
+    de T-13 está en verde con `762969079133747` (9/9, 14 min 40 s) y el
+    dashboard `42581592569` con `data_date 2026-11-07`. Gasto de dev dentro del
+    techo: **5 runs + 2 sesiones SQL ≈ 1,09 €** (límite 2,0 €); el run de
+    producción es ordinario y no se imputa al techo de dev. Suites:
+    `databricks_notebooks/tests` **324 passed, 5 skipped**; `scrapers-pipeline/tests`
+    **1141 passed** (362,35 s). Merge final `--no-ff` a `main` y tag `spec-011`
+    tras el cierre. Siguen `[NO VERIFICADO]` el correo de duración y la latencia
+    exacta de `system.lakeflow` (sin tercera sesión SQL).

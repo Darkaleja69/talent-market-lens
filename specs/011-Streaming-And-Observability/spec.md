@@ -1,10 +1,13 @@
 # Especificación funcional: mecanismo de ingesta en streaming y observabilidad del run
 
-> **Borrador (2026-11-01).** Rama `spec/011-streaming-observability` creada desde
+> **Cerrada (2026-11-09).** Rama `spec/011-streaming-observability` creada desde
 > `main` (`c9c4a19`) en el worktree `talent-market-lens-011`. El roadmap asigna a
 > esta spec los **dominios 3 (streaming)** y **6 (observabilidad)** del temario, con
 > ventana del **30 nov al 6 dic**; el trabajo se adelanta a petición de la persona.
 > El presupuesto que la 009 le asigna es **3 runs de dev + 1 sesión SQL ≤ 2,0 €**.
+> La comprobación real (T-13) cerró con el run programado `762969079133747`
+> (9/9, 14 min 40 s, métricas y dashboard en verde) y el cierre quedó registrado
+> en `tasks.md` (T-14) y `evidence.md`.
 >
 > Nace de dos huecos medidos: (a) el mecanismo de ingesta del bronce **nunca se ha
 > comparado** con la alternativa declarativa de la plataforma, y (b) el bronce **no
@@ -211,7 +214,11 @@ tarea deberá cerrarse con el motivo medido y **sin gasto**.
 
 ### RF-9 — Presupuesto
 **Criterio (EARS):** Cuando se cierre la spec, el gasto de dev no deberá superar
-**3 runs + 1 sesión SQL** (~0,95–1,15 €) dentro del techo de **2,0 €** de la 009;
+**3 runs + 1 sesión SQL** (~0,95-1,15 €) dentro del techo de **2,0 €** de la 009;
+**desviación aprobada:** el cierre real acumula **5 runs de dev** (uno fallido) y
+**2 sesiones SQL**, ≈**1,09 €**, bajo el techo de 2,0 €; los dos runs últimos
+(A/B de T-11) los autorizó la persona el 2026-11-04 y la segunda sesión se
+registró en T-08;
 la demo en Free Edition y el extracto CSV no deberán costar nada (solo egress); la
 migración a producción, si la hay, irá al presupuesto de producción con aprobación
 explícita; cada gasto se anotará en `docs/costs.md` con motivo, id y coste.

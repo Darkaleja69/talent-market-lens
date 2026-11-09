@@ -317,6 +317,12 @@ al menos un despertar.
   **9/9**, **643 s**; bronce 142 s de setup + **144 s** de ejecución. Va al
   **presupuesto de producción de la 009**, no al techo de dev; la cadencia normal
   es el run programado del domingo.
+- **Run programado de T-13 (2026-11-08/09):** `762969079133747`, **9/9**,
+  **880.445 s** (14 min 40 s), 11.710 filas de bronce y **0** en cuarentena;
+  dashboard `42581592569` con `data_date 2026-11-07`. Es el **mismo run** ya
+  anotado en la spec 012 (T-10): coste ordinario de producción (~0,18 €
+  estimados), **0 € de dev** y **sin duplicar** el importe en el presupuesto de
+  la 011.
 - **Referencia de coste por run (medida en T-07):** **0,045956 USD** de DBU para un
   run de **744 s** (`PREMIUM_JOBS_COMPUTE`), **solo DBU a precio de lista**: sin
   VMs, discos, storage ni egress, y en **USD**. No es un importe en EUR ni la

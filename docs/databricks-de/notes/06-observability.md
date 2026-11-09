@@ -62,6 +62,12 @@ aquí resumo lo que aprendí.
   `on_duration_warning_threshold_exceeded` y está activa en dev y en prod.
   Producción corre con **9 tareas**, cron `50 0 23 ? * SUN`, `Europe/Madrid` y
   `UNPAUSED`.
+- **Run programado real** (T-13, 2026-11-09): `762969079133747`, **9/9** tareas
+  en **14 min 40 s**, con **11.710 filas** de bronce y **0** en cuarentena.
+  `Publish_Run_Summary` escribió la fila de `ops.run_metrics` (`record.status
+  ok`) con los cuatro `checks` en verde y `data_date 2026-11-07`; el dashboard
+  `42581592569` publicó esa misma fecha y el warehouse quedó `STOPPED` antes y
+  después. La health rule de 1500 s no se disparó, como se esperaba.
 - **El event log se quedó fuera** (T-06/T-08): con `spark.eventLog.dir` en
   `abfss://` el clúster no llegaba a arrancar; `landing/_eventlogs/` siguió con
   **0 ficheros y 0 B**, así que se quitaron las tres claves.
@@ -178,9 +184,10 @@ databricks warehouses list --profile vs_code
 - **La entrega del correo de duración** no se ha podido probar: ningún run
   superó los 1500 s. La configuración está desplegada; se vería en un incidente
   real.
-- **La cifra exacta de latencia de `system.lakeflow`**: hoy solo hay cota
-  inferior (**> 7 min 37 s**). El run programado del domingo 2026-11-08 debería
-  acotarla.
+- **La cifra exacta de latencia de `system.lakeflow`**: sigue `[NO VERIFICADO]`.
+  El run programado del 2026-11-08 ya existe, pero no se abrió una tercera
+  sesión SQL para acotarla; se mantiene la cota inferior **> 7 min 37 s**. El
+  cierre no depende de esa tabla.
 - **El tiempo del bronce con ingesta**: 144–146 s en dos runs y 121 s en otro,
   sin causa aislada. La persona lo aceptó como despreciable y el umbral no se
   ajustó.

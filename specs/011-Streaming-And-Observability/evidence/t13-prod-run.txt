@@ -1,0 +1,50 @@
+T-13 - run programado de produccion (2026-11-09)
+=================================================
+
+Job:            916863262593632 (Git Based ELT)
+Cron:           50 0 23 ? * SUN / Europe/Madrid / UNPAUSED
+run_as:         persona
+edit_mode:      UI_LOCKED
+run_id:         762969079133747
+trigger:        PERIODIC
+start:          2026-11-08 22:00:51 UTC  (2026-11-08 23:00:51 Europe/Madrid)
+end:            2026-11-08 22:15:32 UTC  (2026-11-08 23:15:32 Europe/Madrid)
+duration_ms:    880445  (14 min 40 s)
+state:          TERMINATED / SUCCESS
+tasks:          9/9 SUCCESS
+
+  task_key                  run_id               state
+  ------------------------  -------------------  -------
+  Bronze_Ingestion          413119331541619      SUCCESS
+  Silver_Indeed             380331836009874      SUCCESS
+  Silver_Infojobs           120326801891303      SUCCESS
+  Silver_Linkedin           883601698528867      SUCCESS
+  Silver_Multi_site         385109098556559      SUCCESS
+  Gold_Complete_Catalog     871797680829605      SUCCESS
+  Build_for_Web-Dashboard   1109345617480953     SUCCESS
+  Build_Report_Export       751987817196658      SUCCESS
+  Publish_Run_Summary       238014189201478      SUCCESS
+
+Cierre (salida de Publish_Run_Summary):
+
+  record.status:  ok
+  data_date:      2026-11-07
+  checks:
+    bronze_sources: expected 4, present 4, ok true
+    bronze_summary: ok true, sources indeed/infojobs/linkedin/multi_site
+    freshness:      data_age_days 1, max_age_days 8, ok true
+    pending_files:  bronze_rows 11710, total 0, listing_ok true, ok true
+  run_id:         762969079133747
+
+Bronce: 11.710 filas de entrada, 0 en cuarentena (indeed 0, infojobs 922,
+linkedin 5.886, multi_site 4.902). No se creo ninguna tabla
+<fuente>_quarantine.
+
+Job desplegado: 9 tareas, cron 50 0 23 ? * SUN, Europe/Madrid, UNPAUSED,
+run_as persona, timeout_seconds 1800, health rule
+RUN_DURATION_SECONDS > 1500. Sin cambios.
+
+Warehouse 53d8e3e91af6749c: STOPPED antes y despues. Sin SQL en T-13.
+
+Coste: run ordinario de produccion (~0,18 EUR estimados a 0,75 EUR/h;
+importe exacto del Account Console [NO VERIFICADO]). 0 EUR de dev.

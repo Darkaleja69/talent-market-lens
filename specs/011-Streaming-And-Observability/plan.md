@@ -1,6 +1,6 @@
 # Plan técnico: mecanismo de ingesta en streaming y observabilidad del run
 
-> Borrador del **2026-11-01**, rama `spec/011-streaming-observability` (desde
+> Cerrado el **2026-11-09**, rama `spec/011-streaming-observability` (desde
 > `main`, `c9c4a19`), worktree `talent-market-lens-011`.
 >
 > Regla de oro: **ningún cambio de mecanismo sin tabla de criterios y números**.

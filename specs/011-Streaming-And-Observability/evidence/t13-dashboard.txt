@@ -1,0 +1,35 @@
+T-13 - dashboard publicado (GitHub Actions / Pages)
+===================================================
+
+Workflow:   Dashboard (GitHub Pages)
+run_id:     42581592569
+event:      schedule
+branch:     main
+conclusion: success
+created:    2026-11-09 07:48:00 UTC
+url:        https://github.com/Darkaleja69/talent-market-lens/actions/runs/42581592569
+
+Jobs: "Ensamblar el sitio" success y "Desplegar en GitHub Pages" success.
+Todos los pasos (checkout, ensamblado, descarga del export, validacion,
+Pages, artefacto y deploy) terminaron en success.
+
+Sitio publicado (lectura publica, sin SAS):
+
+  https://darkaleja69.github.io/talent-market-lens/            HTTP 200
+  https://darkaleja69.github.io/talent-market-lens/data/meta.json  HTTP 200
+
+  data_date:      2026-11-07
+  generated_at:   2026-11-08T22:14:31Z
+  mode:           full
+  fact_offers:    29501 filas
+  sha256 fact_offers.parquet:
+    afbe93e8d78a21f4b0f15de495bfdb72320b0fe350a489988473cd9b3df76bad
+
+Coincide con la salida de Build_for_Web-Dashboard del run 762969079133747:
+mismo generated_at y mismo sha256.
+
+El workflow valida data_date y aborta sin desplegar si supera los 8 dias:
+2026-11-07 a 2026-11-09 son 2 dias, dentro del limite.
+
+Nota: el cron es lunes 01:00 UTC; GitHub lo inicio a las 07:48 UTC del mismo
+lunes (retraso del planificador, no fallo del workflow ni del dato).
